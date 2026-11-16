@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using SmartSpare.Infrastructure.Persistence;
 
 namespace SmartSpare.Infrastructure.Modules;
 
@@ -16,4 +17,10 @@ public interface IModuleInstaller
     void AddServices(IServiceCollection services, IConfiguration configuration);
 
     void MapEndpoints(IEndpointRouteBuilder endpoints);
+
+    /// <summary>
+    /// The module's migrations, or <see langword="null"/> while the module has no DbContext.
+    /// The migration runner applies them in catalogue order (ModuleCatalog).
+    /// </summary>
+    IModuleDatabase? Database => null;
 }
