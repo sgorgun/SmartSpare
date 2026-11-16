@@ -3,16 +3,19 @@
 # Schema diff: SQL-built (V001-V016 + R001) database vs. EF-built database
 # (ADR 0011, MODULE_MAPPING section 6, step 1).
 #
-#   tools/schema_diff.sh [schema ...]          default: every schema with an EF context so far:
+#   tools/schema_diff.sh [schema ...]          default: every schema of the database:
 #                                              ref util audit iam catalog inventory raw staging fleet
+#                                              procurement forecast mart
 #
 # Starts two throw-away postgres:17 containers:
 #   A  bootstrap + db/scripts/migrate.sh (the V016 baseline, built inside the container)
 #   B  bootstrap + all EF migrations through SmartSpare.MigrationRunner
 # dumps the given schemas with pg_dump --schema-only, normalises the dumps (header and
 # session lines removed, statements sorted, because pg_dump orders objects partly by OID)
-# and diffs them. Lines matching tools/schema_diff.allow are documented, intended
-# differences. Exit code 0 = no other difference, 1 = unexpected difference.
+# and compares them as sets of statements. Before the comparison, tools/schema_diff.renames
+# rewrites names in the baseline for objects that moved on purpose (ADR 0011 D2), so moved
+# objects are still compared one by one. Statements matching tools/schema_diff.allow are
+# documented, intended differences. Exit 0 = no other difference, 1 = unexpected difference.
 #
 # Needs Docker, python3 and the .NET SDK. KEEP=1 keeps the containers for inspection.
 # Output: artifacts/schema-diff/{sql,ef}.sql (normalised dumps) and diff.txt.
@@ -20,7 +23,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SCHEMAS=("${@:-ref util audit iam catalog inventory raw staging fleet}")
+SCHEMAS=("${@:-ref util audit iam catalog inventory raw staging fleet procurement forecast mart}")
 read -r -a SCHEMAS <<<"${SCHEMAS[*]}"
 OUT="$ROOT/artifacts/schema-diff"
 IMAGE="postgres:17"
@@ -99,7 +102,7 @@ diff -u "$OUT/sql.sql" "$OUT/ef.sql" >"$OUT/diff.txt" || true
 # The regex is searched in the statement with its lines joined by single spaces.
 echo "== schemas: ${SCHEMAS[*]}"
 pypath() { if command -v cygpath >/dev/null; then cygpath -w "$1"; else printf %s "$1"; fi; }
-"$PY" - "$(pypath "$OUT/sql.sql")" "$(pypath "$OUT/ef.sql")" "$(pypath "$ROOT/tools/schema_diff.allow")" <<'PYEOF'
+"$PY" - "$(pypath "$OUT/sql.sql")" "$(pypath "$OUT/ef.sql")" "$(pypath "$ROOT/tools/schema_diff.allow")" "$(pypath "$ROOT/tools/schema_diff.renames")" <<'PYEOF'
 import re, sys
 def statements(path):
     text = open(path, encoding="utf-8").read()
@@ -109,7 +112,18 @@ def statements(path):
         if line.endswith(";"):
             parts.append(" ".join(l.strip() for l in cur)); cur = []
     return set(parts)
-sql, ef = statements(sys.argv[1]), statements(sys.argv[2])
+renames = []
+for line in open(sys.argv[4], encoding="utf-8"):
+    line = line.strip()
+    if line and not line.startswith("#"):
+        old, new = (part.strip() for part in line.split("=>"))
+        renames.append((old, new))
+def renamed(statement):
+    for old, new in renames:
+        statement = statement.replace(old, new)
+    return statement
+sql, ef = {renamed(s) for s in statements(sys.argv[1])}, statements(sys.argv[2])
+print(f"   renames applied to the baseline: {len(renames)}")
 allow = {"-": [], "+": []}
 for line in open(sys.argv[3], encoding="utf-8"):
     line = line.rstrip("\n")
