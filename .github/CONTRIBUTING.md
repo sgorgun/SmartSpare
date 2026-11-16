@@ -62,4 +62,13 @@ gh release create v0.2.0 --generate-notes
 
 ## Dependencies
 
-Dependabot opens grouped weekly pull requests for NuGet packages and GitHub Actions. They follow the same rules: green CI, then squash and merge.
+Dependabot opens grouped weekly pull requests for NuGet packages and GitHub Actions. They follow the same rules: green CI, then squash and merge. Packages versioned with the runtime (`Microsoft.Extensions.*`, `Microsoft.AspNetCore.*`, EF Core, Npgsql) only get updates within the .NET 10 line (ADR 0007).
+
+Dependabot updates the lock file of the project that references a package, but not the lock files of projects that depend on it, so CI fails at `dotnet restore --locked-mode` with NU1004. Fix it on the Dependabot branch:
+
+```
+gh pr checkout <number>
+dotnet restore SmartSpare.slnx --force-evaluate
+git commit -am "build(deps): refresh lock files"
+git push
+```
