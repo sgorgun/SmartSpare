@@ -5,7 +5,9 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using SmartSpare.Infrastructure.Messaging;
 using SmartSpare.Infrastructure.Modules;
+using SmartSpare.Infrastructure.Persistence;
 using SmartSpare.Modules.Procurement.Contracts;
+using SmartSpare.Modules.Procurement.Infrastructure.Persistence;
 using SmartSpare.Modules.Procurement.Features.Ping;
 
 namespace SmartSpare.Modules.Procurement;
@@ -15,8 +17,14 @@ public sealed class ProcurementModuleInstaller : IModuleInstaller
 {
     public string Name => ProcurementModule.Name;
 
-    public void AddServices(IServiceCollection services, IConfiguration configuration) =>
-        services.AddHandlersFromAssembly(typeof(ProcurementModuleInstaller).Assembly);
+    public IModuleDatabase Database => ProcurementDatabase.Instance;
+
+    public void AddServices(IServiceCollection services, IConfiguration configuration)
+    {
+        var assembly = typeof(ProcurementModuleInstaller).Assembly;
+        services.AddHandlersFromAssembly(assembly);
+        ProcurementDatabase.Instance.AddTo(services, assembly, configuration.GetConnectionString(PersistenceRegistration.ConnectionStringName), ProcurementDbContext.HistorySchema);
+    }
 
     public void MapEndpoints(IEndpointRouteBuilder endpoints)
     {
