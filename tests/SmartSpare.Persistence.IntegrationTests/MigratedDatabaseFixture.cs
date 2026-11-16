@@ -57,5 +57,37 @@ public sealed class MigratedDatabaseFixture : IAsyncLifetime
         return (T)(await command.ExecuteScalarAsync(TestContext.Current.CancellationToken))!;
     }
 
+    /// <summary>
+    /// Runs <paramref name="action"/> as the owner role in a transaction that is always rolled back,
+    /// so behaviour tests leave no data behind for the other tests of the collection.
+    /// </summary>
+    public async Task InRolledBackTransactionAsync(Func<NpgsqlConnection, NpgsqlTransaction, Task> action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        await using var connection = new NpgsqlConnection(AdminConnectionString);
+        await connection.OpenAsync(TestContext.Current.CancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(TestContext.Current.CancellationToken);
+        await using (var role = new NpgsqlCommand("SET LOCAL ROLE smartspare_owner", connection, transaction))
+        {
+            await role.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
+        }
+
+        try
+        {
+            await action(connection, transaction);
+        }
+        finally
+        {
+            await transaction.RollbackAsync(TestContext.Current.CancellationToken);
+        }
+    }
+
     public async ValueTask DisposeAsync() => await _container.DisposeAsync();
+}
+
+/// <summary>One migrated server shared by all test classes (the migration takes a few seconds).</summary>
+[CollectionDefinition(Name)]
+public sealed class MigratedDatabaseGroup : ICollectionFixture<MigratedDatabaseFixture>
+{
+    public const string Name = "Migrated database";
 }
