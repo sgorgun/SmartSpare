@@ -7,6 +7,10 @@
 # the reduced stock and is rejected with SS200. Final stock is never negative.
 # =============================================================================
 set -euo pipefail
+# Local superuser of docker compose by default (credentials from .env, see .env.example);
+# PG* variables in the environment take precedence, e.g. for the server admin.
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../scripts" && pwd)/env.sh"
+connect_as_superuser
 PSQL=(psql -X -q -v ON_ERROR_STOP=1 -tA)
 
 read -r WH PART AVAIL <<<"$("${PSQL[@]}" -F' ' -c "

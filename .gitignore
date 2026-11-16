@@ -5,8 +5,11 @@ obj/
 *.user
 *.suo
 appsettings.*.local.json
+# Local credentials (see .env.example); the example itself is committed.
+.env
 *.env
-.env*
+.env.*
+!.env.example
 TestResults/
 node_modules/
 *.binlog
