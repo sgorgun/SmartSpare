@@ -5,6 +5,31 @@
     <Project Path="src/BuildingBlocks/SmartSpare.ServiceDefaults/SmartSpare.ServiceDefaults.csproj" />
     <Project Path="src/BuildingBlocks/SmartSpare.SharedKernel/SmartSpare.SharedKernel.csproj" />
   </Folder>
+  <Folder Name="/src/Modules/" />
+  <Folder Name="/src/Modules/Fleet/">
+    <Project Path="src/Modules/Fleet/SmartSpare.Modules.Fleet.Contracts/SmartSpare.Modules.Fleet.Contracts.csproj" />
+    <Project Path="src/Modules/Fleet/SmartSpare.Modules.Fleet/SmartSpare.Modules.Fleet.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Forecasting/">
+    <Project Path="src/Modules/Forecasting/SmartSpare.Modules.Forecasting.Contracts/SmartSpare.Modules.Forecasting.Contracts.csproj" />
+    <Project Path="src/Modules/Forecasting/SmartSpare.Modules.Forecasting/SmartSpare.Modules.Forecasting.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Identity/">
+    <Project Path="src/Modules/Identity/SmartSpare.Modules.Identity.Contracts/SmartSpare.Modules.Identity.Contracts.csproj" />
+    <Project Path="src/Modules/Identity/SmartSpare.Modules.Identity/SmartSpare.Modules.Identity.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Inventory/">
+    <Project Path="src/Modules/Inventory/SmartSpare.Modules.Inventory.Contracts/SmartSpare.Modules.Inventory.Contracts.csproj" />
+    <Project Path="src/Modules/Inventory/SmartSpare.Modules.Inventory/SmartSpare.Modules.Inventory.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Procurement/">
+    <Project Path="src/Modules/Procurement/SmartSpare.Modules.Procurement.Contracts/SmartSpare.Modules.Procurement.Contracts.csproj" />
+    <Project Path="src/Modules/Procurement/SmartSpare.Modules.Procurement/SmartSpare.Modules.Procurement.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Reporting/">
+    <Project Path="src/Modules/Reporting/SmartSpare.Modules.Reporting.Contracts/SmartSpare.Modules.Reporting.Contracts.csproj" />
+    <Project Path="src/Modules/Reporting/SmartSpare.Modules.Reporting/SmartSpare.Modules.Reporting.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/SmartSpare.Infrastructure.UnitTests/SmartSpare.Infrastructure.UnitTests.csproj" />
     <Project Path="tests/SmartSpare.SharedKernel.UnitTests/SmartSpare.SharedKernel.UnitTests.csproj" />

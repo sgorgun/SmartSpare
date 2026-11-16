@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\BuildingBlocks\SmartSpare.Infrastructure\SmartSpare.Infrastructure.csproj" />
+    <ProjectReference Include="..\SmartSpare.Modules.Procurement.Contracts\SmartSpare.Modules.Procurement.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

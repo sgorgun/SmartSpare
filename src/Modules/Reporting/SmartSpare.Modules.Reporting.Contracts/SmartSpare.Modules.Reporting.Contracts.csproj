@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Public surface of the Reporting module: integration events and read-only query interfaces. -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\BuildingBlocks\SmartSpare.SharedKernel\SmartSpare.SharedKernel.csproj" />
+  </ItemGroup>
+
+</Project>
