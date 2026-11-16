@@ -1,0 +1,126 @@
+using NetArchTest.Rules;
+using SmartSpare.Infrastructure.Modules;
+
+namespace SmartSpare.ArchitectureTests;
+
+/// <summary>Module boundaries from ADR 0002 and ADR 0003.</summary>
+public sealed class ModuleBoundaryTests
+{
+    [Fact]
+    public void AllModulesAreCovered() =>
+        Directory.EnumerateDirectories(Path.Combine(Solution.RootDirectory, "src", "Modules"))
+            .Select(Path.GetFileName)
+            .Order(StringComparer.Ordinal)
+            .ShouldBe(Solution.Modules.Select(m => m.Name).Order(StringComparer.Ordinal));
+
+    [Theory]
+    [MemberData(nameof(Solution.ModuleNames), MemberType = typeof(Solution))]
+    public void Module_DoesNotDependOnOtherModulesImplementation(string name)
+    {
+        var module = Solution.Get(name);
+        var otherImplementations = Solution.Modules.Where(m => m != module).ToList();
+
+        var result = Types.InAssembly(module.Implementation)
+            .ShouldNot()
+            .HaveDependencyOnAny([.. otherImplementations.SelectMany(ImplementationNamespaces)])
+            .GetResult();
+        result.IsSuccessful.ShouldBeTrue(Describe(result));
+
+        var forbiddenAssemblies = otherImplementations.Select(m => m.Implementation.GetName().Name!).ToHashSet(StringComparer.Ordinal);
+        Solution.SmartSpareReferences(module.Implementation).ShouldNotContain(r => forbiddenAssemblies.Contains(r));
+        Solution.ProjectReferences(module.Implementation.GetName().Name!).ShouldNotContain(r => forbiddenAssemblies.Contains(r));
+    }
+
+    [Theory]
+    [MemberData(nameof(Solution.ModuleNames), MemberType = typeof(Solution))]
+    public void Module_ReferencesOnlyBuildingBlocksAndContracts(string name)
+    {
+        var module = Solution.Get(name);
+
+        Solution.ProjectReferences(module.Implementation.GetName().Name!).ShouldAllBe(r =>
+            r == "SmartSpare.SharedKernel"
+            || r == "SmartSpare.Infrastructure"
+            || (r.StartsWith(Solution.ModulePrefix, StringComparison.Ordinal) && r.EndsWith(Solution.ContractsSuffix, StringComparison.Ordinal)));
+    }
+
+    [Theory]
+    [MemberData(nameof(Solution.ModuleNames), MemberType = typeof(Solution))]
+    public void Domain_DoesNotDependOnEfCoreOrAspNetCore(string name)
+    {
+        var module = Solution.Get(name);
+
+        var result = Types.InAssembly(module.Implementation)
+            .That().ResideInNamespaceStartingWith(module.Namespace + ".Domain")
+            .ShouldNot().HaveDependencyOnAny("Microsoft.EntityFrameworkCore", "Microsoft.AspNetCore", "Npgsql")
+            .GetResult();
+
+        result.IsSuccessful.ShouldBeTrue(Describe(result));
+    }
+
+    [Theory]
+    [MemberData(nameof(Solution.ModuleNames), MemberType = typeof(Solution))]
+    public void Contracts_ReferenceOnlySharedKernel(string name)
+    {
+        var module = Solution.Get(name);
+        const string allowed = "SmartSpare.SharedKernel";
+
+        Solution.SmartSpareReferences(module.Contracts).ShouldAllBe(r => r == allowed);
+        Solution.ProjectReferences(module.Contracts.GetName().Name!).ShouldAllBe(r => r == allowed);
+
+        var result = Types.InAssembly(module.Contracts)
+            .ShouldNot().HaveDependencyOnAny("Microsoft.EntityFrameworkCore", "Microsoft.AspNetCore", "SmartSpare.Infrastructure")
+            .GetResult();
+        result.IsSuccessful.ShouldBeTrue(Describe(result));
+    }
+
+    [Theory]
+    [MemberData(nameof(Solution.ModuleNames), MemberType = typeof(Solution))]
+    public void Module_ExposesOnlyItsInstaller(string name)
+    {
+        var module = Solution.Get(name);
+
+        var exported = module.Implementation.GetExportedTypes();
+
+        exported.ShouldHaveSingleItem($"{name} must expose only its module installer, found: {string.Join(", ", exported.Select(t => t.FullName))}");
+        var installer = exported[0];
+        installer.IsAssignableTo(typeof(IModuleInstaller)).ShouldBeTrue();
+        installer.IsSealed.ShouldBeTrue();
+        installer.GetConstructor(Type.EmptyTypes).ShouldNotBeNull("the host creates installers with a parameterless constructor");
+    }
+
+    [Fact]
+    public void ApiContracts_DoesNotReferenceModules()
+    {
+        Solution.SmartSpareReferences(Solution.ApiContracts)
+            .ShouldNotContain(r => r.StartsWith(Solution.ModulePrefix, StringComparison.Ordinal));
+        Solution.ProjectReferences("SmartSpare.ApiContracts")
+            .ShouldNotContain(r => r.StartsWith(Solution.ModulePrefix, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void SharedKernel_DependsOnNothingInTheSolutionOrFrameworks()
+    {
+        Solution.SmartSpareReferences(Solution.SharedKernel).ShouldBeEmpty();
+        Solution.ProjectReferences("SmartSpare.SharedKernel").ShouldBeEmpty();
+
+        var result = Types.InAssembly(Solution.SharedKernel)
+            .ShouldNot().HaveDependencyOnAny("Microsoft.EntityFrameworkCore", "Microsoft.AspNetCore", "Npgsql", "FluentValidation")
+            .GetResult();
+        result.IsSuccessful.ShouldBeTrue(Describe(result));
+    }
+
+    /// <summary>
+    /// Namespaces that belong to a module's implementation. The Contracts namespace
+    /// (<c>SmartSpare.Modules.X.Contracts</c>) is deliberately not listed: it may be used by others.
+    /// </summary>
+    private static IEnumerable<string> ImplementationNamespaces(Module module) =>
+    [
+        $"{module.Namespace}.Domain",
+        $"{module.Namespace}.Features",
+        $"{module.Namespace}.Infrastructure",
+        $"{module.Namespace}.{module.Name}ModuleInstaller",
+    ];
+
+    private static string Describe(NetArchTest.Rules.TestResult result) =>
+        result.IsSuccessful ? string.Empty : "Violations: " + string.Join(", ", result.FailingTypeNames ?? []);
+}

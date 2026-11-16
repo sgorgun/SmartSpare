@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="NetArchTest.Rules" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\BuildingBlocks\SmartSpare.SharedKernel\SmartSpare.SharedKernel.csproj" />
+    <ProjectReference Include="..\..\src\BuildingBlocks\SmartSpare.Infrastructure\SmartSpare.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Web\SmartSpare.ApiContracts\SmartSpare.ApiContracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Identity\SmartSpare.Modules.Identity\SmartSpare.Modules.Identity.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Inventory\SmartSpare.Modules.Inventory\SmartSpare.Modules.Inventory.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Fleet\SmartSpare.Modules.Fleet\SmartSpare.Modules.Fleet.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Procurement\SmartSpare.Modules.Procurement\SmartSpare.Modules.Procurement.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Forecasting\SmartSpare.Modules.Forecasting\SmartSpare.Modules.Forecasting.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Reporting\SmartSpare.Modules.Reporting\SmartSpare.Modules.Reporting.csproj" />
+  </ItemGroup>
+
+</Project>

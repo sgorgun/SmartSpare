@@ -39,6 +39,7 @@
     <Project Path="src/Web/SmartSpare.ApiContracts/SmartSpare.ApiContracts.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/SmartSpare.ArchitectureTests/SmartSpare.ArchitectureTests.csproj" />
     <Project Path="tests/SmartSpare.Host.IntegrationTests/SmartSpare.Host.IntegrationTests.csproj" />
     <Project Path="tests/SmartSpare.Infrastructure.UnitTests/SmartSpare.Infrastructure.UnitTests.csproj" />
     <Project Path="tests/SmartSpare.SharedKernel.UnitTests/SmartSpare.SharedKernel.UnitTests.csproj" />
