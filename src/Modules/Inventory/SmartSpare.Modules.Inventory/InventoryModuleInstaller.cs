@@ -5,7 +5,9 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using SmartSpare.Infrastructure.Messaging;
 using SmartSpare.Infrastructure.Modules;
+using SmartSpare.Infrastructure.Persistence;
 using SmartSpare.Modules.Inventory.Contracts;
+using SmartSpare.Modules.Inventory.Infrastructure.Persistence;
 using SmartSpare.Modules.Inventory.Features.Ping;
 
 namespace SmartSpare.Modules.Inventory;
@@ -14,6 +16,8 @@ namespace SmartSpare.Modules.Inventory;
 public sealed class InventoryModuleInstaller : IModuleInstaller
 {
     public string Name => InventoryModule.Name;
+
+    public IModuleDatabase Database => InventoryDatabase.Instance;
 
     public void AddServices(IServiceCollection services, IConfiguration configuration) =>
         services.AddHandlersFromAssembly(typeof(InventoryModuleInstaller).Assembly);

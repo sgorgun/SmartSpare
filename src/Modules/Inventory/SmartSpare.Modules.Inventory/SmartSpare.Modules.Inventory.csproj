@@ -1,5 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <!-- Embeds db/sql/inventory/*.sql for the module's migrations (Directory.Build.targets). -->
+    <SmartSpareSqlFolder>inventory</SmartSpareSqlFolder>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\..\..\BuildingBlocks\SmartSpare.Infrastructure\SmartSpare.Infrastructure.csproj" />
     <ProjectReference Include="..\SmartSpare.Modules.Inventory.Contracts\SmartSpare.Modules.Inventory.Contracts.csproj" />
