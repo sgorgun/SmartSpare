@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Development and CI tool: bootstraps a local PostgreSQL server and applies the EF Core migrations
+    of all contexts in catalogue order. Never deployed: Azure runs one EF migration bundle per context
+    (MODULE_MAPPING section 5.5). Also the startup project for `dotnet ef`.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <UserSecretsId>smartspare-migration-runner</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\BuildingBlocks\SmartSpare.ServiceDefaults\SmartSpare.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\SmartSpare.ModuleCatalog\SmartSpare.ModuleCatalog.csproj" />
+  </ItemGroup>
+
+  <!-- The cluster bootstrap stays a psql script (also run by hand on Azure); the runner interprets it. -->
+  <ItemGroup>
+    <EmbeddedResource Include="$(MSBuildThisFileDirectory)..\..\..\db\bootstrap\000_bootstrap_cluster.sql"
+                      LogicalName="bootstrap/000_bootstrap_cluster.sql"
+                      Link="Sql/000_bootstrap_cluster.sql" />
+  </ItemGroup>
+
+</Project>
