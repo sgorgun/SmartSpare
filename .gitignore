@@ -11,3 +11,12 @@ TestResults/
 node_modules/
 *.binlog
 .aspire/
+
+# Local tooling (never committed)
+CLAUDE.md
+CLAUDE.local.md
+.claude/
+
+# Python
+__pycache__/
+*.pyc
