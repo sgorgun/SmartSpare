@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # =============================================================================
 # SmartSpare — SQL migration runner (local development / CI).
-# Same semantics as src/SmartSpare.DbMigrator (used for Azure deployments):
+# Builds the database from the SQL scripts until stage 2 ports the schema to
+# EF Core migrations (ADR 0004), which then replace this runner. Semantics:
 #   * versioned scripts  db/migrations/V<NNN>__<name>.sql  run once, in order;
 #   * repeatable scripts db/seed/R<NNN>__<name>.sql        re-run when changed;
 #   * every script runs in ONE transaction together with its journal entry;
