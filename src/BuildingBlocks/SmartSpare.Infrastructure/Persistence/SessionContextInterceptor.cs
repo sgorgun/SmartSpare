@@ -11,6 +11,14 @@ public interface ICurrentUser
     string? Reason { get; }
 }
 
+/// <summary>Default until the BFF provides the signed-in user (stage 3): no user, like a background job.</summary>
+internal sealed class NoCurrentUser : ICurrentUser
+{
+    public Guid? UserId => null;
+
+    public string? Reason => null;
+}
+
 /// <summary>
 /// Passes the acting user to PostgreSQL at the start of every transaction of a module DbContext:
 ///   SELECT set_config('app.user_id', @user, true), set_config('app.reason', @reason, true)
