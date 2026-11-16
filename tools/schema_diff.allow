@@ -1,0 +1,14 @@
+# Documented, intended differences between the SQL-built (V016) and the EF-built schema.
+# '-' = statement of the SQL baseline intentionally absent in the EF database,
+# '+' = statement only the EF database has. Extended regex, searched in the statement
+# with its lines joined by spaces. Every entry names the decision behind it.
+
+# EF Core migration history per context replaces meta.schema_migration (MODULE_MAPPING 1.8, 5.1).
++__ef_migrations_history
+
+# ADR 0011 D3/D4: the Platform never references a module; FK audit_log.user_id -> iam.app_user removed.
+-ADD CONSTRAINT fk_audit_log_user FOREIGN KEY
+
+# audit.v_audit_log_masked reads iam.app_user: owned by Reporting and created by its migration in
+# PR 2d (MODULE_MAPPING 1.7, 3.1 X19). Remove these entries when 2d adds the view.
+-audit\.v_audit_log_masked
