@@ -9,3 +9,5 @@ appsettings.*.local.json
 .env*
 TestResults/
 node_modules/
+*.binlog
+.aspire/
