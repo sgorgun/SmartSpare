@@ -4,6 +4,8 @@
   </Folder>
   <Folder Name="/src/Bootstrapper/">
     <Project Path="src/Bootstrapper/SmartSpare.Host/SmartSpare.Host.csproj" />
+    <Project Path="src/Bootstrapper/SmartSpare.MigrationRunner/SmartSpare.MigrationRunner.csproj" />
+    <Project Path="src/Bootstrapper/SmartSpare.ModuleCatalog/SmartSpare.ModuleCatalog.csproj" />
   </Folder>
   <Folder Name="/src/BuildingBlocks/">
     <Project Path="src/BuildingBlocks/SmartSpare.Infrastructure/SmartSpare.Infrastructure.csproj" />
@@ -42,6 +44,7 @@
     <Project Path="tests/SmartSpare.ArchitectureTests/SmartSpare.ArchitectureTests.csproj" />
     <Project Path="tests/SmartSpare.Host.IntegrationTests/SmartSpare.Host.IntegrationTests.csproj" />
     <Project Path="tests/SmartSpare.Infrastructure.UnitTests/SmartSpare.Infrastructure.UnitTests.csproj" />
+    <Project Path="tests/SmartSpare.Persistence.IntegrationTests/SmartSpare.Persistence.IntegrationTests.csproj" />
     <Project Path="tests/SmartSpare.SharedKernel.UnitTests/SmartSpare.SharedKernel.UnitTests.csproj" />
   </Folder>
 </Solution>

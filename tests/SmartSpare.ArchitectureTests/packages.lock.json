@@ -305,6 +305,18 @@
           "SmartSpare.SharedKernel": "[1.0.0, )"
         }
       },
+      "smartspare.modulecatalog": {
+        "type": "Project",
+        "dependencies": {
+          "SmartSpare.Infrastructure": "[1.0.0, )",
+          "SmartSpare.Modules.Fleet": "[1.0.0, )",
+          "SmartSpare.Modules.Forecasting": "[1.0.0, )",
+          "SmartSpare.Modules.Identity": "[1.0.0, )",
+          "SmartSpare.Modules.Inventory": "[1.0.0, )",
+          "SmartSpare.Modules.Procurement": "[1.0.0, )",
+          "SmartSpare.Modules.Reporting": "[1.0.0, )"
+        }
+      },
       "smartspare.modules.fleet": {
         "type": "Project",
         "dependencies": {

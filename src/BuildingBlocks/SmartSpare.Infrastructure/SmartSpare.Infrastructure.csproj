@@ -1,5 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <!-- Embeds db/sql/platform/*.sql for the PlatformDbContext migrations (Directory.Build.targets). -->
+    <SmartSpareSqlFolder>platform</SmartSpareSqlFolder>
+  </PropertyGroup>
+
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>

@@ -12,11 +12,14 @@ public interface ICurrentUser
 }
 
 /// <summary>
-/// Passes the authenticated user to PostgreSQL at the start of every transaction:
-///   SELECT set_config('app.user_id', ..., true)   -- true = transaction-local (safe with connection pooling)
-/// The database uses it in audit triggers (audit.audit_log.user_id) and in the role checks of
-/// business functions (util.require_role). All MediatR commands run inside a transaction
-/// (TransactionBehavior), so every write is attributed to a user.
+/// Passes the acting user to PostgreSQL at the start of every transaction of a module DbContext:
+///   SELECT set_config('app.user_id', @user, true), set_config('app.reason', @reason, true)
+/// The third argument <c>true</c> makes the values transaction-local: they vanish at commit or
+/// rollback, so a pooled connection never carries them to the next request. An empty value means
+/// "no user" (util.current_app_user() returns NULL, e.g. for background jobs).
+/// The database reads them in the audit triggers (audit.audit_log.user_id, reason) and in the role
+/// checks of business functions (util.require_role). Commands run inside a transaction opened by
+/// the transaction decorator, so every write is attributed. Trust model: MODULE_MAPPING section 3.6.
 /// </summary>
 public sealed class SessionContextInterceptor(ICurrentUser currentUser) : DbTransactionInterceptor
 {

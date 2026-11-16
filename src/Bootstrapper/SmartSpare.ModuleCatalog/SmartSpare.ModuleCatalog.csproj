@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The one ordered list of modules, shared by the host and the migration runner (MODULE_MAPPING 5.2). -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\BuildingBlocks\SmartSpare.Infrastructure\SmartSpare.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Modules\Identity\SmartSpare.Modules.Identity\SmartSpare.Modules.Identity.csproj" />
+    <ProjectReference Include="..\..\Modules\Inventory\SmartSpare.Modules.Inventory\SmartSpare.Modules.Inventory.csproj" />
+    <ProjectReference Include="..\..\Modules\Fleet\SmartSpare.Modules.Fleet\SmartSpare.Modules.Fleet.csproj" />
+    <ProjectReference Include="..\..\Modules\Procurement\SmartSpare.Modules.Procurement\SmartSpare.Modules.Procurement.csproj" />
+    <ProjectReference Include="..\..\Modules\Forecasting\SmartSpare.Modules.Forecasting\SmartSpare.Modules.Forecasting.csproj" />
+    <ProjectReference Include="..\..\Modules\Reporting\SmartSpare.Modules.Reporting\SmartSpare.Modules.Reporting.csproj" />
+  </ItemGroup>
+
+</Project>
