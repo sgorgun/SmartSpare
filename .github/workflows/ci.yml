@@ -43,6 +43,12 @@ jobs:
       - name: Check formatting
         run: dotnet format SmartSpare.slnx --no-restore --verify-no-changes
 
+      # Fails if any DbContext's model differs from its last migration snapshot (a migration is
+      # missing). Same check as `dotnet ef migrations has-pending-model-changes`, run for every
+      # context of the module catalogue, so new contexts are covered automatically.
+      - name: Check for pending model changes
+        run: dotnet run --project src/Bootstrapper/SmartSpare.MigrationRunner --no-build --configuration Release -- check-model
+
       # Tests that need Docker (Testcontainers) are tagged Category=Integration and run separately.
       - name: Test
         run: >
@@ -56,5 +62,40 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: test-results
+          path: TestResults
+          if-no-files-found: ignore
+
+  integration:
+    name: Integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
+
+      - name: Restore
+        run: dotnet restore SmartSpare.slnx --locked-mode
+
+      - name: Build
+        run: dotnet build SmartSpare.slnx --no-restore --configuration Release -warnaserror
+
+      # Testcontainers starts postgres:17 through the runner's Docker daemon.
+      - name: Integration tests
+        run: >
+          dotnet test SmartSpare.slnx --no-build --configuration Release
+          --filter "Category=Integration"
+          --logger trx --results-directory TestResults
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: integration-test-results
           path: TestResults
           if-no-files-found: ignore
