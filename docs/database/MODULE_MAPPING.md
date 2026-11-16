@@ -1,6 +1,6 @@
 # SmartSpare — Database Ownership per Module (Stage 2 Plan)
 
-Status: **analysis for stage 2 (data layer)**, decisions proposed in [ADR 0011](../adr/0011-database-ownership-per-module.md).
+Status: **analysis for stage 2 (data layer)**, decisions accepted in [ADR 0011](../adr/0011-database-ownership-per-module.md).
 Inputs: [ARCHITECTURE_DECISIONS.md](../architecture/ARCHITECTURE_DECISIONS.md) sections 2, 4, 5; ADR [0002](../adr/0002-modular-monolith.md), [0003](../adr/0003-module-boundaries-and-integration-events.md), [0004](../adr/0004-hybrid-ef-core-code-first.md), [0009](../adr/0009-azure-hosting-and-delivery.md); [DATABASE_DESIGN.md](DATABASE_DESIGN.md); `db/bootstrap`, `db/migrations/V001–V016`, `db/seed/R001`, `db/testdata/T001`, `db/tests`.
 
 This document maps every object of the current database (schema version 16) to the module that will own it, lists every dependency that crosses a module boundary and decides what replaces it, and splits the remaining stage 2 work into pull requests.
@@ -19,6 +19,8 @@ This document maps every object of the current database (schema version 16) to t
 | D6 | One DbContext per module plus a `PlatformDbContext`; each keeps its history in `<schema>.__ef_migrations_history`. Apply order: **Platform first, Reporting last**, the other five in between in a fixed order. Transitional cross-module views are created by the Reporting context, the only one allowed to read every schema. |
 | D7 | SQL parts live in `db/sql/<context>/` and are embedded into the module assembly; migrations call them by resource name. Partitioned tables are created in SQL and mapped with `ExcludeFromMigrations()`. |
 | D8 | Database roles: the current `app_*` capability roles are ported unchanged in stage 2. Per-module roles used with `SET ROLE` replace them in **stage 9** (together with Managed Identity), after the transitional cross-module functions are gone. |
+| D9 | Database-side role and warehouse checks read transaction-local session GUCs set only by `SessionContextInterceptor`; the residual risk of self-set GUCs is closed by per-module roles in stage 9 (section 3.6). |
+| D10 | Each module has a unit of work over its own DbContext; the transaction decorator resolves the module by the command's assembly, and integration events reach `outbox_message` in the same `SaveChanges` as the data (section 5.6, PR 2d). |
 
 ---
 
@@ -213,7 +215,7 @@ General pattern for SQL functions that must publish an event: the C# command han
 
 | # | Object (current) | Crosses into | Verdict | Target design | Stage |
 |---|---|---|---|---|---|
-| X1 | `util.require_role` → `iam.user_has_role` (used by every `SECURITY DEFINER` business function) | Platform → Identity | SQL-local (Platform) | Checks the transaction-local GUC `app.user_roles`, set by `SessionContextInterceptor` from the principal's role claims next to `app.user_id`. `iam.user_has_role` stays Identity-internal. Trust model unchanged: `app.user_id` already comes from the API. Test helper `pg_temp.act_as` sets both GUCs. | 3 |
+| X1 | `util.require_role` → `iam.user_has_role` (used by every `SECURITY DEFINER` business function) | Platform → Identity | SQL-local (Platform) | Checks the transaction-local GUC `app.user_roles`, set by `SessionContextInterceptor` from the principal's role claims next to `app.user_id`. `iam.user_has_role` stays Identity-internal. Trust model in section 3.6. Test helper `pg_temp.act_as` sets both GUCs. | 3 |
 | X2 | `inventory.dispatch_transfer`, `inventory.receive_transfer` read `iam.app_user.home_warehouse_id` (US11, SS302) | Inventory → Identity | SQL-local (Inventory) | Read the GUC `app.home_warehouse_id` (claim of the signed-in keeper) instead of `iam.app_user`. | 3–4 |
 | X3 | `audit.trg_row_audit` on 19 tables of 5 modules | modules → Platform | SQL-local (Platform) | Unchanged. The function is Platform; each module migration attaches `trg_audit` to its own tables with its own list of excluded PII columns. | 2 |
 | X4 | `util.trg_assign_document_number` / `util.document_counter` (prefixes TR, SO, PO) | modules → Platform | SQL-local (Platform) | Unchanged; prefixes are disjoint per module, so after extraction each database keeps its own counter rows. | 2 |
@@ -287,6 +289,17 @@ Reporting never writes another schema. With microservices, the marts are fed fro
 | Identity | — | `IUserDirectory` (display names, masked by caller rights) |
 
 Read-only copies: `fleet.part_snapshot`, `procurement.part_snapshot`, `forecast.part_snapshot`, `fleet.service_order_line.qty_reserved`, `inventory.expected_receipt`. They are created in the module stage that introduces the corresponding flow, not in stage 2.
+
+### 3.6 Trust model of the session context (`app.user_id`, `app.user_roles`, `app.home_warehouse_id`)
+
+After X1 and X2, the database-side role and warehouse checks (`util.require_role`, SS301; `dispatch/receive_transfer`, SS302) trust session GUCs instead of reading `iam`. This is the same trust model the audit trail already relies on for `app.user_id`:
+
+- **Set only by the interceptor.** `SessionContextInterceptor` sets all three values at the start of every transaction from the authenticated principal (cookie claims issued by Identity). No code path builds them from request input, and no business function accepts a user, role or warehouse as a parameter.
+- **Transaction-local.** The values are written with `set_config(name, value, true)`, so they disappear at commit or rollback and can never leak to the next user of a pooled connection. A transaction without them has no user: `util.require_app_user` raises SS301.
+- **Only application logins can connect.** The bootstrap revokes `CONNECT` from `PUBLIC` and grants it only to `smartspare_api`, `smartspare_jobs`, `smartspare_reporting` and `smartspare_migrator`; none is superuser, and their credentials live in user-secrets / Key Vault. People and tools never connect with these logins.
+- **The checks are defence in depth.** Authorisation is enforced first by the ASP.NET Core policies on every endpoint; the database checks catch bugs in the application, not a hostile client.
+
+**Residual risk.** PostgreSQL lets any session set its own custom GUCs. Code that can run arbitrary SQL under an application login (for example after an SQL-injection bug or a stolen connection string) can claim any user or role and pass `util.require_role`. Until stage 9 the blast radius is the whole of `app_write`. **Stage 9 closes this with per-module roles (section 4.2):** a module role has no privilege outside its own schema whatever its GUCs say, the `SECURITY DEFINER` functions run under per-module owners, and the login is a Managed Identity without a password that could be stolen. The forged-GUC case is then limited to the operations one module's role may perform anyway, which is the boundary the API itself already has.
 
 ---
 
@@ -392,6 +405,16 @@ db/
 - **CI.** The integration-test job starts PostgreSQL 17 (Testcontainers), runs bootstrap, applies all contexts in order through the same runner, loads T001 and runs the SQL suite and the .NET integration tests. A unit-level check runs `dotnet ef migrations has-pending-model-changes` for every context so a model change without a migration fails the build.
 - **Azure (stage 9).** CI builds one EF migration bundle per context (`dotnet ef migrations bundle --context … --self-contained -r linux-x64`) as pipeline artefacts. The deployment job runs them in the order of 5.2 as `smartspare_migrator` (connection string from Key Vault, later Entra token), **before** the new image is deployed. Bootstrap runs once per server by the server admin. A failing bundle stops the deployment; each migration is transactional, so the database stays at the previous version.
 
+### 5.6 Unit of work and the transaction decorator
+
+Today `TransactionCommandDecorator` only passes the call through, because no DbContext exists yet. PR 2d makes it real:
+
+- **Per-module unit of work.** Each module registers an `IUnitOfWork` over its own DbContext (scoped). It is `internal` to the module; the Infrastructure building block only defines the abstraction and a generic `EfUnitOfWork<TContext>`.
+- **Module resolved by assembly.** At start-up every `ModuleInstaller` registers its assembly together with its unit of work. The transaction decorator looks up the module of the command by `typeof(TCommand).Assembly`, opens that context's transaction (inside the execution strategy, because `EnableRetryOnFailure` forbids user-initiated transactions outside it), runs the handler, commits on success and rolls back on a failed `Result` or an exception. A command whose assembly has no registered module fails at start-up, not at run time.
+- **Outbox in the same `SaveChanges`.** Handlers do not publish directly; they add integration events to the unit of work. A `SaveChanges` interceptor in the module context turns them into `outbox_message` rows of the module's schema, so the data change and its outbox rows are written by the same `SaveChanges` and committed by the same transaction. SQL functions called by the handler (section 3.1) run on the same connection and transaction, so they are covered too.
+- **Session context.** The decorator's transaction is the one `SessionContextInterceptor` hooks into, so `app.user_id`, `app.user_roles` and `app.home_warehouse_id` are set for every command (section 3.6).
+- **Proof.** An integration test (Testcontainers) runs a test command that changes data and raises an integration event, then fails: afterwards neither the data row nor an `outbox_message` row exists. A second test runs the successful variant and finds both, committed together.
+
 ---
 
 ## 6. Verification plan
@@ -422,8 +445,8 @@ This document and ADR 0011 are PR **2a**.
 |---|---|---|
 | **2b — Platform context and migration plumbing** | `PlatformDbContext` (`ref`, `util.document_counter`, extensions); SQL folder layout and the `SqlResource` helper; split of V001, V002, V009, util parts of V010/V011, V015 Platform grants, `ref` seed; partitioned `audit.audit_log`; migration runner with the context order list; owner-role start-up option; design-time factories; move enum mapping out of `PersistenceRegistration`; Testcontainers integration-test project with the first test; CI job with Docker. | Platform migration builds `ref`, `util`, `audit` identical to V016 (partial diff); integration job green. |
 | **2c — Identity, Inventory, Fleet contexts** | Fluent configurations, enums, CHECKs, partial/unique/GIN indexes; SQL parts of V004, V005 (partitioned ledger), V006, V010–V013 for these modules; triggers and audit triggers; grants; seed of roles and warehouses; FKs crossing modules dropped; transitional Fleet/Inventory functions marked. | The three contexts migrate after Platform; partial schema diff clean for `iam`, `catalog` (without suppliers), `inventory`, `raw`, `staging`, `fleet`. |
-| **2d — Procurement, Forecasting, Reporting contexts + Outbox/Inbox** | Supplier tables moved into `procurement` (D2); V007, V008, V012, V014, V015 parts; marts and `refresh_all`; transitional cross-module views/functions in the last Reporting migration; `outbox_message` / `inbox_message` per module and the dispatcher skeleton (`FOR UPDATE SKIP LOCKED`, in-process transport) in BuildingBlocks with unit tests. | Full EF-built database; full schema diff matches the allow-list. |
-| **2e — Verification and switch-over** | `tools/schema_diff.sh`; SQL suite, concurrency test and T001 in CI against the EF-built database; T01/T02/T001 supplier rename; regenerate `db/ddl/smartspare_schema.sql` and `DATA_DICTIONARY.md`; remove `db/migrations`, `db/seed`, `db/scripts/migrate.sh`, `tools/scaffold-efcore.ps1`; update DATABASE_DESIGN §2, §6.1, §9 (EF history instead of `meta.schema_migration`) and the schema list of architecture section 2; ADR 0011 → Accepted. | 97 assertions + concurrency test green in CI on the EF-built database; stage 2 complete. |
+| **2d — Procurement, Forecasting, Reporting contexts + Outbox/Inbox** | Supplier tables moved into `procurement` (D2); V007, V008, V012, V014, V015 parts; marts and `refresh_all`; transitional cross-module views/functions in the last Reporting migration; `outbox_message` / `inbox_message` per module and the dispatcher skeleton (`FOR UPDATE SKIP LOCKED`, in-process transport) in BuildingBlocks with unit tests; the per-module unit of work and the real transaction decorator (section 5.6): module resolved by the command's assembly, that context's transaction opened, integration events written to `outbox_message` in the same `SaveChanges` as the data. | Full EF-built database; full schema diff matches the allow-list; integration test proves a rolled-back command leaves neither data nor an outbox row, and a committed one leaves both. |
+| **2e — Verification and switch-over** | `tools/schema_diff.sh`; SQL suite, concurrency test and T001 in CI against the EF-built database; T01/T02/T001 supplier rename; regenerate `db/ddl/smartspare_schema.sql` and `DATA_DICTIONARY.md`; remove `db/migrations`, `db/seed`, `db/scripts/migrate.sh`, `tools/scaffold-efcore.ps1`; update DATABASE_DESIGN §2, §6.1, §9 (EF history instead of `meta.schema_migration`) and the schema list of architecture section 2, which completes the implementation of ADR 0011. | 97 assertions + concurrency test green in CI on the EF-built database; stage 2 complete. |
 
 ---
 

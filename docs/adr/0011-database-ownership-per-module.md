@@ -1,6 +1,6 @@
 # ADR 0011: Database ownership per module
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-16
 
 ## Context
@@ -16,8 +16,10 @@ ADR 0002–0004 require each module to own its schema, DbContext and migration h
 5. **Cross-module logic becomes event flows**, implemented in the stage of each module: service kits (`ServiceOrderDrafted` → `ServiceKitReserved`, `ServiceKitReservationExpired`, `ServiceOrderCompleted` → `ServiceKitIssued`, `ServiceOrderCancelled`), goods receipt and in-transit (`PurchaseOrderApproved`, `PurchaseOrderLineReceived`, `PurchaseOrderCancelled` with an `inventory.expected_receipt` copy), UC01 (`TransferRequested` → `TransferApproved` / `TransferRejected`, `PurchaseRequested` → `PurchaseRequestAccepted` / `PurchaseRequestRejected`). The stock position (NFR08) is computed in C# in Forecasting from set-based Contracts queries.
 6. **Stage 2 is a structural port.** Cross-module functions and views are kept with unchanged bodies as marked transitional objects (PL/pgSQL in the caller's module, early-bound views and SQL functions in the last Reporting migration) until their module stage replaces them, so the existing tests stay green.
 7. **Migrations.** One DbContext per module plus `PlatformDbContext`, each with `<schema>.__ef_migrations_history`; order Platform → Identity → Inventory → Fleet → Procurement → Forecasting → Reporting. SQL parts live in `db/sql/<context>/` and are embedded into the module assembly; partitioned tables are created in SQL and excluded from the EF model. Objects are owned by `smartspare_owner`; migrations run as `smartspare_migrator`, locally and in CI through a migration runner, in Azure as one EF bundle per context.
-8. **Roles.** The current `app_*` roles are ported unchanged in stage 2. Per-module roles used with `SET ROLE` replace them in stage 9, after the transitional cross-module functions are gone.
-9. **Verification.** Schema diff against the V016 database with an explicit allow-list, the 97 SQL assertions, the concurrency test and T001 run in CI against the EF-built database (Testcontainers).
+8. **Session context trust model.** Database role and warehouse checks read the transaction-local GUCs `app.user_id`, `app.user_roles` and `app.home_warehouse_id` instead of `iam`. They are set only by `SessionContextInterceptor` from the authenticated principal, with `set_config(..., true)` at the start of every transaction, and only the application logins may connect. The checks are defence in depth behind the ASP.NET Core policies. Residual risk: a session can set its own GUCs, so code running arbitrary SQL under an application login could claim any role; this is closed in stage 9, when per-module roles and owners limit every session to its own module's schema whatever its GUCs claim.
+9. **Unit of work.** Each module has a unit of work over its own DbContext. The transaction decorator resolves the command's module by assembly and runs the handler in that context's transaction; integration events are written to the module's `outbox_message` in the same `SaveChanges` as the data (stage 2, PR 2d).
+10. **Roles.** The current `app_*` roles are ported unchanged in stage 2. Per-module roles used with `SET ROLE` replace them in stage 9, after the transitional cross-module functions are gone.
+11. **Verification.** Schema diff against the V016 database with an explicit allow-list, the 97 SQL assertions, the concurrency test and T001 run in CI against the EF-built database (Testcontainers).
 
 ## Consequences
 
@@ -26,4 +28,5 @@ ADR 0002–0004 require each module to own its schema, DbContext and migration h
 - Some invariants that were transactional across modules become eventually consistent (kit reservation, goods receipt, UC01 fulfilment) and need compensating actions and Inbox idempotency.
 - Several read models gain deliberate copies (`part_snapshot` per consumer, `expected_receipt`, `qty_reserved`) that must be kept in sync by events.
 - Module boundaries are enforced in PostgreSQL only from stage 9; until then architecture tests and code review enforce them.
-- Section 2 of ARCHITECTURE_DECISIONS.md (schema list of Inventory and Procurement) and DATABASE_DESIGN.md §9 must be updated when this ADR is accepted.
+- Until stage 9, the database checks trust session GUCs that any application session could set itself; the risk is accepted for the monolith and closed by per-module roles.
+- PR 2e completes the implementation of this decision and updates section 2 of ARCHITECTURE_DECISIONS.md (schema list of Inventory and Procurement) and DATABASE_DESIGN.md §9.
