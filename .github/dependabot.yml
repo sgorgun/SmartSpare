@@ -12,6 +12,19 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # The platform is pinned to .NET 10 LTS (ADR 0007): packages versioned with the
+    # runtime only receive minor and patch updates within the 10.x line.
+    ignore:
+      - dependency-name: "Microsoft.Extensions.*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Microsoft.AspNetCore.*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Microsoft.EntityFrameworkCore*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Npgsql.EntityFrameworkCore.PostgreSQL"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "EFCore.NamingConventions"
+        update-types: ["version-update:semver-major"]
     groups:
       aspire:
         patterns: ["Aspire.*"]
