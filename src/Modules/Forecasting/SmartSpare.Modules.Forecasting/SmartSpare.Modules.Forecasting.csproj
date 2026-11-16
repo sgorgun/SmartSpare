@@ -1,5 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <!-- Embeds db/sql/forecasting/*.sql for the module's migrations (Directory.Build.targets). -->
+    <SmartSpareSqlFolder>forecasting</SmartSpareSqlFolder>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\..\..\BuildingBlocks\SmartSpare.Infrastructure\SmartSpare.Infrastructure.csproj" />
     <ProjectReference Include="..\SmartSpare.Modules.Forecasting.Contracts\SmartSpare.Modules.Forecasting.Contracts.csproj" />
