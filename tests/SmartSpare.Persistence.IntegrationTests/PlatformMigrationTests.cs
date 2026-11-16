@@ -4,7 +4,8 @@ namespace SmartSpare.Persistence.IntegrationTests;
 
 /// <summary>Bootstrap + Platform migration on PostgreSQL 17 (PR 2b, MODULE_MAPPING section 6, step 5).</summary>
 [Trait("Category", "Integration")]
-public sealed class PlatformMigrationTests(MigratedDatabaseFixture db) : IClassFixture<MigratedDatabaseFixture>
+[Collection(MigratedDatabaseGroup.Name)]
+public sealed class PlatformMigrationTests(MigratedDatabaseFixture db)
 {
     [Fact]
     public async Task EveryContext_HasNoPendingMigrations()
