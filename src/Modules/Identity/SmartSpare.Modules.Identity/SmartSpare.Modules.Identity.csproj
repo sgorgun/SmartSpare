@@ -1,5 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <!-- Embeds db/sql/identity/*.sql for the module's migrations (Directory.Build.targets). -->
+    <SmartSpareSqlFolder>identity</SmartSpareSqlFolder>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\..\..\BuildingBlocks\SmartSpare.Infrastructure\SmartSpare.Infrastructure.csproj" />
     <ProjectReference Include="..\SmartSpare.Modules.Identity.Contracts\SmartSpare.Modules.Identity.Contracts.csproj" />

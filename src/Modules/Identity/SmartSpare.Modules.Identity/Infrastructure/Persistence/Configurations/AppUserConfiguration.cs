@@ -1,0 +1,46 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
+namespace SmartSpare.Modules.Identity.Infrastructure.Persistence.Configurations;
+
+/// <summary><c>iam.app_user</c> as created by V016 (names, types, constraints and comments unchanged).</summary>
+internal sealed class AppUserConfiguration : IEntityTypeConfiguration<AppUser>
+{
+    public void Configure(EntityTypeBuilder<AppUser> builder)
+    {
+        builder.ToTable("app_user", "iam", t =>
+        {
+            t.HasComment("Dealership employees using SmartSpare. Contains personal data (full_name, email, phone): masked for app_read / app_audit.");
+            t.HasCheckConstraint("ck_app_user_active_has_password", "((password_hash IS NOT NULL) OR (NOT is_active))");
+            t.HasCheckConstraint("ck_app_user_anonymised_inactive", "((anonymised_at IS NULL) OR (NOT is_active))");
+            t.HasCheckConstraint("ck_app_user_email", "(email ~ '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$'::citext)");
+            t.HasCheckConstraint("ck_app_user_failed_logins", "((failed_login_count >= 0) AND (failed_login_count <= 100))");
+            t.HasCheckConstraint("ck_app_user_password_hash_format", "((password_hash IS NULL) OR (password_hash ~ '^AQAAAA[A-Za-z0-9+/]{76,}={0,2}$'::text))");
+            t.HasCheckConstraint("ck_app_user_phone", "((phone IS NULL) OR ((phone)::text ~ '^\\+?[0-9 ()-]{7,20}$'::text))");
+            t.HasCheckConstraint("ck_app_user_user_name", "(user_name ~ '^[a-z0-9._-]{3,50}$'::citext)");
+        });
+
+        builder.HasKey(x => x.Id).HasName("pk_app_user");
+        builder.HasAlternateKey(x => x.Email).HasName("uq_app_user_email");
+        builder.HasAlternateKey(x => x.UserName).HasName("uq_app_user_user_name");
+
+        builder.Property(x => x.Id).HasColumnName("id").HasColumnOrder(0).HasColumnType("uuid").HasDefaultValueSql("gen_random_uuid()").HasComment("Surrogate primary key.");
+        builder.Property(x => x.UserName).HasColumnName("user_name").HasColumnOrder(1).HasColumnType("citext");
+        builder.Property(x => x.Email).HasColumnName("email").HasColumnOrder(2).HasColumnType("citext").HasComment("PERSONAL DATA (GDPR). Corporate e-mail; masked by util.mask_email for read-only roles.");
+        builder.Property(x => x.FullName).HasColumnName("full_name").HasColumnOrder(3).HasColumnType("character varying(150)").HasComment("PERSONAL DATA (GDPR). Masked by util.mask_name for read-only roles.");
+        builder.Property(x => x.Phone).HasColumnName("phone").HasColumnOrder(4).HasColumnType("character varying(30)").HasComment("PERSONAL DATA (GDPR). Masked by util.mask_phone for read-only roles.");
+        builder.Property(x => x.PasswordHash).HasColumnName("password_hash").HasColumnOrder(5).HasColumnType("text").HasComment("ASP.NET Core Identity V3 hash (PBKDF2-HMAC-SHA512, 100k iterations). Plain text is impossible by CHECK.");
+        builder.Property(x => x.SecurityStamp).HasColumnName("security_stamp").HasColumnOrder(6).HasColumnType("uuid").HasDefaultValueSql("gen_random_uuid()").HasComment("Changes on password/role change; invalidates issued JWT refresh tokens.");
+        builder.Property(x => x.IsActive).HasColumnName("is_active").HasColumnOrder(7).HasColumnType("boolean").HasDefaultValueSql("true").HasComment("FALSE = deactivated, kept for history.");
+        builder.Property(x => x.FailedLoginCount).HasColumnName("failed_login_count").HasColumnOrder(8).HasColumnType("smallint").HasDefaultValueSql("0");
+        builder.Property(x => x.LockoutEnd).HasColumnName("lockout_end").HasColumnOrder(9).HasColumnType("timestamp with time zone");
+        builder.Property(x => x.HomeWarehouseId).HasColumnName("home_warehouse_id").HasColumnOrder(10).HasColumnType("smallint").HasComment("Reference to inventory.warehouse.");
+        builder.Property(x => x.LastLoginAt).HasColumnName("last_login_at").HasColumnOrder(11).HasColumnType("timestamp with time zone").HasComment("Time of the last login event.");
+        builder.Property(x => x.AnonymisedAt).HasColumnName("anonymised_at").HasColumnOrder(12).HasColumnType("timestamp with time zone").HasComment("Set by iam.anonymise_user() (GDPR Art. 17); the row is kept so audit references stay valid.");
+        builder.Property(x => x.CreatedAt).HasColumnName("created_at").HasColumnOrder(13).HasColumnType("timestamp with time zone").HasDefaultValueSql("now()").HasComment("Time the record was created.");
+        builder.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasColumnOrder(14).HasColumnType("timestamp with time zone").HasDefaultValueSql("now()").HasComment("Time of the last change (maintained by trigger).");
+        // fk_app_user_home_warehouse -> inventory.warehouse removed: cross-module FK (ADR 0011, MODULE_MAPPING section 2).
+
+        builder.HasIndex(x => x.HomeWarehouseId).HasDatabaseName("ix_app_user_home_warehouse");
+    }
+}

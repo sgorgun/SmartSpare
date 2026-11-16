@@ -5,7 +5,9 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using SmartSpare.Infrastructure.Messaging;
 using SmartSpare.Infrastructure.Modules;
+using SmartSpare.Infrastructure.Persistence;
 using SmartSpare.Modules.Identity.Contracts;
+using SmartSpare.Modules.Identity.Infrastructure.Persistence;
 using SmartSpare.Modules.Identity.Features.Ping;
 
 namespace SmartSpare.Modules.Identity;
@@ -14,6 +16,8 @@ namespace SmartSpare.Modules.Identity;
 public sealed class IdentityModuleInstaller : IModuleInstaller
 {
     public string Name => IdentityModule.Name;
+
+    public IModuleDatabase Database => IdentityDatabase.Instance;
 
     public void AddServices(IServiceCollection services, IConfiguration configuration) =>
         services.AddHandlersFromAssembly(typeof(IdentityModuleInstaller).Assembly);
