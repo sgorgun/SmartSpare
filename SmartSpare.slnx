@@ -2,6 +2,7 @@
   <Folder Name="/src/" />
   <Folder Name="/src/BuildingBlocks/">
     <Project Path="src/BuildingBlocks/SmartSpare.Infrastructure/SmartSpare.Infrastructure.csproj" />
+    <Project Path="src/BuildingBlocks/SmartSpare.ServiceDefaults/SmartSpare.ServiceDefaults.csproj" />
     <Project Path="src/BuildingBlocks/SmartSpare.SharedKernel/SmartSpare.SharedKernel.csproj" />
   </Folder>
   <Folder Name="/tests/">
