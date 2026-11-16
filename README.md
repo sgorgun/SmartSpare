@@ -73,14 +73,16 @@ tools/                                  doc/diagram/DDL generators, EF Core scaf
 Until stage 2 ports the schema to EF Core migrations, the full database is built from the SQL scripts:
 
 ```bash
+cp .env.example .env                              # then set your own passwords in .env
 docker compose up -d
 db/scripts/reset_local.sh                         # bootstrap + migrations + reference data
-PGHOST=localhost PGDATABASE=smartspare PGUSER=smartspare_migrator PGPASSWORD=dev_migrator \
-  psql -v parts=2000 -f db/testdata/T001__demo_dataset.sql
-PGHOST=localhost PGDATABASE=smartspare PGUSER=postgres PGPASSWORD=postgres db/tests/run_tests.sh
+db/scripts/load_testdata.sh                       # synthetic demo dataset (2,000 SKUs)
+db/tests/run_tests.sh                             # SQL test suite
 ```
 
-On Windows run the `.sh` scripts in Git Bash or WSL. Demo users (synthetic) log in with the password `SmartSpare#Demo2026`, e.g. `tomas.radzevicius` (brand manager) or `mantas.petrauskas` (service engineer).
+Credentials are never stored in Git: copy `.env.example` to `.env` (gitignored) before the first `docker compose up` and set your own passwords there; `docker compose` and the `db/` scripts read them from `.env` (passwords: see `.env.example`).
+
+On Windows run the `.sh` scripts in Git Bash or WSL. Demo users (synthetic) such as `tomas.radzevicius` (brand manager) or `mantas.petrauskas` (service engineer) log in with the demo password, see `.env.example`.
 
 ## Diagrams
 
