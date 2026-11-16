@@ -1,5 +1,8 @@
 <Solution>
   <Folder Name="/src/" />
+  <Folder Name="/src/Bootstrapper/">
+    <Project Path="src/Bootstrapper/SmartSpare.Host/SmartSpare.Host.csproj" />
+  </Folder>
   <Folder Name="/src/BuildingBlocks/">
     <Project Path="src/BuildingBlocks/SmartSpare.Infrastructure/SmartSpare.Infrastructure.csproj" />
     <Project Path="src/BuildingBlocks/SmartSpare.ServiceDefaults/SmartSpare.ServiceDefaults.csproj" />
@@ -30,7 +33,11 @@
     <Project Path="src/Modules/Reporting/SmartSpare.Modules.Reporting.Contracts/SmartSpare.Modules.Reporting.Contracts.csproj" />
     <Project Path="src/Modules/Reporting/SmartSpare.Modules.Reporting/SmartSpare.Modules.Reporting.csproj" />
   </Folder>
+  <Folder Name="/src/Web/">
+    <Project Path="src/Web/SmartSpare.ApiContracts/SmartSpare.ApiContracts.csproj" />
+  </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/SmartSpare.Host.IntegrationTests/SmartSpare.Host.IntegrationTests.csproj" />
     <Project Path="tests/SmartSpare.Infrastructure.UnitTests/SmartSpare.Infrastructure.UnitTests.csproj" />
     <Project Path="tests/SmartSpare.SharedKernel.UnitTests/SmartSpare.SharedKernel.UnitTests.csproj" />
   </Folder>

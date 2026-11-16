@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <UserSecretsId>smartspare-host</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\BuildingBlocks\SmartSpare.ServiceDefaults\SmartSpare.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\..\BuildingBlocks\SmartSpare.Infrastructure\SmartSpare.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <!-- Modules are referenced only to be deployed next to the host; they are discovered at startup. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\Modules\Identity\SmartSpare.Modules.Identity\SmartSpare.Modules.Identity.csproj" />
+    <ProjectReference Include="..\..\Modules\Inventory\SmartSpare.Modules.Inventory\SmartSpare.Modules.Inventory.csproj" />
+    <ProjectReference Include="..\..\Modules\Fleet\SmartSpare.Modules.Fleet\SmartSpare.Modules.Fleet.csproj" />
+    <ProjectReference Include="..\..\Modules\Procurement\SmartSpare.Modules.Procurement\SmartSpare.Modules.Procurement.csproj" />
+    <ProjectReference Include="..\..\Modules\Forecasting\SmartSpare.Modules.Forecasting\SmartSpare.Modules.Forecasting.csproj" />
+    <ProjectReference Include="..\..\Modules\Reporting\SmartSpare.Modules.Reporting\SmartSpare.Modules.Reporting.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Public HTTP API DTOs and FluentValidation validators shared by the host and the Blazor client
+    (ADR 0006). Must never reference module projects. Empty until the first screens (stage 3).
+  -->
+
+</Project>
