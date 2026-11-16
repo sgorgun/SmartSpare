@@ -411,11 +411,11 @@ Result on the demo dataset: **97 assertions passed**, concurrency test passed, `
 ## 11. How to run
 
 ```bash
+cp .env.example .env                       # local passwords (gitignored), see .env.example
 docker compose up -d                       # PostgreSQL 17 on localhost:5432
 db/scripts/reset_local.sh                  # bootstrap roles + database, all migrations + reference data
-PGHOST=localhost PGDATABASE=smartspare PGUSER=smartspare_migrator PGPASSWORD=dev_migrator \
-  psql -v parts=2000 -f db/testdata/T001__demo_dataset.sql     # ~30 s
-PGHOST=localhost PGDATABASE=smartspare PGUSER=postgres PGPASSWORD=postgres db/tests/run_tests.sh
+db/scripts/load_testdata.sh                # T001 demo dataset, 2,000 SKUs (~30 s); argument 20000 for load tests
+db/tests/run_tests.sh                      # SQL test suite as the local superuser
 python3 tools/generate_db_docs.py && python3 tools/generate_editable_diagrams.py && tools/export_ddl.sh   # regenerate dictionary, diagrams (PNG/SVG, draw.io, DBML), DDL
 ```
 
