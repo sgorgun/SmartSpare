@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using SmartSpare.Infrastructure.Persistence;
@@ -30,12 +31,13 @@ public sealed class MigratedDatabaseFixture : IAsyncLifetime
         Options = new MigrationRunnerOptions
         {
             AdminConnectionString = _container.GetConnectionString(),
+            // Login-role passwords are generated per run, like the container's own credentials.
             Passwords = new BootstrapPasswords
             {
-                Migrator = "test_migrator",
-                Api = "test_api",
-                Jobs = "test_jobs",
-                Reporting = "test_report",
+                Migrator = NewPassword(),
+                Api = NewPassword(),
+                Jobs = NewPassword(),
+                Reporting = NewPassword(),
             },
         };
         AdminConnectionString = new NpgsqlConnectionStringBuilder(_container.GetConnectionString()) { Database = "smartspare" }.ConnectionString;
@@ -44,6 +46,8 @@ public sealed class MigratedDatabaseFixture : IAsyncLifetime
     }
 
     public DatabaseMigrator CreateMigrator() => new(Options, Databases, NullLogger<DatabaseMigrator>.Instance);
+
+    private static string NewPassword() => Convert.ToHexString(RandomNumberGenerator.GetBytes(16));
 
     public async Task<T> ScalarAsync<T>(string sql, string? connectionString = null)
     {

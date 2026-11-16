@@ -40,20 +40,26 @@ if command -v cygpath >/dev/null; then DB_DIR="$(cygpath -w "$DB_DIR")"; RUNNER=
 
 wait_ready() { for _ in $(seq 1 60); do docker exec "$1" pg_isready -U postgres -h localhost >/dev/null 2>&1 && return 0; sleep 1; done; return 1; }
 
+# Throw-away credentials, generated per run and handed over through the environment (never stored).
+secret() { "$PY" -c 'import secrets; print(secrets.token_hex(16))'; }
+POSTGRES_PASSWORD="$(secret)"; SMARTSPARE_MIGRATOR_PASSWORD="$(secret)"; SMARTSPARE_API_PASSWORD="$(secret)"
+SMARTSPARE_JOBS_PASSWORD="$(secret)"; SMARTSPARE_REPORTING_PASSWORD="$(secret)"
+export POSTGRES_PASSWORD SMARTSPARE_MIGRATOR_PASSWORD SMARTSPARE_API_PASSWORD SMARTSPARE_JOBS_PASSWORD SMARTSPARE_REPORTING_PASSWORD
+
 echo "== starting $A (SQL baseline) and $B (EF)"
-docker run -d --name "$A" -e POSTGRES_PASSWORD=postgres -v "$DB_DIR:/db:ro" "$IMAGE" >/dev/null
-docker run -d --name "$B" -e POSTGRES_PASSWORD=postgres -p "$PORT_B:5432" "$IMAGE" >/dev/null
+docker run -d --name "$A" -e POSTGRES_PASSWORD -v "$DB_DIR:/db:ro" "$IMAGE" >/dev/null
+docker run -d --name "$B" -e POSTGRES_PASSWORD -p "$PORT_B:5432" "$IMAGE" >/dev/null
 wait_ready "$A"; wait_ready "$B"
 sleep 2   # the image restarts the server once after initdb
 
 echo "== building the V016 baseline in $A"
-docker exec -e PGHOST=localhost "$A" bash -c \
-  'PGADMIN_URL=postgresql://postgres:postgres@localhost:5432/postgres bash /db/scripts/reset_local.sh' >/dev/null
+docker exec -e PGHOST=localhost -e POSTGRES_PASSWORD -e SMARTSPARE_MIGRATOR_PASSWORD -e SMARTSPARE_API_PASSWORD \
+  -e SMARTSPARE_JOBS_PASSWORD -e SMARTSPARE_REPORTING_PASSWORD "$A" bash /db/scripts/reset_local.sh >/dev/null
 
 echo "== applying EF migrations to $B"
-Migrations__AdminConnectionString="Host=localhost;Port=$PORT_B;Username=postgres;Password=postgres" \
-Migrations__Passwords__Migrator=dev_migrator Migrations__Passwords__Api=dev_api \
-Migrations__Passwords__Jobs=dev_jobs Migrations__Passwords__Reporting=dev_report \
+Migrations__AdminConnectionString="Host=localhost;Port=$PORT_B;Username=postgres;Password=$POSTGRES_PASSWORD" \
+Migrations__Passwords__Migrator="$SMARTSPARE_MIGRATOR_PASSWORD" Migrations__Passwords__Api="$SMARTSPARE_API_PASSWORD" \
+Migrations__Passwords__Jobs="$SMARTSPARE_JOBS_PASSWORD" Migrations__Passwords__Reporting="$SMARTSPARE_REPORTING_PASSWORD" \
   dotnet run --project "$RUNNER" >/dev/null
 
 dump() {
