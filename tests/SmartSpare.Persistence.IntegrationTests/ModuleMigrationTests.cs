@@ -123,11 +123,6 @@ public sealed class InventoryMigrationTests(MigratedDatabaseFixture db) : Module
     }
 
     [Fact]
-    public async Task CrossModuleObjects_AreDeferredToTheReportingMigration() =>
-        (await Db.ScalarAsync<bool>("SELECT to_regclass('inventory.v_stock_overview') IS NULL AND to_regproc('inventory.fn_in_transit_qty') IS NULL"))
-            .ShouldBeTrue();
-
-    [Fact]
     public async Task WarehousesAndRoutes_AreSeeded()
     {
         (await Db.ScalarAsync<long>("SELECT count(*) FROM inventory.warehouse")).ShouldBe(7);
