@@ -1,0 +1,7 @@
+# Objects that moved on purpose. Each line: <text in the V016 baseline> => <text in the EF database>.
+# Applied as plain text replacements to every baseline statement before the comparison, so the
+# moved objects are compared statement by statement instead of being allow-listed.
+
+# ADR 0011 D2: the supplier tables (and their sequences, constraints, indexes, triggers, grants and
+# every reference to them) move from catalog to procurement.
+catalog.supplier => procurement.supplier
