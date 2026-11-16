@@ -19,8 +19,12 @@ public sealed class FleetModuleInstaller : IModuleInstaller
 
     public IModuleDatabase Database => FleetDatabase.Instance;
 
-    public void AddServices(IServiceCollection services, IConfiguration configuration) =>
-        services.AddHandlersFromAssembly(typeof(FleetModuleInstaller).Assembly);
+    public void AddServices(IServiceCollection services, IConfiguration configuration)
+    {
+        var assembly = typeof(FleetModuleInstaller).Assembly;
+        services.AddHandlersFromAssembly(assembly);
+        FleetDatabase.Instance.AddTo(services, assembly, configuration.GetConnectionString(PersistenceRegistration.ConnectionStringName), FleetDbContext.HistorySchema);
+    }
 
     public void MapEndpoints(IEndpointRouteBuilder endpoints)
     {
