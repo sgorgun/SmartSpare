@@ -407,11 +407,11 @@ db/
 
 ### 5.6 Unit of work and the transaction decorator
 
-Today `TransactionCommandDecorator` only passes the call through, because no DbContext exists yet. PR 2d makes it real:
+Implemented in PR 2d (`SmartSpare.Infrastructure.Persistence.UnitOfWork`, `Messaging.Decorators.TransactionDecorator`, `Messaging.Outbox`):
 
-- **Per-module unit of work.** Each module registers an `IUnitOfWork` over its own DbContext (scoped). It is `internal` to the module; the Infrastructure building block only defines the abstraction and a generic `EfUnitOfWork<TContext>`.
+- **Per-module unit of work.** Each module registers `EfUnitOfWork<TContext>` over its own DbContext (scoped) through `<Module>Database.AddTo`; handlers inject `IUnitOfWork<XDbContext>`, so the context type, which is `internal` to the module, also selects the module.
 - **Module resolved by assembly.** At start-up every `ModuleInstaller` registers its assembly together with its unit of work. The transaction decorator looks up the module of the command by `typeof(TCommand).Assembly`, opens that context's transaction (inside the execution strategy, because `EnableRetryOnFailure` forbids user-initiated transactions outside it), runs the handler, commits on success and rolls back on a failed `Result` or an exception. A command whose assembly has no registered module fails at start-up, not at run time.
-- **Outbox in the same `SaveChanges`.** Handlers do not publish directly; they add integration events to the unit of work. A `SaveChanges` interceptor in the module context turns them into `outbox_message` rows of the module's schema, so the data change and its outbox rows are written by the same `SaveChanges` and committed by the same transaction. SQL functions called by the handler (section 3.1) run on the same connection and transaction, so they are covered too.
+- **Outbox in the same `SaveChanges`.** Handlers do not publish directly; they add integration events to the unit of work. `EfUnitOfWork.SaveChangesAsync` turns them into `outbox_message` rows of the module's schema just before it calls `SaveChanges`, so the data change and its outbox rows are written by the same `SaveChanges` and committed by the same transaction. SQL functions called by the handler (section 3.1) run on the same connection and transaction, so they are covered too.
 - **Session context.** The decorator's transaction is the one `SessionContextInterceptor` hooks into, so `app.user_id`, `app.user_roles` and `app.home_warehouse_id` are set for every command (section 3.6).
 - **Proof.** An integration test (Testcontainers) runs a test command that changes data and raises an integration event, then fails: afterwards neither the data row nor an `outbox_message` row exists. A second test runs the successful variant and finds both, committed together.
 
@@ -448,9 +448,9 @@ This document and ADR 0011 are PR **2a**.
 | **2d — Procurement, Forecasting, Reporting contexts + Outbox/Inbox** | Supplier tables moved into `procurement` (D2); V007, V008, V012, V014, V015 parts; marts and `refresh_all`; transitional cross-module views/functions in the last Reporting migration; `outbox_message` / `inbox_message` per module and the dispatcher skeleton (`FOR UPDATE SKIP LOCKED`, in-process transport) in BuildingBlocks with unit tests; the per-module unit of work and the real transaction decorator (section 5.6): module resolved by the command's assembly, that context's transaction opened, integration events written to `outbox_message` in the same `SaveChanges` as the data. | Full EF-built database; full schema diff matches the allow-list; integration test proves a rolled-back command leaves neither data nor an outbox row, and a committed one leaves both. |
 | **2e — Verification and switch-over** | `tools/schema_diff.sh` for all schemas (first versions in 2b/2c); SQL suite, concurrency test and T001 in CI against the EF-built database; T01/T02/T001 supplier rename; regenerate `db/ddl/smartspare_schema.sql` and `DATA_DICTIONARY.md`; remove `db/migrations`, `db/seed`, `db/scripts/migrate.sh`, `tools/scaffold-efcore.ps1`; update DATABASE_DESIGN §2, §6.1, §9 (EF history instead of `meta.schema_migration`) and the schema list of architecture section 2, which completes the implementation of ADR 0011. | 97 assertions + concurrency test green in CI on the EF-built database; stage 2 complete. |
 
-### 7.1 Changes made while implementing 2b and 2c
+### 7.1 Changes made while implementing 2b, 2c and 2d
 
-The scope of 2b and 2c is as planned. Implementation details that differ from sections 1–5, and why:
+The scope of 2b, 2c and 2d is as planned. Implementation details that differ from sections 1–5, and why:
 
 - **No FK indexes by convention (2c).** Module contexts remove EF's `ForeignKeyIndexConvention` and declare every index with its V016 name. Otherwise EF would add indexes that V016 does not have.
 - **`uq_customer_erp_ref_hash` in SQL (2c).** It is a UNIQUE constraint on a nullable column. EF can model it only as a unique *index* (a different object) or as an alternate key (which makes the column required), so `db/sql/fleet/0001_fleet_logic.sql` adds the constraint.
@@ -465,6 +465,17 @@ The scope of 2b and 2c is as planned. Implementation details that differ from se
   - 25 statements of the transitional views and functions (2d);
   - 5 statements of `audit.v_audit_log_masked` (2d);
   - 14 statements of the EF history tables.
+- **The supplier move is checked by renaming, not allow-listing (2d).** `tools/schema_diff.renames` rewrites `catalog.supplier` to `procurement.supplier` in the baseline before the comparison. The 64 statements of the moved tables are therefore compared one by one; the comparison would show a missing index, which is how a collision between two `HasIndex` calls on `part_id` was found and fixed with named indexes.
+- **Two more CHECKs use their source text (2d):** `ck_forecast_run_trigger` (V008) and `ck_refresh_log_status` (V014), for the same reason as in 2c. `uq_ml_model_version_one_active` is an expression index and stays in SQL.
+- **Outbox rows are written by the unit of work, not by a `SaveChanges` interceptor (2d).** Same SaveChanges, same transaction, but explicit and testable without EF internals (section 5.6).
+- **Inbox key is `(message_id, consumer)` (2d).** Several modules may consume one event; each consumer needs its own idempotence record. The consumer interface is `IIntegrationEventConsumer<T>` (code analysis forbids the `…EventHandler` suffix).
+- **Identity, Inventory and Fleet get a second migration `AddOutboxInbox` (2d)** instead of an edited initial migration. The 2c migrations were already merged, and a new migration costs nothing. Procurement and Forecasting create the outbox in their initial migration; Reporting publishes nothing yet and has none.
+- **`ICurrentUser` defaults to "no user" (2d)** until the BFF provides the signed-in user in stage 3 (#11). Commands then run like background jobs (`app.user_id` empty).
+- **TRANSITIONAL headers name their issue (2d).** Each transitional object carries the stage and issue that replaces it (#11–#14). The 2c scripts got the issue numbers as a comment-only change.
+- **Full schema diff after 2d** over all twelve schemas: 3,209 statements identical, including the moved supplier tables and all transitional objects. Only permanent differences remain:
+  - 33 removed cross-module FKs (ADR 0011 D3/D4);
+  - 26 statements of the seven EF history tables;
+  - 123 statements of the outbox and inbox tables.
 
 ---
 
