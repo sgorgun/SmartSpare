@@ -17,7 +17,7 @@ The database is submitted in the **Transactional databases (OLTP)** category. Ev
 |---|---|
 | Data dictionary: layers, tables, columns, types, keys, data-quality expectations | [DATA_DICTIONARY.md](DATA_DICTIONARY.md) — generated from the catalogue: 69 relations, every column with type, PK/FK/UQ/NN flags, comment, all CHECK/EXCLUDE rules as "data quality expectations", indexes, triggers, 60 routines |
 | How integrity is maintained and transactions are handled | §5 and §6 of this document |
-| ER diagram (optional) / logical schema with main blocks, colour coding | [diagrams/logical_schema_overview.svg](diagrams/logical_schema_overview.svg) (keys), [logical_schema_core.svg](diagrams/logical_schema_core.svg) (all columns), [logical_schema_import_layers.svg](diagrams/logical_schema_import_layers.svg); one colour per module, crow's-foot notation, legend |
+| ER diagram (optional) / logical schema with main blocks, colour coding | [diagrams/logical_schema_overview.svg](diagrams/logical_schema_overview.svg) (keys), [logical_schema_core.svg](diagrams/logical_schema_core.svg) (all columns), [logical_schema_import_layers.svg](diagrams/logical_schema_import_layers.svg); one colour per module, crow's-foot notation, legend. **Editable:** draw.io files (`*.drawio`, all pages in [`docs/SmartSpare_diagrams.drawio`](../SmartSpare_diagrams.drawio)) and the schema as code in DBML ([`diagrams/smartspare_core.dbml`](diagrams/smartspare_core.dbml), dbdiagram.io) |
 | DDL script | [`db/ddl/smartspare_schema.sql`](../../db/ddl/smartspare_schema.sql) (complete, generated) and the versioned migrations [`db/migrations/V001…V016`](../../db/migrations) |
 | Modern relational DBMS | PostgreSQL 17 on Azure (§1) |
 | 3NF | §4.2 — every table in 3NF; four deliberate, trigger-maintained redundancies are listed and justified |
@@ -416,7 +416,7 @@ db/scripts/reset_local.sh                  # bootstrap roles + database, all mig
 PGHOST=localhost PGDATABASE=smartspare PGUSER=smartspare_migrator PGPASSWORD=dev_migrator \
   psql -v parts=2000 -f db/testdata/T001__demo_dataset.sql     # ~30 s
 PGHOST=localhost PGDATABASE=smartspare PGUSER=postgres PGPASSWORD=postgres db/tests/run_tests.sh
-python3 tools/generate_db_docs.py && tools/export_ddl.sh       # regenerate dictionary, diagrams, DDL
+python3 tools/generate_db_docs.py && python3 tools/generate_editable_diagrams.py && tools/export_ddl.sh   # regenerate dictionary, diagrams (PNG/SVG, draw.io, DBML), DDL
 ```
 
 **Azure:** allow-list the extensions `CITEXT, PG_TRGM, BTREE_GIST, PGCRYPTO` in the server parameter `azure.extensions`; run `db/bootstrap/000_bootstrap_cluster.sql` once as the server admin; the pipeline then runs `SmartSpare.DbMigrator` with the migrator's connection string from Key Vault.
