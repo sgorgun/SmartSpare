@@ -369,11 +369,11 @@ Required: **Platform first** (extensions, `util` helpers, `ref` tables, `audit.t
 db/
 ├─ bootstrap/000_bootstrap_cluster.sql   # cluster roles + database; run once per server (unchanged)
 ├─ sql/                                   # SQL parts of EF migrations, one folder per context
-│  ├─ platform/      0001_extensions_and_helpers.sql, 0002_audit_partitioned.sql, 0003_grants.sql, seed_ref.sql
-│  ├─ identity/      0001_functions_triggers.sql, 0002_grants.sql, seed_roles.sql
-│  ├─ inventory/     0001_stock_movement_partitioned.sql, 0002_ledger_reservations.sql, 0003_transfers.sql,
-│  │                 0004_import_pipeline.sql, 0005_grants.sql, seed_warehouses.sql, transitional_expire.sql
-│  ├─ fleet/         0001_engine_hours_maintenance.sql, 0002_grants.sql, transitional_service_orders.sql
+│  ├─ platform/      0001_util_helpers.sql, 0002_audit_log.sql, 0003_grants.sql, seed_ref.sql          (2b)
+│  ├─ identity/      0001_identity.sql, 0002_grants.sql, seed_roles.sql                                 (2c)
+│  ├─ inventory/     0001_stock_movement.sql, 0002_inventory_logic.sql, 0003_stock_movement_fks.sql,
+│  │                 0004_grants.sql, seed_warehouses.sql                                               (2c)
+│  ├─ fleet/         0001_fleet_logic.sql, 0002_grants.sql                                              (2c)
 │  ├─ procurement/   0001_purchase_orders.sql, 0002_grants.sql, transitional_receipt.sql
 │  ├─ forecasting/   0001_model_registry.sql, 0002_grants.sql, transitional_decide.sql
 │  └─ reporting/     0001_marts.sql, 0002_audit_masked.sql, 0003_grants.sql, 9000_transitional_cross_module.sql
@@ -383,8 +383,8 @@ db/
 └─ migrations/, seed/, scripts/migrate.sh # baseline until PR 2e, then removed
 ```
 
-- Each module `.csproj` embeds its folder: `<EmbeddedResource Include="$(RepoRoot)db/sql/inventory/*.sql" LogicalName="SmartSpare.Sql.inventory.%(Filename)%(Extension)" />`. When a module is extracted, its folder moves with it.
-- A helper in `SmartSpare.Infrastructure` (`migrationBuilder.SqlResource(assembly, "inventory/0002_ledger_reservations.sql")`) reads the resource and calls `migrationBuilder.Sql`. Scripts are idempotent where cheap (`CREATE OR REPLACE`, `ON CONFLICT`), but are never edited once a migration that uses them has been deployed — a change is a new file and a new migration (same rule as the V-scripts today).
+- Each module `.csproj` sets `<SmartSpareSqlFolder>inventory</SmartSpareSqlFolder>`; `Directory.Build.targets` embeds `db/sql/inventory/*.sql` with the logical name `sql/inventory/<file>.sql`. When a module is extracted, its folder moves with it.
+- A helper in `SmartSpare.Infrastructure` (`migrationBuilder.SqlResource(assembly, "inventory/0002_inventory_logic.sql")`) reads the resource and calls `migrationBuilder.Sql`. Scripts are idempotent where cheap (`CREATE OR REPLACE`, `ON CONFLICT`), but are never edited once a migration that uses them has been deployed — a change is a new file and a new migration (same rule as the V-scripts today).
 - The SQL is a **split** of V001–V016, not a rewrite (ADR 0004): bodies are copied verbatim; only schema names change for the moved supplier tables and FK clauses disappear. Comments of V016 go with their tables (EF `HasComment` for tables and columns created by EF, SQL for the rest).
 - Seed data (R001) becomes versioned seed migrations per owner. Repeatable R-scripts have no EF equivalent: a reference data change is a new migration.
 
@@ -446,7 +446,25 @@ This document and ADR 0011 are PR **2a**.
 | **2b — Platform context and migration plumbing** | `PlatformDbContext` (`ref`, `util.document_counter`, extensions); SQL folder layout and the `SqlResource` helper; split of V001, V002, V009, util parts of V010/V011, V015 Platform grants, `ref` seed; partitioned `audit.audit_log`; migration runner with the context order list; owner-role start-up option; design-time factories; move enum mapping out of `PersistenceRegistration`; Testcontainers integration-test project with the first test; CI job with Docker. | Platform migration builds `ref`, `util`, `audit` identical to V016 (partial diff); integration job green. |
 | **2c — Identity, Inventory, Fleet contexts** | Fluent configurations, enums, CHECKs, partial/unique/GIN indexes; SQL parts of V004, V005 (partitioned ledger), V006, V010–V013 for these modules; triggers and audit triggers; grants; seed of roles and warehouses; FKs crossing modules dropped; transitional Fleet/Inventory functions marked. | The three contexts migrate after Platform; partial schema diff clean for `iam`, `catalog` (without suppliers), `inventory`, `raw`, `staging`, `fleet`. |
 | **2d — Procurement, Forecasting, Reporting contexts + Outbox/Inbox** | Supplier tables moved into `procurement` (D2); V007, V008, V012, V014, V015 parts; marts and `refresh_all`; transitional cross-module views/functions in the last Reporting migration; `outbox_message` / `inbox_message` per module and the dispatcher skeleton (`FOR UPDATE SKIP LOCKED`, in-process transport) in BuildingBlocks with unit tests; the per-module unit of work and the real transaction decorator (section 5.6): module resolved by the command's assembly, that context's transaction opened, integration events written to `outbox_message` in the same `SaveChanges` as the data. | Full EF-built database; full schema diff matches the allow-list; integration test proves a rolled-back command leaves neither data nor an outbox row, and a committed one leaves both. |
-| **2e — Verification and switch-over** | `tools/schema_diff.sh`; SQL suite, concurrency test and T001 in CI against the EF-built database; T01/T02/T001 supplier rename; regenerate `db/ddl/smartspare_schema.sql` and `DATA_DICTIONARY.md`; remove `db/migrations`, `db/seed`, `db/scripts/migrate.sh`, `tools/scaffold-efcore.ps1`; update DATABASE_DESIGN §2, §6.1, §9 (EF history instead of `meta.schema_migration`) and the schema list of architecture section 2, which completes the implementation of ADR 0011. | 97 assertions + concurrency test green in CI on the EF-built database; stage 2 complete. |
+| **2e — Verification and switch-over** | `tools/schema_diff.sh` for all schemas (first versions in 2b/2c); SQL suite, concurrency test and T001 in CI against the EF-built database; T01/T02/T001 supplier rename; regenerate `db/ddl/smartspare_schema.sql` and `DATA_DICTIONARY.md`; remove `db/migrations`, `db/seed`, `db/scripts/migrate.sh`, `tools/scaffold-efcore.ps1`; update DATABASE_DESIGN §2, §6.1, §9 (EF history instead of `meta.schema_migration`) and the schema list of architecture section 2, which completes the implementation of ADR 0011. | 97 assertions + concurrency test green in CI on the EF-built database; stage 2 complete. |
+
+### 7.1 Changes made while implementing 2b and 2c
+
+The scope of 2b and 2c is as planned. Implementation details that differ from sections 1–5, and why:
+
+- **No FK indexes by convention (2c).** Module contexts remove EF's `ForeignKeyIndexConvention` and declare every index with its V016 name. Otherwise EF would add indexes that V016 does not have.
+- **`uq_customer_erp_ref_hash` in SQL (2c).** It is a UNIQUE constraint on a nullable column. EF can model it only as a unique *index* (a different object) or as an alternate key (which makes the column required), so `db/sql/fleet/0001_fleet_logic.sql` adds the constraint.
+- **Two CHECKs use their V005/V010 source text (2c).** PostgreSQL's catalogue form of `col IN (...)` on a varchar column does not normalise to itself, so `ck_demand_exception_method` and `ck_import_error_code` keep the original expression.
+- **The ledger's intra-module FKs are added after the EF tables (2c).** `inventory.stock_movement` is created before the EF tables (`demand_exception` references it); its FKs to `warehouse`, `part`, `transfer_order_line` and `import_batch` follow in `0003_stock_movement_fks.sql`. The dump is identical.
+- **History tables are readable by `app_read` in catalog/inventory/fleet (2c).** V015's `GRANT SELECT ON ALL TABLES IN SCHEMA …` also covers them. This keeps `util.v_privilege_findings` empty; documented in `tools/schema_diff.allow`.
+- **Migrations are `internal` and treated as generated code (2c).** A module may expose only its installer (architecture test), and analyzers skip the scaffolded `Migrations/` folders (`.editorconfig`).
+- **Model check in CI (2b)** uses `MigrationRunner check-model` (`HasPendingModelChanges()` for every catalogue context) instead of calling `dotnet ef` per context.
+- **Schema diff result after 2c:** 2,724 statements identical across `ref`, `util`, `audit`, `iam`, `catalog`, `inventory`, `raw`, `staging`, `fleet`. The differences, all documented:
+  - 20 removed cross-module FKs;
+  - 53 statements of the supplier tables (2d);
+  - 25 statements of the transitional views and functions (2d);
+  - 5 statements of `audit.v_audit_log_masked` (2d);
+  - 14 statements of the EF history tables.
 
 ---
 
