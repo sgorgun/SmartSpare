@@ -1,5 +1,7 @@
 # SmartSpare — Solution Architecture
 
+> **Status: superseded.** This document describes the architecture baseline of the database stage. The approved target architecture is in [ARCHITECTURE_DECISIONS.md](ARCHITECTURE_DECISIONS.md) and the ADRs in [`docs/adr/`](../adr/README.md). Where they differ (MediatR, JWT in the browser, database-first mapping, cross-module transactions, `SmartSpare.DbMigrator`), the decisions take precedence.
+
 Prerequisite for the database stage ("project architecture designed, database type chosen"). Based on the BA/SRS (Sections 2.3–2.7) and the diploma application (technology stack).
 
 ![Architecture](diagrams/architecture.png)

@@ -16,7 +16,9 @@ db/
   scripts/migrate.sh, reset_local.sh    migration runner (journal, checksums, advisory lock)
   ddl/smartspare_schema.sql             complete DDL (generated)
 docs/
-  architecture/ARCHITECTURE.md          solution architecture
+  architecture/ARCHITECTURE_DECISIONS.md approved target architecture (start here)
+  architecture/ARCHITECTURE.md          database-stage architecture baseline (superseded)
+  adr/                                  architecture decision records
   database/DATABASE_DESIGN.md           database design + requirements compliance matrix
   database/DATA_DICTIONARY.md           data dictionary (generated from the catalogue)
   database/diagrams/                    logical schema (colour-coded), data flow
