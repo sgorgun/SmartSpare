@@ -4,9 +4,52 @@ Agricultural machinery maintenance planning and spare-parts demand forecasting (
 
 Stack: ASP.NET Core 10 · Blazor WebAssembly + MudBlazor · EF Core 10 + Npgsql · **PostgreSQL 17** · ML.NET · Quartz.NET · Microsoft Azure.
 
+Architecture: a microservice-ready **modular monolith** — start with
+[ARCHITECTURE_DECISIONS.md](docs/architecture/ARCHITECTURE_DECISIONS.md) and the [ADRs](docs/adr/README.md).
+
+## Quick start (application)
+
+Prerequisites: .NET 10 SDK (version pinned in `global.json`) and Docker Desktop (running).
+
+```bash
+dotnet run --project src/SmartSpare.AppHost      # PostgreSQL 17 container + host + Aspire dashboard
+```
+
+The Aspire dashboard opens in the browser and lists the `host` resource with its URL. Every module answers
+`GET /api/<module>/ping` (`identity`, `inventory`, `fleet`, `procurement`, `forecasting`, `reporting`);
+health probes are `/health/live` and `/health/ready`; the OpenAPI document is `/openapi/v1.json` (Development).
+
+To run the host alone, without Aspire: `dotnet run --project src/Bootstrapper/SmartSpare.Host` (http://localhost:5080).
+
+| Task | Command |
+|---|---|
+| Build | `dotnet build SmartSpare.slnx -warnaserror` |
+| Test (no Docker) | `dotnet test SmartSpare.slnx --filter "Category!=Integration"` |
+| Test (all, Docker running) | `dotnet test SmartSpare.slnx` |
+| Format check | `dotnet format SmartSpare.slnx --verify-no-changes` |
+
+CI (`.github/workflows/ci.yml`) runs the build, format check and tests on every push and pull request to `main`.
+
 ## Repository layout
 
 ```
+src/
+  Bootstrapper/SmartSpare.Host          ASP.NET Core host: discovers and installs modules, BFF (later), health, OpenAPI
+  BuildingBlocks/
+    SmartSpare.SharedKernel             Entity, AggregateRoot, ValueObject, Result, Error — no dependencies
+    SmartSpare.Infrastructure           command/query handlers + decorators, IModuleInstaller, Result → ProblemDetails,
+                                        Persistence (EF Core helpers, ported in stage 2)
+    SmartSpare.ServiceDefaults          OpenTelemetry, health checks, service discovery, HTTP resilience
+  Modules/<Module>/                     Identity, Inventory, Fleet, Procurement, Forecasting, Reporting
+    SmartSpare.Modules.<Module>         internal implementation: Domain/, Features/<UseCase>/, Infrastructure/,
+                                        public <Module>ModuleInstaller
+    SmartSpare.Modules.<Module>.Contracts  public surface: integration events, read-only query interfaces
+  Web/SmartSpare.ApiContracts           HTTP DTOs + validators shared with the Blazor client
+  SmartSpare.AppHost                    .NET Aspire, local development only
+tests/
+  SmartSpare.SharedKernel.UnitTests, SmartSpare.Infrastructure.UnitTests
+  SmartSpare.ArchitectureTests          module boundaries (NetArchTest + project references)
+  SmartSpare.Host.IntegrationTests      in-memory smoke test of every module endpoint
 db/
   bootstrap/000_bootstrap_cluster.sql   roles + database (once per server, server admin)
   migrations/V001…V016__*.sql           versioned schema migrations (source of truth)
@@ -22,13 +65,12 @@ docs/
   database/DATABASE_DESIGN.md           database design + requirements compliance matrix
   database/DATA_DICTIONARY.md           data dictionary (generated from the catalogue)
   database/diagrams/                    logical schema (colour-coded), data flow
-src/
-  SmartSpare.DbMigrator/                C# migrator for the Azure pipeline
-  SmartSpare.Infrastructure/Persistence EF Core integration (session context, error mapping, enums)
 tools/                                  doc/diagram/DDL generators, EF Core scaffolding
 ```
 
-## Quick start (database)
+## Quick start (database, SQL scripts)
+
+Until stage 2 ports the schema to EF Core migrations, the full database is built from the SQL scripts:
 
 ```bash
 docker compose up -d
