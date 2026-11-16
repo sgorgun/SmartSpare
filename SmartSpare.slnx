@@ -1,9 +1,11 @@
 <Solution>
   <Folder Name="/src/" />
   <Folder Name="/src/BuildingBlocks/">
+    <Project Path="src/BuildingBlocks/SmartSpare.Infrastructure/SmartSpare.Infrastructure.csproj" />
     <Project Path="src/BuildingBlocks/SmartSpare.SharedKernel/SmartSpare.SharedKernel.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/SmartSpare.Infrastructure.UnitTests/SmartSpare.Infrastructure.UnitTests.csproj" />
     <Project Path="tests/SmartSpare.SharedKernel.UnitTests/SmartSpare.SharedKernel.UnitTests.csproj" />
   </Folder>
 </Solution>

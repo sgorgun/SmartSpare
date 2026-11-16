@@ -15,7 +15,7 @@ public enum ErrorType
 /// An expected business error. <see cref="Code"/> is stable and machine-readable
 /// (for example <c>SS200</c> or <c>Inventory.InsufficientStock</c>).
 /// </summary>
-public sealed record Error(string Code, string Description, ErrorType Type)
+public record Error(string Code, string Description, ErrorType Type)
 {
     public static readonly Error None = new(string.Empty, string.Empty, ErrorType.Failure);
 
