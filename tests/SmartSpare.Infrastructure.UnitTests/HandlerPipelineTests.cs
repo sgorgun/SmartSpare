@@ -1,6 +1,7 @@
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 using SmartSpare.Infrastructure.Messaging;
+using SmartSpare.Infrastructure.Persistence;
 using SmartSpare.SharedKernel;
 
 namespace SmartSpare.Infrastructure.UnitTests;
@@ -12,6 +13,7 @@ public sealed class HandlerPipelineTests
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddHandlersFromAssembly(typeof(HandlerPipelineTests).Assembly);
+        services.AddUnitOfWork<RecordingUnitOfWork>(typeof(HandlerPipelineTests).Assembly);
         services.DecorateHandlers();
         return services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });
     }
