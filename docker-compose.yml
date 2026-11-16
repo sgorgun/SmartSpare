@@ -4,7 +4,8 @@ services:
     image: postgres:17
     container_name: smartspare-postgres
     environment:
-      POSTGRES_PASSWORD: postgres          # local superuser, development only
+      # Local superuser, development only. From .env (gitignored), see .env.example.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (copy .env.example)}
     ports:
       - "5432:5432"
     command: ["postgres", "-c", "password_encryption=scram-sha-256", "-c", "shared_preload_libraries=pg_stat_statements"]

@@ -3,6 +3,10 @@
 # Needs a connection that may SET ROLE to the application roles (local superuser
 # or the server admin). Exit code != 0 on the first failing assertion.
 set -euo pipefail
+# Local superuser of docker compose by default (credentials from .env, see .env.example);
+# PG* variables in the environment take precedence, e.g. for the server admin.
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../scripts" && pwd)/env.sh"
+connect_as_superuser
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 pass=0
 for f in "$DIR"/T*.sql; do

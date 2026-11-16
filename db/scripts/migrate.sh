@@ -13,12 +13,16 @@
 #     the login role only needs membership in it — no superuser needed.
 #   * a transaction-level advisory lock prevents two runners at the same time.
 #
-# Usage: PGHOST=... PGPORT=... PGDATABASE=smartspare PGUSER=smartspare_migrator \
-#        PGPASSWORD=... db/scripts/migrate.sh
+# Usage: db/scripts/migrate.sh
+#   Connects as smartspare_migrator to localhost/smartspare with the password
+#   SMARTSPARE_MIGRATOR_PASSWORD from .env (see .env.example). PGHOST, PGPORT,
+#   PGDATABASE, PGUSER and PGPASSWORD set in the environment take precedence.
 # =============================================================================
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$ROOT/scripts/env.sh"
+connect_as_migrator
 OWNER_ROLE="${OWNER_ROLE:-smartspare_owner}"
 export PGOPTIONS="${PGOPTIONS:-} -c client_min_messages=warning"
 PSQL=(psql -X -q -v ON_ERROR_STOP=1 --no-psqlrc)

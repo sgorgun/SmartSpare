@@ -15,8 +15,9 @@
 --   * 104 weeks of ERP history are imported through raw -> staging -> core
 --   * go-live = Monday two weeks before today; live operations after go-live
 --     run through the same SQL functions the API uses.
--- Demo users log in with password  SmartSpare#Demo2026  (hashes are real
--- ASP.NET Core Identity V3 hashes; demo environments only).
+-- Demo users log in with the demo password documented in .env.example
+-- (SMARTSPARE_DEMO_USER_PASSWORD); only its real ASP.NET Core Identity V3
+-- hashes are stored here. Demo environments only.
 -- =============================================================================
 \set ON_ERROR_STOP on
 \if :{?parts}
