@@ -5,7 +5,9 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using SmartSpare.Infrastructure.Messaging;
 using SmartSpare.Infrastructure.Modules;
+using SmartSpare.Infrastructure.Persistence;
 using SmartSpare.Modules.Fleet.Contracts;
+using SmartSpare.Modules.Fleet.Infrastructure.Persistence;
 using SmartSpare.Modules.Fleet.Features.Ping;
 
 namespace SmartSpare.Modules.Fleet;
@@ -14,6 +16,8 @@ namespace SmartSpare.Modules.Fleet;
 public sealed class FleetModuleInstaller : IModuleInstaller
 {
     public string Name => FleetModule.Name;
+
+    public IModuleDatabase Database => FleetDatabase.Instance;
 
     public void AddServices(IServiceCollection services, IConfiguration configuration) =>
         services.AddHandlersFromAssembly(typeof(FleetModuleInstaller).Assembly);
