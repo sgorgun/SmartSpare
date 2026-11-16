@@ -20,6 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Bootstrapper\SmartSpare.MigrationRunner\SmartSpare.MigrationRunner.csproj" />
     <ProjectReference Include="..\Bootstrapper\SmartSpare.Host\SmartSpare.Host.csproj" />
   </ItemGroup>
 

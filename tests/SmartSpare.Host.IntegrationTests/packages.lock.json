@@ -713,12 +713,7 @@
         "dependencies": {
           "Microsoft.AspNetCore.OpenApi": "[10.0.15, )",
           "SmartSpare.Infrastructure": "[1.0.0, )",
-          "SmartSpare.Modules.Fleet": "[1.0.0, )",
-          "SmartSpare.Modules.Forecasting": "[1.0.0, )",
-          "SmartSpare.Modules.Identity": "[1.0.0, )",
-          "SmartSpare.Modules.Inventory": "[1.0.0, )",
-          "SmartSpare.Modules.Procurement": "[1.0.0, )",
-          "SmartSpare.Modules.Reporting": "[1.0.0, )",
+          "SmartSpare.ModuleCatalog": "[1.0.0, )",
           "SmartSpare.ServiceDefaults": "[1.0.0, )"
         }
       },
@@ -731,6 +726,18 @@
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
           "Scrutor": "[7.0.0, )",
           "SmartSpare.SharedKernel": "[1.0.0, )"
+        }
+      },
+      "smartspare.modulecatalog": {
+        "type": "Project",
+        "dependencies": {
+          "SmartSpare.Infrastructure": "[1.0.0, )",
+          "SmartSpare.Modules.Fleet": "[1.0.0, )",
+          "SmartSpare.Modules.Forecasting": "[1.0.0, )",
+          "SmartSpare.Modules.Identity": "[1.0.0, )",
+          "SmartSpare.Modules.Inventory": "[1.0.0, )",
+          "SmartSpare.Modules.Procurement": "[1.0.0, )",
+          "SmartSpare.Modules.Reporting": "[1.0.0, )"
         }
       },
       "smartspare.modules.fleet": {
