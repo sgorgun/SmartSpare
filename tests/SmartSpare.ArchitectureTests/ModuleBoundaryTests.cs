@@ -85,7 +85,6 @@ public sealed class ModuleBoundaryTests
         var installer = exported[0];
         installer.IsAssignableTo(typeof(IModuleInstaller)).ShouldBeTrue();
         installer.IsSealed.ShouldBeTrue();
-        installer.GetConstructor(Type.EmptyTypes).ShouldNotBeNull("the host creates installers with a parameterless constructor");
     }
 
     [Fact]

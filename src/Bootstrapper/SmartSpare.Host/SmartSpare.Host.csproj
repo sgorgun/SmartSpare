@@ -13,7 +13,7 @@
     <ProjectReference Include="..\..\BuildingBlocks\SmartSpare.Infrastructure\SmartSpare.Infrastructure.csproj" />
   </ItemGroup>
 
-  <!-- Modules are referenced only to be deployed next to the host; they are discovered at startup. -->
+  <!-- The host uses only each module's public installer, listed explicitly in Program.cs. -->
   <ItemGroup>
     <ProjectReference Include="..\..\Modules\Identity\SmartSpare.Modules.Identity\SmartSpare.Modules.Identity.csproj" />
     <ProjectReference Include="..\..\Modules\Inventory\SmartSpare.Modules.Inventory\SmartSpare.Modules.Inventory.csproj" />

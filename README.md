@@ -34,7 +34,7 @@ CI (`.github/workflows/ci.yml`) runs the build, format check and tests on every 
 
 ```
 src/
-  Bootstrapper/SmartSpare.Host          ASP.NET Core host: discovers and installs modules, BFF (later), health, OpenAPI
+  Bootstrapper/SmartSpare.Host          ASP.NET Core host: installs the listed modules, BFF (later), health, OpenAPI
   BuildingBlocks/
     SmartSpare.SharedKernel             Entity, AggregateRoot, ValueObject, Result, Error — no dependencies
     SmartSpare.Infrastructure           command/query handlers + decorators, IModuleInstaller, Result → ProblemDetails,

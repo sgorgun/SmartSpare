@@ -5,8 +5,8 @@ using Microsoft.Extensions.DependencyInjection;
 namespace SmartSpare.Infrastructure.Modules;
 
 /// <summary>
-/// Entry point of a module. The host discovers implementations at startup, so each module
-/// exposes exactly one public type: a sealed installer with a parameterless constructor.
+/// Entry point of a module. The host lists the installers it runs explicitly, and each module
+/// exposes exactly one public type: its sealed installer.
 /// </summary>
 public interface IModuleInstaller
 {
