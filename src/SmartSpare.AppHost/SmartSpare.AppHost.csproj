@@ -9,6 +9,10 @@
     <!-- ASPIRE010: use the orchestrator and dashboard from NuGet packages instead of the Aspire CLI
          bundle, so a plain `dotnet run` works without installing the Aspire CLI. -->
     <NoWarn>$(NoWarn);ASPIRE010</NoWarn>
+    <!-- No lock file: the Aspire SDK adds orchestrator and dashboard packages for the build
+         machine's RID (win-x64 locally, linux-x64 in CI), so one lock file cannot fit both.
+         Acceptable because the AppHost is local-only and never deployed. -->
+    <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
   </PropertyGroup>
 
   <ItemGroup>

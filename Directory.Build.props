@@ -9,6 +9,8 @@
     <EnableNETAnalyzers>true</EnableNETAnalyzers>
     <IsPackable>false</IsPackable>
     <Deterministic>true</Deterministic>
+    <!-- packages.lock.json pins the full transitive graph; CI restores with locked mode. -->
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
 
   <!-- Each production project exposes its internals to its own unit-test project only. -->

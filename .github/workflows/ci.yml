@@ -31,12 +31,11 @@ jobs:
         with:
           global-json-file: global.json
           cache: true
-          cache-dependency-path: |
-            Directory.Packages.props
-            **/*.csproj
+          cache-dependency-path: '**/packages.lock.json'
 
+      # Fails if a lock file is out of date with the project; run `dotnet restore` locally and commit it.
       - name: Restore
-        run: dotnet restore SmartSpare.slnx
+        run: dotnet restore SmartSpare.slnx --locked-mode
 
       - name: Build
         run: dotnet build SmartSpare.slnx --no-restore --configuration Release -warnaserror
