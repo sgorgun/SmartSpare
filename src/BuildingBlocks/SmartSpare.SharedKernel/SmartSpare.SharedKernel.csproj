@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Pure domain primitives: no package or framework references, by design. -->
+
+</Project>
