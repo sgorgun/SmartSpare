@@ -108,3 +108,7 @@ On Windows run the `.sh` scripts in Git Bash or WSL. Demo users (synthetic) log 
 2. Grant privileges for new objects in the same migration; `db/tests/T03` fails if `util.v_privilege_findings` returns rows.
 3. Regenerate docs: `python3 tools/generate_db_docs.py && python3 tools/generate_editable_diagrams.py && tools/export_ddl.sh`.
 4. `*.sql` files are checked out with LF line endings (`.gitattributes`) so checksums are identical on Windows and Linux.
+
+## Contributing
+
+Development follows GitHub Flow with protected `main`, pull requests and Conventional Commits — see [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md).
