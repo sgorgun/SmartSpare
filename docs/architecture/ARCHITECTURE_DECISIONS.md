@@ -22,6 +22,7 @@ SmartSpare is built as a **microservice-ready modular monolith**: one deployment
 | 12 | Observability | OpenTelemetry → Application Insights | [0009](../adr/0009-azure-hosting-and-delivery.md) |
 | 13 | Testing | Unit, integration with Testcontainers, architecture tests, bUnit, Playwright | — |
 | 14 | Repository language | English only | [0010](../adr/0010-english-only-repository.md) |
+| 15 | Evolvability | Abstractions only at seams to volatile technology; stable contracts (Contracts, versioned HTTP API, events); claims-based authorization | [0012](../adr/0012-evolvability-principles.md) |
 
 ## 1. Architectural style
 

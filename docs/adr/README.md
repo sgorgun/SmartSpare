@@ -13,5 +13,6 @@
 | [0009](0009-azure-hosting-and-delivery.md) | Azure hosting and delivery | Accepted |
 | [0010](0010-english-only-repository.md) | English-only repository | Accepted |
 | [0011](0011-database-ownership-per-module.md) | Database ownership per module | Accepted |
+| [0012](0012-evolvability-principles.md) | Evolvability principles | Accepted |
 
 New ADRs use the next free number and the same Context / Decision / Consequences format.
