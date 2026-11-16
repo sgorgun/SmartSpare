@@ -26,6 +26,95 @@ namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Migrations
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "raw", "import_status", new[] { "uploaded", "validated", "loaded", "failed" });
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("SmartSpare.Infrastructure.Messaging.Outbox.InboxMessage", b =>
+                {
+                    b.Property<Guid>("MessageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("message_id")
+                        .HasComment("Id of the handled event.");
+
+                    b.Property<string>("Consumer")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("consumer")
+                        .HasComment("Handler that consumed the event.");
+
+                    b.Property<DateTimeOffset>("ProcessedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("processed_at")
+                        .HasDefaultValueSql("now()")
+                        .HasComment("Time the event was handled.");
+
+                    b.HasKey("MessageId", "Consumer")
+                        .HasName("pk_inbox_message");
+
+                    b.ToTable("inbox_message", "inventory", t =>
+                        {
+                            t.HasComment("Integration events already handled by a consumer of this module (idempotent receiver, ADR 0003).");
+                        });
+                });
+
+            modelBuilder.Entity("SmartSpare.Infrastructure.Messaging.Outbox.OutboxMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasComment("Event id; receivers deduplicate by it.");
+
+                    b.Property<int>("Attempts")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("attempts")
+                        .HasComment("Failed delivery attempts so far.");
+
+                    b.Property<string>("Error")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("error")
+                        .HasComment("Last delivery error, if any.");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("occurred_at")
+                        .HasComment("Time the event occurred.");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("payload")
+                        .HasComment("Event serialized as a JSON object.");
+
+                    b.Property<DateTimeOffset?>("ProcessedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("processed_at")
+                        .HasComment("Time the event was delivered to every consumer; NULL = pending.");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("type")
+                        .HasComment("CLR type of the event (Namespace.Type, Assembly).");
+
+                    b.HasKey("Id")
+                        .HasName("pk_outbox_message");
+
+                    b.HasIndex("OccurredAt")
+                        .HasDatabaseName("ix_outbox_message_pending")
+                        .HasFilter("processed_at IS NULL");
+
+                    b.ToTable("outbox_message", "inventory", t =>
+                        {
+                            t.HasComment("Integration events of this module waiting for delivery (transactional outbox, ADR 0003).");
+
+                            t.HasCheckConstraint("ck_outbox_message_attempts", "attempts >= 0");
+
+                            t.HasCheckConstraint("ck_outbox_message_payload", "jsonb_typeof(payload) = 'object'");
+                        });
+                });
+
             modelBuilder.Entity("SmartSpare.Modules.Inventory.Infrastructure.Persistence.DemandException", b =>
                 {
                     b.Property<long>("MovementId")

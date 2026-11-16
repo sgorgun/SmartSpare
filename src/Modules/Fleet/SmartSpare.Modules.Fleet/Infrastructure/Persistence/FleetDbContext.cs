@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Conventions;
+using SmartSpare.Infrastructure.Messaging.Outbox;
 
 namespace SmartSpare.Modules.Fleet.Infrastructure.Persistence;
 
@@ -24,5 +25,8 @@ internal sealed class FleetDbContext(DbContextOptions<FleetDbContext> options) :
         modelBuilder.HasPostgresEnum<ReadingSource>("fleet", "reading_source");
         modelBuilder.HasPostgresEnum<ServiceOrderStatus>("fleet", "service_order_status");
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(FleetDbContext).Assembly);
+
+        // Transactional outbox and idempotent inbox of this module (ADR 0003, MODULE_MAPPING 5.6).
+        modelBuilder.AddOutboxAndInbox(HistorySchema);
     }
 }

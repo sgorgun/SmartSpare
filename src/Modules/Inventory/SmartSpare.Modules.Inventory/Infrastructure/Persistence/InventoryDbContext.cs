@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Conventions;
+using SmartSpare.Infrastructure.Messaging.Outbox;
 
 namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence;
 
@@ -25,5 +26,8 @@ internal sealed class InventoryDbContext(DbContextOptions<InventoryDbContext> op
         modelBuilder.HasPostgresEnum<ImportSource>("raw", "import_source");
         modelBuilder.HasPostgresEnum<ImportStatus>("raw", "import_status");
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(InventoryDbContext).Assembly);
+
+        // Transactional outbox and idempotent inbox of this module (ADR 0003, MODULE_MAPPING 5.6).
+        modelBuilder.AddOutboxAndInbox(HistorySchema);
     }
 }
