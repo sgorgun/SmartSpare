@@ -1,6 +1,7 @@
 using System.Data.Common;
 using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
 using Npgsql;
 
 namespace SmartSpare.MigrationRunner;
@@ -12,7 +13,7 @@ namespace SmartSpare.MigrationRunner;
 /// <c>\gexec</c> (run every value of the result as a statement). Every statement runs in autocommit
 /// mode, as with psql, because <c>CREATE DATABASE</c> cannot run inside a transaction.
 /// </summary>
-public static class BootstrapScript
+public static partial class BootstrapScript
 {
     private const string ResourceName = "bootstrap/000_bootstrap_cluster.sql";
 
@@ -29,6 +30,7 @@ public static class BootstrapScript
     {
         ArgumentNullException.ThrowIfNull(script);
         ArgumentNullException.ThrowIfNull(variables);
+        RejectDollarQuoting(script);
 
         var commands = new List<(string, bool)>();
         var buffer = new StringBuilder();
@@ -111,6 +113,29 @@ public static class BootstrapScript
 #pragma warning restore CA2100
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
+
+    /// <summary>
+    /// Statements are split at a <c>;</c> at the end of a line, so a dollar-quoted body
+    /// (<c>DO $$ … $$</c>, <c>$tag$ … $tag$</c>) would be cut into broken pieces. Fail before running
+    /// anything instead of executing half a block.
+    /// </summary>
+    private static void RejectDollarQuoting(string script)
+    {
+        var match = DollarQuote().Match(script);
+        if (match.Success)
+        {
+            var line = script.AsSpan(0, match.Index).Count('\n') + 1;
+            throw new FormatException(string.Format(CultureInfo.InvariantCulture,
+                "The bootstrap script uses dollar quoting ('{0}' on line {1}). The bootstrap interpreter splits "
+                + "statements on ';' and does not support dollar-quoted bodies, so db/bootstrap must stay plain "
+                + "statements and \\gexec queries; put functions and DO blocks into a migration instead.",
+                match.Value, line));
+        }
+    }
+
+    // $$ or $tag$ (a tag is an identifier: it cannot start with a digit, so $1 parameters do not match).
+    [GeneratedRegex(@"\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$", RegexOptions.CultureInvariant)]
+    private static partial Regex DollarQuote();
 
     /// <summary>psql's <c>:'name'</c>: the value as a single-quoted SQL literal.</summary>
     private static string Substitute(string sql, IReadOnlyDictionary<string, string> variables)

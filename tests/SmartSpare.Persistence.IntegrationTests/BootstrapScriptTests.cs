@@ -39,6 +39,21 @@ public sealed class BootstrapScriptTests
         commands.Select(c => c.Sql).ShouldBe(["SELECT '--x' AS a;", "GRANT a TO b;"]);
     }
 
+    [Theory]
+    [InlineData("DO $$ BEGIN PERFORM 1; END $$;", "$$")]
+    [InlineData("CREATE FUNCTION f() RETURNS int LANGUAGE sql AS $body$\nSELECT 1;\n$body$;", "$body$")]
+    public void DollarQuotedBodies_AreRejectedBeforeAnythingRuns(string script, string quote)
+    {
+        var error = Should.Throw<FormatException>(() => BootstrapScript.Parse("GRANT a TO b;\n" + script, Variables));
+
+        error.Message.ShouldContain($"'{quote}' on line 2");
+        error.Message.ShouldContain("does not support dollar-quoted bodies");
+    }
+
+    [Fact]
+    public void PositionalParameters_AreNotMistakenForDollarQuotes() =>
+        BootstrapScript.Parse("SELECT $1, $2;", Variables).ShouldHaveSingleItem();
+
     [Fact]
     public void MissingVariable_Fails() =>
         Should.Throw<InvalidOperationException>(() => BootstrapScript.Parse("SELECT :'unknown';", Variables));
