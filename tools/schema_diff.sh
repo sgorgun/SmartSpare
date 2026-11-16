@@ -3,7 +3,8 @@
 # Schema diff: SQL-built (V001-V016 + R001) database vs. EF-built database
 # (ADR 0011, MODULE_MAPPING section 6, step 1).
 #
-#   tools/schema_diff.sh [schema ...]          default: ref util audit
+#   tools/schema_diff.sh [schema ...]          default: every schema with an EF context so far:
+#                                              ref util audit iam catalog inventory raw staging fleet
 #
 # Starts two throw-away postgres:17 containers:
 #   A  bootstrap + db/scripts/migrate.sh (the V016 baseline, built inside the container)
@@ -19,7 +20,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SCHEMAS=("${@:-ref util audit}")
+SCHEMAS=("${@:-ref util audit iam catalog inventory raw staging fleet}")
 read -r -a SCHEMAS <<<"${SCHEMAS[*]}"
 OUT="$ROOT/artifacts/schema-diff"
 IMAGE="postgres:17"

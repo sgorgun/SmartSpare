@@ -10,5 +10,22 @@
 -ADD CONSTRAINT fk_audit_log_user FOREIGN KEY
 
 # audit.v_audit_log_masked reads iam.app_user: owned by Reporting and created by its migration in
-# PR 2d (MODULE_MAPPING 1.7, 3.1 X19). Remove these entries when 2d adds the view.
+# PR 2d (MODULE_MAPPING 1.7, 3.1 X19). Remove in 2d.
 -audit\.v_audit_log_masked
+
+# ---- PR 2c: Identity, Inventory, Fleet ------------------------------------------------------
+
+# GRANT SELECT ON ALL TABLES IN SCHEMA catalog/inventory/fleet (V015) also covers the history
+# tables there, which keeps util.v_privilege_findings ("app_read cannot SELECT") empty.
+# Covered by the +__ef_migrations_history entry above.
+
+# ADR 0011 D4: cross-module FKs removed for good (column and index stay; MODULE_MAPPING section 2).
+-ADD CONSTRAINT (fk_app_user_home_warehouse|fk_customer_region_warehouse|fk_machine_home_wh|fk_engine_hours_reading_user|fk_maintenance_plan_part_part|fk_service_order_created_by|fk_service_order_warehouse|fk_service_order_line_part|fk_demand_exception_flagged_by|fk_stock_reservation_created_by|fk_stock_reservation_service_line|fk_transfer_order_(requested|approved|dispatched|received)_by|fk_import_batch_user|fk_stock_movement_(created_by|service_line|po_line)) FOREIGN KEY
+
+# Supplier tables are still in catalog in the V016 baseline; they move to procurement in PR 2d (ADR 0011 D2).
+# Remove in 2d.
+-catalog\.supplier
+
+# Transitional cross-module views and LANGUAGE sql functions, created by the last Reporting migration
+# in PR 2d (MODULE_MAPPING 3.2). Remove in 2d.
+-(inventory\.(fn_in_transit_qty|v_in_transit|v_stock_overview)|fleet\.(v_machine_maintenance_status|v_service_kit_shortage)|iam\.v_app_user_masked)\b
