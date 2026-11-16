@@ -1,0 +1,16 @@
+<Project>
+
+  <!--
+    SQL parts of EF Core migrations (ADR 0004, ADR 0011). A project that owns a DbContext sets
+      <SmartSpareSqlFolder>inventory</SmartSpareSqlFolder>
+    and every db/sql/<folder>/*.sql file is embedded with the logical name sql/<folder>/<file>.sql,
+    which migrations load with migrationBuilder.SqlResource(assembly, "<folder>/<file>.sql").
+    The files stay under db/ so database changes are reviewed in one place.
+  -->
+  <ItemGroup Condition="'$(SmartSpareSqlFolder)' != ''">
+    <EmbeddedResource Include="$(MSBuildThisFileDirectory)db/sql/$(SmartSpareSqlFolder)/*.sql"
+                      LogicalName="sql/$(SmartSpareSqlFolder)/%(Filename)%(Extension)"
+                      Link="Sql/%(Filename)%(Extension)" />
+  </ItemGroup>
+
+</Project>
