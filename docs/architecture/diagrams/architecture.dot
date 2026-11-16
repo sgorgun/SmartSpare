@@ -1,0 +1,35 @@
+digraph A {
+  graph [rankdir=TB, fontname="Helvetica", nodesep=0.4, ranksep=0.55, label=<<B>SmartSpare — modular monolith (Clean Architecture + CQRS) on Azure</B>>, labelloc=t, fontsize=20, pad=0.3];
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=11, fillcolor="#FFFFFF", color="#555555"];
+  edge [fontname="Helvetica", fontsize=9, color="#555555"];
+  users [label="Users (browser / tablet)\nBrand manager · Service engineer · Warehouse keeper\nInventory planner · Sponsor · Administrator", shape=box, fillcolor="#F5F5F5"];
+  erp [label="Legacy dealer ERP\n(CSV export: catalogue, demand history)", fillcolor="#F5F5F5"];
+  supp [label="OEM suppliers / logistics dept.\n(PO and transfer files)", fillcolor="#F5F5F5"];
+  subgraph cluster_app { label=<<B>Azure App Service (Linux container) — one deployable</B>>; style="rounded,filled"; fillcolor="#E3F2FD"; color="#1E88E5";
+    web [label="SmartSpare.Web\nBlazor WebAssembly + MudBlazor\n(adaptive UI, served by the API)"];
+    api [label="SmartSpare.Api\nASP.NET Core 10 REST + OpenAPI\nJWT auth · ProblemDetails (maps SQLSTATE SSxxx)"];
+    subgraph cluster_mod { label="Application layer: MediatR commands / queries per module"; style="rounded,dashed"; color="#1E88E5"; fillcolor="#FFFFFF";
+      m1 [label="Fleet &\nMaintenance", fillcolor="#FFF3E0", color="#FB8C00"];
+      m2 [label="Inventory\n(catalogue, stock,\ntransfers)", fillcolor="#E0F2F1", color="#00897B"];
+      m3 [label="Procurement", fillcolor="#FCE4EC", color="#D81B60"];
+      m4 [label="Forecasting\n(ML.NET FastTree,\nbenchmarks)", fillcolor="#E8EAF6", color="#3949AB"];
+      m5 [label="Identity &\nAccess", fillcolor="#F3E5F5", color="#8E24AA"];
+      m6 [label="Import\n(CSV raw→staging)", fillcolor="#FFFDE7", color="#C0A000"];
+    }
+    dom [label="SmartSpare.Domain — entities, value objects, rules (no EF / ASP.NET references)"];
+    infra [label="SmartSpare.Infrastructure — EF Core 10 + Npgsql (database-first mapping),\nsession-context interceptor (app.user_id), Blob storage, Quartz.NET jobs"];
+  }
+  subgraph cluster_db { label=<<B>Azure Database for PostgreSQL Flexible Server (single DB, one schema per module)</B>>; style="rounded,filled"; fillcolor="#E8F5E9"; color="#43A047";
+    db [label="raw → staging → core (ref, iam, catalog, inventory, fleet, procurement, forecast, audit) → mart\nconstraints · triggers · functions · views · materialized views · roles", shape=cylinder, fillcolor="#FFFFFF"];
+  }
+  blob [label="Azure Blob Storage\n(ML.NET model .zip versions)", shape=cylinder];
+  mig [label="SmartSpare.DbMigrator\n(CI/CD step, runs V*.sql / R*.sql)", fillcolor="#FAFAFA"];
+  users -> web [label=" HTTPS"]; web -> api [label=" REST/JSON + JWT"];
+  api -> m1; api -> m2; api -> m3; api -> m4; api -> m5; api -> m6;
+  m1 -> dom [style=dotted, arrowhead=none]; m4 -> dom [style=dotted, arrowhead=none]; m2 -> dom [style=dotted, arrowhead=none];
+  dom -> infra [style=invis];
+  infra -> db [label=" smartspare_api (app_write)\n smartspare_jobs (app_write+app_ml)"];
+  infra -> blob;
+  mig -> db [label=" smartspare_migrator\n(SET ROLE owner)", style=dashed];
+  erp -> m6 [label=" CSV upload", style=dashed]; m3 -> supp [label=" export", style=dashed];
+}
