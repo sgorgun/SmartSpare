@@ -36,9 +36,13 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 1. Update `main` and branch off: `git switch main && git pull && git switch -c feature/<name>`.
 2. Commit, push and open a pull request into `main` (`gh pr create --fill`); open it as a draft while work is in progress.
-3. Fill in the pull request template. The PR title follows the commit convention, because it becomes the commit message on `main`.
+3. Fill in the pull request template. The PR title follows the commit convention, because a squash merge uses it as the commit message on `main`.
 4. CI (**Build and test**) must pass. Review the diff yourself before merging.
-5. **Squash and merge**; the branch is deleted automatically.
+5. Merge with the strategy that fits the branch history (the branch is deleted automatically):
+   - **Rebase and merge** when every commit is a clean, self-contained Conventional Commit that builds on its own — the usual case for feature branches. Each commit lands on `main` as is.
+   - **Squash and merge** for single-purpose changes, Dependabot updates, or branches with work-in-progress or fix-up commits. The PR title becomes the commit message.
+
+   Merge commits are disabled: `main` keeps a linear history either way. Before using rebase, tidy the branch if needed (`git rebase -i main` to squash fix-ups) so that every commit on `main` is meaningful.
 
 Before pushing, run locally:
 
