@@ -1,0 +1,22 @@
+<Project Sdk="Aspire.AppHost.Sdk">
+
+  <!-- Local development orchestration only; Azure is deployed with Bicep (ADR 0009). -->
+  <!-- The SDK version is pinned in global.json (msbuild-sdks). -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <UserSecretsId>smartspare-apphost</UserSecretsId>
+    <!-- ASPIRE010: use the orchestrator and dashboard from NuGet packages instead of the Aspire CLI
+         bundle, so a plain `dotnet run` works without installing the Aspire CLI. -->
+    <NoWarn>$(NoWarn);ASPIRE010</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.PostgreSQL" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Bootstrapper\SmartSpare.Host\SmartSpare.Host.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,5 +1,7 @@
 <Solution>
-  <Folder Name="/src/" />
+  <Folder Name="/src/">
+    <Project Path="src/SmartSpare.AppHost/SmartSpare.AppHost.csproj" />
+  </Folder>
   <Folder Name="/src/Bootstrapper/">
     <Project Path="src/Bootstrapper/SmartSpare.Host/SmartSpare.Host.csproj" />
   </Folder>
