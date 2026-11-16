@@ -1,4 +1,6 @@
 using SmartSpare.Infrastructure.Messaging;
+using SmartSpare.Infrastructure.Messaging.Outbox;
+using SmartSpare.Infrastructure.Persistence;
 using SmartSpare.ModuleCatalog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -17,6 +19,13 @@ foreach (var module in modules)
 
 // After all modules: wrap every handler in the logging/validation/transaction pipeline once.
 builder.Services.DecorateHandlers();
+
+// Deliver integration events from every module's outbox (ADR 0003). Without a database (host
+// tests) there is nothing to drain.
+if (builder.Configuration.GetConnectionString(PersistenceRegistration.ConnectionStringName) is not null)
+{
+    builder.Services.AddOutboxDispatcher();
+}
 
 var app = builder.Build();
 

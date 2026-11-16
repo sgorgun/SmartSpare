@@ -111,7 +111,7 @@ LANGUAGE sql STABLE AS $$
 $$;
 COMMENT ON FUNCTION fleet.fn_maintenance_due(bigint, numeric) IS 'Planned services of a machine due within the horizon (effective interval = OEM interval x condition factor).';
 
--- TRANSITIONAL: replaced by ServiceOrderDrafted -> ServiceKitReserved in stage 5 (writes inventory.stock_reservation; MODULE_MAPPING 3.1 X6)
+-- TRANSITIONAL: replaced by ServiceOrderDrafted -> ServiceKitReserved in stage 5, #12 (writes inventory.stock_reservation; MODULE_MAPPING 3.1 X6)
 -- US06 / UC02 steps 5-7: service order draft with kit and 7-day soft reservations.
 CREATE FUNCTION fleet.create_service_order_draft(p_machine_id bigint, p_plan_id integer, p_due_engine_hours numeric)
 RETURNS bigint
@@ -200,7 +200,7 @@ END $$;
 CREATE TRIGGER trg_service_order_status_guard BEFORE UPDATE ON fleet.service_order
     FOR EACH ROW EXECUTE FUNCTION fleet.trg_service_order_status_guard();
 
--- TRANSITIONAL: replaced by ServiceOrderCompleted -> ServiceKitIssued in stage 5 (writes inventory; MODULE_MAPPING 3.1 X7)
+-- TRANSITIONAL: replaced by ServiceOrderCompleted -> ServiceKitIssued in stage 5, #12 (writes inventory; MODULE_MAPPING 3.1 X7)
 CREATE FUNCTION fleet.complete_service_order(p_service_order_id bigint, p_engine_hours numeric) RETURNS void
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 DECLARE
@@ -234,7 +234,7 @@ BEGIN
 END $$;
 COMMENT ON FUNCTION fleet.complete_service_order(bigint, numeric) IS 'Consumes the kit reservations, issues parts (ISSUE_SERVICE = demand) and closes the order.';
 
--- TRANSITIONAL: replaced by ServiceOrderCancelled in stage 5 (releases inventory.stock_reservation; MODULE_MAPPING 3.1 X8)
+-- TRANSITIONAL: replaced by ServiceOrderCancelled in stage 5, #12 (releases inventory.stock_reservation; MODULE_MAPPING 3.1 X8)
 CREATE FUNCTION fleet.cancel_service_order(p_service_order_id bigint, p_reason text) RETURNS void
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 DECLARE

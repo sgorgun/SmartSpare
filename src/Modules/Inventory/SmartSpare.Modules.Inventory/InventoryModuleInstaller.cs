@@ -19,8 +19,12 @@ public sealed class InventoryModuleInstaller : IModuleInstaller
 
     public IModuleDatabase Database => InventoryDatabase.Instance;
 
-    public void AddServices(IServiceCollection services, IConfiguration configuration) =>
-        services.AddHandlersFromAssembly(typeof(InventoryModuleInstaller).Assembly);
+    public void AddServices(IServiceCollection services, IConfiguration configuration)
+    {
+        var assembly = typeof(InventoryModuleInstaller).Assembly;
+        services.AddHandlersFromAssembly(assembly);
+        InventoryDatabase.Instance.AddTo(services, assembly, configuration.GetConnectionString(PersistenceRegistration.ConnectionStringName), InventoryDbContext.HistorySchema);
+    }
 
     public void MapEndpoints(IEndpointRouteBuilder endpoints)
     {

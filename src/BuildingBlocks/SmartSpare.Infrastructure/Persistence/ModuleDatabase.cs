@@ -1,4 +1,6 @@
+using System.Reflection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace SmartSpare.Infrastructure.Persistence;
 
@@ -59,6 +61,13 @@ public abstract class ModuleDatabase<TContext> : IModuleDatabase
         PersistenceRegistration.Configure(options, connectionString, HistorySchema, ConfigureNpgsql);
         return CreateContext(options.Options);
     }
+
+    /// <summary>
+    /// Registers the context for the application with the same provider settings (enum mappings,
+    /// history table) the runner uses, plus the module's unit of work and, if it has one, its outbox.
+    /// </summary>
+    public IServiceCollection AddTo(IServiceCollection services, Assembly moduleAssembly, string? connectionString, string? outboxSchema) =>
+        services.AddModulePersistence<TContext>(moduleAssembly, connectionString, HistorySchema, ConfigureNpgsql, outboxSchema);
 
     protected abstract TContext CreateContext(DbContextOptions<TContext> options);
 

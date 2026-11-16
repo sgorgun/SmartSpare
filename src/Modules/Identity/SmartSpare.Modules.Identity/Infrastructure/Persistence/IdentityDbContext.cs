@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Conventions;
+using SmartSpare.Infrastructure.Messaging.Outbox;
 
 namespace SmartSpare.Modules.Identity.Infrastructure.Persistence;
 
@@ -21,5 +22,8 @@ internal sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> opti
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(IdentityDbContext).Assembly);
+
+        // Transactional outbox and idempotent inbox of this module (ADR 0003, MODULE_MAPPING 5.6).
+        modelBuilder.AddOutboxAndInbox(HistorySchema);
     }
 }

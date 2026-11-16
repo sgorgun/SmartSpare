@@ -19,8 +19,12 @@ public sealed class IdentityModuleInstaller : IModuleInstaller
 
     public IModuleDatabase Database => IdentityDatabase.Instance;
 
-    public void AddServices(IServiceCollection services, IConfiguration configuration) =>
-        services.AddHandlersFromAssembly(typeof(IdentityModuleInstaller).Assembly);
+    public void AddServices(IServiceCollection services, IConfiguration configuration)
+    {
+        var assembly = typeof(IdentityModuleInstaller).Assembly;
+        services.AddHandlersFromAssembly(assembly);
+        IdentityDatabase.Instance.AddTo(services, assembly, configuration.GetConnectionString(PersistenceRegistration.ConnectionStringName), IdentityDbContext.HistorySchema);
+    }
 
     public void MapEndpoints(IEndpointRouteBuilder endpoints)
     {
