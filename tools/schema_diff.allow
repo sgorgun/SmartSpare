@@ -17,3 +17,11 @@
 
 # ADR 0011 D4: cross-module FKs removed for good (column and index stay; MODULE_MAPPING section 2).
 -ADD CONSTRAINT (fk_app_user_home_warehouse|fk_customer_region_warehouse|fk_machine_home_wh|fk_engine_hours_reading_user|fk_maintenance_plan_part_part|fk_service_order_created_by|fk_service_order_warehouse|fk_service_order_line_part|fk_demand_exception_flagged_by|fk_stock_reservation_created_by|fk_stock_reservation_service_line|fk_transfer_order_(requested|approved|dispatched|received)_by|fk_import_batch_user|fk_stock_movement_(created_by|service_line|po_line)|fk_supplier_part_part|fk_purchase_order_(warehouse|created_by|approved_by)|fk_purchase_order_line_part|fk_forecast_run_user|fk_demand_forecast_warehouse_part|fk_recommendation_(wh_part|donor|supplier|decided_by|transfer|po)) FOREIGN KEY
+
+# Corrected comments (PR "architecture refresh"): the V016 texts named the removed SQL seed scripts and
+# JWT refresh tokens; reference data is seeded by the Platform migrations and sign-in uses the BFF
+# cookie (ADR 0006). Migrations UpdateRefSchemaComment (Platform) and UpdateSecurityStampComment (Identity).
+-COMMENT ON SCHEMA ref IS 'Core layer: fixed reference \(lookup\) data loaded by db/seed scripts\.'
++COMMENT ON SCHEMA ref IS 'Core layer: fixed reference \(lookup\) data, seeded by the Platform migrations
+-COMMENT ON COLUMN iam\.app_user\.security_stamp IS '.*invalidates issued JWT refresh tokens\.'
++COMMENT ON COLUMN iam\.app_user\.security_stamp IS '.*invalidates issued sign-in cookies

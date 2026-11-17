@@ -168,7 +168,7 @@ All tables are in 3NF: attributes depend on the whole key and only on the key. T
 | Engine hours | `numeric(8,1)` | odometers show tenths of hours |
 | Points in time | `timestamptz` | unambiguous across DST; Europe/Vilnius used for business weeks |
 | Calendar dates, validity | `date`, `daterange` | price periods with `EXCLUDE` |
-| Identifiers | `bigint`/`integer`/`smallint` identity; `uuid` for users | size per expected volume; user ids appear in JWTs |
+| Identifiers | `bigint`/`integer`/`smallint` identity; `uuid` for users | size per expected volume; user ids travel outside `iam` (sign-in claims, `app.user_id`, the audit trail, plain-id references in other modules), so they are globally unique rather than sequential |
 | E-mail, user name | `citext` | case-insensitive uniqueness |
 | Codes | `varchar(n)` + regex CHECK | format validation in the DB |
 | Status | PostgreSQL ENUM | 4 bytes, mapped to C# enums by Npgsql |
