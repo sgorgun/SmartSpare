@@ -4,11 +4,11 @@
 -- Last migration per context (history schema: migration):
 --   fleet: 20261116230235_AddOutboxInbox
 --   forecast: 20261116230242_InitialForecasting
---   iam: 20261116230228_AddOutboxInbox
+--   iam: 20261117014122_UpdateSecurityStampComment
 --   inventory: 20261116230231_AddOutboxInbox
 --   mart: 20261116230254_TransitionalCrossModuleObjects
 --   procurement: 20261116230533_InitialProcurement
---   util: 20261116211659_InitialPlatform
+--   util: 20261117014047_UpdateRefSchemaComment
 --
 -- PostgreSQL database dump
 --
@@ -186,7 +186,7 @@ ALTER SCHEMA ref OWNER TO smartspare_owner;
 -- Name: SCHEMA ref; Type: COMMENT; Schema: -; Owner: smartspare_owner
 --
 
-COMMENT ON SCHEMA ref IS 'Core layer: fixed reference (lookup) data loaded by db/seed scripts.';
+COMMENT ON SCHEMA ref IS 'Core layer: fixed reference (lookup) data, seeded by the Platform migrations (db/sql/platform/seed_ref.sql).';
 
 
 --
@@ -4112,7 +4112,7 @@ COMMENT ON COLUMN iam.app_user.password_hash IS 'ASP.NET Core Identity V3 hash (
 -- Name: COLUMN app_user.security_stamp; Type: COMMENT; Schema: iam; Owner: smartspare_owner
 --
 
-COMMENT ON COLUMN iam.app_user.security_stamp IS 'Changes on password/role change; invalidates issued JWT refresh tokens.';
+COMMENT ON COLUMN iam.app_user.security_stamp IS 'Changes on password/role change; invalidates issued sign-in cookies (security stamp validation).';
 
 
 --

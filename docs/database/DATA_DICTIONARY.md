@@ -245,7 +245,7 @@ Rows (demo): **5**
 
 ### `iam.__ef_migrations_history` (table)
 
-Rows (demo): **2**
+Rows (demo): **3**
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -274,7 +274,7 @@ Rows (demo): **12**
 | `full_name` | `character varying(150)` | NN |  | PERSONAL DATA (GDPR). Masked by util.mask_name for read-only roles. |
 | `phone` | `character varying(30)` |  |  | PERSONAL DATA (GDPR). Masked by util.mask_phone for read-only roles. |
 | `password_hash` | `text` |  |  | ASP.NET Core Identity V3 hash (PBKDF2-HMAC-SHA512, 100k iterations). Plain text is impossible by CHECK. |
-| `security_stamp` | `uuid` | NN | `gen_random_uuid()` | Changes on password/role change; invalidates issued JWT refresh tokens. |
+| `security_stamp` | `uuid` | NN | `gen_random_uuid()` | Changes on password/role change; invalidates issued sign-in cookies (security stamp validation). |
 | `is_active` | `boolean` | NN | `true` | FALSE = deactivated, kept for history. |
 | `failed_login_count` | `smallint` | NN | `0` |  |
 | `lockout_end` | `timestamp with time zone` |  |  |  |
@@ -2405,7 +2405,7 @@ ML.NET training/inference features: dense weekly series with season, lags (1,2,4
 
 ### `util.__ef_migrations_history` (table)
 
-Rows (demo): **1**
+Rows (demo): **2**
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
