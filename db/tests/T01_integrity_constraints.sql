@@ -78,8 +78,8 @@ SELECT pg_temp.expect_error(
 
 -- EXCLUDE constraint ---------------------------------------------------------------
 SELECT pg_temp.expect_error(
-    $$INSERT INTO catalog.supplier_price (supplier_part_id, valid_during, unit_price)
-      SELECT supplier_part_id, daterange(current_date, current_date + 30), 1 FROM catalog.supplier_price LIMIT 1$$,
+    $$INSERT INTO procurement.supplier_price (supplier_part_id, valid_during, unit_price)
+      SELECT supplier_part_id, daterange(current_date, current_date + 30), 1 FROM procurement.supplier_price LIMIT 1$$,
     '23P01', 'EXCLUDE: overlapping supplier price periods rejected');
 
 -- Four-eyes rule as a CHECK -----------------------------------------------------------
