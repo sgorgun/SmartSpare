@@ -178,7 +178,7 @@ Table iam.app_user [headercolor: #8E24AA, note: 'Dealership employees using Smar
   "full_name" "character varying(150)" [not null, note: 'PERSONAL DATA (GDPR). Masked by util.mask_name for read-only roles.']
   "phone" "character varying(30)" [note: 'PERSONAL DATA (GDPR). Masked by util.mask_phone for read-only roles.']
   "password_hash" "text" [note: 'ASP.NET Core Identity V3 hash (PBKDF2-HMAC-SHA512, 100k iterations). Plain text is impossible by CHECK.']
-  "security_stamp" "uuid" [not null, default: `gen_random_uuid()`, note: 'Changes on password/role change; invalidates issued JWT refresh tokens.']
+  "security_stamp" "uuid" [not null, default: `gen_random_uuid()`, note: 'Changes on password/role change; invalidates issued sign-in cookies (security stamp validation).']
   "is_active" "boolean" [not null, default: `true`, note: 'FALSE = deactivated, kept for history.']
   "failed_login_count" "smallint" [not null, default: `0`]
   "lockout_end" "timestamp with time zone"
