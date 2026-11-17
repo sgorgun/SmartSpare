@@ -123,6 +123,8 @@ On Windows run the `.sh` scripts in Git Bash or WSL. Demo users (synthetic) such
 | Data flow through the layers | `docs/database/diagrams/data_flow.svg` | `data_flow.drawio` |
 | Solution architecture | `docs/architecture/diagrams/architecture.svg` | `architecture.drawio` |
 
+* **Solution architecture legend:** solid border = implemented, dashed border + "(stage N)" = planned (work plan stages),
+  grey = external system; the status is taken from the code and updated when a stage lands.
 * **All five diagrams in one file (one page each):** `docs/SmartSpare_diagrams.drawio`.
   Open with [app.diagrams.net](https://app.diagrams.net) (File → Open from → Device), the draw.io desktop app,
   or VS Code with the *Draw.io Integration* extension. Export to PNG/SVG/PDF/VSDX from File → Export as.
