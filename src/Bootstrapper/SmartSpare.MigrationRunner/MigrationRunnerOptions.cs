@@ -27,7 +27,7 @@ public sealed class MigrationRunnerOptions
     /// <summary>
     /// Connection used to apply migrations: the migrator login with the session role set at start-up
     /// (<c>Options=-c role=smartspare_owner</c>), so every object and history table is owned by the
-    /// owner role, exactly like <c>SET ROLE</c> in db/scripts/migrate.sh.
+    /// owner role, as if the migrator had run <c>SET ROLE smartspare_owner</c> (MODULE_MAPPING 5.5).
     /// </summary>
     public string BuildMigratorConnectionString()
     {
