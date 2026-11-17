@@ -1,6 +1,6 @@
 # SmartSpare — Architecture Decisions
 
-Status: **approved** (16 November 2026). Supersedes the architecture described in [ARCHITECTURE.md](ARCHITECTURE.md), which is kept as the database-stage baseline. Individual decisions are recorded as ADRs in [`docs/adr/`](../adr/README.md).
+Status: **approved** (16 November 2026). This is the architecture of SmartSpare; it superseded the database-stage architecture note, which was removed (it remains in the Git history). Individual decisions are recorded as ADRs in [`docs/adr/`](../adr/README.md).
 
 ## Summary
 

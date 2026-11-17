@@ -70,8 +70,8 @@ db/
   baseline/v016_schema.sql              frozen schema of the former SQL-built database (input of tools/schema_diff.sh)
   ddl/smartspare_schema.sql             complete DDL of the EF-built database (generated)
 docs/
-  architecture/ARCHITECTURE_DECISIONS.md approved target architecture (start here)
-  architecture/ARCHITECTURE.md          database-stage architecture baseline (superseded)
+  architecture/ARCHITECTURE_DECISIONS.md approved architecture (start here)
+  architecture/diagrams/                solution architecture diagram
   adr/                                  architecture decision records
   database/DATABASE_DESIGN.md           database design + requirements compliance matrix
   database/MODULE_MAPPING.md            ownership of every database object per module (stage 2)
