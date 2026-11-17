@@ -1,35 +1,61 @@
 digraph A {
-  graph [rankdir=TB, fontname="Helvetica", nodesep=0.4, ranksep=0.55, label=<<B>SmartSpare — modular monolith (Clean Architecture + CQRS) on Azure</B>>, labelloc=t, fontsize=20, pad=0.3];
+  graph [rankdir=TB, compound=true, fontname="Helvetica", nodesep=0.35, ranksep=0.55,
+         label=<<B>SmartSpare — microservice-ready modular monolith on Azure</B><BR/><FONT POINT-SIZE="12">ARCHITECTURE_DECISIONS.md · ADR 0002–0013</FONT>>,
+         labelloc=t, fontsize=20, pad=0.3];
   node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=11, fillcolor="#FFFFFF", color="#555555"];
   edge [fontname="Helvetica", fontsize=9, color="#555555"];
-  users [label="Users (browser / tablet)\nBrand manager · Service engineer · Warehouse keeper\nInventory planner · Sponsor · Administrator", shape=box, fillcolor="#F5F5F5"];
+
+  users [label="Users (browser / tablet)\nBrand manager · Service engineer · Warehouse keeper\nInventory planner · Sponsor · Administrator", fillcolor="#F5F5F5"];
   erp [label="Legacy dealer ERP\n(CSV export: catalogue, demand history)", fillcolor="#F5F5F5"];
-  supp [label="OEM suppliers / logistics dept.\n(PO and transfer files)", fillcolor="#F5F5F5"];
-  subgraph cluster_app { label=<<B>Azure App Service (Linux container) — one deployable</B>>; style="rounded,filled"; fillcolor="#E3F2FD"; color="#1E88E5";
-    web [label="SmartSpare.Web\nBlazor WebAssembly + MudBlazor\n(adaptive UI, served by the API)"];
-    api [label="SmartSpare.Api\nASP.NET Core 10 REST + OpenAPI\nJWT auth · ProblemDetails (maps SQLSTATE SSxxx)"];
-    subgraph cluster_mod { label="Application layer: MediatR commands / queries per module"; style="rounded,dashed"; color="#1E88E5"; fillcolor="#FFFFFF";
-      m1 [label="Fleet &\nMaintenance", fillcolor="#FFF3E0", color="#FB8C00"];
-      m2 [label="Inventory\n(catalogue, stock,\ntransfers)", fillcolor="#E0F2F1", color="#00897B"];
-      m3 [label="Procurement", fillcolor="#FCE4EC", color="#D81B60"];
-      m4 [label="Forecasting\n(ML.NET FastTree,\nbenchmarks)", fillcolor="#E8EAF6", color="#3949AB"];
-      m5 [label="Identity &\nAccess", fillcolor="#F3E5F5", color="#8E24AA"];
-      m6 [label="Import\n(CSV raw→staging)", fillcolor="#FFFDE7", color="#C0A000"];
+  supp [label="OEM suppliers\n(purchase order files)", fillcolor="#F5F5F5"];
+
+  subgraph cluster_browser { label=<<B>Browser</B>>; fontsize=14; style="rounded,filled"; fillcolor="#FAFAFA"; color="#9E9E9E";
+    web [label="SmartSpare.Web.Client\nBlazor WebAssembly + MudBlazor\ntyped HTTP clients per module · SmartSpare.ApiContracts\n(no tokens in the browser)"];
+  }
+
+  subgraph cluster_app { label=<<B>Azure App Service (Linux container) — one deployable</B>>; fontsize=14; style="rounded,filled"; fillcolor="#E3F2FD"; color="#1E88E5";
+    host [label="SmartSpare.Host — API + BFF\nASP.NET Core 10 minimal APIs · OpenAPI · ProblemDetails (SS1xx–SS4xx)\nHttpOnly SameSite cookie + antiforgery · claims-based policies\nserves the WASM client · /health/live, /health/ready"];
+    pipe [label="Command / query pipeline (BuildingBlocks, ADR 0005)\nown ICommandHandler / IQueryHandler instead of MediatR\ndecorators: logging → validation (FluentValidation) → transaction (unit of work)"];
+    subgraph cluster_mod { label=<<B>Modules</B> — each: Domain/ · Features/&lt;UseCase&gt;/ · Infrastructure/ (DbContext, migrations) + Contracts>; fontsize=14; style="rounded,dashed"; color="#1E88E5"; fillcolor="#FFFFFF";
+      m_id [label="Identity\n(iam)", fillcolor="#F3E5F5", color="#8E24AA"];
+      m_inv [label="Inventory\n(catalog, inventory,\nraw, staging)", fillcolor="#E0F2F1", color="#00897B"];
+      m_fleet [label="Fleet\n(fleet)", fillcolor="#FFF3E0", color="#FB8C00"];
+      m_proc [label="Procurement\n(procurement)", fillcolor="#FCE4EC", color="#D81B60"];
+      m_fc [label="Forecasting\n(forecast, ML.NET)", fillcolor="#E8EAF6", color="#3949AB"];
+      m_rep [label="Reporting\n(mart, read-only)", fillcolor="#E8F5E9", color="#43A047"];
+      { rank=same; m_id -> m_inv -> m_fleet -> m_proc -> m_fc -> m_rep [style=invis]; }
     }
-    dom [label="SmartSpare.Domain — entities, value objects, rules (no EF / ASP.NET references)"];
-    infra [label="SmartSpare.Infrastructure — EF Core 10 + Npgsql (code-first, one DbContext per module, SQL parts in db/sql),\nsession-context interceptor (app.user_id), outbox/inbox, Blob storage, Quartz.NET jobs"];
+    bus [label="Outbox / Inbox (BuildingBlocks, ADR 0003)\nintegration events written in the module's transaction,\ndispatched with FOR UPDATE SKIP LOCKED, idempotent consumers\n(in-process now; Azure Service Bus after a split)", fillcolor="#FFFDE7", color="#C0A000"];
+    jobs [label="Background jobs (Quartz.NET, clustered)\nmart refresh · reservation expiry · audit purge · ML training"];
   }
-  subgraph cluster_db { label=<<B>Azure Database for PostgreSQL Flexible Server (single DB, one schema per module)</B>>; style="rounded,filled"; fillcolor="#E8F5E9"; color="#43A047";
-    db [label="raw → staging → core (ref, iam, catalog, inventory, fleet, procurement, forecast, audit) → mart\nconstraints · triggers · functions · views · materialized views · roles", shape=cylinder, fillcolor="#FFFFFF"];
+
+  subgraph cluster_db { label=<<B>Azure Database for PostgreSQL Flexible Server 17</B> — one database, schemas owned by modules (ADR 0011)>; fontsize=14; style="rounded,filled"; fillcolor="#E8F5E9"; color="#43A047";
+    db [label="ref · util · audit (Platform) │ iam │ catalog · inventory · raw · staging │ fleet │ procurement │ forecast │ mart\nno FKs, JOINs or transactions across modules · outbox_message / inbox_message and __ef_migrations_history per module\ntriggers · functions · views · materialised views · roles and grants (SQL parts in db/sql/<module>)", shape=cylinder];
   }
-  blob [label="Azure Blob Storage\n(ML.NET model .zip versions)", shape=cylinder];
-  mig [label="EF Core migration bundles per module\n(CI/CD step; SmartSpare.MigrationRunner locally and in CI)", fillcolor="#FAFAFA"];
-  users -> web [label=" HTTPS"]; web -> api [label=" REST/JSON + JWT"];
-  api -> m1; api -> m2; api -> m3; api -> m4; api -> m5; api -> m6;
-  m1 -> dom [style=dotted, arrowhead=none]; m4 -> dom [style=dotted, arrowhead=none]; m2 -> dom [style=dotted, arrowhead=none];
-  dom -> infra [style=invis];
-  infra -> db [label=" smartspare_api (app_write)\n smartspare_jobs (app_write+app_ml)"];
-  infra -> blob;
-  mig -> db [label=" smartspare_migrator\n(SET ROLE owner)", style=dashed];
-  erp -> m6 [label=" CSV upload", style=dashed]; m3 -> supp [label=" export", style=dashed];
+
+  blob [label="Azure Blob Storage\n(import files, ML.NET model versions)", shape=cylinder];
+  kv [label="Azure Key Vault + Managed Identity\n(secrets, PostgreSQL via Entra ID)", fillcolor="#FAFAFA"];
+  appi [label="Application Insights\n(OpenTelemetry)", fillcolor="#FAFAFA"];
+  mig [label="GitHub Actions (OIDC)\nEF Core migration bundle per module context\nas smartspare_migrator, before the deployment", fillcolor="#FAFAFA"];
+
+  subgraph cluster_local { label=<<B>Local development only</B>>; fontsize=14; style="rounded,dashed"; color="#9E9E9E"; fillcolor="#FFFFFF";
+    aspire [label=".NET Aspire AppHost\nPostgreSQL 17 container · dashboard (OpenTelemetry)", fillcolor="#FAFAFA"];
+    runner [label="SmartSpare.MigrationRunner\nbootstrap + EF migrations in ModuleCatalog order\n(also in CI) · check-model", fillcolor="#FAFAFA"];
+    aspire -> runner [label=" runs before the host", style=dashed];
+  }
+
+  users -> web [label=" HTTPS"];
+  web -> host [label=" REST/JSON + HttpOnly cookie"];
+  host -> pipe;
+  pipe -> m_fleet [lhead=cluster_mod, label=" commands / queries"];
+  m_inv -> bus [ltail=cluster_mod, dir=both, label=" publish / consume\n integration events"];
+  m_fleet -> db [ltail=cluster_mod, label=" one DbContext per module\n smartspare_api (app_write)"];
+  jobs -> db [label=" smartspare_jobs"];
+  bus -> db [style=dotted, arrowhead=none];
+  erp -> host [label=" CSV upload", style=dashed];
+  m_proc -> supp [label=" PO export", style=dashed];
+  m_fc -> blob [label=" model files", style=dashed];
+  host -> kv [style=dashed, label=" secrets"];
+  host -> appi [style=dashed, label=" telemetry"];
+  mig -> db [label=" migrations", style=dashed];
 }
