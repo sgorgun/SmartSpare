@@ -46,7 +46,7 @@ public sealed class PlatformMigrationTests(MigratedDatabaseFixture db)
         (await db.ScalarAsync<string>("SELECT current_user", db.MigratorConnectionString)).ShouldBe("smartspare_owner");
     }
 
-    // Row counts of the V016 database built from db/seed/R001 (verified with tools/schema_diff.sh).
+    // Row counts of the reference data of the V016 database (the former seed R001), unchanged by the port.
     [Theory]
     [InlineData("unit_of_measure", 5)]
     [InlineData("brand", 8)]

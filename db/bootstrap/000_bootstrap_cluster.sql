@@ -3,7 +3,8 @@
 -- =============================================================================
 -- Roles are cluster-wide objects in PostgreSQL, so they are created here and not
 -- in the versioned database migrations. Everything inside the database (schemas,
--- tables, functions, grants) is created by db/migrations/V*.sql.
+-- tables, functions, grants) is created by the EF Core migrations of each module
+-- and their SQL parts in db/sql/ (ADR 0004, ADR 0011).
 --
 -- Azure Database for PostgreSQL Flexible Server: run as the server admin
 -- (member of azure_pg_admin, has CREATEROLE). No superuser is required.
