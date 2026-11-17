@@ -1,8 +1,8 @@
 # SmartSpare — Data Dictionary
 
-_Generated from the PostgreSQL catalogue by `tools/generate_db_docs.py` on 2026-11-16. Do not edit by hand — change the migrations and regenerate._
+_Generated from the PostgreSQL catalogue by `tools/generate_db_docs.py` on 2026-11-17. Do not edit by hand — change the EF Core migrations (or their SQL parts in `db/sql/`) and regenerate._
 
-Row counts are those of the synthetic demo dataset (`db/testdata/T001`, 2,000 SKUs).
+The database is built by the EF Core migrations of each module (ADR 0004, ADR 0011); references between modules are plain ids, not foreign keys. Row counts are those of the synthetic demo dataset (`db/testdata/T001`, 2,000 SKUs).
 
 **Legend:** PK = primary key, FK = foreign key (→ referenced table), UQ = unique, NN = NOT NULL, GEN = generated column, ID = identity.
 
@@ -10,21 +10,20 @@ Row counts are those of the synthetic demo dataset (`db/testdata/T001`, 2,000 SK
 
 | Schema | Layer / module | Tables | Views | Mat. views |
 |---|---|---:|---:|---:|
-| `ref` | Reference data | 9 | 0 | 0 |
-| `iam` | Identity & Access | 4 | 1 | 0 |
-| `catalog` | Inventory — catalogue | 5 | 0 | 0 |
-| `inventory` | Inventory — stock & transfers | 9 | 2 | 0 |
-| `fleet` | Fleet & Maintenance | 8 | 2 | 0 |
-| `procurement` | Procurement | 2 | 1 | 0 |
-| `forecast` | Forecasting (ML) | 5 | 1 | 0 |
-| `audit` | Audit | 1 | 1 | 0 |
-| `raw` | Data layer 1 — raw | 3 | 0 | 0 |
-| `staging` | Data layer 2 — staging | 3 | 0 | 0 |
-| `mart` | Data layer 4 — data mart | 1 | 6 | 2 |
-| `util` | Technical utilities | 1 | 1 | 0 |
-| `meta` | Schema versioning | 1 | 0 | 0 |
+| `ref` | Platform — reference data | 9 | 0 | 0 |
+| `iam` | Identity | 7 | 1 | 0 |
+| `catalog` | Inventory — catalogue | 2 | 0 | 0 |
+| `inventory` | Inventory — stock & transfers | 12 | 2 | 0 |
+| `fleet` | Fleet | 11 | 2 | 0 |
+| `procurement` | Procurement — suppliers & purchase orders | 8 | 1 | 0 |
+| `forecast` | Forecasting (ML) | 8 | 1 | 0 |
+| `audit` | Platform — audit | 1 | 1 | 0 |
+| `raw` | Inventory — import layer 1 (raw) | 3 | 0 | 0 |
+| `staging` | Inventory — import layer 2 (staging) | 3 | 0 | 0 |
+| `mart` | Reporting — data mart | 2 | 6 | 2 |
+| `util` | Platform — technical utilities | 2 | 1 | 0 |
 
-## 2. Schema `ref` — Reference data
+## 2. Schema `ref` — Platform — reference data
 
 ### `ref.agro_calendar_week` (table)
 
@@ -242,7 +241,24 @@ Rows (demo): **5**
 - `pk_unit_of_measure` — `btree (id)`
 - `uq_unit_of_measure_code` — `btree (code)`
 
-## 3. Schema `iam` — Identity & Access
+## 3. Schema `iam` — Identity
+
+### `iam.__ef_migrations_history` (table)
+
+Rows (demo): **2**
+
+| Column | Type | Keys / flags | Default | Description |
+|---|---|---|---|---|
+| `migration_id` | `character varying(150)` | PK, NN |  |  |
+| `product_version` | `character varying(32)` | NN |  |  |
+
+**Data quality expectations / integrity rules**
+
+- Primary key `pk___ef_migrations_history`: `PRIMARY KEY (migration_id)`
+
+**Indexes**
+
+- `pk___ef_migrations_history` — `btree (migration_id)`
 
 ### `iam.app_user` (table)
 
@@ -262,7 +278,7 @@ Rows (demo): **12**
 | `is_active` | `boolean` | NN | `true` | FALSE = deactivated, kept for history. |
 | `failed_login_count` | `smallint` | NN | `0` |  |
 | `lockout_end` | `timestamp with time zone` |  |  |  |
-| `home_warehouse_id` | `smallint` | FK → `inventory.warehouse` |  | Reference to inventory.warehouse. |
+| `home_warehouse_id` | `smallint` |  |  | Reference to inventory.warehouse. |
 | `last_login_at` | `timestamp with time zone` |  |  | Time of the last login event. |
 | `anonymised_at` | `timestamp with time zone` |  |  | Set by iam.anonymise_user() (GDPR Art. 17); the row is kept so audit references stay valid. |
 | `created_at` | `timestamp with time zone` | NN | `now()` | Time the record was created. |
@@ -270,7 +286,6 @@ Rows (demo): **12**
 
 **Data quality expectations / integrity rules**
 
-- Foreign key `fk_app_user_home_warehouse`: `FOREIGN KEY (home_warehouse_id) REFERENCES inventory.warehouse(id) ON DELETE SET NULL`
 - Primary key `pk_app_user`: `PRIMARY KEY (id)`
 - Unique `uq_app_user_email`: `UNIQUE (email)`
 - Unique `uq_app_user_user_name`: `UNIQUE (user_name)`
@@ -290,6 +305,53 @@ Rows (demo): **12**
 - `uq_app_user_user_name` — `btree (user_name)`
 
 **Triggers:** `trg_app_user_updated_at: util.trg_set_updated_at`, `trg_audit: audit.trg_row_audit`
+
+### `iam.inbox_message` (table)
+
+Integration events already handled by a consumer of this module (idempotent receiver, ADR 0003).
+
+Rows (demo): **0**
+
+| Column | Type | Keys / flags | Default | Description |
+|---|---|---|---|---|
+| `message_id` | `uuid` | PK, NN |  | Id of the handled event. |
+| `consumer` | `character varying(300)` | PK, NN |  | Handler that consumed the event. |
+| `processed_at` | `timestamp with time zone` | NN | `now()` | Time the event was handled. |
+
+**Data quality expectations / integrity rules**
+
+- Primary key `pk_inbox_message`: `PRIMARY KEY (message_id, consumer)`
+
+**Indexes**
+
+- `pk_inbox_message` — `btree (message_id, consumer)`
+
+### `iam.outbox_message` (table)
+
+Integration events of this module waiting for delivery (transactional outbox, ADR 0003).
+
+Rows (demo): **0**
+
+| Column | Type | Keys / flags | Default | Description |
+|---|---|---|---|---|
+| `id` | `uuid` | PK, NN |  | Event id; receivers deduplicate by it. |
+| `occurred_at` | `timestamp with time zone` | NN |  | Time the event occurred. |
+| `type` | `character varying(300)` | NN |  | CLR type of the event (Namespace.Type, Assembly). |
+| `payload` | `jsonb` | NN |  | Event serialized as a JSON object. |
+| `processed_at` | `timestamp with time zone` |  |  | Time the event was delivered to every consumer; NULL = pending. |
+| `attempts` | `integer` | NN | `0` | Failed delivery attempts so far. |
+| `error` | `character varying(2000)` |  |  | Last delivery error, if any. |
+
+**Data quality expectations / integrity rules**
+
+- Primary key `pk_outbox_message`: `PRIMARY KEY (id)`
+- Check `ck_outbox_message_attempts`: `CHECK ((attempts >= 0))`
+- Check `ck_outbox_message_payload`: `CHECK ((jsonb_typeof(payload) = 'object'::text))`
+
+**Indexes**
+
+- `ix_outbox_message_pending` — `btree (occurred_at) WHERE (processed_at IS NULL)`
+- `pk_outbox_message` — `btree (id)`
 
 ### `iam.role` (table)
 
@@ -458,111 +520,24 @@ Rows (demo): **1**
 - `ix_part_analogue_analogue` — `btree (analogue_part_id)`
 - `pk_part_analogue` — `btree (part_id, analogue_part_id)`
 
-### `catalog.supplier` (table)
-
-OEM suppliers / distributors. Business contact data only (no personal data).
-
-Rows (demo): **7**
-
-| Column | Type | Keys / flags | Default | Description |
-|---|---|---|---|---|
-| `id` | `integer` | PK, NN, ID | `identity` | Surrogate primary key. |
-| `code` | `character varying(20)` | UQ, NN |  | Business code (natural key). |
-| `name` | `character varying(200)` | UQ, NN |  | Display name. |
-| `country_code` | `character(2)` | NN |  |  |
-| `order_email` | `citext` |  |  | Shared order mailbox of the company (e.g. orders@...), not a personal address. |
-| `default_lead_time_days` | `smallint` | NN |  |  |
-| `currency_code` | `character(3)` | NN | `'EUR'::bpchar` |  |
-| `is_active` | `boolean` | NN | `true` | FALSE = deactivated, kept for history. |
-| `created_at` | `timestamp with time zone` | NN | `now()` | Time the record was created. |
-| `updated_at` | `timestamp with time zone` | NN | `now()` | Time of the last change (maintained by trigger). |
-
-**Data quality expectations / integrity rules**
-
-- Primary key `pk_supplier`: `PRIMARY KEY (id)`
-- Unique `uq_supplier_code`: `UNIQUE (code)`
-- Unique `uq_supplier_name`: `UNIQUE (name)`
-- Check `ck_supplier_country`: `CHECK ((country_code ~ '^[A-Z]{2}$'::text))`
-- Check `ck_supplier_currency`: `CHECK ((currency_code ~ '^[A-Z]{3}$'::text))`
-- Check `ck_supplier_email`: `CHECK (((order_email IS NULL) OR (order_email ~ '^[^@\s]+@[^@\s]+\.[^@\s]+$'::citext)))`
-- Check `ck_supplier_lead_time`: `CHECK (((default_lead_time_days >= 1) AND (default_lead_time_days <= 365)))`
-
-**Indexes**
-
-- `pk_supplier` — `btree (id)`
-- `uq_supplier_code` — `btree (code)`
-- `uq_supplier_name` — `btree (name)`
-
-**Triggers:** `trg_supplier_updated_at: util.trg_set_updated_at`
-
-### `catalog.supplier_part` (table)
-
-Commercial conditions of a supplier for a part: MOQ, pack size, lead time (US12).
-
-Rows (demo): **2,643**
-
-| Column | Type | Keys / flags | Default | Description |
-|---|---|---|---|---|
-| `id` | `bigint` | PK, NN, ID | `identity` | Surrogate primary key. |
-| `supplier_id` | `integer` | FK → `catalog.supplier`, NN |  | Reference to catalog.supplier. |
-| `part_id` | `bigint` | FK → `catalog.part`, NN |  | Reference to catalog.part. |
-| `supplier_part_number` | `character varying(40)` |  |  |  |
-| `moq` | `numeric(12,3)` | NN | `1` | Minimum order quantity; must be a multiple of pack_size. |
-| `pack_size` | `numeric(12,3)` | NN | `1` | Packaging increment; ordered quantities must be multiples of it. |
-| `lead_time_days` | `smallint` | NN |  | Supplier lead time for this part (calendar days). |
-| `is_preferred` | `boolean` | NN | `false` | Preferred supplier used for automatic PO drafts (max. one per part). |
-| `created_at` | `timestamp with time zone` | NN | `now()` | Time the record was created. |
-| `updated_at` | `timestamp with time zone` | NN | `now()` | Time of the last change (maintained by trigger). |
-
-**Data quality expectations / integrity rules**
-
-- Foreign key `fk_supplier_part_part`: `FOREIGN KEY (part_id) REFERENCES catalog.part(id) ON DELETE CASCADE`
-- Foreign key `fk_supplier_part_supplier`: `FOREIGN KEY (supplier_id) REFERENCES catalog.supplier(id) ON DELETE RESTRICT`
-- Primary key `pk_supplier_part`: `PRIMARY KEY (id)`
-- Unique `uq_supplier_part`: `UNIQUE (supplier_id, part_id)`
-- Check `ck_supplier_part_lead_time`: `CHECK (((lead_time_days >= 1) AND (lead_time_days <= 365)))`
-- Check `ck_supplier_part_moq`: `CHECK ((moq > (0)::numeric))`
-- Check `ck_supplier_part_moq_pack`: `CHECK ((mod(moq, pack_size) = (0)::numeric))`
-- Check `ck_supplier_part_pack`: `CHECK ((pack_size > (0)::numeric))`
-
-**Indexes**
-
-- `ix_supplier_part_part` — `btree (part_id)`
-- `pk_supplier_part` — `btree (id)`
-- `uq_supplier_part` — `btree (supplier_id, part_id)`
-- `uq_supplier_part_preferred` — `btree (part_id) WHERE is_preferred`
-
-**Triggers:** `trg_audit: audit.trg_row_audit`, `trg_supplier_part_updated_at: util.trg_set_updated_at`
-
-### `catalog.supplier_price` (table)
-
-Supplier purchase price history; non-overlapping validity periods per supplier-part (EXCLUDE USING gist).
-
-Rows (demo): **5,286**
-
-| Column | Type | Keys / flags | Default | Description |
-|---|---|---|---|---|
-| `id` | `bigint` | PK, NN, ID | `identity` | Surrogate primary key. |
-| `supplier_part_id` | `bigint` | FK → `catalog.supplier_part`, NN |  | Reference to catalog.supplier_part. |
-| `valid_during` | `daterange` | NN |  | Validity period [from, to); open upper bound = valid until further notice. |
-| `unit_price` | `numeric(12,2)` | NN |  |  |
-
-**Data quality expectations / integrity rules**
-
-- Foreign key `fk_supplier_price_supplier_part`: `FOREIGN KEY (supplier_part_id) REFERENCES catalog.supplier_part(id) ON DELETE CASCADE`
-- Primary key `pk_supplier_price`: `PRIMARY KEY (id)`
-- Check `ck_supplier_price_amount`: `CHECK ((unit_price > (0)::numeric))`
-- Check `ck_supplier_price_range`: `CHECK (((NOT isempty(valid_during)) AND (lower(valid_during) IS NOT NULL)))`
-- Exclusion `ex_supplier_price_no_overlap`: `EXCLUDE USING gist (supplier_part_id WITH =, valid_during WITH &&)`
-
-**Indexes**
-
-- `ex_supplier_price_no_overlap` — `gist (supplier_part_id, valid_during)`
-- `pk_supplier_price` — `btree (id)`
-
-**Triggers:** `trg_audit: audit.trg_row_audit`
-
 ## 5. Schema `inventory` — Inventory — stock & transfers
+
+### `inventory.__ef_migrations_history` (table)
+
+Rows (demo): **2**
+
+| Column | Type | Keys / flags | Default | Description |
+|---|---|---|---|---|
+| `migration_id` | `character varying(150)` | PK, NN |  |  |
+| `product_version` | `character varying(32)` | NN |  |  |
+
+**Data quality expectations / integrity rules**
+
+- Primary key `pk___ef_migrations_history`: `PRIMARY KEY (migration_id)`
+
+**Indexes**
+
+- `pk___ef_migrations_history` — `btree (migration_id)`
 
 ### `inventory.demand_exception` (table)
 
@@ -572,11 +547,11 @@ Rows (demo): **12**
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
-| `movement_id` | `bigint` | PK, FK → `inventory.stock_movement`, NN |  | Reference to inventory.stock_movement_202401. |
-| `movement_occurred_at` | `timestamp with time zone` | PK, FK → `inventory.stock_movement`, NN |  | Reference to inventory.stock_movement_202401. |
+| `movement_id` | `bigint` | PK, FK → `inventory.stock_movement`, NN |  | Reference to inventory.stock_movement. |
+| `movement_occurred_at` | `timestamp with time zone` | PK, FK → `inventory.stock_movement`, NN |  | Reference to inventory.stock_movement. |
 | `reason` | `character varying(300)` | NN |  |  |
 | `detection_method` | `character varying(20)` | NN | `'manual'::character varying` |  |
-| `flagged_by` | `uuid` | FK → `iam.app_user` |  | User who performed the step (iam.app_user). |
+| `flagged_by` | `uuid` |  |  | User who performed the step (iam.app_user). |
 | `flagged_at` | `timestamp with time zone` | NN | `now()` | Time of the flagged event. |
 
 **Data quality expectations / integrity rules**
@@ -642,7 +617,6 @@ Rows (demo): **12**
 - Foreign key `demand_exception_movement_id_movement_occurred_at_fkey7`: `FOREIGN KEY (movement_id, movement_occurred_at) REFERENCES inventory.stock_movement_202408(id, occurred_at) ON DELETE CASCADE`
 - Foreign key `demand_exception_movement_id_movement_occurred_at_fkey8`: `FOREIGN KEY (movement_id, movement_occurred_at) REFERENCES inventory.stock_movement_202409(id, occurred_at) ON DELETE CASCADE`
 - Foreign key `demand_exception_movement_id_movement_occurred_at_fkey9`: `FOREIGN KEY (movement_id, movement_occurred_at) REFERENCES inventory.stock_movement_202410(id, occurred_at) ON DELETE CASCADE`
-- Foreign key `fk_demand_exception_flagged_by`: `FOREIGN KEY (flagged_by) REFERENCES iam.app_user(id) ON DELETE SET NULL`
 - Foreign key `fk_demand_exception_movement`: `FOREIGN KEY (movement_id, movement_occurred_at) REFERENCES inventory.stock_movement(id, occurred_at) ON DELETE CASCADE`
 - Primary key `pk_demand_exception`: `PRIMARY KEY (movement_id, movement_occurred_at)`
 - Check `ck_demand_exception_method`: `CHECK (((detection_method)::text = ANY ((ARRAY['manual'::character varying, 'auto_3sigma'::character varying])::text[])))`
@@ -654,6 +628,53 @@ Rows (demo): **12**
 - `pk_demand_exception` — `btree (movement_id, movement_occurred_at)`
 
 **Triggers:** `trg_audit: audit.trg_row_audit`, `trg_demand_exception_validate: inventory.trg_demand_exception_validate`
+
+### `inventory.inbox_message` (table)
+
+Integration events already handled by a consumer of this module (idempotent receiver, ADR 0003).
+
+Rows (demo): **0**
+
+| Column | Type | Keys / flags | Default | Description |
+|---|---|---|---|---|
+| `message_id` | `uuid` | PK, NN |  | Id of the handled event. |
+| `consumer` | `character varying(300)` | PK, NN |  | Handler that consumed the event. |
+| `processed_at` | `timestamp with time zone` | NN | `now()` | Time the event was handled. |
+
+**Data quality expectations / integrity rules**
+
+- Primary key `pk_inbox_message`: `PRIMARY KEY (message_id, consumer)`
+
+**Indexes**
+
+- `pk_inbox_message` — `btree (message_id, consumer)`
+
+### `inventory.outbox_message` (table)
+
+Integration events of this module waiting for delivery (transactional outbox, ADR 0003).
+
+Rows (demo): **0**
+
+| Column | Type | Keys / flags | Default | Description |
+|---|---|---|---|---|
+| `id` | `uuid` | PK, NN |  | Event id; receivers deduplicate by it. |
+| `occurred_at` | `timestamp with time zone` | NN |  | Time the event occurred. |
+| `type` | `character varying(300)` | NN |  | CLR type of the event (Namespace.Type, Assembly). |
+| `payload` | `jsonb` | NN |  | Event serialized as a JSON object. |
+| `processed_at` | `timestamp with time zone` |  |  | Time the event was delivered to every consumer; NULL = pending. |
+| `attempts` | `integer` | NN | `0` | Failed delivery attempts so far. |
+| `error` | `character varying(2000)` |  |  | Last delivery error, if any. |
+
+**Data quality expectations / integrity rules**
+
+- Primary key `pk_outbox_message`: `PRIMARY KEY (id)`
+- Check `ck_outbox_message_attempts`: `CHECK ((attempts >= 0))`
+- Check `ck_outbox_message_payload`: `CHECK ((jsonb_typeof(payload) = 'object'::text))`
+
+**Indexes**
+
+- `ix_outbox_message_pending` — `btree (occurred_at) WHERE (processed_at IS NULL)`
+- `pk_outbox_message` — `btree (id)`
 
 ### `inventory.stock_balance` (table)
 
@@ -688,7 +709,7 @@ Rows (demo): **7,111**
 
 Append-only stock ledger (single source of truth for stock and demand history). Partitioned by month; corrections only via compensating movements.
 
-Rows (demo): **197,693** · Partitioning: `RANGE (occurred_at)`, 61 partitions
+Rows (demo): **197,944** · Partitioning: `RANGE (occurred_at)`, 61 partitions
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -699,22 +720,19 @@ Rows (demo): **197,693** · Partitioning: `RANGE (occurred_at)`, 61 partitions
 | `movement_type_code` | `character varying(20)` | FK → `ref.movement_type`, NN |  | Type of movement; defines the sign (+/-/0) and whether it is demand. |
 | `quantity` | `numeric(12,3)` | NN |  | Always positive; direction comes from ref.movement_type.balance_sign. |
 | `unit_cost` | `numeric(12,2)` |  |  | Valuation cost per unit at the time of the movement (EUR). |
-| `service_order_line_id` | `bigint` | FK → `fleet.service_order_line` |  | Reference to fleet.service_order_line. |
+| `service_order_line_id` | `bigint` |  |  | Reference to fleet.service_order_line. |
 | `transfer_order_line_id` | `bigint` | FK → `inventory.transfer_order_line` |  | Reference to inventory.transfer_order_line. |
-| `purchase_order_line_id` | `bigint` | FK → `procurement.purchase_order_line` |  | Reference to procurement.purchase_order_line. |
+| `purchase_order_line_id` | `bigint` |  |  | Reference to procurement.purchase_order_line. |
 | `import_batch_id` | `bigint` | FK → `raw.import_batch` |  | Reference to raw.import_batch. |
 | `external_doc_ref` | `character varying(40)` |  |  | Document number in an external system (POS receipt, ERP document). |
 | `note` | `character varying(300)` |  |  |  |
-| `created_by` | `uuid` | FK → `iam.app_user` |  | User who created the record (iam.app_user). |
+| `created_by` | `uuid` |  |  | User who created the record (iam.app_user). |
 | `created_at` | `timestamp with time zone` | NN | `now()` | Time the record was created. |
 
 **Data quality expectations / integrity rules**
 
-- Foreign key `fk_stock_movement_created_by`: `FOREIGN KEY (created_by) REFERENCES iam.app_user(id)`
 - Foreign key `fk_stock_movement_import_batch`: `FOREIGN KEY (import_batch_id) REFERENCES raw.import_batch(id)`
 - Foreign key `fk_stock_movement_part`: `FOREIGN KEY (part_id) REFERENCES catalog.part(id)`
-- Foreign key `fk_stock_movement_po_line`: `FOREIGN KEY (purchase_order_line_id) REFERENCES procurement.purchase_order_line(id)`
-- Foreign key `fk_stock_movement_service_line`: `FOREIGN KEY (service_order_line_id) REFERENCES fleet.service_order_line(id)`
 - Foreign key `fk_stock_movement_transfer_line`: `FOREIGN KEY (transfer_order_line_id) REFERENCES inventory.transfer_order_line(id)`
 - Foreign key `fk_stock_movement_type`: `FOREIGN KEY (movement_type_code) REFERENCES ref.movement_type(code)`
 - Foreign key `fk_stock_movement_warehouse`: `FOREIGN KEY (warehouse_id) REFERENCES inventory.warehouse(id)`
@@ -740,7 +758,7 @@ Rows (demo): **197,693** · Partitioning: `RANGE (occurred_at)`, 61 partitions
 
 Stock holds. Active (soft/firm) quantities are summed into stock_balance.reserved_qty by trigger.
 
-Rows (demo): **308**
+Rows (demo): **307**
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -750,17 +768,15 @@ Rows (demo): **308**
 | `quantity` | `numeric(12,3)` | NN |  | Quantity in the unit of measure of the part. |
 | `status` | `inventory.reservation_status` | NN | `'soft'::inventory.reservation_status` | Workflow status (state machine guarded by trigger). |
 | `expires_at` | `timestamp with time zone` |  |  | End of a soft hold (now + 7 days for service kits, UC02). |
-| `service_order_line_id` | `bigint` | FK → `fleet.service_order_line` |  | Reference to fleet.service_order_line. |
+| `service_order_line_id` | `bigint` |  |  | Reference to fleet.service_order_line. |
 | `transfer_order_line_id` | `bigint` | FK → `inventory.transfer_order_line` |  | Reference to inventory.transfer_order_line. |
-| `created_by` | `uuid` | FK → `iam.app_user` |  | User who created the record (iam.app_user). |
+| `created_by` | `uuid` |  |  | User who created the record (iam.app_user). |
 | `created_at` | `timestamp with time zone` | NN | `now()` | Time the record was created. |
 | `closed_at` | `timestamp with time zone` |  |  | Time of the closed event. |
 
 **Data quality expectations / integrity rules**
 
 - Foreign key `fk_stock_reservation_balance`: `FOREIGN KEY (warehouse_id, part_id) REFERENCES inventory.stock_balance(warehouse_id, part_id) ON DELETE RESTRICT`
-- Foreign key `fk_stock_reservation_created_by`: `FOREIGN KEY (created_by) REFERENCES iam.app_user(id) ON DELETE SET NULL`
-- Foreign key `fk_stock_reservation_service_line`: `FOREIGN KEY (service_order_line_id) REFERENCES fleet.service_order_line(id) ON DELETE CASCADE`
 - Foreign key `fk_stock_reservation_transfer_line`: `FOREIGN KEY (transfer_order_line_id) REFERENCES inventory.transfer_order_line(id) ON DELETE CASCADE`
 - Primary key `pk_stock_reservation`: `PRIMARY KEY (id)`
 - Check `ck_stock_reservation_closed`: `CHECK (((status = ANY (ARRAY['soft'::inventory.reservation_status, 'firm'::inventory.reservation_status])) = (closed_at IS NULL)))`
@@ -793,12 +809,12 @@ Rows (demo): **52**
 | `to_warehouse_id` | `smallint` | FK → `inventory.warehouse_route`, NN |  | Reference to inventory.warehouse_route. |
 | `status` | `inventory.transfer_status` | NN | `'proposed'::inventory.transfer_status` | Workflow status (state machine guarded by trigger). |
 | `is_urgent` | `boolean` | NN | `false` | Flag: urgent. |
-| `requested_by` | `uuid` | FK → `iam.app_user` |  | User who created the record (iam.app_user). |
-| `approved_by` | `uuid` | FK → `iam.app_user` |  | User who performed the step (iam.app_user). |
+| `requested_by` | `uuid` |  |  | User who created the record (iam.app_user). |
+| `approved_by` | `uuid` |  |  | User who performed the step (iam.app_user). |
 | `approved_at` | `timestamp with time zone` |  |  | Time of the approved event. |
-| `dispatched_by` | `uuid` | FK → `iam.app_user` |  | User who performed the step (iam.app_user). |
+| `dispatched_by` | `uuid` |  |  | User who performed the step (iam.app_user). |
 | `dispatched_at` | `timestamp with time zone` |  |  | Time of the dispatched event. |
-| `received_by` | `uuid` | FK → `iam.app_user` |  | User who performed the step (iam.app_user). |
+| `received_by` | `uuid` |  |  | User who performed the step (iam.app_user). |
 | `received_at` | `timestamp with time zone` |  |  | Time of the received event. |
 | `cancel_reason` | `character varying(300)` |  |  |  |
 | `created_at` | `timestamp with time zone` | NN | `now()` | Time the record was created. |
@@ -806,10 +822,6 @@ Rows (demo): **52**
 
 **Data quality expectations / integrity rules**
 
-- Foreign key `fk_transfer_order_approved_by`: `FOREIGN KEY (approved_by) REFERENCES iam.app_user(id)`
-- Foreign key `fk_transfer_order_dispatched_by`: `FOREIGN KEY (dispatched_by) REFERENCES iam.app_user(id)`
-- Foreign key `fk_transfer_order_received_by`: `FOREIGN KEY (received_by) REFERENCES iam.app_user(id)`
-- Foreign key `fk_transfer_order_requested_by`: `FOREIGN KEY (requested_by) REFERENCES iam.app_user(id)`
 - Foreign key `fk_transfer_order_route`: `FOREIGN KEY (from_warehouse_id, to_warehouse_id) REFERENCES inventory.warehouse_route(from_warehouse_id, to_warehouse_id)`
 - Primary key `pk_transfer_order`: `PRIMARY KEY (id)`
 - Unique `uq_transfer_order_number`: `UNIQUE (number)`
@@ -999,7 +1011,24 @@ Rows (demo): **42**
 - `ix_warehouse_route_to` — `btree (to_warehouse_id)`
 - `pk_warehouse_route` — `btree (from_warehouse_id, to_warehouse_id)`
 
-## 6. Schema `fleet` — Fleet & Maintenance
+## 6. Schema `fleet` — Fleet
+
+### `fleet.__ef_migrations_history` (table)
+
+Rows (demo): **2**
+
+| Column | Type | Keys / flags | Default | Description |
+|---|---|---|---|---|
+| `migration_id` | `character varying(150)` | PK, NN |  |  |
+| `product_version` | `character varying(32)` | NN |  |  |
+
+**Data quality expectations / integrity rules**
+
+- Primary key `pk___ef_migrations_history`: `PRIMARY KEY (migration_id)`
+
+**Indexes**
+
+- `pk___ef_migrations_history` — `btree (migration_id)`
 
 ### `fleet.customer` (table)
 
@@ -1012,14 +1041,13 @@ Rows (demo): **250**
 | `id` | `bigint` | PK, NN, ID | `identity` | Surrogate primary key. |
 | `customer_code` | `character varying(12)` | UQ, NN |  |  |
 | `erp_ref_hash` | `bytea` | UQ |  | HMAC-SHA256 of the ERP customer id (util.pseudonymise); allows matching re-imports without storing the id. |
-| `region_warehouse_id` | `smallint` | FK → `inventory.warehouse`, NN |  | Reference to inventory.warehouse. |
+| `region_warehouse_id` | `smallint` | NN |  | Reference to inventory.warehouse. |
 | `farm_size_ha` | `numeric(8,1)` |  |  |  |
 | `is_active` | `boolean` | NN | `true` | FALSE = deactivated, kept for history. |
 | `created_at` | `timestamp with time zone` | NN | `now()` | Time the record was created. |
 
 **Data quality expectations / integrity rules**
 
-- Foreign key `fk_customer_region_warehouse`: `FOREIGN KEY (region_warehouse_id) REFERENCES inventory.warehouse(id)`
 - Primary key `pk_customer`: `PRIMARY KEY (id)`
 - Unique `uq_customer_code`: `UNIQUE (customer_code)`
 - Unique `uq_customer_erp_ref_hash`: `UNIQUE (erp_ref_hash)`
@@ -1047,13 +1075,12 @@ Rows (demo): **2,062**
 | `reading_hours` | `numeric(8,1)` | NN |  | Odometer value; must not decrease and must be physically plausible. |
 | `read_at` | `timestamp with time zone` | NN |  | Time the reading was taken in the field (may be earlier than created_at for offline entry). |
 | `source` | `fleet.reading_source` | NN | `'manual'::fleet.reading_source` |  |
-| `recorded_by` | `uuid` | FK → `iam.app_user` |  | User who performed the step (iam.app_user). |
+| `recorded_by` | `uuid` |  |  | User who performed the step (iam.app_user). |
 | `created_at` | `timestamp with time zone` | NN | `now()` | Time the record was created. |
 
 **Data quality expectations / integrity rules**
 
 - Foreign key `fk_engine_hours_reading_machine`: `FOREIGN KEY (machine_id) REFERENCES fleet.machine(id) ON DELETE CASCADE`
-- Foreign key `fk_engine_hours_reading_user`: `FOREIGN KEY (recorded_by) REFERENCES iam.app_user(id) ON DELETE SET NULL`
 - Primary key `pk_engine_hours_reading`: `PRIMARY KEY (id)`
 - Unique `uq_engine_hours_reading_machine_time`: `UNIQUE (machine_id, read_at)`
 - Check `ck_engine_hours_reading_hours`: `CHECK (((reading_hours >= (0)::numeric) AND (reading_hours <= (100000)::numeric)))`
@@ -1066,6 +1093,26 @@ Rows (demo): **2,062**
 - `uq_engine_hours_reading_machine_time` — `btree (machine_id, read_at)`
 
 **Triggers:** `trg_engine_hours_apply: fleet.trg_engine_hours_apply`, `trg_engine_hours_immutable: util.trg_forbid_modification`, `trg_engine_hours_validate: fleet.trg_engine_hours_validate`
+
+### `fleet.inbox_message` (table)
+
+Integration events already handled by a consumer of this module (idempotent receiver, ADR 0003).
+
+Rows (demo): **0**
+
+| Column | Type | Keys / flags | Default | Description |
+|---|---|---|---|---|
+| `message_id` | `uuid` | PK, NN |  | Id of the handled event. |
+| `consumer` | `character varying(300)` | PK, NN |  | Handler that consumed the event. |
+| `processed_at` | `timestamp with time zone` | NN | `now()` | Time the event was handled. |
+
+**Data quality expectations / integrity rules**
+
+- Primary key `pk_inbox_message`: `PRIMARY KEY (message_id, consumer)`
+
+**Indexes**
+
+- `pk_inbox_message` — `btree (message_id, consumer)`
 
 ### `fleet.machine` (table)
 
@@ -1080,7 +1127,7 @@ Rows (demo): **501**
 | `model_id` | `integer` | FK → `fleet.machine_model`, NN |  | Reference to fleet.machine_model. |
 | `customer_id` | `bigint` | FK → `fleet.customer`, NN |  | Reference to fleet.customer. |
 | `operating_condition_id` | `smallint` | FK → `ref.operating_condition`, NN |  | Operating condition that shortens OEM intervals (F5). |
-| `home_warehouse_id` | `smallint` | FK → `inventory.warehouse`, NN |  | Nearest depot where service kits are reserved. |
+| `home_warehouse_id` | `smallint` | NN |  | Nearest depot where service kits are reserved. |
 | `manufacture_year` | `smallint` | NN |  |  |
 | `current_engine_hours` | `numeric(8,1)` | NN | `0` | Latest odometer value; maintained by the reading trigger. |
 | `engine_hours_read_at` | `timestamp with time zone` |  |  | Time of the engine hours read event. |
@@ -1093,7 +1140,6 @@ Rows (demo): **501**
 
 - Foreign key `fk_machine_condition`: `FOREIGN KEY (operating_condition_id) REFERENCES ref.operating_condition(id)`
 - Foreign key `fk_machine_customer`: `FOREIGN KEY (customer_id) REFERENCES fleet.customer(id)`
-- Foreign key `fk_machine_home_wh`: `FOREIGN KEY (home_warehouse_id) REFERENCES inventory.warehouse(id)`
 - Foreign key `fk_machine_model`: `FOREIGN KEY (model_id) REFERENCES fleet.machine_model(id)`
 - Primary key `pk_machine`: `PRIMARY KEY (id)`
 - Unique `uq_machine_vin`: `UNIQUE (vin)`
@@ -1177,12 +1223,11 @@ Rows (demo): **69**
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
 | `maintenance_plan_id` | `integer` | PK, FK → `fleet.maintenance_plan`, NN |  | Reference to fleet.maintenance_plan. |
-| `part_id` | `bigint` | PK, FK → `catalog.part`, NN |  | Reference to catalog.part. |
+| `part_id` | `bigint` | PK, NN |  | Reference to catalog.part. |
 | `quantity` | `numeric(12,3)` | NN |  | Quantity of the part in the service kit. |
 
 **Data quality expectations / integrity rules**
 
-- Foreign key `fk_maintenance_plan_part_part`: `FOREIGN KEY (part_id) REFERENCES catalog.part(id)`
 - Foreign key `fk_maintenance_plan_part_plan`: `FOREIGN KEY (maintenance_plan_id) REFERENCES fleet.maintenance_plan(id) ON DELETE CASCADE`
 - Primary key `pk_maintenance_plan_part`: `PRIMARY KEY (maintenance_plan_id, part_id)`
 - Check `ck_maintenance_plan_part_qty`: `CHECK ((quantity > (0)::numeric))`
@@ -1194,11 +1239,38 @@ Rows (demo): **69**
 
 **Triggers:** `trg_audit: audit.trg_row_audit`
 
+### `fleet.outbox_message` (table)
+
+Integration events of this module waiting for delivery (transactional outbox, ADR 0003).
+
+Rows (demo): **0**
+
+| Column | Type | Keys / flags | Default | Description |
+|---|---|---|---|---|
+| `id` | `uuid` | PK, NN |  | Event id; receivers deduplicate by it. |
+| `occurred_at` | `timestamp with time zone` | NN |  | Time the event occurred. |
+| `type` | `character varying(300)` | NN |  | CLR type of the event (Namespace.Type, Assembly). |
+| `payload` | `jsonb` | NN |  | Event serialized as a JSON object. |
+| `processed_at` | `timestamp with time zone` |  |  | Time the event was delivered to every consumer; NULL = pending. |
+| `attempts` | `integer` | NN | `0` | Failed delivery attempts so far. |
+| `error` | `character varying(2000)` |  |  | Last delivery error, if any. |
+
+**Data quality expectations / integrity rules**
+
+- Primary key `pk_outbox_message`: `PRIMARY KEY (id)`
+- Check `ck_outbox_message_attempts`: `CHECK ((attempts >= 0))`
+- Check `ck_outbox_message_payload`: `CHECK ((jsonb_typeof(payload) = 'object'::text))`
+
+**Indexes**
+
+- `ix_outbox_message_pending` — `btree (occurred_at) WHERE (processed_at IS NULL)`
+- `pk_outbox_message` — `btree (id)`
+
 ### `fleet.service_order` (table)
 
 Service order (SO-YYYY-NNNNNN). Planned (plan + due hours) or unplanned repair (plan NULL). Completed orders form the maintenance history.
 
-Rows (demo): **89**
+Rows (demo): **90**
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -1206,12 +1278,12 @@ Rows (demo): **89**
 | `number` | `character varying(20)` | UQ, NN |  | Business document number (assigned by trigger). |
 | `machine_id` | `bigint` | FK → `fleet.machine`, NN |  | Reference to fleet.machine. |
 | `maintenance_plan_id` | `integer` | FK → `fleet.maintenance_plan` |  | Reference to fleet.maintenance_plan. |
-| `warehouse_id` | `smallint` | FK → `inventory.warehouse`, NN |  | Reference to inventory.warehouse. |
+| `warehouse_id` | `smallint` | NN |  | Reference to inventory.warehouse. |
 | `status` | `fleet.service_order_status` | NN | `'draft'::fleet.service_order_status` | Workflow status (state machine guarded by trigger). |
 | `due_engine_hours` | `numeric(8,1)` |  |  | Engine-hour threshold this planned service covers (e.g. 500, 1000, 1500 ...). |
 | `trigger_engine_hours` | `numeric(8,1)` |  |  | Engine hours of the reading that triggered the draft. |
 | `completed_engine_hours` | `numeric(8,1)` |  |  |  |
-| `created_by` | `uuid` | FK → `iam.app_user` |  | User who created the record (iam.app_user). |
+| `created_by` | `uuid` |  |  | User who created the record (iam.app_user). |
 | `created_at` | `timestamp with time zone` | NN | `now()` | Time the record was created. |
 | `completed_at` | `timestamp with time zone` |  |  | Time of the completed event. |
 | `cancel_reason` | `character varying(300)` |  |  |  |
@@ -1219,10 +1291,8 @@ Rows (demo): **89**
 
 **Data quality expectations / integrity rules**
 
-- Foreign key `fk_service_order_created_by`: `FOREIGN KEY (created_by) REFERENCES iam.app_user(id) ON DELETE SET NULL`
 - Foreign key `fk_service_order_machine`: `FOREIGN KEY (machine_id) REFERENCES fleet.machine(id)`
 - Foreign key `fk_service_order_plan`: `FOREIGN KEY (maintenance_plan_id) REFERENCES fleet.maintenance_plan(id)`
-- Foreign key `fk_service_order_warehouse`: `FOREIGN KEY (warehouse_id) REFERENCES inventory.warehouse(id)`
 - Primary key `pk_service_order`: `PRIMARY KEY (id)`
 - Unique `uq_service_order_number`: `UNIQUE (number)`
 - Check `ck_service_order_cancel`: `CHECK (((status = 'cancelled'::fleet.service_order_status) = (cancel_reason IS NOT NULL)))`
@@ -1245,20 +1315,19 @@ Rows (demo): **89**
 
 Parts required by a service order (copied from the kit, editable for repairs).
 
-Rows (demo): **257**
+Rows (demo): **256**
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
 | `id` | `bigint` | PK, NN, ID | `identity` | Surrogate primary key. |
 | `service_order_id` | `bigint` | FK → `fleet.service_order`, NN |  | Reference to fleet.service_order. |
-| `part_id` | `bigint` | FK → `catalog.part`, NN |  | Reference to catalog.part. |
+| `part_id` | `bigint` | NN |  | Reference to catalog.part. |
 | `qty_required` | `numeric(12,3)` | NN |  | Quantity in the unit of measure of the part. |
 | `qty_issued` | `numeric(12,3)` | NN | `0` | Quantity already issued from stock (ISSUE_SERVICE). |
 
 **Data quality expectations / integrity rules**
 
 - Foreign key `fk_service_order_line_order`: `FOREIGN KEY (service_order_id) REFERENCES fleet.service_order(id) ON DELETE CASCADE`
-- Foreign key `fk_service_order_line_part`: `FOREIGN KEY (part_id) REFERENCES catalog.part(id)`
 - Primary key `pk_service_order_line`: `PRIMARY KEY (id)`
 - Unique `uq_service_order_line_part`: `UNIQUE (service_order_id, part_id)`
 - Check `ck_service_order_line_issued`: `CHECK (((qty_issued >= (0)::numeric) AND (qty_issued <= qty_required)))`
@@ -1310,7 +1379,71 @@ Open service orders whose kit could not be fully reserved (input for transfers /
 | `qty_reserved` | `numeric` |  |  |  |
 | `qty_missing` | `numeric` |  |  |  |
 
-## 7. Schema `procurement` — Procurement
+## 7. Schema `procurement` — Procurement — suppliers & purchase orders
+
+### `procurement.__ef_migrations_history` (table)
+
+Rows (demo): **1**
+
+| Column | Type | Keys / flags | Default | Description |
+|---|---|---|---|---|
+| `migration_id` | `character varying(150)` | PK, NN |  |  |
+| `product_version` | `character varying(32)` | NN |  |  |
+
+**Data quality expectations / integrity rules**
+
+- Primary key `pk___ef_migrations_history`: `PRIMARY KEY (migration_id)`
+
+**Indexes**
+
+- `pk___ef_migrations_history` — `btree (migration_id)`
+
+### `procurement.inbox_message` (table)
+
+Integration events already handled by a consumer of this module (idempotent receiver, ADR 0003).
+
+Rows (demo): **0**
+
+| Column | Type | Keys / flags | Default | Description |
+|---|---|---|---|---|
+| `message_id` | `uuid` | PK, NN |  | Id of the handled event. |
+| `consumer` | `character varying(300)` | PK, NN |  | Handler that consumed the event. |
+| `processed_at` | `timestamp with time zone` | NN | `now()` | Time the event was handled. |
+
+**Data quality expectations / integrity rules**
+
+- Primary key `pk_inbox_message`: `PRIMARY KEY (message_id, consumer)`
+
+**Indexes**
+
+- `pk_inbox_message` — `btree (message_id, consumer)`
+
+### `procurement.outbox_message` (table)
+
+Integration events of this module waiting for delivery (transactional outbox, ADR 0003).
+
+Rows (demo): **0**
+
+| Column | Type | Keys / flags | Default | Description |
+|---|---|---|---|---|
+| `id` | `uuid` | PK, NN |  | Event id; receivers deduplicate by it. |
+| `occurred_at` | `timestamp with time zone` | NN |  | Time the event occurred. |
+| `type` | `character varying(300)` | NN |  | CLR type of the event (Namespace.Type, Assembly). |
+| `payload` | `jsonb` | NN |  | Event serialized as a JSON object. |
+| `processed_at` | `timestamp with time zone` |  |  | Time the event was delivered to every consumer; NULL = pending. |
+| `attempts` | `integer` | NN | `0` | Failed delivery attempts so far. |
+| `error` | `character varying(2000)` |  |  | Last delivery error, if any. |
+
+**Data quality expectations / integrity rules**
+
+- Primary key `pk_outbox_message`: `PRIMARY KEY (id)`
+- Check `ck_outbox_message_attempts`: `CHECK ((attempts >= 0))`
+- Check `ck_outbox_message_payload`: `CHECK ((jsonb_typeof(payload) = 'object'::text))`
+
+**Indexes**
+
+- `ix_outbox_message_pending` — `btree (occurred_at) WHERE (processed_at IS NULL)`
+- `pk_outbox_message` — `btree (id)`
 
 ### `procurement.purchase_order` (table)
 
@@ -1322,18 +1455,18 @@ Rows (demo): **31**
 |---|---|---|---|---|
 | `id` | `bigint` | PK, NN, ID | `identity` | Surrogate primary key. |
 | `number` | `character varying(20)` | UQ, NN |  | Business document number (assigned by trigger). |
-| `supplier_id` | `integer` | FK → `catalog.supplier`, NN |  | Reference to catalog.supplier. |
-| `warehouse_id` | `smallint` | FK → `inventory.warehouse`, NN |  | Reference to inventory.warehouse. |
+| `supplier_id` | `integer` | FK → `procurement.supplier`, NN |  | Reference to procurement.supplier. |
+| `warehouse_id` | `smallint` | NN |  | Reference to inventory.warehouse. |
 | `status` | `procurement.po_status` | NN | `'draft'::procurement.po_status` | Workflow status (state machine guarded by trigger). |
 | `is_urgent` | `boolean` | NN | `false` | US16 emergency direct purchase ("Urgent Harvest Dispatch"), bypasses weekly batching. |
 | `urgent_reason` | `character varying(300)` |  |  |  |
 | `currency_code` | `character(3)` | NN | `'EUR'::bpchar` |  |
 | `total_amount` | `numeric(14,2)` | NN | `0` | Controlled redundancy: SUM(line_amount), maintained by trigger; needed by the four-eyes CHECK. |
 | `expected_arrival_date` | `date` |  |  | Approval date + longest supplier lead time of the lines. |
-| `created_by` | `uuid` | FK → `iam.app_user`, NN |  | User who created the record (iam.app_user). |
+| `created_by` | `uuid` | NN |  | User who created the record (iam.app_user). |
 | `created_at` | `timestamp with time zone` | NN | `now()` | Time the record was created. |
 | `submitted_at` | `timestamp with time zone` |  |  | Time of the submitted event. |
-| `approved_by` | `uuid` | FK → `iam.app_user` |  | User who performed the step (iam.app_user). |
+| `approved_by` | `uuid` |  |  | User who performed the step (iam.app_user). |
 | `approved_at` | `timestamp with time zone` |  |  | Time of the approved event. |
 | `exported_at` | `timestamp with time zone` |  |  | Time of the exported event. |
 | `cancel_reason` | `character varying(300)` |  |  |  |
@@ -1341,10 +1474,7 @@ Rows (demo): **31**
 
 **Data quality expectations / integrity rules**
 
-- Foreign key `fk_purchase_order_approved_by`: `FOREIGN KEY (approved_by) REFERENCES iam.app_user(id)`
-- Foreign key `fk_purchase_order_created_by`: `FOREIGN KEY (created_by) REFERENCES iam.app_user(id)`
-- Foreign key `fk_purchase_order_supplier`: `FOREIGN KEY (supplier_id) REFERENCES catalog.supplier(id)`
-- Foreign key `fk_purchase_order_warehouse`: `FOREIGN KEY (warehouse_id) REFERENCES inventory.warehouse(id)`
+- Foreign key `fk_purchase_order_supplier`: `FOREIGN KEY (supplier_id) REFERENCES procurement.supplier(id)`
 - Primary key `pk_purchase_order`: `PRIMARY KEY (id)`
 - Unique `uq_purchase_order_number`: `UNIQUE (number)`
 - Check `ck_purchase_order_approved`: `CHECK (((status = ANY (ARRAY['draft'::procurement.po_status, 'pending_approval'::procurement.po_status, 'cancelled'::procurement.po_status])) OR ((approved_by IS NOT NULL) AND (approved_at IS NOT NULL))))`
@@ -1370,7 +1500,7 @@ Rows (demo): **31**
 
 ### `procurement.purchase_order_line` (table)
 
-PO line. MOQ / pack-size rules of catalog.supplier_part are enforced by trigger.
+PO line. MOQ / pack-size rules of procurement.supplier_part are enforced by trigger.
 
 Rows (demo): **58**
 
@@ -1378,7 +1508,7 @@ Rows (demo): **58**
 |---|---|---|---|---|
 | `id` | `bigint` | PK, NN, ID | `identity` | Surrogate primary key. |
 | `purchase_order_id` | `bigint` | FK → `procurement.purchase_order`, NN |  | Reference to procurement.purchase_order. |
-| `part_id` | `bigint` | FK → `catalog.part`, NN |  | Reference to catalog.part. |
+| `part_id` | `bigint` | NN |  | Reference to catalog.part. |
 | `quantity` | `numeric(12,3)` | NN |  | Quantity in the unit of measure of the part. |
 | `unit_price` | `numeric(12,2)` | NN |  |  |
 | `line_amount` | `numeric(14,2)` | GEN | `round((quantity * unit_price), 2)` | Generated column: round(quantity x unit_price, 2). |
@@ -1389,7 +1519,6 @@ Rows (demo): **58**
 **Data quality expectations / integrity rules**
 
 - Foreign key `fk_purchase_order_line_order`: `FOREIGN KEY (purchase_order_id) REFERENCES procurement.purchase_order(id) ON DELETE CASCADE`
-- Foreign key `fk_purchase_order_line_part`: `FOREIGN KEY (part_id) REFERENCES catalog.part(id)`
 - Primary key `pk_purchase_order_line`: `PRIMARY KEY (id)`
 - Unique `uq_purchase_order_line_part`: `UNIQUE (purchase_order_id, part_id)`
 - Check `ck_purchase_order_line_override`: `CHECK (((proposed_qty IS NULL) OR (quantity = proposed_qty) OR (override_reason IS NOT NULL)))`
@@ -1404,6 +1533,109 @@ Rows (demo): **58**
 - `uq_purchase_order_line_part` — `btree (purchase_order_id, part_id)`
 
 **Triggers:** `trg_audit: audit.trg_row_audit`, `trg_po_line_total: procurement.trg_po_line_total`, `trg_po_line_validate: procurement.trg_po_line_validate`
+
+### `procurement.supplier` (table)
+
+OEM suppliers / distributors. Business contact data only (no personal data).
+
+Rows (demo): **7**
+
+| Column | Type | Keys / flags | Default | Description |
+|---|---|---|---|---|
+| `id` | `integer` | PK, NN, ID | `identity` | Surrogate primary key. |
+| `code` | `character varying(20)` | UQ, NN |  | Business code (natural key). |
+| `name` | `character varying(200)` | UQ, NN |  | Display name. |
+| `country_code` | `character(2)` | NN |  |  |
+| `order_email` | `citext` |  |  | Shared order mailbox of the company (e.g. orders@...), not a personal address. |
+| `default_lead_time_days` | `smallint` | NN |  |  |
+| `currency_code` | `character(3)` | NN | `'EUR'::bpchar` |  |
+| `is_active` | `boolean` | NN | `true` | FALSE = deactivated, kept for history. |
+| `created_at` | `timestamp with time zone` | NN | `now()` | Time the record was created. |
+| `updated_at` | `timestamp with time zone` | NN | `now()` | Time of the last change (maintained by trigger). |
+
+**Data quality expectations / integrity rules**
+
+- Primary key `pk_supplier`: `PRIMARY KEY (id)`
+- Unique `uq_supplier_code`: `UNIQUE (code)`
+- Unique `uq_supplier_name`: `UNIQUE (name)`
+- Check `ck_supplier_country`: `CHECK ((country_code ~ '^[A-Z]{2}$'::text))`
+- Check `ck_supplier_currency`: `CHECK ((currency_code ~ '^[A-Z]{3}$'::text))`
+- Check `ck_supplier_email`: `CHECK (((order_email IS NULL) OR (order_email ~ '^[^@\s]+@[^@\s]+\.[^@\s]+$'::citext)))`
+- Check `ck_supplier_lead_time`: `CHECK (((default_lead_time_days >= 1) AND (default_lead_time_days <= 365)))`
+
+**Indexes**
+
+- `pk_supplier` — `btree (id)`
+- `uq_supplier_code` — `btree (code)`
+- `uq_supplier_name` — `btree (name)`
+
+**Triggers:** `trg_supplier_updated_at: util.trg_set_updated_at`
+
+### `procurement.supplier_part` (table)
+
+Commercial conditions of a supplier for a part: MOQ, pack size, lead time (US12).
+
+Rows (demo): **2,643**
+
+| Column | Type | Keys / flags | Default | Description |
+|---|---|---|---|---|
+| `id` | `bigint` | PK, NN, ID | `identity` | Surrogate primary key. |
+| `supplier_id` | `integer` | FK → `procurement.supplier`, NN |  | Reference to procurement.supplier. |
+| `part_id` | `bigint` | NN |  | Reference to catalog.part. |
+| `supplier_part_number` | `character varying(40)` |  |  |  |
+| `moq` | `numeric(12,3)` | NN | `1` | Minimum order quantity; must be a multiple of pack_size. |
+| `pack_size` | `numeric(12,3)` | NN | `1` | Packaging increment; ordered quantities must be multiples of it. |
+| `lead_time_days` | `smallint` | NN |  | Supplier lead time for this part (calendar days). |
+| `is_preferred` | `boolean` | NN | `false` | Preferred supplier used for automatic PO drafts (max. one per part). |
+| `created_at` | `timestamp with time zone` | NN | `now()` | Time the record was created. |
+| `updated_at` | `timestamp with time zone` | NN | `now()` | Time of the last change (maintained by trigger). |
+
+**Data quality expectations / integrity rules**
+
+- Foreign key `fk_supplier_part_supplier`: `FOREIGN KEY (supplier_id) REFERENCES procurement.supplier(id) ON DELETE RESTRICT`
+- Primary key `pk_supplier_part`: `PRIMARY KEY (id)`
+- Unique `uq_supplier_part`: `UNIQUE (supplier_id, part_id)`
+- Check `ck_supplier_part_lead_time`: `CHECK (((lead_time_days >= 1) AND (lead_time_days <= 365)))`
+- Check `ck_supplier_part_moq`: `CHECK ((moq > (0)::numeric))`
+- Check `ck_supplier_part_moq_pack`: `CHECK ((mod(moq, pack_size) = (0)::numeric))`
+- Check `ck_supplier_part_pack`: `CHECK ((pack_size > (0)::numeric))`
+
+**Indexes**
+
+- `ix_supplier_part_part` — `btree (part_id)`
+- `pk_supplier_part` — `btree (id)`
+- `uq_supplier_part` — `btree (supplier_id, part_id)`
+- `uq_supplier_part_preferred` — `btree (part_id) WHERE is_preferred`
+
+**Triggers:** `trg_audit: audit.trg_row_audit`, `trg_supplier_part_updated_at: util.trg_set_updated_at`
+
+### `procurement.supplier_price` (table)
+
+Supplier purchase price history; non-overlapping validity periods per supplier-part (EXCLUDE USING gist).
+
+Rows (demo): **5,286**
+
+| Column | Type | Keys / flags | Default | Description |
+|---|---|---|---|---|
+| `id` | `bigint` | PK, NN, ID | `identity` | Surrogate primary key. |
+| `supplier_part_id` | `bigint` | FK → `procurement.supplier_part`, NN |  | Reference to procurement.supplier_part. |
+| `valid_during` | `daterange` | NN |  | Validity period [from, to); open upper bound = valid until further notice. |
+| `unit_price` | `numeric(12,2)` | NN |  |  |
+
+**Data quality expectations / integrity rules**
+
+- Foreign key `fk_supplier_price_supplier_part`: `FOREIGN KEY (supplier_part_id) REFERENCES procurement.supplier_part(id) ON DELETE CASCADE`
+- Primary key `pk_supplier_price`: `PRIMARY KEY (id)`
+- Check `ck_supplier_price_amount`: `CHECK ((unit_price > (0)::numeric))`
+- Check `ck_supplier_price_range`: `CHECK (((NOT isempty(valid_during)) AND (lower(valid_during) IS NOT NULL)))`
+- Exclusion `ex_supplier_price_no_overlap`: `EXCLUDE USING gist (supplier_part_id WITH =, valid_during WITH &&)`
+
+**Indexes**
+
+- `ex_supplier_price_no_overlap` — `gist (supplier_part_id, valid_during)`
+- `pk_supplier_price` — `btree (id)`
+
+**Triggers:** `trg_audit: audit.trg_row_audit`
 
 ### `procurement.v_purchase_order_overview` (view)
 
@@ -1431,6 +1663,23 @@ WF04: purchase order list with totals and approval state.
 | `expected_arrival_date` | `date` |  |  |  |
 
 ## 8. Schema `forecast` — Forecasting (ML)
+
+### `forecast.__ef_migrations_history` (table)
+
+Rows (demo): **1**
+
+| Column | Type | Keys / flags | Default | Description |
+|---|---|---|---|---|
+| `migration_id` | `character varying(150)` | PK, NN |  |  |
+| `product_version` | `character varying(32)` | NN |  |  |
+
+**Data quality expectations / integrity rules**
+
+- Primary key `pk___ef_migrations_history`: `PRIMARY KEY (migration_id)`
+
+**Indexes**
+
+- `pk___ef_migrations_history` — `btree (migration_id)`
 
 ### `forecast.benchmark_result` (table)
 
@@ -1464,20 +1713,19 @@ Rows (demo): **48**
 
 Weekly forecast quantity per run, warehouse and part (ternary relationship run x warehouse x part, plus week).
 
-Rows (demo): **115,168**
+Rows (demo): **115,152**
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
 | `forecast_run_id` | `bigint` | PK, FK → `forecast.forecast_run`, NN |  | Reference to forecast.forecast_run. |
-| `warehouse_id` | `smallint` | PK, FK → `inventory.warehouse_part`, NN |  | Reference to inventory.warehouse_part. |
-| `part_id` | `bigint` | PK, FK → `inventory.warehouse_part`, NN |  | Reference to inventory.warehouse_part. |
+| `warehouse_id` | `smallint` | PK, NN |  | Reference to inventory.warehouse_part. |
+| `part_id` | `bigint` | PK, NN |  | Reference to inventory.warehouse_part. |
 | `week_start` | `date` | PK, NN |  | Monday of the forecast ISO week. |
 | `forecast_qty` | `numeric(12,3)` | NN |  |  |
 
 **Data quality expectations / integrity rules**
 
 - Foreign key `fk_demand_forecast_run`: `FOREIGN KEY (forecast_run_id) REFERENCES forecast.forecast_run(id) ON DELETE CASCADE`
-- Foreign key `fk_demand_forecast_warehouse_part`: `FOREIGN KEY (warehouse_id, part_id) REFERENCES inventory.warehouse_part(warehouse_id, part_id)`
 - Primary key `pk_demand_forecast`: `PRIMARY KEY (forecast_run_id, warehouse_id, part_id, week_start)`
 - Check `ck_demand_forecast_monday`: `CHECK ((EXTRACT(isodow FROM week_start) = (1)::numeric))`
 - Check `ck_demand_forecast_qty`: `CHECK ((forecast_qty >= (0)::numeric))`
@@ -1501,7 +1749,7 @@ Rows (demo): **2**
 | `horizon_weeks` | `smallint` | NN |  |  |
 | `first_week` | `date` | NN |  |  |
 | `triggered_by` | `character varying(10)` | NN |  |  |
-| `requested_by` | `uuid` | FK → `iam.app_user` |  | User who created the record (iam.app_user). |
+| `requested_by` | `uuid` |  |  | User who created the record (iam.app_user). |
 | `started_at` | `timestamp with time zone` | NN | `now()` | Time of the started event. |
 | `finished_at` | `timestamp with time zone` |  |  | Time of the finished event. |
 | `error_message` | `text` |  |  |  |
@@ -1509,7 +1757,6 @@ Rows (demo): **2**
 **Data quality expectations / integrity rules**
 
 - Foreign key `fk_forecast_run_model`: `FOREIGN KEY (model_version_id) REFERENCES forecast.ml_model_version(id)`
-- Foreign key `fk_forecast_run_user`: `FOREIGN KEY (requested_by) REFERENCES iam.app_user(id) ON DELETE SET NULL`
 - Primary key `pk_forecast_run`: `PRIMARY KEY (id)`
 - Check `ck_forecast_run_error`: `CHECK (((status = 'failed'::forecast.run_status) = (error_message IS NOT NULL)))`
 - Check `ck_forecast_run_finished`: `CHECK (((status = 'running'::forecast.run_status) = (finished_at IS NULL)))`
@@ -1525,6 +1772,26 @@ Rows (demo): **2**
 - `ix_forecast_run_model` — `btree (model_version_id)`
 - `ix_forecast_run_user` — `btree (requested_by)`
 - `pk_forecast_run` — `btree (id)`
+
+### `forecast.inbox_message` (table)
+
+Integration events already handled by a consumer of this module (idempotent receiver, ADR 0003).
+
+Rows (demo): **0**
+
+| Column | Type | Keys / flags | Default | Description |
+|---|---|---|---|---|
+| `message_id` | `uuid` | PK, NN |  | Id of the handled event. |
+| `consumer` | `character varying(300)` | PK, NN |  | Handler that consumed the event. |
+| `processed_at` | `timestamp with time zone` | NN | `now()` | Time the event was handled. |
+
+**Data quality expectations / integrity rules**
+
+- Primary key `pk_inbox_message`: `PRIMARY KEY (message_id, consumer)`
+
+**Indexes**
+
+- `pk_inbox_message` — `btree (message_id, consumer)`
 
 ### `forecast.ml_model_version` (table)
 
@@ -1579,6 +1846,33 @@ Rows (demo): **2**
 
 **Triggers:** `trg_audit: audit.trg_row_audit`, `trg_model_status_guard: forecast.trg_model_status_guard`
 
+### `forecast.outbox_message` (table)
+
+Integration events of this module waiting for delivery (transactional outbox, ADR 0003).
+
+Rows (demo): **0**
+
+| Column | Type | Keys / flags | Default | Description |
+|---|---|---|---|---|
+| `id` | `uuid` | PK, NN |  | Event id; receivers deduplicate by it. |
+| `occurred_at` | `timestamp with time zone` | NN |  | Time the event occurred. |
+| `type` | `character varying(300)` | NN |  | CLR type of the event (Namespace.Type, Assembly). |
+| `payload` | `jsonb` | NN |  | Event serialized as a JSON object. |
+| `processed_at` | `timestamp with time zone` |  |  | Time the event was delivered to every consumer; NULL = pending. |
+| `attempts` | `integer` | NN | `0` | Failed delivery attempts so far. |
+| `error` | `character varying(2000)` |  |  | Last delivery error, if any. |
+
+**Data quality expectations / integrity rules**
+
+- Primary key `pk_outbox_message`: `PRIMARY KEY (id)`
+- Check `ck_outbox_message_attempts`: `CHECK ((attempts >= 0))`
+- Check `ck_outbox_message_payload`: `CHECK ((jsonb_typeof(payload) = 'object'::text))`
+
+**Indexes**
+
+- `ix_outbox_message_pending` — `btree (occurred_at) WHERE (processed_at IS NULL)`
+- `pk_outbox_message` — `btree (id)`
+
 ### `forecast.recommendation` (table)
 
 Explainable transfer / purchase proposal. Stores every driver of the calculation (NFR08) and the human decision (KPI-04).
@@ -1590,10 +1884,10 @@ Rows (demo): **120**
 | `id` | `bigint` | PK, NN, ID | `identity` | Surrogate primary key. |
 | `forecast_run_id` | `bigint` | FK → `forecast.forecast_run`, NN |  | Reference to forecast.forecast_run. |
 | `kind` | `forecast.recommendation_kind` | NN |  |  |
-| `warehouse_id` | `smallint` | FK → `inventory.warehouse_part`, NN |  | Reference to inventory.warehouse_part. |
-| `part_id` | `bigint` | FK → `inventory.warehouse_part`, NN |  | Reference to inventory.warehouse_part. |
-| `donor_warehouse_id` | `smallint` | FK → `inventory.warehouse` |  | Reference to inventory.warehouse. |
-| `supplier_id` | `integer` | FK → `catalog.supplier` |  | Reference to catalog.supplier. |
+| `warehouse_id` | `smallint` | NN |  | Reference to inventory.warehouse_part. |
+| `part_id` | `bigint` | NN |  | Reference to inventory.warehouse_part. |
+| `donor_warehouse_id` | `smallint` |  |  | Reference to inventory.warehouse. |
+| `supplier_id` | `integer` |  |  | Reference to procurement.supplier. |
 | `base_demand_qty` | `numeric(12,3)` | NN |  | NFR08 (a): ML forecast over the horizon. |
 | `maintenance_demand_qty` | `numeric(12,3)` | NN |  | NFR08 (b): planned maintenance demand not yet reserved. |
 | `lead_time_buffer_qty` | `numeric(12,3)` | NN |  | NFR08 (c): demand expected during the replenishment lead time. |
@@ -1606,22 +1900,16 @@ Rows (demo): **120**
 | `alternative_cost_eur` | `numeric(12,2)` |  |  | Cost of the alternative (e.g. emergency supplier order EUR 280 vs. transfer EUR 45, UC01 step 9). |
 | `status` | `forecast.recommendation_status` | NN | `'open'::forecast.recommendation_status` | Workflow status (state machine guarded by trigger). |
 | `final_qty` | `numeric(12,3)` |  |  | Quantity decided by the user (KPI-04: accepted when equal to recommended_qty). |
-| `decided_by` | `uuid` | FK → `iam.app_user` |  | User who performed the step (iam.app_user). |
+| `decided_by` | `uuid` |  |  | User who performed the step (iam.app_user). |
 | `decided_at` | `timestamp with time zone` |  |  | Time of the decided event. |
 | `decision_reason` | `character varying(300)` |  |  |  |
-| `transfer_order_id` | `bigint` | FK → `inventory.transfer_order` |  | Reference to inventory.transfer_order. |
-| `purchase_order_id` | `bigint` | FK → `procurement.purchase_order` |  | Reference to procurement.purchase_order. |
+| `transfer_order_id` | `bigint` |  |  | Reference to inventory.transfer_order. |
+| `purchase_order_id` | `bigint` |  |  | Reference to procurement.purchase_order. |
 | `created_at` | `timestamp with time zone` | NN | `now()` | Time the record was created. |
 
 **Data quality expectations / integrity rules**
 
-- Foreign key `fk_recommendation_decided_by`: `FOREIGN KEY (decided_by) REFERENCES iam.app_user(id)`
-- Foreign key `fk_recommendation_donor`: `FOREIGN KEY (donor_warehouse_id) REFERENCES inventory.warehouse(id)`
-- Foreign key `fk_recommendation_po`: `FOREIGN KEY (purchase_order_id) REFERENCES procurement.purchase_order(id) ON DELETE SET NULL`
 - Foreign key `fk_recommendation_run`: `FOREIGN KEY (forecast_run_id) REFERENCES forecast.forecast_run(id) ON DELETE CASCADE`
-- Foreign key `fk_recommendation_supplier`: `FOREIGN KEY (supplier_id) REFERENCES catalog.supplier(id)`
-- Foreign key `fk_recommendation_transfer`: `FOREIGN KEY (transfer_order_id) REFERENCES inventory.transfer_order(id) ON DELETE SET NULL`
-- Foreign key `fk_recommendation_wh_part`: `FOREIGN KEY (warehouse_id, part_id) REFERENCES inventory.warehouse_part(warehouse_id, part_id)`
 - Primary key `pk_recommendation`: `PRIMARY KEY (id)`
 - Check `ck_recommendation_accepted`: `CHECK (((status <> 'accepted'::forecast.recommendation_status) OR (final_qty = recommended_qty)))`
 - Check `ck_recommendation_cost`: `CHECK (((estimated_cost_eur >= (0)::numeric) AND ((alternative_cost_eur IS NULL) OR (alternative_cost_eur >= (0)::numeric))))`
@@ -1686,19 +1974,19 @@ NFR08: decomposition (a) base demand, (b) maintenance, (c) lead-time buffer, (d)
 | `algorithm` | `forecast.forecast_method` |  |  |  |
 | `model_version` | `character varying(30)` |  |  |  |
 
-## 9. Schema `audit` — Audit
+## 9. Schema `audit` — Platform — audit
 
 ### `audit.audit_log` (partitioned table)
 
 Immutable audit trail of state-changing operations: timestamp, user, action, previous and new values, reason (US18).
 
-Rows (demo): **26,949** · Partitioning: `RANGE (occurred_at)`, 49 partitions
+Rows (demo): **26,950** · Partitioning: `RANGE (occurred_at)`, 49 partitions
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
 | `id` | `bigint` | PK, NN, ID | `identity` |  |
 | `occurred_at` | `timestamp with time zone` | PK, NN | `clock_timestamp()` | Time of the occurred event. |
-| `user_id` | `uuid` | FK → `iam.app_user` |  | Application user (GUC app.user_id); NULL for background jobs. |
+| `user_id` | `uuid` |  |  | Application user (GUC app.user_id); NULL for background jobs. |
 | `db_role` | `name` | NN | `SESSION_USER` |  |
 | `action` | `character varying(10)` | NN |  |  |
 | `table_name` | `character varying(80)` | NN |  |  |
@@ -1711,7 +1999,6 @@ Rows (demo): **26,949** · Partitioning: `RANGE (occurred_at)`, 49 partitions
 
 **Data quality expectations / integrity rules**
 
-- Foreign key `fk_audit_log_user`: `FOREIGN KEY (user_id) REFERENCES iam.app_user(id)`
 - Primary key `pk_audit_log`: `PRIMARY KEY (id, occurred_at)`
 - Check `ck_audit_log_action`: `CHECK (((action)::text = ANY ((ARRAY['INSERT'::character varying, 'UPDATE'::character varying, 'DELETE'::character varying])::text[])))`
 - Check `ck_audit_log_new`: `CHECK (((new_values IS NULL) OR (jsonb_typeof(new_values) = 'object'::text)))`
@@ -1746,7 +2033,7 @@ Audit trail for the sponsor / auditors with the actor's name masked.
 | `actor_masked` | `text` |  |  |  |
 | `db_role` | `name` |  |  |  |
 
-## 10. Schema `raw` — Data layer 1 — raw
+## 10. Schema `raw` — Inventory — import layer 1 (raw)
 
 ### `raw.demand_history_row` (table)
 
@@ -1792,14 +2079,13 @@ Rows (demo): **4**
 | `valid_rows` | `integer` |  |  |  |
 | `error_rows` | `integer` |  |  |  |
 | `loaded_rows` | `integer` |  |  |  |
-| `uploaded_by` | `uuid` | FK → `iam.app_user` |  | User who created the record (iam.app_user). |
+| `uploaded_by` | `uuid` |  |  | User who created the record (iam.app_user). |
 | `uploaded_at` | `timestamp with time zone` | NN | `now()` | Time of the uploaded event. |
 | `processed_at` | `timestamp with time zone` |  |  | Time of the processed event. |
 | `message` | `text` |  |  |  |
 
 **Data quality expectations / integrity rules**
 
-- Foreign key `fk_import_batch_user`: `FOREIGN KEY (uploaded_by) REFERENCES iam.app_user(id) ON DELETE SET NULL`
 - Primary key `pk_import_batch`: `PRIMARY KEY (id)`
 - Unique `uq_import_batch_file`: `UNIQUE (source, file_sha256)`
 - Check `ck_import_batch_counts`: `CHECK (((total_rows >= 0) AND ((COALESCE(valid_rows, 0) + COALESCE(error_rows, 0)) <= total_rows) AND (COALESCE(loaded_rows, 0) <= COALESCE(valid_rows, total_rows))))`
@@ -1842,7 +2128,7 @@ Rows (demo): **2,070**
 
 - `pk_part_catalog_row` — `btree (import_batch_id, line_no)`
 
-## 11. Schema `staging` — Data layer 2 — staging
+## 11. Schema `staging` — Inventory — import layer 2 (staging)
 
 ### `staging.demand_history` (table)
 
@@ -1930,13 +2216,30 @@ Rows (demo): **2,070**
 
 - `pk_staging_part_catalog` — `btree (import_batch_id, line_no)`
 
-## 12. Schema `mart` — Data layer 4 — data mart
+## 12. Schema `mart` — Reporting — data mart
+
+### `mart.__ef_migrations_history` (table)
+
+Rows (demo): **2**
+
+| Column | Type | Keys / flags | Default | Description |
+|---|---|---|---|---|
+| `migration_id` | `character varying(150)` | PK, NN |  |  |
+| `product_version` | `character varying(32)` | NN |  |  |
+
+**Data quality expectations / integrity rules**
+
+- Primary key `pk___ef_migrations_history`: `PRIMARY KEY (migration_id)`
+
+**Indexes**
+
+- `pk___ef_migrations_history` — `btree (migration_id)`
 
 ### `mart.mv_demand_profile` (materialized view)
 
 Data mart: ADI / CV² demand classification per series (intermittent, lumpy, smooth, erratic).
 
-Rows (demo): **7,198**
+Rows (demo): **7,197**
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -1962,7 +2265,7 @@ Rows (demo): **7,198**
 
 Data mart: weekly demand (only non-zero weeks) per warehouse and part; source for ML training and accuracy.
 
-Rows (demo): **189,461**
+Rows (demo): **189,713**
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -2098,7 +2401,24 @@ ML.NET training/inference features: dense weekly series with season, lags (1,2,4
 | `rolling_mean_13` | `numeric` |  |  |  |
 | `nonzero_weeks_13` | `bigint` |  |  |  |
 
-## 13. Schema `util` — Technical utilities
+## 13. Schema `util` — Platform — technical utilities
+
+### `util.__ef_migrations_history` (table)
+
+Rows (demo): **1**
+
+| Column | Type | Keys / flags | Default | Description |
+|---|---|---|---|---|
+| `migration_id` | `character varying(150)` | PK, NN |  |  |
+| `product_version` | `character varying(32)` | NN |  |  |
+
+**Data quality expectations / integrity rules**
+
+- Primary key `pk___ef_migrations_history`: `PRIMARY KEY (migration_id)`
+
+**Indexes**
+
+- `pk___ef_migrations_history` — `btree (migration_id)`
 
 ### `util.document_counter` (table)
 
@@ -2132,37 +2452,7 @@ Security self-check: must return zero rows. Executed by the test suite after eve
 | `finding` | `text` |  |  |  |
 | `object_name` | `text` |  |  |  |
 
-## 14. Schema `meta` — Schema versioning
-
-### `meta.schema_migration` (table)
-
-Schema version history: one row per applied migration script (checksum = SHA-256 of the file).
-
-Rows (demo): **16**
-
-| Column | Type | Keys / flags | Default | Description |
-|---|---|---|---|---|
-| `script` | `character varying(200)` | PK, NN |  |  |
-| `kind` | `character(1)` | NN |  |  |
-| `version` | `integer` | NN |  |  |
-| `description` | `character varying(200)` | NN |  |  |
-| `checksum` | `character(64)` | NN |  |  |
-| `applied_by` | `name` | NN | `SESSION_USER` |  |
-| `applied_at` | `timestamp with time zone` | NN | `now()` |  |
-| `execution_ms` | `integer` | NN |  |  |
-
-**Data quality expectations / integrity rules**
-
-- Primary key `schema_migration_pkey`: `PRIMARY KEY (script)`
-- Check `schema_migration_checksum_check`: `CHECK ((checksum ~ '^[0-9a-f]{64}$'::text))`
-- Check `schema_migration_execution_ms_check`: `CHECK ((execution_ms >= 0))`
-- Check `schema_migration_kind_check`: `CHECK ((kind = ANY (ARRAY['V'::bpchar, 'R'::bpchar])))`
-
-**Indexes**
-
-- `schema_migration_pkey` — `btree (script)`
-
-## 15. Functions, procedures and trigger functions
+## 14. Functions, procedures and trigger functions
 
 | Routine | Kind | Security | Returns | Description |
 |---|---|---|---|---|
