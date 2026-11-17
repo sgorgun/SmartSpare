@@ -17,13 +17,13 @@ digraph A {
       m6 [label="Import\n(CSV raw→staging)", fillcolor="#FFFDE7", color="#C0A000"];
     }
     dom [label="SmartSpare.Domain — entities, value objects, rules (no EF / ASP.NET references)"];
-    infra [label="SmartSpare.Infrastructure — EF Core 10 + Npgsql (database-first mapping),\nsession-context interceptor (app.user_id), Blob storage, Quartz.NET jobs"];
+    infra [label="SmartSpare.Infrastructure — EF Core 10 + Npgsql (code-first, one DbContext per module, SQL parts in db/sql),\nsession-context interceptor (app.user_id), outbox/inbox, Blob storage, Quartz.NET jobs"];
   }
   subgraph cluster_db { label=<<B>Azure Database for PostgreSQL Flexible Server (single DB, one schema per module)</B>>; style="rounded,filled"; fillcolor="#E8F5E9"; color="#43A047";
     db [label="raw → staging → core (ref, iam, catalog, inventory, fleet, procurement, forecast, audit) → mart\nconstraints · triggers · functions · views · materialized views · roles", shape=cylinder, fillcolor="#FFFFFF"];
   }
   blob [label="Azure Blob Storage\n(ML.NET model .zip versions)", shape=cylinder];
-  mig [label="SmartSpare.DbMigrator\n(CI/CD step, runs V*.sql / R*.sql)", fillcolor="#FAFAFA"];
+  mig [label="EF Core migration bundles per module\n(CI/CD step; SmartSpare.MigrationRunner locally and in CI)", fillcolor="#FAFAFA"];
   users -> web [label=" HTTPS"]; web -> api [label=" REST/JSON + JWT"];
   api -> m1; api -> m2; api -> m3; api -> m4; api -> m5; api -> m6;
   m1 -> dom [style=dotted, arrowhead=none]; m4 -> dom [style=dotted, arrowhead=none]; m2 -> dom [style=dotted, arrowhead=none];
