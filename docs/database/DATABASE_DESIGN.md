@@ -76,6 +76,17 @@ Instead, the **analytical workload is isolated in a data-mart layer inside Postg
 
 Statistics (EF-built database, all migrations of stage 2): 12 schemas · 51 business tables (2 partitioned: 61 + 49 monthly partitions, created relative to the build date) + 7 EF history and 10 outbox/inbox tables · 15 views · 2 materialised views · 115 foreign keys, none across modules · 146 CHECK constraints on business tables (+ 10 on outbox/inbox) · 1 EXCLUDE constraint · 13 ENUM types · 60 functions/procedures · 17 trigger functions on 47 triggers (19 tables audited).
 
+### 2.1 Data access layer
+
+| Where | What |
+|---|---|
+| `src/BuildingBlocks/SmartSpare.Infrastructure/Persistence/` | Shared plumbing: unit of work (`IUnitOfWork<TContext>`, `EfUnitOfWork`, writes the outbox in the same `SaveChanges`), session context (`SessionContextInterceptor` sets `app.user_id` and friends per transaction), error mapping (`DatabaseErrorMapper`, SQLSTATE SS1xx–SS4xx → ProblemDetails), SQL resource helper (`SqlResourceMigrationExtensions`, applies the embedded `db/sql` files from a migration), `IModuleDatabase` and the Npgsql/EF registration, and the Platform context (`Platform/PlatformDbContext`: `ref`, `util`, `audit`) |
+| `src/Modules/<Module>/…/Infrastructure/Persistence/` | Owned by each module: its `DbContext`, `Configurations/` (Fluent API per table), `Migrations/` (history in `<schema>.__ef_migrations_history`) and, until its module stage, the stage 2 table mirrors in `PersistenceModel.cs` |
+| `db/sql/<module>/` | The SQL parts of that module's migrations: triggers, functions, views, partitions, grants, seed data (ADR 0004) |
+| `src/Bootstrapper/SmartSpare.MigrationRunner`, `SmartSpare.ModuleCatalog` | The catalogue lists every module database in migration order (shared with the host); the runner bootstraps the server and applies the migrations locally and in CI, and runs `check-model` |
+
+There is **no single data-access project** on purpose: each module owns its schema, its DbContext and its migrations (ADR 0002, ADR 0011), so a module can be extracted with its data and nothing else has to change. Only the cross-cutting plumbing is shared through BuildingBlocks. Inside a module, EF Core maps the domain aggregates directly. There is no generic repository and no separate persistence model once the module stage is done ([ADR 0013](../adr/0013-domain-model-and-persistence.md)).
+
 ---
 
 ## 3. Data layers (raw → staging → core → data mart)

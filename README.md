@@ -135,6 +135,19 @@ On Windows run the `.sh` scripts in Git Bash or WSL. Demo users (synthetic) such
   (needs psql/pg_dump 17 and Graphviz). `data_flow.dot` and `architecture.dot` are written by hand and only rendered.
   Manual layout changes made in draw.io are lost on regeneration — save such versions under a different name.
 
+## Data access layer
+
+| Where | What |
+|---|---|
+| `src/BuildingBlocks/SmartSpare.Infrastructure/Persistence/` | shared plumbing: unit of work (+ outbox), session context interceptor, `DatabaseErrorMapper`, SQL resource helper for migrations, Platform context (`ref`, `util`, `audit`) |
+| `src/Modules/<Module>/…/Infrastructure/Persistence/` | per module: `DbContext`, `Configurations/`, `Migrations/` |
+| `db/sql/<module>/` | SQL parts of that module's migrations (triggers, functions, views, grants, seed) |
+| `src/Bootstrapper/SmartSpare.MigrationRunner`, `SmartSpare.ModuleCatalog` | migration order of all module databases; bootstrap, migrations and `check-model` locally and in CI |
+
+There is no single data project on purpose: every module owns its schema, DbContext and migrations
+(ADR 0002, ADR 0011), and EF Core maps the module's domain aggregates directly, with no generic repository
+([ADR 0013](docs/adr/0013-domain-model-and-persistence.md)). Details: [DATABASE_DESIGN §2.1](docs/database/DATABASE_DESIGN.md#21-data-access-layer).
+
 ## Rules for changing the database
 
 1. Never edit an applied migration — add a new one to the owning module, for example
