@@ -92,6 +92,14 @@ jobs:
           --filter "Category=Integration"
           --logger trx --results-directory TestResults
 
+      # MODULE_MAPPING section 6, steps 2-4: build the database with the MigrationRunner on
+      # postgres:17, load T001 (2,000 SKUs), run the 97 SQL assertions and the concurrency test,
+      # then require mart.v_data_quality = 0 and no util.v_privilege_findings.
+      - name: Verify the EF-built database with the SQL suite
+        env:
+          RUNNER_ARGS: --no-build --configuration Release
+        run: tools/verify_database.sh
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v7
