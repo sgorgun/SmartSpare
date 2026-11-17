@@ -12,10 +12,12 @@ Architecture: a microservice-ready **modular monolith** — start with
 Prerequisites: .NET 10 SDK (version pinned in `global.json`) and Docker Desktop (running).
 
 ```bash
-dotnet run --project src/SmartSpare.AppHost      # PostgreSQL 17 container + host + Aspire dashboard
+dotnet run --project src/SmartSpare.AppHost      # PostgreSQL 17 + migrations + host + Aspire dashboard
 ```
 
-The Aspire dashboard opens in the browser and lists the `host` resource with its URL. Every module answers
+The AppHost starts PostgreSQL 17, runs `SmartSpare.MigrationRunner` (cluster bootstrap and the EF Core migrations of
+every module) and starts the host once the migrations have finished. The Aspire dashboard opens in the browser and
+lists the `host` resource with its URL. Every module answers
 `GET /api/<module>/ping` (`identity`, `inventory`, `fleet`, `procurement`, `forecasting`, `reporting`);
 health probes are `/health/live` and `/health/ready`; the OpenAPI document is `/openapi/v1.json` (Development).
 
@@ -28,17 +30,24 @@ To run the host alone, without Aspire: `dotnet run --project src/Bootstrapper/Sm
 | Test (all, Docker running) | `dotnet test SmartSpare.slnx` |
 | Format check | `dotnet format SmartSpare.slnx --verify-no-changes` |
 
-CI (`.github/workflows/ci.yml`) runs the build, format check and tests on every push and pull request to `main`.
+| Pending model changes | `dotnet run --project src/Bootstrapper/SmartSpare.MigrationRunner -- check-model` |
+| Verify the database (Docker) | `tools/verify_database.sh` — EF-built database + T001 + 97 SQL assertions + concurrency test |
+| Schema diff (Docker) | `tools/schema_diff.sh` — EF-built schema vs. the frozen V016 baseline |
+
+CI (`.github/workflows/ci.yml`) runs the build, format check, model check and tests on every push and pull request to
+`main`; its integration job runs the Testcontainers tests and `tools/verify_database.sh`.
 
 ## Repository layout
 
 ```
 src/
   Bootstrapper/SmartSpare.Host          ASP.NET Core host: installs the listed modules, BFF (later), health, OpenAPI
+  Bootstrapper/SmartSpare.ModuleCatalog the modules and their databases in migration order (shared by host and runner)
+  Bootstrapper/SmartSpare.MigrationRunner  bootstrap + EF migrations of every context; check-model (dev and CI only)
   BuildingBlocks/
     SmartSpare.SharedKernel             Entity, AggregateRoot, ValueObject, Result, Error — no dependencies
     SmartSpare.Infrastructure           command/query handlers + decorators, IModuleInstaller, Result → ProblemDetails,
-                                        Persistence (EF Core helpers, ported in stage 2)
+                                        Persistence (Platform DbContext, unit of work, outbox/inbox, interceptors)
     SmartSpare.ServiceDefaults          OpenTelemetry, health checks, service discovery, HTTP resilience
   Modules/<Module>/                     Identity, Inventory, Fleet, Procurement, Forecasting, Reporting
     SmartSpare.Modules.<Module>         internal implementation: Domain/, Features/<UseCase>/, Infrastructure/,
@@ -50,37 +59,56 @@ tests/
   SmartSpare.SharedKernel.UnitTests, SmartSpare.Infrastructure.UnitTests
   SmartSpare.ArchitectureTests          module boundaries (NetArchTest + project references)
   SmartSpare.Host.IntegrationTests      in-memory smoke test of every module endpoint
+  SmartSpare.Persistence.IntegrationTests  migrations, ownership, unit of work and outbox on postgres:17 (Testcontainers)
 db/
-  bootstrap/000_bootstrap_cluster.sql   roles + database (once per server, server admin)
-  migrations/V001…V016__*.sql           versioned schema migrations (source of truth)
-  seed/R001__reference_data.sql         repeatable reference data
+  bootstrap/000_bootstrap_cluster.sql   roles + database (once per server; run by the MigrationRunner or the server admin)
+  sql/<module>/                         SQL parts of the EF migrations: triggers, functions, views, grants, seed
+                                        (embedded in the module assembly, applied by migrationBuilder.Sql — ADR 0004)
   testdata/T001__demo_dataset.sql       deterministic synthetic dataset (dev/test only)
   tests/                                SQL test suite (97 assertions) + concurrency test
-  scripts/migrate.sh, reset_local.sh    migration runner (journal, checksums, advisory lock)
-  ddl/smartspare_schema.sql             complete DDL (generated)
+  scripts/                              reset_local.sh, load_testdata.sh, env.sh (credentials from .env)
+  baseline/v016_schema.sql              frozen schema of the former SQL-built database (input of tools/schema_diff.sh)
+  ddl/smartspare_schema.sql             complete DDL of the EF-built database (generated)
 docs/
   architecture/ARCHITECTURE_DECISIONS.md approved target architecture (start here)
   architecture/ARCHITECTURE.md          database-stage architecture baseline (superseded)
   adr/                                  architecture decision records
   database/DATABASE_DESIGN.md           database design + requirements compliance matrix
+  database/MODULE_MAPPING.md            ownership of every database object per module (stage 2)
   database/DATA_DICTIONARY.md           data dictionary (generated from the catalogue)
   database/diagrams/                    logical schema (colour-coded), data flow
-tools/                                  doc/diagram/DDL generators, EF Core scaffolding
+tools/                                  verify_database.sh, schema_diff.sh, DDL / doc / diagram generators
 ```
 
-## Quick start (database, SQL scripts)
+## Quick start (database)
 
-Until stage 2 ports the schema to EF Core migrations, the full database is built from the SQL scripts:
+The database is built by the **EF Core migrations of each module** (ADR 0004, ADR 0011); triggers, functions, views,
+grants and seed data are SQL parts of those migrations in `db/sql/`. There are two local ways to get one.
+
+**With the AppHost** (nothing else to configure): `dotnet run --project src/SmartSpare.AppHost` builds the database on
+start. The PostgreSQL port is shown in the Aspire dashboard (`postgres` resource), the generated login passwords are in
+the AppHost user secrets:
+
+```bash
+dotnet user-secrets list --project src/SmartSpare.AppHost     # Parameters:migrator-password, ...
+PGPORT=<port from the dashboard> SMARTSPARE_MIGRATOR_PASSWORD=<migrator-password> db/scripts/load_testdata.sh
+```
+
+**With docker compose and `.env`** (fixed port 5432, needed by the SQL suite and the doc generators):
 
 ```bash
 cp .env.example .env                              # then set your own passwords in .env
-docker compose up -d
-db/scripts/reset_local.sh                         # bootstrap + migrations + reference data
-db/scripts/load_testdata.sh                       # synthetic demo dataset (2,000 SKUs)
-db/tests/run_tests.sh                             # SQL test suite
+docker compose up -d                              # PostgreSQL 17 on localhost:5432
+db/scripts/reset_local.sh                         # drop + MigrationRunner: bootstrap + all EF migrations
+db/scripts/load_testdata.sh                       # synthetic demo dataset (2,000 SKUs, ~30 s)
+db/tests/run_tests.sh                             # SQL test suite (97 assertions)
+db/tests/concurrency_test.sh                      # row-lock test (NFR03)
 ```
 
-Credentials are never stored in Git: copy `.env.example` to `.env` (gitignored) before the first `docker compose up` and set your own passwords there; `docker compose` and the `db/` scripts read them from `.env` (passwords: see `.env.example`).
+Credentials are never stored in Git: copy `.env.example` to `.env` (gitignored) before the first `docker compose up` and
+set your own passwords there; `docker compose`, the `db/` scripts and the `tools/` generators read them from `.env`.
+The scripts need `psql` (PostgreSQL 17 client) on `PATH`; `tools/verify_database.sh` needs only Docker, because it runs
+psql inside its own container.
 
 On Windows run the `.sh` scripts in Git Bash or WSL. Demo users (synthetic) such as `tomas.radzevicius` (brand manager) or `mantas.petrauskas` (service engineer) log in with the demo password, see `.env.example`.
 
@@ -97,19 +125,29 @@ On Windows run the `.sh` scripts in Git Bash or WSL. Demo users (synthetic) such
 * **All five diagrams in one file (one page each):** `docs/SmartSpare_diagrams.drawio`.
   Open with [app.diagrams.net](https://app.diagrams.net) (File → Open from → Device), the draw.io desktop app,
   or VS Code with the *Draw.io Integration* extension. Export to PNG/SVG/PDF/VSDX from File → Export as.
-* **Schema as code (DBML):** `docs/database/diagrams/smartspare_core.dbml` — 43 tables, 11 enums, 80 relationships,
-  8 colour-coded table groups (modules). Open [dbdiagram.io](https://dbdiagram.io), create a diagram and paste the file
+* **Schema as code (DBML):** `docs/database/diagrams/smartspare_core.dbml` — 43 tables, 11 enums, 48 relationships,
+  8 colour-coded table groups (schemas). References between modules are plain ids, so they have no relationship line
+  (ADR 0011). Open [dbdiagram.io](https://dbdiagram.io), create a diagram and paste the file
   (or Import → DBML). Free dbdiagram diagrams are public — do not upload anything confidential.
-* All diagram files are **generated** from the database: after a migration run
-  `python3 tools/generate_db_docs.py && python3 tools/generate_editable_diagrams.py`.
+* The database diagrams, the data dictionary and `db/ddl/smartspare_schema.sql` are **generated** from a database built
+  by the migrations with T001 loaded (`docker compose` + `reset_local.sh` + `load_testdata.sh`, then `ANALYZE`):
+  `tools/export_ddl.sh && python3 tools/generate_db_docs.py && python3 tools/generate_editable_diagrams.py`
+  (needs psql/pg_dump 17 and Graphviz). `data_flow.dot` and `architecture.dot` are written by hand and only rendered.
   Manual layout changes made in draw.io are lost on regeneration — save such versions under a different name.
 
 ## Rules for changing the database
 
-1. Never edit an applied `V`-script — add `V016__…sql` (the runner detects checksum drift and stops).
-2. Grant privileges for new objects in the same migration; `db/tests/T03` fails if `util.v_privilege_findings` returns rows.
-3. Regenerate docs: `python3 tools/generate_db_docs.py && python3 tools/generate_editable_diagrams.py && tools/export_ddl.sh`.
-4. `*.sql` files are checked out with LF line endings (`.gitattributes`) so checksums are identical on Windows and Linux.
+1. Never edit an applied migration — add a new one to the owning module, for example
+   `dotnet ef migrations add <Name> --project src/Modules/Fleet/SmartSpare.Modules.Fleet --startup-project src/Bootstrapper/SmartSpare.MigrationRunner --context FleetDbContext --output-dir Infrastructure/Persistence/Migrations`.
+   CI fails (`check-model`) when a model change has no migration.
+2. Objects EF cannot model (triggers, functions, views, grants, partitions) go into a new numbered file in
+   `db/sql/<module>/` and are applied by the migration with `migrationBuilder.Sql` (ADR 0004); never edit a SQL part
+   that an applied migration uses.
+3. Grant privileges for new objects in the same migration; `db/tests/T03` fails if `util.v_privilege_findings` returns rows.
+4. No foreign keys, JOINs or transactions across modules (ADR 0011); a reference to another module is a plain id.
+5. A schema change that should differ from the V016 baseline needs an entry with its reason in `tools/schema_diff.allow`.
+6. Regenerate the DDL and the docs (see Diagrams). `*.sql` and `*.sh` files are checked out with LF line endings
+   (`.gitattributes`), so the scripts run unchanged in the Linux containers.
 
 ## Contributing
 
