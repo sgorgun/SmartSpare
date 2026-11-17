@@ -3,7 +3,7 @@
 **Diploma project:** *System for Agricultural Machinery Maintenance Planning and Spare Parts Demand Forecasting Using Machine Learning* (SmartSpare)
 **Author:** Sergei Gorgun · **DBMS:** PostgreSQL 17 (Azure Database for PostgreSQL Flexible Server; tested on postgres:17 locally and in CI) · **Access layer:** EF Core 10 + Npgsql, hybrid code-first migrations per module (ADR 0004, ADR 0011)
 
-Companion documents: [Data dictionary](DATA_DICTIONARY.md) (generated) · [Architecture](../architecture/ARCHITECTURE.md) · DDL: [`db/ddl/smartspare_schema.sql`](../../db/ddl/smartspare_schema.sql) · Diagrams: [`diagrams/`](diagrams/)
+Companion documents: [Data dictionary](DATA_DICTIONARY.md) (generated) · [Architecture](../architecture/ARCHITECTURE_DECISIONS.md) · DDL: [`db/ddl/smartspare_schema.sql`](../../db/ddl/smartspare_schema.sql) · Diagrams: [`diagrams/`](diagrams/)
 
 ---
 
