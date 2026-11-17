@@ -75,7 +75,7 @@ JOIN ref.brand b ON b.code = x.brand;
 -- ---------------------------------------------------------------------------
 -- 2. Suppliers
 -- ---------------------------------------------------------------------------
-INSERT INTO catalog.supplier (code, name, country_code, order_email, default_lead_time_days) VALUES
+INSERT INTO procurement.supplier (code, name, country_code, order_email, default_lead_time_days) VALUES
     ('CLAAS-PL',  'CLAAS Parts Logistics (demo)',      'DE', 'orders@claas-parts.example',    28),
     ('JD-PD',     'John Deere Parts Distribution (demo)','DE','orders@jd-parts.example',       35),
     ('AGCO-PD',   'AGCO Parts Division (demo)',        'DE', 'orders@agco-parts.example',     30),
@@ -89,7 +89,7 @@ SELECT b.id AS brand_id, s.id AS supplier_id, s.default_lead_time_days AS lead
 FROM (VALUES ('CLAAS','CLAAS-PL'), ('JD','JD-PD'), ('FENDT','AGCO-PD'), ('MF','AGCO-PD'),
              ('LEMKEN','LEMKEN-SP'), ('VAD','VAD-SP'), ('CASE','CNH-PD'), ('NH','CNH-PD')) AS m (brand, supplier)
 JOIN ref.brand b ON b.code = m.brand
-JOIN catalog.supplier s ON s.code = m.supplier;
+JOIN procurement.supplier s ON s.code = m.supplier;
 
 -- ---------------------------------------------------------------------------
 -- 3. Parts catalogue — loaded through the CSV pipeline (raw -> staging -> core)
@@ -173,7 +173,7 @@ UPDATE raw.import_batch SET total_rows = (SELECT count(*) FROM raw.part_catalog_
 SELECT status, message FROM staging.process_batch(:cat_batch);
 
 -- Supplier conditions: OEM supplier (preferred) for every part, aftermarket for ~30 %.
-INSERT INTO catalog.supplier_part (supplier_id, part_id, supplier_part_number, moq, pack_size, lead_time_days, is_preferred)
+INSERT INTO procurement.supplier_part (supplier_id, part_id, supplier_part_number, moq, pack_size, lead_time_days, is_preferred)
 SELECT bs.supplier_id, p.id, p.oem_part_number,
        CASE WHEN u.code = 'L' THEN 20 WHEN p.unit_cost < 20 THEN 10 WHEN p.unit_cost < 60 THEN 2 ELSE 1 END,
        CASE WHEN u.code = 'L' THEN 20 WHEN p.unit_cost < 20 THEN 5  WHEN p.unit_cost < 60 THEN 2 ELSE 1 END,
@@ -182,22 +182,22 @@ FROM catalog.part p
 JOIN ref.unit_of_measure u ON u.id = p.uom_id
 JOIN tmp_brand_supplier bs ON bs.brand_id = p.brand_id;
 
-INSERT INTO catalog.supplier_part (supplier_id, part_id, supplier_part_number, moq, pack_size, lead_time_days, is_preferred)
+INSERT INTO procurement.supplier_part (supplier_id, part_id, supplier_part_number, moq, pack_size, lead_time_days, is_preferred)
 SELECT s.id, p.id, 'BAP-' || p.id, CASE WHEN u.code = 'L' THEN 200 ELSE 5 END, CASE WHEN u.code = 'L' THEN 20 ELSE 5 END, 7 + (p.id % 7)::int, false
 FROM catalog.part p
 JOIN ref.unit_of_measure u ON u.id = p.uom_id
-CROSS JOIN catalog.supplier s
+CROSS JOIN procurement.supplier s
 WHERE s.code = 'BALTIC-AP' AND p.id % 10 < 3;
 
 -- Price history (SCD type 2 style validity ranges): +5 % from 1 January.
-INSERT INTO catalog.supplier_price (supplier_part_id, valid_during, unit_price)
+INSERT INTO procurement.supplier_price (supplier_part_id, valid_during, unit_price)
 SELECT sp.id, daterange(:'hist_start'::date, date_trunc('year', current_date)::date),
        round(p.unit_cost * CASE WHEN sp.is_preferred THEN 0.95 ELSE 0.85 END, 2)
-FROM catalog.supplier_part sp JOIN catalog.part p ON p.id = sp.part_id;
-INSERT INTO catalog.supplier_price (supplier_part_id, valid_during, unit_price)
+FROM procurement.supplier_part sp JOIN catalog.part p ON p.id = sp.part_id;
+INSERT INTO procurement.supplier_price (supplier_part_id, valid_during, unit_price)
 SELECT sp.id, daterange(date_trunc('year', current_date)::date, NULL),
        round(p.unit_cost * CASE WHEN sp.is_preferred THEN 1.00 ELSE 0.90 END, 2)
-FROM catalog.supplier_part sp JOIN catalog.part p ON p.id = sp.part_id;
+FROM procurement.supplier_part sp JOIN catalog.part p ON p.id = sp.part_id;
 
 -- Analogue link for a "new" SKU without history (US15).
 INSERT INTO catalog.part_analogue (part_id, analogue_part_id, scaling_factor)
@@ -511,11 +511,11 @@ ORDER BY c.z_score DESC LIMIT 12;
 -- ---------------------------------------------------------------------------
 SELECT set_config('app.user_id', '00000000-0000-4000-8000-000000000002', false);   -- Rasa
 INSERT INTO procurement.purchase_order (supplier_id, warehouse_id, created_by)
-SELECT s.id, w.id, '00000000-0000-4000-8000-000000000002' FROM catalog.supplier s, inventory.warehouse w
+SELECT s.id, w.id, '00000000-0000-4000-8000-000000000002' FROM procurement.supplier s, inventory.warehouse w
 WHERE s.code = 'JD-PD' AND w.code = 'VLN' RETURNING id AS po_big \gset
 INSERT INTO procurement.purchase_order_line (purchase_order_id, part_id, quantity)
 SELECT :po_big, p.id, sp.moq * CASE WHEN u.code = 'L' THEN 10 ELSE 30 END
-FROM catalog.part p JOIN catalog.supplier_part sp ON sp.part_id = p.id AND sp.is_preferred
+FROM catalog.part p JOIN procurement.supplier_part sp ON sp.part_id = p.id AND sp.is_preferred
 JOIN ref.unit_of_measure u ON u.id = p.uom_id
 WHERE p.oem_part_number IN ('RE900001', 'RE900002', 'RE900003', 'RE900004');
 SELECT procurement.submit_purchase_order(:po_big);
@@ -530,10 +530,10 @@ FROM procurement.purchase_order_line l WHERE l.purchase_order_id = :po_big ORDER
 -- Small PO by Darius, self-approved (allowed below EUR 5,000) and fully received in Kaunas by admin
 SELECT set_config('app.user_id', '00000000-0000-4000-8000-000000000003', false);
 INSERT INTO procurement.purchase_order (supplier_id, warehouse_id, created_by)
-SELECT s.id, w.id, '00000000-0000-4000-8000-000000000003' FROM catalog.supplier s, inventory.warehouse w
+SELECT s.id, w.id, '00000000-0000-4000-8000-000000000003' FROM procurement.supplier s, inventory.warehouse w
 WHERE s.code = 'AGCO-PD' AND w.code = 'KNS' RETURNING id AS po_small \gset
 INSERT INTO procurement.purchase_order_line (purchase_order_id, part_id, quantity)
-SELECT :po_small, p.id, sp.moq FROM catalog.part p JOIN catalog.supplier_part sp ON sp.part_id = p.id AND sp.is_preferred
+SELECT :po_small, p.id, sp.moq FROM catalog.part p JOIN procurement.supplier_part sp ON sp.part_id = p.id AND sp.is_preferred
 WHERE p.oem_part_number IN ('V900000001', 'F900001.010');
 SELECT procurement.submit_purchase_order(:po_small);
 SELECT procurement.approve_purchase_order(:po_small);
@@ -544,7 +544,7 @@ SELECT procurement.receive_purchase_order_line(l.id, l.quantity) FROM procuremen
 SELECT set_config('app.user_id', '00000000-0000-4000-8000-000000000001', false);   -- Tomas
 INSERT INTO procurement.purchase_order (supplier_id, warehouse_id, is_urgent, urgent_reason, created_by)
 SELECT s.id, w.id, true, 'Urgent Harvest Dispatch: Lexion breakdown, customer CUST-000017', '00000000-0000-4000-8000-000000000001'
-FROM catalog.supplier s, inventory.warehouse w WHERE s.code = 'CLAAS-PL' AND w.code = 'PNV' RETURNING id AS po_urgent \gset
+FROM procurement.supplier s, inventory.warehouse w WHERE s.code = 'CLAAS-PL' AND w.code = 'PNV' RETURNING id AS po_urgent \gset
 INSERT INTO procurement.purchase_order_line (purchase_order_id, part_id, quantity)
 SELECT :po_urgent, p.id, 2 FROM catalog.part p WHERE p.oem_part_number = '0006673220';
 SELECT procurement.submit_purchase_order(:po_urgent);
@@ -660,8 +660,8 @@ FROM (SELECT d.warehouse_id, d.part_id, s.*
       WHERE d.net_position_qty < 0
         AND NOT EXISTS (SELECT 1 FROM forecast.recommendation r
                         WHERE r.forecast_run_id = :run_now AND r.warehouse_id = d.warehouse_id AND r.part_id = d.part_id)) x
-JOIN catalog.supplier_part sp ON sp.part_id = x.part_id AND sp.is_preferred
-JOIN catalog.supplier_price pr ON pr.supplier_part_id = sp.id AND pr.valid_during @> current_date
+JOIN procurement.supplier_part sp ON sp.part_id = x.part_id AND sp.is_preferred
+JOIN procurement.supplier_price pr ON pr.supplier_part_id = sp.id AND pr.valid_during @> current_date
 CROSS JOIN LATERAL (SELECT ceil(greatest(-x.net_position_qty, sp.moq) / sp.pack_size) * sp.pack_size AS qty) q
 WHERE x.net_position_qty < 0
 ORDER BY (-x.net_position_qty * pr.unit_price) DESC
@@ -691,7 +691,7 @@ BEGIN
                 PERFORM forecast.decide_recommendation(r.id, 'reject', NULL, 'Customer cancelled the overhaul; demand will not materialise');
             ELSIF v_i % 9 = 4 THEN
                 IF r.kind = 'purchase' THEN
-                    SELECT pack_size INTO v_pack FROM catalog.supplier_part WHERE supplier_id = r.supplier_id AND part_id = r.part_id;
+                    SELECT pack_size INTO v_pack FROM procurement.supplier_part WHERE supplier_id = r.supplier_id AND part_id = r.part_id;
                     PERFORM forecast.decide_recommendation(r.id, 'override', r.recommended_qty + v_pack,
                                                            'Accelerated field operations expected (rain forecast), UC01 A2');
                 ELSIF r.recommended_qty > 1 THEN

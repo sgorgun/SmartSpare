@@ -107,7 +107,7 @@ SELECT pg_temp.expect_error($$SELECT inventory.approve_transfer((SELECT max(id) 
 -- ---------------------------------------------------------------------------
 SELECT pg_temp.act_as('rasa.kazlauskiene');
 INSERT INTO procurement.purchase_order (supplier_id, warehouse_id, created_by)
-SELECT s.id, w.id, util.current_app_user() FROM catalog.supplier s, inventory.warehouse w WHERE s.code = 'JD-PD' AND w.code = 'VLN';
+SELECT s.id, w.id, util.current_app_user() FROM procurement.supplier s, inventory.warehouse w WHERE s.code = 'JD-PD' AND w.code = 'VLN';
 CREATE TEMP TABLE t_po AS SELECT max(id) AS id FROM procurement.purchase_order;
 SELECT pg_temp.expect_error(
     $$INSERT INTO procurement.purchase_order_line (purchase_order_id, part_id, quantity)
