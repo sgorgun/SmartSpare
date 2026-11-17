@@ -30,7 +30,7 @@ internal sealed class AppUserConfiguration : IEntityTypeConfiguration<AppUser>
         builder.Property(x => x.FullName).HasColumnName("full_name").HasColumnOrder(3).HasColumnType("character varying(150)").HasComment("PERSONAL DATA (GDPR). Masked by util.mask_name for read-only roles.");
         builder.Property(x => x.Phone).HasColumnName("phone").HasColumnOrder(4).HasColumnType("character varying(30)").HasComment("PERSONAL DATA (GDPR). Masked by util.mask_phone for read-only roles.");
         builder.Property(x => x.PasswordHash).HasColumnName("password_hash").HasColumnOrder(5).HasColumnType("text").HasComment("ASP.NET Core Identity V3 hash (PBKDF2-HMAC-SHA512, 100k iterations). Plain text is impossible by CHECK.");
-        builder.Property(x => x.SecurityStamp).HasColumnName("security_stamp").HasColumnOrder(6).HasColumnType("uuid").HasDefaultValueSql("gen_random_uuid()").HasComment("Changes on password/role change; invalidates issued JWT refresh tokens.");
+        builder.Property(x => x.SecurityStamp).HasColumnName("security_stamp").HasColumnOrder(6).HasColumnType("uuid").HasDefaultValueSql("gen_random_uuid()").HasComment("Changes on password/role change; invalidates issued sign-in cookies (security stamp validation).");
         builder.Property(x => x.IsActive).HasColumnName("is_active").HasColumnOrder(7).HasColumnType("boolean").HasDefaultValueSql("true").HasComment("FALSE = deactivated, kept for history.");
         builder.Property(x => x.FailedLoginCount).HasColumnName("failed_login_count").HasColumnOrder(8).HasColumnType("smallint").HasDefaultValueSql("0");
         builder.Property(x => x.LockoutEnd).HasColumnName("lockout_end").HasColumnOrder(9).HasColumnType("timestamp with time zone");
