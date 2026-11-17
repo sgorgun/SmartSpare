@@ -23,6 +23,7 @@ SmartSpare is built as a **microservice-ready modular monolith**: one deployment
 | 13 | Testing | Unit, integration with Testcontainers, architecture tests, bUnit, Playwright | — |
 | 14 | Repository language | English only | [0010](../adr/0010-english-only-repository.md) |
 | 15 | Evolvability | Abstractions only at seams to volatile technology; stable contracts (Contracts, versioned HTTP API, events); claims-based authorization | [0012](../adr/0012-evolvability-principles.md) |
+| 16 | Domain model and persistence | Aggregates in `Domain/` mapped directly by EF Core; stage 2 table mirrors removed per module stage; no generic repository | [0013](../adr/0013-domain-model-and-persistence.md) |
 
 ## 1. Architectural style
 
