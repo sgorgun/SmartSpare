@@ -78,7 +78,9 @@ def write_drawio(path, pages):
 
 def graphviz_layout(dot_path):
     """Returns (height, nodes, clusters, edges) in Graphviz points with a top-left origin."""
-    data = json.loads(subprocess.run(["dot", "-Tjson", dot_path], capture_output=True, text=True, check=True).stdout)
+    # json0 = layout without xdot drawing operations: only positions and sizes are needed, and Graphviz 2.42
+    # writes garbage bytes into the drawing operations of rounded HTML table cells.
+    data = json.loads(subprocess.run(["dot", "-Tjson0", dot_path], capture_output=True, check=True).stdout.decode("utf-8"))
     H = float(data["bb"].split(",")[3])
     nodes, clusters = {}, []
     for o in data.get("objects", []):
@@ -86,7 +88,8 @@ def graphviz_layout(dot_path):
             if "bb" in o:
                 x0, y0, x1, y1 = map(float, o["bb"].split(","))
                 clusters.append({"name": o["name"], "x": x0, "y": H - y1, "w": x1 - x0, "h": y1 - y0,
-                                 "label": o.get("label", ""), "fill": o.get("fillcolor"), "color": o.get("color")})
+                                 "label": o.get("label", ""), "fill": o.get("fillcolor") or o.get("bgcolor"),
+                                 "color": o.get("color")})
             continue
         if "pos" not in o:
             continue
@@ -186,6 +189,9 @@ SHAPE_STYLE = {
     "box": "rounded=1;whiteSpace=wrap;html=1;arcSize=12;",
     "cylinder": "shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=12;",
     "diamond": "rhombus;whiteSpace=wrap;html=1;",
+    # Text-only nodes: cluster titles (plaintext) and HTML-table nodes (plain) draw no box of their own.
+    "plaintext": "text;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;strokeColor=none;fillColor=none;",
+    "plain": "text;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;strokeColor=none;fillColor=none;",
 }
 
 
@@ -201,11 +207,15 @@ def generic_page(dot_path, title):
                     c["x"], c["y"], c["w"], c["h"])
     ids = {}
     for n in nodes.values():
-        shape = SHAPE_STYLE.get(n.get("shape", "box"), SHAPE_STYLE["box"])
-        fill = n.get("fillcolor", "#FFFFFF")
-        stroke = n.get("color", "#555555")
+        kind = n.get("shape", "box")
+        shape = SHAPE_STYLE.get(kind, SHAPE_STYLE["box"])
+        if kind in ("plaintext", "plain"):
+            colours = ""                                # the shape style already removes box and fill
+        else:
+            colours = f"fillColor={n.get('fillcolor', '#FFFFFF')};strokeColor={n.get('color', '#555555')};"
+        dashed = "dashed=1;" if "dashed" in (n.get("style") or "") else ""   # planned components
         ids[n["_gvid"]] = page.vertex(plain_label(n.get("label", n["name"])),
-                                      f"{shape}fillColor={fill};strokeColor={stroke};fontSize=10;",
+                                      f"{shape}{colours}{dashed}fontSize=10;",
                                       n["x"], n["y"], n["w"], n["h"])
     for e in edges:
         if e["style"] == "invis" or e["tail"] not in ids or e["head"] not in ids:
