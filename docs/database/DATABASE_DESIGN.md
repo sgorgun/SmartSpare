@@ -1,7 +1,7 @@
 # SmartSpare — Database Design (Transactional / OLTP)
 
 **Diploma project:** *System for Agricultural Machinery Maintenance Planning and Spare Parts Demand Forecasting Using Machine Learning* (SmartSpare)
-**Author:** Sergei Gorgun · **DBMS:** PostgreSQL 17 (Azure Database for PostgreSQL Flexible Server; tested locally on 16) · **Access layer:** EF Core 10 + Npgsql
+**Author:** Sergei Gorgun · **DBMS:** PostgreSQL 17 (Azure Database for PostgreSQL Flexible Server; tested on postgres:17 locally and in CI) · **Access layer:** EF Core 10 + Npgsql, hybrid code-first migrations per module (ADR 0004, ADR 0011)
 
 Companion documents: [Data dictionary](DATA_DICTIONARY.md) (generated) · [Architecture](../architecture/ARCHITECTURE.md) · DDL: [`db/ddl/smartspare_schema.sql`](../../db/ddl/smartspare_schema.sql) · Diagrams: [`diagrams/`](diagrams/)
 
@@ -15,16 +15,16 @@ The database is submitted in the **Transactional databases (OLTP)** category. Ev
 
 | Requirement | Evidence |
 |---|---|
-| Data dictionary: layers, tables, columns, types, keys, data-quality expectations | [DATA_DICTIONARY.md](DATA_DICTIONARY.md) — generated from the catalogue: 69 relations, every column with type, PK/FK/UQ/NN flags, comment, all CHECK/EXCLUDE rules as "data quality expectations", indexes, triggers, 60 routines |
+| Data dictionary: layers, tables, columns, types, keys, data-quality expectations | [DATA_DICTIONARY.md](DATA_DICTIONARY.md) — generated from the catalogue of the EF-built database: 85 relations (51 business tables, 7 EF history and 10 outbox/inbox tables, 15 views, 2 materialised views), every column with type, PK/FK/UQ/NN flags, comment, all CHECK/EXCLUDE rules as "data quality expectations", indexes, triggers, 60 routines |
 | How integrity is maintained and transactions are handled | §5 and §6 of this document |
 | ER diagram (optional) / logical schema with main blocks, colour coding | [diagrams/logical_schema_overview.svg](diagrams/logical_schema_overview.svg) (keys), [logical_schema_core.svg](diagrams/logical_schema_core.svg) (all columns), [logical_schema_import_layers.svg](diagrams/logical_schema_import_layers.svg); one colour per module, crow's-foot notation, legend. **Editable:** draw.io files (`*.drawio`, all pages in [`docs/SmartSpare_diagrams.drawio`](../SmartSpare_diagrams.drawio)) and the schema as code in DBML ([`diagrams/smartspare_core.dbml`](diagrams/smartspare_core.dbml), dbdiagram.io) |
-| DDL script | [`db/ddl/smartspare_schema.sql`](../../db/ddl/smartspare_schema.sql) (complete, generated) and the versioned migrations [`db/migrations/V001…V016`](../../db/migrations) |
+| DDL script | [`db/ddl/smartspare_schema.sql`](../../db/ddl/smartspare_schema.sql) (complete, generated from the EF-built database); the versioned EF Core migrations of each module (`src/Modules/*/Infrastructure/Persistence/Migrations`, Platform in `src/BuildingBlocks/SmartSpare.Infrastructure`) with their SQL parts in [`db/sql/`](../../db/sql) |
 | Modern relational DBMS | PostgreSQL 17 on Azure (§1) |
 | 3NF | §4.2 — every table in 3NF; four deliberate, trigger-maintained redundancies are listed and justified |
-| Enough tables, different relationship types | 43 core tables + 7 import/mart tables; 1:1, 1:N, M:N (with and without attributes), recursive, ternary (§4.1) |
-| PK, FK, constraints, meaningful types | 100 % of tables have a PK; 148 FKs; 146 CHECK constraints; `numeric` for money and quantities, `timestamptz` for time, `daterange`, `citext`, `uuid`, ENUMs (§4.3) |
-| Structure created by scripts/migrations, not manually; in Git | `db/bootstrap` + `db/migrations` + `db/seed`, runner `db/scripts/migrate.sh` and `src/SmartSpare.DbMigrator` (§9) |
-| Test data incl. edge cases; scripts for reference tables | Reference data: [`db/seed/R001__reference_data.sql`](../../db/seed/R001__reference_data.sql). Test data: [`db/testdata/T001__demo_dataset.sql`](../../db/testdata/T001__demo_dataset.sql) (deterministic, ~200k ledger rows, invalid/duplicate import rows). Tests: 97 assertions + concurrency test (§10) |
+| Enough tables, different relationship types | 43 core tables + 8 import, mart and utility tables; 1:1, 1:N, M:N (with and without attributes), recursive, ternary (§4.1) |
+| PK, FK, constraints, meaningful types | 100 % of tables have a PK; 115 FKs (the 33 that crossed module boundaries were removed by ADR 0011, those references are plain ids); 146 CHECK constraints on business tables; `numeric` for money and quantities, `timestamptz` for time, `daterange`, `citext`, `uuid`, ENUMs (§4.3) |
+| Structure created by scripts/migrations, not manually; in Git | `db/bootstrap` (roles, database) + EF Core migrations per module with SQL parts in `db/sql/`, applied by `SmartSpare.MigrationRunner` locally and in CI and by EF migration bundles on Azure (§9) |
+| Test data incl. edge cases; scripts for reference tables | Reference data: seed parts of the migrations ([`db/sql/platform/seed_ref.sql`](../../db/sql/platform/seed_ref.sql), [`identity/seed_roles.sql`](../../db/sql/identity/seed_roles.sql), [`inventory/seed_warehouses.sql`](../../db/sql/inventory/seed_warehouses.sql)). Test data: [`db/testdata/T001__demo_dataset.sql`](../../db/testdata/T001__demo_dataset.sql) (deterministic, ~200k ledger rows, invalid/duplicate import rows). Tests: 97 assertions + concurrency test, run in CI on the EF-built database (§10) |
 | Roles app_read, app_write, admin; app not superuser; permissions checked for new objects | Roles `app_read`, `app_write`, `app_ml`, `app_audit`, `app_admin` + 4 login roles; none is superuser; default privileges + automatic self-check view `util.v_privilege_findings` run by the tests (§8) |
 | Passwords only hashed, no outdated methods | Application users: ASP.NET Core Identity V3 (PBKDF2-HMAC-SHA512, 100,000 iterations, 128-bit salt), format enforced by a CHECK that rejects plain text, MD5 and SHA digests. DB logins: SCRAM-SHA-256 (§8.4) |
 | Integrity via constraints and transactions | §5, §6 |
@@ -36,7 +36,7 @@ The database is submitted in the **Transactional databases (OLTP)** category. Ev
 |---|---|
 | Different DBMS types if the topic justifies it — reasoning | §1.2: evaluated (ClickHouse, Redis, MongoDB) and **deliberately rejected** with quantitative reasons; analytics is served by a data-mart layer inside PostgreSQL |
 | Data layers raw → staging → data mart — reasoning | §3: `raw` → `staging` → core → `mart`, with quality gate, deduplication and load monitoring |
-| Structure versioning: how changes are tracked, history stored | §9: forward-only versioned SQL migrations, journal `meta.schema_migration` with SHA-256 checksums, drift detection, repeatable seed scripts, Git workflow |
+| Structure versioning: how changes are tracked, history stored | §9: forward-only EF Core migrations per module, history table `<schema>.__ef_migrations_history` per context, model-drift check in CI, schema diff against the frozen V016 baseline, Git workflow |
 | Indexes implemented and justified | §7: every index with its query and reason; plans verified by `db/tests/T04`; timings at 20,000 SKUs |
 | Triggers, stored procedures, functions implementing business logic | §6: 17 trigger functions on 47 triggers, 60 routines in total incl. 4 procedures (stock ledger, reservations, transfer workflow, engine-hours validation, maintenance due calculation, MOQ rules, four-eyes approval, model promotion, import pipeline, retention) |
 | Views / materialized views | §6.4: 15 views + 2 materialised views (concurrent refresh, refresh log) |
@@ -70,11 +70,11 @@ Instead, the **analytical workload is isolated in a data-mart layer inside Postg
 
 ![Data flow](diagrams/data_flow.png)
 
-* **One database, one schema per module** of the modular monolith: `ref`, `iam`, `catalog`, `inventory`, `fleet`, `procurement`, `forecast`, `audit` (+ technical `util`, `meta`). A module owns its schema; cross-module access happens through foreign keys, views and functions. This enforces module boundaries in the database the same way the solution structure does in C# (see Architecture).
+* **One database, schemas owned by modules** of the modular monolith (ADR 0011): Platform `ref`, `util`, `audit`; Identity `iam`; Inventory `catalog`, `inventory`, `raw`, `staging`; Fleet `fleet`; Procurement `procurement` (including the suppliers); Forecasting `forecast`; Reporting `mart`. Each module has its own DbContext and migration history. There are **no foreign keys, JOINs or transactions across modules**: a reference to another module is a plain id, and state changes between modules travel as integration events through each module's `outbox_message` / `inbox_message`. Foreign keys to the Platform's `ref` tables are kept (shared kernel). Reporting reads other schemas through views and materialised views, the one documented exception. Objects that still cross modules until their module stage replaces them are marked TRANSITIONAL ([MODULE_MAPPING](MODULE_MAPPING.md) §3.2).
 * **Data layers** `raw` → `staging` → core → `mart` for imported and analytical data (§3).
 * **Business-critical logic lives next to the data** (triggers and functions), so it is enforced for every client — the API, background jobs, imports and manual SQL alike.
 
-Statistics (schema version 16): 13 schemas · 52 tables (2 partitioned: 60 + 48 monthly partitions) · 15 views · 2 materialised views · 148 foreign keys · 146 CHECK constraints · 1 EXCLUDE constraint · 13 ENUM types · 60 functions/procedures · 17 trigger functions on 47 triggers (19 tables audited).
+Statistics (EF-built database, all migrations of stage 2): 12 schemas · 51 business tables (2 partitioned: 61 + 49 monthly partitions, created relative to the build date) + 7 EF history and 10 outbox/inbox tables · 15 views · 2 materialised views · 115 foreign keys, none across modules · 146 CHECK constraints on business tables (+ 10 on outbox/inbox) · 1 EXCLUDE constraint · 13 ENUM types · 60 functions/procedures · 17 trigger functions on 47 triggers (19 tables audited).
 
 ---
 
@@ -193,8 +193,8 @@ Unstructured JSON is avoided. Exactly two columns use `jsonb`, both with a CHECK
 
 ### 6.1 Transactions
 
-* Every business operation is **one database transaction**: e.g. `inventory.approve_transfer()` reserves all lines or none; `fleet.log_engine_hours()` stores the reading, drafts the service order(s) and soft-reserves the kits atomically; `staging.process_batch()` validates and loads a whole file or nothing; `forecast.decide_recommendation()` records the decision and creates + approves the transfer (or adds a PO line) together.
-* The API runs every MediatR command inside a transaction (TransactionBehavior); EF Core's `SaveChanges` and function calls share it.
+* Every business operation **inside a module** is one database transaction: e.g. `inventory.approve_transfer()` reserves all lines or none; `staging.process_batch()` validates and loads a whole file or nothing. Operations that span modules (UC01 recommendation → transfer, UC02 service order → kit reservation) become integration-event flows with eventual consistency and compensating actions (ADR 0003, ADR 0011); until their module stage, `fleet.log_engine_hours()` and `forecast.decide_recommendation()` still run them in one transaction as marked TRANSITIONAL functions.
+* The API runs every command inside a transaction of the owning module's DbContext (transaction decorator, ADR 0005; MODULE_MAPPING §5.6): EF Core's `SaveChanges`, the SQL functions it calls and the module's outbox rows share it, so data changes and the events they raise are committed together or not at all.
 * Isolation level: **READ COMMITTED** (PostgreSQL default) combined with explicit row locks — sufficient because every invariant is protected by a lock on the row that carries it, and it avoids serialisation-failure retries under load.
 
 ### 6.2 Concurrency control
@@ -355,13 +355,14 @@ The API sets `app.user_id` (and optionally `app.reason`) **transaction-locally**
 
 ## 9. Versioning of the database structure
 
-* **Single source of truth:** SQL files in Git — `db/bootstrap` (cluster level: roles, database; run once), `db/migrations/V###__description.sql` (versioned, forward-only), `db/seed/R###__description.sql` (repeatable reference data, idempotent upserts).
-* **Runner:** `db/scripts/migrate.sh` (local/CI) and `src/SmartSpare.DbMigrator` (C#, Azure pipeline) implement the same rules: scripts in version order, each script **and** its journal row in one transaction, `pg_advisory_xact_lock` against parallel runs, scripts executed as `SET LOCAL ROLE smartspare_owner` by a non-superuser login.
-* **History:** `meta.schema_migration (script, kind, version, description, checksum SHA-256, applied_by, applied_at, execution_ms)` — which version is deployed where, who applied it, when and how long it took. Together with `git log db/migrations` this gives the full change history.
-* **Drift protection:** if an already applied V-script is edited, its checksum changes and the runner stops (`exit 2`). History is never rewritten; every change is a new V-script. Repeatable R-scripts are re-applied automatically whenever their checksum changes.
-* **Why SQL migrations rather than EF Core code-first migrations:** more than half of the schema (partitions, triggers, functions, procedures, roles and grants, materialised views, EXCLUDE and partial indexes) cannot be expressed in the EF Core model and would end up as raw `migrationBuilder.Sql()` anyway. Keeping the schema in SQL makes it reviewable and testable on its own; EF Core maps it **database-first** (`tools/scaffold-efcore.ps1`), with `xmin` concurrency tokens and ENUM mapping.
-* **Rollback strategy:** forward-only (a fix is a new migration); every migration is transactional, so a failing script leaves the database unchanged; for data disasters Azure Flexible Server provides point-in-time restore (RPO ≤ 24 h, NFR09).
-* **Git workflow:** feature branch → PR with the migration, regenerated `db/ddl/smartspare_schema.sql` and `DATA_DICTIONARY.md` → CI runs bootstrap + migrations + test data + tests on an empty PostgreSQL container → merge → pipeline runs the migrator against Azure before deploying the App Service.
+* **Hybrid EF Core code-first** (ADR 0004, ADR 0011). Each module owns a DbContext and its migrations: tables, keys, intra-module FKs, indexes, CHECKs and ENUM types are modelled with the Fluent API; what EF cannot express (triggers, functions, procedures, views and materialised views, partitioned tables, EXCLUDE constraints, roles and grants, seed data) lives in numbered SQL files in `db/sql/<module>/`, embedded into the module assembly and applied by the migration with `migrationBuilder.Sql`. `db/bootstrap/000_bootstrap_cluster.sql` creates the cluster-level roles and the database once per server.
+* **Why this split:** the business rules that protect the data (stock ledger, row locks, state machines, audit, privileges) stay in PostgreSQL as the last line of defence, reviewable and tested on their own (§10), while the .NET side gets the standard migration workflow: one migration per model change, generated snapshots, `dotnet ef migrations bundle` for deployment, and per-module histories so a module can move to its own database without touching the others. The schema had been written as hand-made SQL migrations (V001–V016) first; stage 2 ported it to this layout and proved the result equivalent (below).
+* **History:** one EF history table per context in the module's own schema — `util`, `iam`, `inventory`, `fleet`, `procurement`, `forecast` and `mart` each hold `__ef_migrations_history (migration_id, product_version)`. `meta.schema_migration` of the SQL runner is retired. Together with `git log` of the migrations and `db/sql/` this gives the full change history; `db/ddl/smartspare_schema.sql` lists the last migration of every context in its header.
+* **Order and identity:** `SmartSpare.MigrationRunner` applies the contexts in the order of `SmartSpare.ModuleCatalog` (Platform → Identity → Inventory → Fleet → Procurement → Forecasting → Reporting), as the non-superuser login `smartspare_migrator` acting as the owner role `smartspare_owner`, so every object is owned by the owner role (MODULE_MAPPING §5.5). The application never migrates on start-up.
+* **Drift protection:** CI runs `MigrationRunner check-model` (`HasPendingModelChanges()` for every context) and fails when a model change has no migration. Applied migrations and the SQL files they use are never edited; every change is a new migration.
+* **Equivalence with the original schema:** `db/baseline/v016_schema.sql` freezes the schema of the SQL-built database at version 16 (on PostgreSQL 17). `tools/schema_diff.sh` builds the EF database and compares both dumps statement by statement: 3,209 statements identical; the only differences are the 33 removed cross-module FKs and the EF history and outbox/inbox tables, each documented in `tools/schema_diff.allow`. The moved supplier tables are compared one by one after a documented rename (`tools/schema_diff.renames`).
+* **Rollback strategy:** forward-only (a fix is a new migration); every migration is transactional, so a failing migration leaves the database at the previous version; for data disasters Azure Flexible Server provides point-in-time restore (RPO ≤ 24 h, NFR09).
+* **Git workflow:** feature branch → PR with the migration, its SQL parts, the regenerated `db/ddl/smartspare_schema.sql` and `DATA_DICTIONARY.md` → CI builds the database on an empty `postgres:17` with the MigrationRunner, loads the test data and runs the SQL suite and the .NET integration tests → merge → the pipeline runs one EF migration bundle per context against Azure before deploying the application (stage 9).
 
 ---
 
@@ -369,7 +370,7 @@ The API sets `app.user_id` (and optionally `app.reason`) **transaction-locally**
 
 ### 10.1 Reference data (fixed)
 
-`db/seed/R001__reference_data.sql`: units, 8 brands, 6 machine types, category tree (8 roots, 23 leaves), 4 operating conditions with interval factors (F5), 10 movement types, 4 demand classes (ADI 1.32 / CV² 0.49), 6 season phases + 53 ISO weeks with seasonal weights (F8), 6 application roles, the 7 hubs with coordinates and the 42-route transport matrix (UC01: Klaipėda–Panevėžys 210 km, 18 h, €45).
+Seed parts of the migrations (`db/sql/platform/seed_ref.sql`, `db/sql/identity/seed_roles.sql`, `db/sql/inventory/seed_warehouses.sql`), the former `R001__reference_data.sql` split by owning module: units, 8 brands, 6 machine types, category tree (8 roots, 23 leaves), 4 operating conditions with interval factors (F5), 10 movement types, 4 demand classes (ADI 1.32 / CV² 0.49), 6 season phases + 53 ISO weeks with seasonal weights (F8), 6 application roles, the 7 hubs with coordinates and the 42-route transport matrix (UC01: Klaipėda–Panevėžys 210 km, 18 h, €45).
 
 ### 10.2 Synthetic test dataset
 
@@ -396,7 +397,7 @@ The API sets `app.user_id` (and optionally `app.reason`) **transaction-locally**
 | T04_indexes_and_performance | 8 | plans of the critical queries use the intended indexes / partition pruning |
 | concurrency_test.sh | 1 | two parallel sessions: lock wait, no negative stock |
 
-Result on the demo dataset: **97 assertions passed**, concurrency test passed, `mart.v_data_quality` all zero, `util.v_privilege_findings` empty.
+Result on the **EF-built database** with the demo dataset (2,000 SKUs), run in CI on every pull request by `tools/verify_database.sh` (build with the MigrationRunner on `postgres:17`, load T001, run the suite): **97 assertions passed**, concurrency test passed (session B waits ≈ 2 s for the row lock, then SS200, no negative stock), `mart.v_data_quality` all zero, `util.v_privilege_findings` empty. The only edits the port required in the tests and the demo data were the schema name of the moved supplier tables (`catalog.supplier*` → `procurement.supplier*` in T01, T02 and T001). When a TRANSITIONAL object is replaced in stages 3–7, the assertions that exercised it move to C# integration tests of the event flow, and the total stays tracked here (MODULE_MAPPING §6, step 6).
 
 ### 10.4 KPI baseline from the demo data (illustrative, synthetic)
 
@@ -411,12 +412,21 @@ Result on the demo dataset: **97 assertions passed**, concurrency test passed, `
 ## 11. How to run
 
 ```bash
-cp .env.example .env                       # local passwords (gitignored), see .env.example
-docker compose up -d                       # PostgreSQL 17 on localhost:5432
-db/scripts/reset_local.sh                  # bootstrap roles + database, all migrations + reference data
-db/scripts/load_testdata.sh                # T001 demo dataset, 2,000 SKUs (~30 s); argument 20000 for load tests
-db/tests/run_tests.sh                      # SQL test suite as the local superuser
-python3 tools/generate_db_docs.py && python3 tools/generate_editable_diagrams.py && tools/export_ddl.sh   # regenerate dictionary, diagrams (PNG/SVG, draw.io, DBML), DDL
+dotnet run --project src/SmartSpare.AppHost  # PostgreSQL 17 + MigrationRunner + host (database built on start)
 ```
 
-**Azure:** allow-list the extensions `CITEXT, PG_TRGM, BTREE_GIST, PGCRYPTO` in the server parameter `azure.extensions`; run `db/bootstrap/000_bootstrap_cluster.sql` once as the server admin; the pipeline then runs `SmartSpare.DbMigrator` with the migrator's connection string from Key Vault.
+or, with a fixed port and the passwords in `.env` (needed by the SQL suite and the generators):
+
+```bash
+cp .env.example .env                       # local passwords (gitignored), see .env.example
+docker compose up -d                       # PostgreSQL 17 on localhost:5432
+db/scripts/reset_local.sh                  # drop + MigrationRunner: bootstrap roles + database, all EF migrations
+db/scripts/load_testdata.sh                # T001 demo dataset, 2,000 SKUs (~30 s); argument 20000 for load tests
+db/tests/run_tests.sh                      # SQL test suite as the local superuser
+db/tests/concurrency_test.sh               # row-lock test (NFR03)
+tools/export_ddl.sh && python3 tools/generate_db_docs.py && python3 tools/generate_editable_diagrams.py   # regenerate DDL, dictionary, diagrams (PNG/SVG, draw.io, DBML)
+```
+
+Without a local server: `tools/verify_database.sh` (build + T001 + suite + concurrency test, as in CI) and `tools/schema_diff.sh` (comparison with the V016 baseline) run in throw-away Docker containers.
+
+**Azure:** allow-list the extensions `CITEXT, PG_TRGM, BTREE_GIST, PGCRYPTO` in the server parameter `azure.extensions`; run `db/bootstrap/000_bootstrap_cluster.sql` once as the server admin; the pipeline then runs one EF migration bundle per context, in catalogue order, as `smartspare_migrator` with its connection string from Key Vault (MODULE_MAPPING §5.5, stage 9).
