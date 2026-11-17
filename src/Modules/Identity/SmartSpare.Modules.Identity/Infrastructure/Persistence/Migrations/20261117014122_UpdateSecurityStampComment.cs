@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace SmartSpare.Modules.Identity.Infrastructure.Persistence.Migrations
 {
     /// <inheritdoc />
-    public partial class UpdateSecurityStampComment : Migration
+    internal partial class UpdateSecurityStampComment : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)

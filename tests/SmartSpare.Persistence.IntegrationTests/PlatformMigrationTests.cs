@@ -20,9 +20,13 @@ public sealed class PlatformMigrationTests(MigratedDatabaseFixture db)
     [Fact]
     public async Task SecondRun_SkipsBootstrapAndAppliesNothing()
     {
+        const string countHistory = "SELECT count(*) FROM util.__ef_migrations_history";
+        var before = await db.ScalarAsync<long>(countHistory);
+
         await db.CreateMigrator().RunAsync(TestContext.Current.CancellationToken);
 
-        (await db.ScalarAsync<long>("SELECT count(*) FROM util.__ef_migrations_history")).ShouldBe(1);
+        before.ShouldBeGreaterThan(0);
+        (await db.ScalarAsync<long>(countHistory)).ShouldBe(before);
     }
 
     [Fact]

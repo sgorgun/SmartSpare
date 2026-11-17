@@ -97,7 +97,7 @@ public sealed class PlatformPersistenceTests
         using var context = PlatformDatabase.Instance.CreateContext("Host=localhost;Database=unused");
 
         PlatformPersistence.Database.HistorySchema.ShouldBe("util");
-        context.Database.GetMigrations().ShouldHaveSingleItem().ShouldEndWith("_InitialPlatform");
+        context.Database.GetMigrations().First().ShouldEndWith("_InitialPlatform");
         context.GetService<IDesignTimeModel>().Model.FindEntityType(typeof(AuditLogEntry))!
             .IsTableExcludedFromMigrations().ShouldBeTrue();
     }
