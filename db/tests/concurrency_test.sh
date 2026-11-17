@@ -31,15 +31,16 @@ sleep 1
 # Session B: starts while A holds the lock -> blocks, then fails after A "commits".
 # (A rolls back to keep the database clean; to see the SS200 case we re-run B
 #  after a committed A inside one transaction below.)
-start=$(date +%s.%N)
+start_ms=$(($(date +%s%N) / 1000000))   # bash arithmetic: no bc needed (not in the postgres image)
 "${PSQL[@]}" -c "SET ROLE smartspare_owner;
   BEGIN;
   INSERT INTO inventory.stock_movement (occurred_at, warehouse_id, part_id, movement_type_code, quantity, external_doc_ref)
   VALUES (now(), $WH, $PART, 'ISSUE_SALE', $QTY_B, 'CONC-B');
   ROLLBACK;" >/dev/null
-waited=$(echo "$(date +%s.%N) - $start" | bc)
+waited_ms=$(($(date +%s%N) / 1000000 - start_ms))
 wait
-echo "Session B waited ${waited}s for session A's row lock (expected ~2 s): serialised, no lost update."
+printf 'Session B waited %d.%03ds for session A'"'"'s row lock (expected ~2 s): serialised, no lost update.\n' \
+  $((waited_ms / 1000)) $((waited_ms % 1000))
 
 # Committed-A variant in a single transaction with a savepoint, to show the outcome for B.
 "${PSQL[@]}" -c "SET ROLE smartspare_owner;
