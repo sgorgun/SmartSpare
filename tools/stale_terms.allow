@@ -1,0 +1,5 @@
+# Paths exempt from tools/check_stale_terms.py (fnmatch patterns, one per line; # starts a reason).
+# docs/adr/, db/baseline/, EF Migrations folders and the checker itself are always exempt.
+
+db/sql/platform/0001_util_helpers.sql   # SQL part of the applied InitialPlatform migration; never edited (corrected by 0004_ref_schema_comment.sql)
+tools/schema_diff.allow                 # quotes the V016 texts on purpose to document intended differences from the baseline

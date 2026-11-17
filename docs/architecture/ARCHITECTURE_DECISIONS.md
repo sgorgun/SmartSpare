@@ -69,7 +69,7 @@ Every module has the same shape and consists of two projects: the implementation
 
 **Result pattern.** Expected business errors (insufficient stock, invalid status transition) are returned as `Result<T>` and mapped to ProblemDetails; exceptions are only for the unexpected. Database codes SS100–SS402 map to the same errors via the existing `DatabaseErrorMapper`.
 
-**Own handlers instead of MediatR.** `ICommandHandler<TCommand, TResult>` and `IQueryHandler<TQuery, TResult>` interfaces plus decorators for validation, logging and transactions — about 100 lines of code. Reasons: MediatR is commercially licensed from version 13, and explicit code is easier to explain at the defence.
+**Own handlers instead of MediatR.** `ICommandHandler<TCommand, TResult>` and `IQueryHandler<TQuery, TResult>` interfaces plus decorators for validation, logging and transactions — about 100 lines of code. Reasons for not using MediatR: it is commercially licensed from version 13, and explicit code is easier to explain at the defence.
 
 ## 4. Module integration
 

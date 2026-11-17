@@ -27,6 +27,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # Fails if a tracked file describes a retired part of the architecture as current. The terms
+      # are listed in tools/check_stale_terms.py; ADRs, EF migration history, marked history notes
+      # and the paths in tools/stale_terms.allow are exempt.
+      - name: Check for stale architecture terms
+        run: python3 tools/check_stale_terms.py
+
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json

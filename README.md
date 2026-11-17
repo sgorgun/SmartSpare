@@ -29,6 +29,7 @@ To run the host alone, without Aspire: `dotnet run --project src/Bootstrapper/Sm
 | Test (no Docker) | `dotnet test SmartSpare.slnx --filter "Category!=Integration"` |
 | Test (all, Docker running) | `dotnet test SmartSpare.slnx` |
 | Format check | `dotnet format SmartSpare.slnx --verify-no-changes` |
+| Stale architecture terms | `python3 tools/check_stale_terms.py` — retired designs (MediatR, JWT in the browser, V-scripts …) must not be described as current |
 
 | Pending model changes | `dotnet run --project src/Bootstrapper/SmartSpare.MigrationRunner -- check-model` |
 | Verify the database (Docker) | `tools/verify_database.sh` — EF-built database + T001 + 97 SQL assertions + concurrency test |
