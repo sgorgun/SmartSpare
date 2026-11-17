@@ -40,17 +40,19 @@ Extracting a module into a microservice: move its projects into their own host, 
 
 ## 2. Modules
 
-Six business modules plus a shared platform. The schemas of the existing database map onto modules almost unchanged.
+Six business modules plus a shared platform. The schemas of the original database map onto modules almost unchanged; the supplier tables moved from `catalog` to `procurement`, and the cross-module foreign keys were removed (ADR 0011, implemented in stage 2; every object is mapped in [MODULE_MAPPING.md](../database/MODULE_MAPPING.md)).
 
 | Module | DB schemas | Responsible for | Scenarios |
 |---|---|---|---|
 | Identity | `iam` | Users, roles, brand assignments, sign-in, GDPR anonymisation | All |
 | Inventory | `catalog`, `inventory`, `raw`, `staging` | Parts catalogue, warehouses and routes, stock ledger, reservations, transfers, data import | UC01, import |
 | Fleet | `fleet` | Customer machines, engine hours, maintenance plans, service orders | UC02 |
-| Procurement | `procurement` | Suppliers and prices, purchase orders, four-eyes rule | Purchasing |
+| Procurement | `procurement` (incl. `supplier`, `supplier_part`, `supplier_price`) | Suppliers and prices, purchase orders, four-eyes rule | Purchasing |
 | Forecasting | `forecast` | ML models, forecasts, recommendations and decisions on them | Recommendations |
 | Reporting | `mart` | Data marts, KPIs, dashboards; read-only | Reports |
-| Platform (BuildingBlocks) | `ref`, `audit`, `util`, `meta` | Reference data, audit, masking, Outbox/Inbox, shared abstractions | — |
+| Platform (BuildingBlocks) | `ref`, `audit`, `util` | Reference data, audit, masking, Outbox/Inbox, shared abstractions | — |
+
+Each module also keeps its EF migration history (`<schema>.__ef_migrations_history`) and, where it publishes or consumes integration events, its `outbox_message` / `inbox_message` in its own schema. The former `meta` schema of the SQL migration runner is retired.
 
 Reporting is the one deliberate exception: it reads other modules' data through marts and materialized views, as an analytical store does in real systems. With microservices, the marts will be fed from events.
 
@@ -106,9 +108,9 @@ Rules:
 - **Session context.** `SessionContextInterceptor` passes the user id into `app.user_id` so the audit knows who changed what.
 - **Resilience.** `EnableRetryOnFailure` for Azure, optimistic concurrency via `xmin`, `AsNoTracking` for queries.
 - **Production rollout** uses an EF migration bundle from CI under the dedicated `smartspare_migrator` login. The application never migrates on startup.
-- **Port verification.** The schema produced by EF migrations is diffed against the current `db/ddl/smartspare_schema.sql`, and all 97 existing SQL tests are run.
+- **Port verification.** The schema produced by EF migrations is diffed against the frozen V016 schema (`db/baseline/v016_schema.sql`, `tools/schema_diff.sh`), and all 97 existing SQL tests, the concurrency test and the demo dataset run on the EF-built database in CI (`tools/verify_database.sh`).
 
-Consequence for the existing database: cross-module FKs are removed, and the custom `SmartSpare.DbMigrator` runner is replaced by EF migrations.
+Consequence for the existing database: cross-module FKs are removed, and the custom `SmartSpare.DbMigrator` runner and the V-scripts are replaced by EF migrations (done in stage 2).
 
 ## 6. Frontend
 
