@@ -4,7 +4,11 @@ Generates the data dictionary (Markdown) and the colour-coded logical schema
 (Graphviz -> SVG/PNG) directly from the PostgreSQL system catalogue, so the
 documentation can never drift from the migrations.
 
-Usage:  PGHOST=... PGDATABASE=smartspare PGUSER=... python3 tools/generate_db_docs.py
+Usage:  python3 tools/generate_db_docs.py
+        Connects like db/scripts/env.sh: PG* variables from the environment win; otherwise
+        localhost/smartspare as smartspare_migrator with SMARTSPARE_MIGRATOR_PASSWORD from .env.
+        Run it against a database built by the MigrationRunner with T001 loaded and analysed
+        (the dictionary shows demo row counts).
 Needs:  psql and graphviz (dot) on PATH. No Python packages required.
 """
 import json
@@ -19,13 +23,14 @@ OUT_DOCS = os.path.join(ROOT, "docs", "database")
 OUT_DIAG = os.path.join(OUT_DOCS, "diagrams")
 
 SCHEMAS = ["ref", "iam", "catalog", "inventory", "fleet", "procurement", "forecast",
-           "audit", "raw", "staging", "mart", "util", "meta"]
+           "audit", "raw", "staging", "mart", "util"]
 MODULE_OF = {
-    "ref": "Reference data", "iam": "Identity & Access", "catalog": "Inventory — catalogue",
-    "inventory": "Inventory — stock & transfers", "fleet": "Fleet & Maintenance",
-    "procurement": "Procurement", "forecast": "Forecasting (ML)", "audit": "Audit",
-    "raw": "Data layer 1 — raw", "staging": "Data layer 2 — staging", "mart": "Data layer 4 — data mart",
-    "util": "Technical utilities", "meta": "Schema versioning",
+    "ref": "Platform — reference data", "iam": "Identity", "catalog": "Inventory — catalogue",
+    "inventory": "Inventory — stock & transfers", "fleet": "Fleet",
+    "procurement": "Procurement — suppliers & purchase orders", "forecast": "Forecasting (ML)",
+    "audit": "Platform — audit", "raw": "Inventory — import layer 1 (raw)",
+    "staging": "Inventory — import layer 2 (staging)", "mart": "Reporting — data mart",
+    "util": "Platform — technical utilities",
 }
 # colour-blind-safe pastel palette (fill, border) per schema
 COLOURS = {
@@ -33,8 +38,36 @@ COLOURS = {
     "inventory": ("#E0F2F1", "#00897B"), "fleet": ("#FFF3E0", "#FB8C00"), "procurement": ("#FCE4EC", "#D81B60"),
     "forecast": ("#E8EAF6", "#3949AB"), "audit": ("#ECEFF1", "#546E7A"), "raw": ("#FFFDE7", "#C0A000"),
     "staging": ("#F9FBE7", "#9E9D24"), "mart": ("#E8F5E9", "#43A047"), "util": ("#FAFAFA", "#9E9E9E"),
-    "meta": ("#FAFAFA", "#9E9E9E"),
 }
+# Bookkeeping tables of the EF migrations and of the outbox/inbox (ADR 0003, 0011): listed in the
+# data dictionary, left out of the logical diagrams so they show the business model only.
+TECHNICAL_TABLES = {"__ef_migrations_history", "outbox_message", "inbox_message"}
+
+
+def connection_env():
+    """Environment for psql: PG* variables win, otherwise .env as in db/scripts/env.sh (migrator login)."""
+    env = dict(os.environ)
+    env_file = env.get("SMARTSPARE_ENV_FILE") or os.path.join(ROOT, ".env")
+    file_values = {}
+    if os.path.isfile(env_file):
+        with open(env_file, encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, value = line.split("=", 1)
+                key, value = key.strip(), value.strip()
+                if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+                    value = value[1:-1]
+                file_values[key] = value
+    for key, value in file_values.items():
+        env.setdefault(key, value)
+    env.setdefault("PGHOST", "localhost")
+    env.setdefault("PGDATABASE", "smartspare")
+    env.setdefault("PGUSER", "smartspare_migrator")
+    if "PGPASSWORD" not in env and env.get("SMARTSPARE_MIGRATOR_PASSWORD"):
+        env["PGPASSWORD"] = env["SMARTSPARE_MIGRATOR_PASSWORD"]
+    return env
 
 CATALOG_SQL = r"""
 WITH t AS (
@@ -86,7 +119,8 @@ WHERE n.nspname = ANY(%(schemas)s);
 def psql_json(sql: str):
     arr = "ARRAY[" + ",".join(f"'{s}'" for s in SCHEMAS) + "]::text[]"
     sql = sql.replace("%(schemas)s", arr)
-    res = subprocess.run(["psql", "-X", "-q", "-tA", "-c", sql], capture_output=True, text=True, check=True)
+    res = subprocess.run(["psql", "-X", "-q", "-tA", "-c", sql], capture_output=True, text=True, check=True,
+                         env=connection_env())
     return json.loads(res.stdout)
 
 
@@ -116,8 +150,10 @@ def write_dictionary(tables, routines):
     lines = []
     lines.append("# SmartSpare — Data Dictionary\n")
     lines.append(f"_Generated from the PostgreSQL catalogue by `tools/generate_db_docs.py` on {date.today().isoformat()}. "
-                 "Do not edit by hand — change the migrations and regenerate._\n")
-    lines.append("Row counts are those of the synthetic demo dataset (`db/testdata/T001`, 2,000 SKUs).\n")
+                 "Do not edit by hand — change the EF Core migrations (or their SQL parts in `db/sql/`) and regenerate._\n")
+    lines.append("The database is built by the EF Core migrations of each module (ADR 0004, ADR 0011); "
+                 "references between modules are plain ids, not foreign keys. "
+                 "Row counts are those of the synthetic demo dataset (`db/testdata/T001`, 2,000 SKUs).\n")
     lines.append("**Legend:** PK = primary key, FK = foreign key (→ referenced table), UQ = unique, "
                  "NN = NOT NULL, GEN = generated column, ID = identity.\n")
 
@@ -213,9 +249,9 @@ def short_type(t):
              .replace("character", "char").replace("double precision", "float8"))
 
 
-def write_er(tables, schemas, filename, title, compact=False, skip_user_edges=True):
+def write_er(tables, schemas, filename, title, compact=False):
     """Logical schema: one cluster per schema (module), crow's-foot FK edges."""
-    tbls = [t for t in tables if t["schema"] in schemas and t["kind"] in "rp"]
+    tbls = [t for t in tables if t["schema"] in schemas and t["kind"] in "rp" and t["name"] not in TECHNICAL_TABLES]
     names = {f"{t['schema']}.{t['name']}" for t in tbls}
     out = ['digraph ER {', '  graph [rankdir=LR, splines=true, nodesep=0.35, ranksep=1.1, fontname="Helvetica", '
            f'label=<<B>{html(title)}</B>>, labelloc=t, fontsize=22, pad=0.4];',
@@ -248,8 +284,6 @@ def write_er(tables, schemas, filename, title, compact=False, skip_user_edges=Tr
         for c in t.get("constraints") or []:
             if c["type"] != "f" or c["ref"] not in names:
                 continue
-            if skip_user_edges and c["ref"] == "iam.app_user" and t["name"] not in ("user_role", "user_brand"):
-                continue   # "who" columns (created_by, approved_by ...) — listed in the data dictionary
             nullable = any(not col["not_null"] for col in t["columns"] if col["name"] in (c["cols"] or []))
             child = f'{t["schema"]}.{t["name"]}'
             # child (many) --> parent (one); crow's foot at the child end
@@ -260,7 +294,8 @@ def write_er(tables, schemas, filename, title, compact=False, skip_user_edges=Tr
                '<TR><TD ALIGN="LEFT">PK primary key · FK foreign key · UQ unique · * NOT NULL</TD></TR>'
                '<TR><TD ALIGN="LEFT">crow\'s foot = many · bar = exactly one · circle = optional</TD></TR>'
                '<TR><TD ALIGN="LEFT">Colour = module / schema (one schema per module)</TD></TR>'
-               '<TR><TD ALIGN="LEFT">FKs to iam.app_user (created_by, approved_by ...) omitted for clarity</TD></TR>'
+               '<TR><TD ALIGN="LEFT">References between modules are plain ids, not FKs (ADR 0011)</TD></TR>'
+               '<TR><TD ALIGN="LEFT">EF history, outbox and inbox tables omitted (see the data dictionary)</TD></TR>'
                '</TABLE>>];')
     out.append("}")
     dot = os.path.join(OUT_DIAG, filename + ".dot")
