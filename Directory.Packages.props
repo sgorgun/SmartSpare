@@ -25,7 +25,7 @@
   </ItemGroup>
 
   <ItemGroup Label="Data">
-    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.4" />
     <PackageVersion Include="EFCore.NamingConventions" Version="10.0.1" />
     <!-- Design-time only (dotnet ef); same version as the EF Core runtime resolved through Npgsql. -->
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.4" />
