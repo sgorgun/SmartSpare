@@ -8,7 +8,8 @@
 
 <PageTitle>@Text["Login.Title"]</PageTitle>
 
-<MudPaper Elevation="2" Class="pa-8">
+@* data-interactive turns true once WebAssembly runs the form (end-to-end tests wait for it). *@
+<MudPaper Elevation="2" Class="pa-8" data-interactive="@(_interactive ? "true" : "false")">
     <MudText Typo="Typo.h4" HtmlTag="h1" Class="mb-1">@Text["App.Title"]</MudText>
     <MudText Typo="Typo.subtitle1" Class="mb-6">@Text["App.Tagline"]</MudText>
 
@@ -54,6 +55,7 @@
     private MudForm? _form;
     private bool _busy;
     private bool _checkingSession;
+    private bool _interactive;
     private string? _error;
 
     [SupplyParameterFromQuery(Name = "returnUrl")]
@@ -90,6 +92,7 @@
             return;
         }
 
+        _interactive = true;
         StateHasChanged();
     }
 
