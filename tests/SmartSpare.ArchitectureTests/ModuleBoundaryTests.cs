@@ -37,9 +37,11 @@ public sealed class ModuleBoundaryTests
     {
         var module = Solution.Get(name);
 
+        // SmartSpare.ApiContracts is the public HTTP contract; modules may bind and return its DTOs (STAGE_3_PLAN S14).
         Solution.ProjectReferences(module.Implementation.GetName().Name!).ShouldAllBe(r =>
             r == "SmartSpare.SharedKernel"
             || r == "SmartSpare.Infrastructure"
+            || r == "SmartSpare.ApiContracts"
             || (r.StartsWith(Solution.ModulePrefix, StringComparison.Ordinal) && r.EndsWith(Solution.ContractsSuffix, StringComparison.Ordinal)));
     }
 
@@ -93,6 +95,38 @@ public sealed class ModuleBoundaryTests
             .ShouldNotContain(r => r.StartsWith(Solution.ModulePrefix, StringComparison.Ordinal));
         Solution.ProjectReferences("SmartSpare.ApiContracts")
             .ShouldNotContain(r => r.StartsWith(Solution.ModulePrefix, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ApiContracts_DependsOnlyOnFluentValidationAndAuthorization()
+    {
+        // It is shared with the WebAssembly client: no ASP.NET Core framework, no EF Core, nothing of the server.
+        string[] allowedPackages = ["FluentValidation", "Microsoft.AspNetCore.Authorization"];
+
+        Solution.PackageReferences("SmartSpare.ApiContracts").ShouldAllBe(p => allowedPackages.Contains(p));
+        Solution.FrameworkReferences("SmartSpare.ApiContracts").ShouldBeEmpty();
+        Solution.ProjectReferences("SmartSpare.ApiContracts").ShouldBeEmpty();
+        Solution.ApiContracts.GetReferencedAssemblies().Select(a => a.Name!)
+            .ShouldAllBe(n => n == "System.Runtime" || n.StartsWith("System.", StringComparison.Ordinal) || n == "netstandard"
+                              || allowedPackages.Contains(n));
+    }
+
+    [Fact]
+    public void Bff_ReferencesNoModuleImplementation_OnlyIdentityContracts()
+    {
+        // ADR 0016: the BFF runs in the gateway, which has no module code; it reaches Identity only through its Contracts.
+        var moduleReferences = Solution.ProjectReferences("SmartSpare.Bff")
+            .Concat(Solution.SmartSpareReferences(Solution.Bff))
+            .Where(r => r.StartsWith(Solution.ModulePrefix, StringComparison.Ordinal))
+            .Distinct()
+            .ToList();
+
+        moduleReferences.ShouldBe(["SmartSpare.Modules.Identity.Contracts"]);
+
+        var result = Selection.Of(Solution.Bff)
+            .ShouldNot().HaveDependencyOnAny([.. Solution.Modules.SelectMany(ImplementationNamespaces)])
+            .GetResult();
+        result.IsSuccessful.ShouldBeTrue(Describe(result));
     }
 
     [Fact]
