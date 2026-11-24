@@ -1,6 +1,6 @@
 # ADR 0012: Evolvability principles
 
-- Status: Accepted
+- Status: Accepted, amended by [ADR 0019](0019-public-api-documentation.md) (2026-11-24)
 - Date: 2026-11-17
 
 ## Context
@@ -43,3 +43,7 @@ The other principles are checked in code review.
 - Code outside the seams is coupled to EF Core and ASP.NET Core on purpose; swapping those is out of scope and would be a rewrite of the affected module.
 - API and event versioning adds some ceremony to breaking changes.
 - Follow-up work is tracked as GitHub issues labelled `future`.
+
+## Amendment (2026-11-24)
+
+[ADR 0019](0019-public-api-documentation.md) adds to principle 2: the OpenAPI description of the versioned HTTP API is published without sign-in in every environment. The documents and the Scalar UI are served by the gateway, and the single host serves the same paths. Internal endpoints are excluded. Authorization of the endpoints themselves is unchanged.
