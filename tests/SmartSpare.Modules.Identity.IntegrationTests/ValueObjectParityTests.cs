@@ -1,10 +1,12 @@
 using Npgsql;
+using SmartSpare.Modules.Identity.Domain;
 
 namespace SmartSpare.Modules.Identity;
 
 /// <summary>
 /// The value objects accept exactly what the CHECK constraints accept: the shared cases of the unit tests are
-/// inserted into <c>iam.app_user</c> (each in a savepoint that is rolled back).
+/// inserted into <c>iam.app_user</c> (each in a transaction that is rolled back). An accepted user name is
+/// inserted in the canonical form the value object stores; a rejected one is inserted as given.
 /// </summary>
 [Trait("Category", "Integration")]
 [Collection(IdentityDatabaseGroup.Name)]
@@ -14,7 +16,10 @@ public sealed class ValueObjectParityTests(IdentityDatabaseFixture database)
     [MemberData(nameof(ValueObjectCases.UserNames), MemberType = typeof(ValueObjectCases))]
     public async Task UserName_cases_match_ck_app_user_user_name(string value, bool valid)
     {
-        var accepted = await InsertAcceptedAsync(value, "parity@dealer.example", "ck_app_user_user_name");
+        var stored = UserName.Create(value) is { IsSuccess: true } userName ? userName.Value.Value : value;
+        stored.ShouldBe(valid ? value.ToLowerInvariant() : value);
+
+        var accepted = await InsertAcceptedAsync(stored, "parity@dealer.example", "ck_app_user_user_name");
         accepted.ShouldBe(valid);
     }
 

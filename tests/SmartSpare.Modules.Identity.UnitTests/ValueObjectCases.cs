@@ -14,7 +14,7 @@ public static class ValueObjectCases
         { "a_b-c.d", true },
         { "admin.smartspare", true },
         { new string('a', 50), true },
-        { "Tomas.Radzevicius", true },      // citext: the CHECK's regex matches case-insensitively
+        { "Tomas.Radzevicius", true },      // accepted and stored lower-case (the CHECK sees the canonical form)
         { "ab", false },                    // too short
         { new string('a', 51), false },     // too long
         { "tomas radzevicius", false },     // space

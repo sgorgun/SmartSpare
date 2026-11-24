@@ -82,6 +82,32 @@ public sealed class AppUserMappingTests(IdentityDatabaseFixture database)
         await Should.ThrowAsync<DbUpdateConcurrencyException>(() => second.SaveChangesAsync(ct));
     }
 
+    [Fact]
+    public async Task A_mixed_case_user_name_is_stored_in_lower_case_and_found_case_insensitively()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var id = Guid.NewGuid();
+        var mixed = $"Mixed.{id:N}"[..20];
+        await using (var context = database.CreateContext())
+        {
+            context.Add(AppUser.Create(
+                id, UserName.Create(mixed).Value, EmailAddress.Create($"{id:N}@dealer.example").Value, "Mapping Test", null, Hash));
+            await context.SaveChangesAsync(ct);
+        }
+
+        await using (var context = database.CreateContext())
+        {
+            var stored = await context.Database
+                .SqlQuery<string>($"SELECT user_name::text AS \"Value\" FROM iam.app_user WHERE id = {id}")
+                .SingleAsync(ct);
+            stored.ShouldBe(mixed.ToLowerInvariant());
+
+            // citext lookup: the upper-case spelling finds the same user.
+            var upper = UserName.Create(mixed.ToUpperInvariant()).Value;
+            (await context.Set<AppUser>().SingleAsync(u => u.UserName == upper, ct)).Id.ShouldBe(id);
+        }
+    }
+
     private static AppUser NewUser(Guid id) => AppUser.Create(
         id, UserName.Create($"u{id:N}"[..20]).Value, EmailAddress.Create($"{id:N}@dealer.example").Value, "Mapping Test", null, Hash);
 
