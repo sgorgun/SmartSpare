@@ -140,7 +140,7 @@ services.AddScoped<IUserConfirmation<AppUser>, ActiveUserConfirmation>();
 | Identity concept | `iam` column | Notes |
 |---|---|---|
 | `Id` | `id uuid` | |
-| `UserName` / normalized name | `user_name citext` | `FindByNameAsync(normalized)` compares on `citext`, which is case-insensitive, so no normalized column is needed. The CHECK's regular expression is case-insensitive on `citext`, so stored names may contain upper-case letters (verified by the 3a parity tests); lookups compare case-insensitively anyway. A `LowerInvariantLookupNormalizer` makes the normalized value equal to the stored one. |
+| `UserName` / normalized name | `user_name citext` | `FindByNameAsync(normalized)` compares on `citext`, which is case-insensitive, so no normalized column is needed. The CHECK's regular expression is case-insensitive on `citext`, so it alone would let upper-case letters through. `UserName.Create` therefore stores the canonical lower-case form (equality stays case-insensitive, like `citext`), and PR 3c tightens the CHECK with `user_name = lower(user_name)` (#69). A `LowerInvariantLookupNormalizer` makes the normalized value equal to the stored one. |
 | Email | `email citext` | Not used for sign-in in stage 3 (`IUserEmailStore` not implemented). |
 | `PasswordHash` | `password_hash text` | V3 format, protected by `ck_app_user_password_hash_format`. |
 | `SecurityStamp` | `security_stamp uuid` | See 2.5. |
@@ -519,9 +519,10 @@ Acceptance:
 - The integration tests for the session GUCs and for a cookie shared by two host instances.
 - SQL suite (97 assertions) green on the EF-built database with the GUC-based checks; `schema_diff` allow-list entries explained in the PR.
 - `check-model` shows only the deliberate migrations of this PR.
+- #69 in the Identity migration: `ck_app_user_user_name` also requires `user_name = lower(user_name)`, and the `password_hash` comment states 220,000 iterations.
 - Key protection is configurable per environment and documented (README or `docs/`).
 
-Closes **#11, #22**.
+Closes **#11, #22, #69**.
 
 ### 3d: Blazor client skeleton
 
