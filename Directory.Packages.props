@@ -65,5 +65,7 @@
     <PackageVersion Include="Testcontainers.PostgreSql" Version="4.16.0" />
     <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.11.0" />
     <PackageVersion Include="bunit" Version="2.15.2" />
+    <!-- End-to-end smoke test (STAGE_3_PLAN 9.4): Chromium only. -->
+    <PackageVersion Include="Microsoft.Playwright" Version="1.65.1" />
   </ItemGroup>
 </Project>
