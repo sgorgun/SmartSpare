@@ -2,10 +2,15 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Bootstrapper\SmartSpare.Host\SmartSpare.Host.csproj" />
+    <!-- Builds and migrates the Testcontainers database exactly as the migration runner does. -->
+    <!-- Aliased: the runner has its own top-level Program, like the host. -->
+    <ProjectReference Include="..\..\src\Bootstrapper\SmartSpare.MigrationRunner\SmartSpare.MigrationRunner.csproj" Aliases="runner" />
   </ItemGroup>
 
 </Project>

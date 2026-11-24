@@ -79,7 +79,8 @@ public static class ServiceDefaultsExtensions
 
     /// <summary>
     /// Maps <c>/health/live</c> (process is up) and <c>/health/ready</c> (all checks, ready for traffic).
-    /// Mapped in every environment because Container Apps probes them (ADR 0009).
+    /// Mapped in every environment because Container Apps probes them (ADR 0009). Anonymous, because the probes carry
+    /// no credentials and a host's fallback policy may require an authenticated user.
     /// </summary>
     public static WebApplication MapDefaultEndpoints(this WebApplication app)
     {
@@ -88,8 +89,8 @@ public static class ServiceDefaultsExtensions
         app.MapHealthChecks(LivenessPath, new HealthCheckOptions
         {
             Predicate = registration => registration.Tags.Contains(LiveTag),
-        });
-        app.MapHealthChecks(ReadinessPath);
+        }).AllowAnonymous();
+        app.MapHealthChecks(ReadinessPath).AllowAnonymous();
 
         return app;
     }

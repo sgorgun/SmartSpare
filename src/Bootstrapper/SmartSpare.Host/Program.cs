@@ -1,3 +1,5 @@
+using SmartSpare.Bff;
+using SmartSpare.Infrastructure.Http;
 using SmartSpare.Infrastructure.Messaging;
 using SmartSpare.Infrastructure.Messaging.Outbox;
 using SmartSpare.Infrastructure.Persistence;
@@ -6,7 +8,7 @@ using SmartSpare.ModuleCatalog;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
-builder.Services.AddProblemDetails();
+builder.Services.AddSmartSpareProblemDetails();
 builder.Services.AddOpenApi();
 
 // The ordered module list is shared with the migration runner (ModuleCatalog).
@@ -27,25 +29,36 @@ if (builder.Configuration.GetConnectionString(PersistenceRegistration.Connection
     builder.Services.AddOutboxDispatcher();
 }
 
+// The BFF (ADR 0014) and the single-host authentication (ADR 0016 section 4): the policy scheme sends
+// "Authorization: Bearer" to the internal-token scheme and everything else to the cookie.
+builder.Services.AddBff();
+builder.Services.AddSingleHostAuthentication();
+
 var app = builder.Build();
 
-app.UseExceptionHandler();
-app.UseStatusCodePages();
+app.UseSmartSpareProblemDetails();
 
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    // API documentation is public (ADR 0019); the endpoints themselves still require authorization.
+    app.MapOpenApi().AllowAnonymous();
 }
 else
 {
     app.UseHsts();
 }
 
-app.MapDefaultEndpoints();
+app.UseBff();
 
+app.MapDefaultEndpoints();
+app.MapBff();
+
+// Every module endpoint validates antiforgery on unsafe requests (STAGE_3_PLAN section 1.5); the group
+// has no prefix, so modules keep their own /api/{module} routes.
+var moduleEndpoints = app.MapGroup(string.Empty).AddEndpointFilter<AntiforgeryValidationFilter>();
 foreach (var module in modules)
 {
-    module.MapEndpoints(app);
+    module.MapEndpoints(moduleEndpoints);
 }
 
 await app.RunAsync().ConfigureAwait(false);
