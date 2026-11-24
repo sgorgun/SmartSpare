@@ -30,13 +30,19 @@
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.15" />
     <!-- Internal tokens (ADR 0016): JsonWebTokenHandler, ES256. -->
     <PackageVersion Include="Microsoft.IdentityModel.JsonWebTokens" Version="8.23.0" />
+    <!-- Data Protection key ring in iam.data_protection_keys (STAGE_3_PLAN section 5, #22). 10.0.4 carries a critical
+         advisory (GHSA-9mv3-2cwr-p262); 10.0.15 lifts EF Core to 10.0.15, so EF Core Relational is pinned to match. -->
+    <PackageVersion Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" Version="10.0.15" />
   </ItemGroup>
 
   <ItemGroup Label="Data">
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <PackageVersion Include="EFCore.NamingConventions" Version="10.0.1" />
-    <!-- Design-time only (dotnet ef); same version as the EF Core runtime resolved through Npgsql. -->
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.4" />
+    <!-- One EF Core patch for the whole solution: the version Microsoft.AspNetCore.DataProtection.EntityFrameworkCore
+         needs. Npgsql 10.0.x accepts any EF Core 10.0 patch; referenced by SmartSpare.Infrastructure. -->
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.15" />
+    <!-- Design-time only (dotnet ef); same version as the EF Core runtime (Microsoft.EntityFrameworkCore.Relational). -->
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.15" />
   </ItemGroup>
 
   <ItemGroup Label="Testing">
