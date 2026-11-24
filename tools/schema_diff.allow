@@ -25,3 +25,51 @@
 +COMMENT ON SCHEMA ref IS 'Core layer: fixed reference \(lookup\) data, seeded by the Platform migrations
 -COMMENT ON COLUMN iam\.app_user\.security_stamp IS '.*invalidates issued JWT refresh tokens\.'
 +COMMENT ON COLUMN iam\.app_user\.security_stamp IS '.*invalidates issued sign-in cookies
+
+# PR 3c (#11, MODULE_MAPPING X1, 3.6): util.require_role checks the session roles (app.user_roles, set by
+# SessionContextInterceptor) instead of iam.user_has_role, so the Platform reads no module schema. New helpers
+# util.current_app_roles() and util.current_home_warehouse_id() read the session context (Platform migration
+# RoleChecksFromSessionContext, db/sql/platform/0005_session_context.sql); explicit grants to app_write only.
+-BEGIN IF NOT iam\.user_has_role\(v_user, VARIADIC p_roles\) THEN
++BEGIN IF NOT \(util\.current_app_roles\(\) && p_roles\) THEN
+-COMMENT ON FUNCTION util\.require_role\(VARIADIC p_roles text\[\]\) IS 'Returns the session user if it has one of the roles
++COMMENT ON FUNCTION util\.require_role\(VARIADIC p_roles text\[\]\) IS 'Returns the session user if the session roles \(app\.user_roles\)
++util\.current_app_roles\(\)
++util\.current_home_warehouse_id\(\)
+
+# PR 3c (#11, X2): dispatch_transfer / receive_transfer take the keeper's home warehouse from the session
+# (app.home_warehouse_id, the ss:warehouse claim) instead of reading iam.app_user; the SS302 rule is unchanged
+# (Inventory migration WarehouseCheckFromSessionContext, db/sql/inventory/0006_session_context.sql).
+-SELECT home_warehouse_id INTO v_home FROM iam\.app_user WHERE id = v_user;
+-^IF v_home IS NOT NULL AND v_home <> v_order\.(from|to)_warehouse_id THEN RAISE EXCEPTION 'Only a keeper of the (donor|recipient) warehouse
++^v_home := util\.current_home_warehouse_id\(\);\s+-- claim of the signed-in keeper \(X2\) IF v_home IS NOT NULL AND v_home <> v_order\.(from|to)_warehouse_id THEN
+
+# PR 3c (#11, X18): iam.v_app_user_masked returns home_warehouse_id instead of the warehouse code, reads iam only
+# and is created by Identity (migration ModuleLocalMaskedUserView) instead of the transitional Reporting script.
+-CREATE VIEW iam\.v_app_user_masked AS .* w\.code AS home_warehouse_code
++CREATE VIEW iam\.v_app_user_masked AS SELECT id, user_name, .* is_active, home_warehouse_id,
+
+# PR 3c (#69): user names are stored in canonical lower case; the citext regex alone matched case-insensitively.
+# The password_hash comment names the 220,000 PBKDF2 iterations of PR 3a (Identity migration LowerCaseUserNamesAndHashComment).
+-CREATE TABLE iam\.app_user \(.*CONSTRAINT ck_app_user_user_name CHECK \(\(user_name OPERATOR\(public\.~\) '\^\[a-z0-9\._-\]\{3,50\}\$'::public\.citext\)\)
++CREATE TABLE iam\.app_user \(.*CONSTRAINT ck_app_user_user_name CHECK \(\(\(user_name OPERATOR\(public\.~\) '\^\[a-z0-9\._-\]\{3,50\}\$'::public\.citext\) AND \(\(user_name\)::text = lower\(\(user_name\)::text\)\)\)\)
+-COMMENT ON COLUMN iam\.app_user\.password_hash IS 'ASP\.NET Core Identity V3 hash \(PBKDF2-HMAC-SHA512, 100k iterations\)
++COMMENT ON COLUMN iam\.app_user\.password_hash IS 'ASP\.NET Core Identity V3 hash \(PBKDF2-HMAC-SHA512, 220,000 iterations;
+
+# PR 3c (#22, STAGE_3_PLAN 5): the Data Protection key ring of the single host; SELECT/INSERT and sequence usage to
+# app_write only, no audit trigger (Identity migration AddDataProtectionKeys).
++iam\.data_protection_keys
+
+# PR 3c (#71): audit.trg_row_audit computes record_id from the full OLD/NEW row before reducing the values to the
+# changed columns, so UPDATE rows name the changed record instead of '?' (Platform migration AuditRecordIdOfUpdates).
+-CREATE FUNCTION audit\.trg_row_audit\(\) RETURNS trigger
++CREATE FUNCTION audit\.trg_row_audit\(\) RETURNS trigger
+-COMMENT ON FUNCTION audit\.trg_row_audit\(\) IS
++COMMENT ON FUNCTION audit\.trg_row_audit\(\) IS 'AFTER ROW trigger writing changed columns into audit\.audit_log; record_id =
+-^BEGIN IF TG_OP IN \('UPDATE', 'DELETE'\) THEN v_old := to_jsonb\(OLD\) - v_excluded; END IF;
++^IF TG_OP IN \('UPDATE', 'DELETE'\) THEN v_old := to_jsonb\(OLD\) - v_excluded; END IF;
+-^v_id := coalesce\(v_new, v_old\) ->> 'id';
+-^IF v_id IS NULL THEN .*FROM jsonb_each_text\(coalesce\(to_jsonb\(NEW\), to_jsonb\(OLD\)\)\)
++^IF v_id IS NULL THEN .*FROM jsonb_each_text\(v_row\)
++^BEGIN -- record id from the full row, before the values are reduced to the changed columns v_id := v_row ->> 'id';
++^v_old\s+jsonb;$
