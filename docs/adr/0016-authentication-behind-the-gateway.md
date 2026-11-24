@@ -48,6 +48,8 @@ The token is minted by the gateway from the cookie principal and cached per sess
 | Public keys | Given to the services as a JWKS document in configuration (with `kid`). Two keys during rotation. |
 | Validation in services | `AddJwtBearer` (`Microsoft.AspNetCore.Authentication.JwtBearer` 10.0.x) with `ValidIssuer`, `ValidAudience`, `IssuerSigningKeys` from the JWKS, `ValidAlgorithms = [ES256]`, `RequireExpirationTime`, `ClockSkew = 30 s` |
 
+**`/internal/*` is never routed by the gateway.** No YARP route matches it: the routes are `/api/v1/{module}/{**rest}` and `/openapi/{module}.json` only. A **route-table test** loads the gateway's YARP configuration and asserts that no route matches `/internal/...` (any method, any module). A request to `/internal/...` at the gateway gets 404 and is never forwarded. Services use **internal ingress only**, so `/internal` endpoints, like everything else on a service, are reachable only inside the Container Apps environment.
+
 Rules:
 - Services hold **only the public key**. A compromised service can't mint tokens.
 - Tokens never leave the server side. The browser only ever has the HttpOnly cookie.
@@ -67,11 +69,15 @@ This is standard JWT signing and validation with Microsoft's libraries. No crypt
 ### 4. One principal in both topologies
 
 - Module endpoints authorize with policies over claims only (ADR 0012, STAGE_3_PLAN §3). They never name an authentication scheme.
-- The default scheme of every host is a **policy scheme `SmartSpare`**:
-  - a request with `Authorization: Bearer` goes to the JwtBearer scheme for internal tokens;
-  - any other request goes to the cookie scheme.
+- Authentication schemes per host:
 
-  Service hosts register only JwtBearer. The gateway and the single host register both.
+  | Host | Schemes | Default |
+  |---|---|---|
+  | **Gateway** | Cookie only. It **mints** internal tokens but registers **no JwtBearer scheme**, so it accepts no bearer token from outside. | Cookie |
+  | **Services** | JwtBearer only (internal tokens). No cookie. | JwtBearer |
+  | **Single host** (local development, tests) | Cookie and JwtBearer, behind a **policy scheme `SmartSpare`**: `Authorization: Bearer` → JwtBearer, anything else → cookie | `SmartSpare` |
+
+  The policy scheme exists only in the single host, where the browser-facing BFF and the module endpoints share one process. There, the internal-token path can be tested without a gateway.
 - The cookie principal and the internal-token principal carry the same claim types, defined in `SmartSpare.ApiContracts.Authorization` (`AppClaimTypes`). So `ICurrentUser`, the session GUCs (`app.user_id`, `app.user_roles`, `app.home_warehouse_id`) and the policies behave identically.
 - The single host also accepts internal tokens. An integration test calls module endpoints in the single host with a minted internal token and with the cookie, and expects the same results. That way the service path is tested without deploying.
 
@@ -105,5 +111,6 @@ The cookie and the antiforgery tokens exist only in the BFF.
 - Module code and policies are identical in both topologies, and the single host tests the internal-token path.
 - Sign-in and session checks cost one internal call each to the Identity service in production. Stamp checks happen every 5 minutes per session, not per request.
 - Revocation in production takes up to about 7 minutes instead of 5.
+- **One shared audience** (`smartspare-internal`): a token minted for a request to one service is accepted by every service for its 2-minute lifetime. That lets a service forward the caller's token on Contracts queries (§2), but it also means a token leaked from one service could be replayed against another. This is accepted because tokens exist only inside the private Container Apps network, never reach the browser, and expire after 2 minutes. **Possible hardening:** per-service audiences (`aud=smartspare-<service>`). The gateway would mint one token per destination cluster, and service-to-service queries would need either multi-audience tokens or an exchange at the gateway.
 - Two operational secrets to manage: the gateway signing key with its rotation, and the gateway's Data Protection keys. Both live in Key Vault.
 - STAGE_3_PLAN PR 3b changes accordingly: a BFF building block, `ICredentialVerifier`, the policy scheme, and internal-token validation and minting with tests. The gateway itself is built in stage 4.
