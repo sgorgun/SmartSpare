@@ -19,6 +19,9 @@ public static class ServiceDefaultsExtensions
 {
     public const string LivenessPath = "/health/live";
     public const string ReadinessPath = "/health/ready";
+
+    /// <summary>The activity source of the Npgsql driver (what <c>Npgsql.OpenTelemetry</c>'s <c>AddNpgsql()</c> adds).</summary>
+    public const string NpgsqlActivitySource = "Npgsql";
     private const string LiveTag = "live";
 
     public static TBuilder AddServiceDefaults<TBuilder>(this TBuilder builder)
@@ -53,6 +56,9 @@ public static class ServiceDefaultsExtensions
                 .AddRuntimeInstrumentation())
             .WithTracing(tracing => tracing
                 .AddSource(builder.Environment.ApplicationName)
+                // Npgsql emits a span per database command under this source (ADR 0018): the SQL text with its
+                // parameter placeholders, never the parameter values.
+                .AddSource(NpgsqlActivitySource)
                 .AddAspNetCoreInstrumentation(options =>
                     options.Filter = context =>
                         !context.Request.Path.StartsWithSegments("/health", StringComparison.OrdinalIgnoreCase))
