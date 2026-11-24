@@ -46,7 +46,7 @@ public sealed class AppUserMappingTests(IdentityDatabaseFixture database)
 
             user.RevokeRole(sponsor);
             user.RemoveBrand(brands[1]);
-            user.RecordFailedSignIn(Now, LockoutPolicy.Default);
+            user.RecordFailedSignIn();
             await context.SaveChangesAsync(ct);
         }
 
@@ -75,7 +75,7 @@ public sealed class AppUserMappingTests(IdentityDatabaseFixture database)
         var a = await LoadAsync(first, id);
         var b = await LoadAsync(second, id);
 
-        a.RecordFailedSignIn(Now, LockoutPolicy.Default);
+        a.RecordFailedSignIn();
         await first.SaveChangesAsync(ct);
 
         b.RecordSuccessfulSignIn(Now);
