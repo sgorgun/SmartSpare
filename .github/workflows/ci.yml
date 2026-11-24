@@ -106,3 +106,41 @@ jobs:
           name: integration-test-results
           path: TestResults
           if-no-files-found: ignore
+
+  e2e:
+    name: End-to-end smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
+
+      - name: Restore
+        run: tools/check.sh restore
+
+      - name: Build
+        run: tools/check.sh build
+
+      # STAGE_3_PLAN 9.4: the real host on Kestrel, postgres:17 with the migrations, T001 and demo passwords
+      # (Testcontainers), and headless Chromium driven by Playwright: redirect to sign-in, the generic failure with
+      # its trace id, sign-in as a brand manager with the menu, sign-out.
+      - name: End-to-end smoke test (Playwright, Chromium)
+        env:
+          PLAYWRIGHT_INSTALL_ARGS: --with-deps
+        run: tools/check.sh e2e
+
+      - name: Upload screenshots and the Playwright trace
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-artifacts
+          path: |
+            TestResults/e2e
+            TestResults/*.trx
+          if-no-files-found: ignore
