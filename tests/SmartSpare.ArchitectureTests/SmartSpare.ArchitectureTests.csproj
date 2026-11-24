@@ -9,6 +9,7 @@
     <ProjectReference Include="..\..\src\BuildingBlocks\SmartSpare.Infrastructure\SmartSpare.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\Web\SmartSpare.ApiContracts\SmartSpare.ApiContracts.csproj" />
     <ProjectReference Include="..\..\src\BuildingBlocks\SmartSpare.Bff\SmartSpare.Bff.csproj" />
+    <ProjectReference Include="..\..\src\Web\SmartSpare.Web.Client\SmartSpare.Web.Client.csproj" />
     <ProjectReference Include="..\..\src\Bootstrapper\SmartSpare.ModuleCatalog\SmartSpare.ModuleCatalog.csproj" />
     <ProjectReference Include="..\..\src\Modules\Identity\SmartSpare.Modules.Identity\SmartSpare.Modules.Identity.csproj" />
     <ProjectReference Include="..\..\src\Modules\Inventory\SmartSpare.Modules.Inventory\SmartSpare.Modules.Inventory.csproj" />

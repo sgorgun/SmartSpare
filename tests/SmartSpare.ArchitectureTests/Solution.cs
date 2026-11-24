@@ -23,6 +23,8 @@ internal static class Solution
 
     public static readonly Assembly Bff = typeof(Bff.BffDefaults).Assembly;
 
+    public static readonly Assembly WebClient = typeof(Web.Client.Routes).Assembly;
+
     public static readonly IReadOnlyList<Module> Modules =
     [
         Create(typeof(Modules.Identity.IdentityModuleInstaller), typeof(Modules.Identity.Contracts.IdentityModule)),
