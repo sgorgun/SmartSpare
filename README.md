@@ -21,10 +21,34 @@ dotnet run --project src/SmartSpare.AppHost      # PostgreSQL 17 + migrations + 
 The AppHost starts PostgreSQL 17, runs `SmartSpare.MigrationRunner` (cluster bootstrap and the EF Core migrations of
 every module) and starts the host once the migrations have finished. The Aspire dashboard opens in the browser and
 lists the `host` resource with its URL. Every module answers
-`GET /api/<module>/ping` (`identity`, `inventory`, `fleet`, `procurement`, `forecasting`, `reporting`);
-health probes are `/health/live` and `/health/ready`; the OpenAPI document is `/openapi/v1.json` (Development).
+`GET /api/<module>/ping` (`identity`, `inventory`, `fleet`, `procurement`, `forecasting`, `reporting`) to a signed-in
+user; health probes `/health/live` and `/health/ready` and the OpenAPI document `/openapi/v1.json` (Development) need
+no sign-in.
 
-To run the host alone, without Aspire: `dotnet run --project src/Bootstrapper/SmartSpare.Host` (http://localhost:5080).
+To run the host alone, without Aspire: `dotnet run --project src/Bootstrapper/SmartSpare.Host` (https://localhost:7080; the
+session cookies are `Secure`, so the default launch profile is HTTPS).
+
+### Sign-in (server side, stage 3)
+
+The browser signs in through the BFF endpoints of the host ([ADR 0014](docs/adr/0014-browser-sign-in-through-bff-endpoints.md),
+[ADR 0016](docs/adr/0016-authentication-behind-the-gateway.md)): `GET /bff/antiforgery` returns a request token,
+`POST /bff/login` with `{ "userName", "password", "rememberMe" }` and the token in the `X-XSRF-TOKEN` header sets the
+HttpOnly cookie `__Host-SmartSpare`, `GET /bff/me` shows the session, and `POST /bff/logout` ends it. The cookie and
+antiforgery cookies are `Secure`, so use the HTTPS URL. Demo users and their password: see the database quick start.
+The sign-in page arrives with the Blazor client (PR 3d).
+
+Module endpoints also accept an **internal token** (`Authorization: Bearer`), the 2-minute ES256 token the gateway
+will mint in stage 4. The single host validates it with a key that never lives in a file of the repository. Without a
+key, every bearer token is rejected, which is the safe default. To try the token path locally, put a P-256 key into the
+host's user secrets:
+
+```bash
+openssl ecparam -name prime256v1 -genkey -noout | openssl pkcs8 -topk8 -nocrypt > key.pem
+dotnet user-secrets set InternalTokens:SigningKey "$(cat key.pem)" --project src/Bootstrapper/SmartSpare.Host
+rm key.pem
+```
+
+Services in stage 4 get only the public key as a JWKS document (`InternalTokens:Jwks`).
 
 | Task | Command |
 |---|---|
