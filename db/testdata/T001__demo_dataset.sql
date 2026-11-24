@@ -41,21 +41,27 @@ SELECT (:'go_live'::date - 7 * 104)                                   AS hist_st
 -- 1. Users and roles (personas from BA 2.2.1: Tomas, Mantas)
 -- ---------------------------------------------------------------------------
 INSERT INTO iam.app_user (id, user_name, email, full_name, phone, password_hash, home_warehouse_id, is_active)
-SELECT u.id::uuid, u.un, u.un || '@dealer.example', u.fn, u.ph, u.h, w.id, u.act
+SELECT u.id::uuid, u.un, u.un || '@dealer.example', u.fn, u.ph,
+       -- No password hashes in Git (#7): a random placeholder with a valid ASP.NET Core Identity V3 header
+       -- (marker 0x01, PRF HMAC-SHA512, 220,000 iterations, salt length 16) and random salt + subkey, so the
+       -- format CHECK and the header test pass but no password verifies. MigrationRunner set-demo-passwords
+       -- then stores real hashes of SMARTSPARE_DEMO_USER_PASSWORD (db/scripts/load_testdata.sh runs both).
+       translate(encode('\x010000000200035b6000000010'::bytea || gen_random_bytes(48), 'base64'), E'\n', ''),
+       w.id, u.act
 FROM (VALUES
- ('00000000-0000-4000-8000-000000000001','tomas.radzevicius','Tomas Radzevičius','+370 612 10001',NULL,true,'AQAAAAIAAYagAAAAEB5RgPODpdzzGuI55ZmfjmsTkYd2r7By5QeXlLd8b/Awgl09mEBMP8P/lcbAjWkfyw=='),
- ('00000000-0000-4000-8000-000000000002','rasa.kazlauskiene','Rasa Kazlauskienė','+370 612 10002',NULL,true,'AQAAAAIAAYagAAAAEMiSjNe7xsR9wMWWcD0AnRQbg68QpN1iCmFk9zXSh/wqsR6AtOI/d7Uyk3rx6B9A6A=='),
- ('00000000-0000-4000-8000-000000000003','darius.petraitis','Darius Petraitis','+370 612 10003',NULL,true,'AQAAAAIAAYagAAAAEBxJ0RlzAtDkr32tUDVlQFk70ug0rdfX0C8o2c7LK5XAUrVriayG6blPFaxgiRLLsA=='),
- ('00000000-0000-4000-8000-000000000004','mantas.petrauskas','Mantas Petrauskas','+370 612 10004','PNV',true,'AQAAAAIAAYagAAAAEPr/7VvOYP++g6MTuVcWjokJXC8bmV3MYcErmVV2yNioCht5TEEpT8+7Y/NBFWlkbA=='),
- ('00000000-0000-4000-8000-000000000005','jonas.balciunas','Jonas Balčiūnas','+370 612 10005','KNS',true,'AQAAAAIAAYagAAAAEEpJdSTgpbS3k08G2bVeXXaLFN2VlJ4bBTmZ/J8zlZ+5ptPVpU6Eki9OdiW8uRePfQ=='),
- ('00000000-0000-4000-8000-000000000006','egle.stankeviciute','Eglė Stankevičiūtė','+370 612 10006','KLP',true,'AQAAAAIAAYagAAAAEGwXZuSVjX/eHWyBzcDdmeAiQD57/0x/IQKBC3NUz+XkheEJOH9aA7hDZ8OhdxIWCw=='),
- ('00000000-0000-4000-8000-000000000007','lukas.vaitkus','Lukas Vaitkus','+370 612 10007','PNV',true,'AQAAAAIAAYagAAAAEH1l6oZC2GuQ7ft6g4TOBpPaMaW8/kfquzWDUHfVwQKhz8ao/T73w0y7zbjICWJ+9g=='),
- ('00000000-0000-4000-8000-000000000008','ruta.jankauskaite','Rūta Jankauskaitė','+370 612 10008','VLN',true,'AQAAAAIAAYagAAAAEDnEIdEM9rSF46sat59teCQ1qIi0udVVJk/kSAthqdrjqxeCEFlDx//QQcS7/7zKjw=='),
- ('00000000-0000-4000-8000-000000000009','ignas.zukauskas','Ignas Žukauskas','+370 612 10009',NULL,true,'AQAAAAIAAYagAAAAEHviOtniH6CzdKx4tu31/PqkGpBpBubW7aJyvzIc4xNMK5Hi/hoT2Ar955lyYv0j9A=='),
- ('00000000-0000-4000-8000-000000000010','vida.mockute','Vida Mockutė','+370 612 10010',NULL,true,'AQAAAAIAAYagAAAAEItAj2ar/06MzKWAsnrO4malxodYeCZuy6kdQxRVkdif81wBxX9JKZkT8oo8Pfhq6Q=='),
- ('00000000-0000-4000-8000-000000000011','admin.smartspare','SmartSpare Administrator',NULL,NULL,true,'AQAAAAIAAYagAAAAEG4zS9REAggmp+GY9XXNhe0dK7kpy/75zEoYQPReyyz/cCmlkI5V/iTc9siBvDrpCw=='),
- ('00000000-0000-4000-8000-000000000012','paulius.urbonas','Paulius Urbonas','+370 612 10012','KNS',true,'AQAAAAIAAYagAAAAEH1c6zNCsXx3gsTTf85vjqnxwXpbl7oznX1aU+cRNaiTCxkLXGpI695vP7M6Y8VjhQ==')
-) AS u (id, un, fn, ph, wh, act, h)
+ ('00000000-0000-4000-8000-000000000001','tomas.radzevicius','Tomas Radzevičius','+370 612 10001',NULL,true),
+ ('00000000-0000-4000-8000-000000000002','rasa.kazlauskiene','Rasa Kazlauskienė','+370 612 10002',NULL,true),
+ ('00000000-0000-4000-8000-000000000003','darius.petraitis','Darius Petraitis','+370 612 10003',NULL,true),
+ ('00000000-0000-4000-8000-000000000004','mantas.petrauskas','Mantas Petrauskas','+370 612 10004','PNV',true),
+ ('00000000-0000-4000-8000-000000000005','jonas.balciunas','Jonas Balčiūnas','+370 612 10005','KNS',true),
+ ('00000000-0000-4000-8000-000000000006','egle.stankeviciute','Eglė Stankevičiūtė','+370 612 10006','KLP',true),
+ ('00000000-0000-4000-8000-000000000007','lukas.vaitkus','Lukas Vaitkus','+370 612 10007','PNV',true),
+ ('00000000-0000-4000-8000-000000000008','ruta.jankauskaite','Rūta Jankauskaitė','+370 612 10008','VLN',true),
+ ('00000000-0000-4000-8000-000000000009','ignas.zukauskas','Ignas Žukauskas','+370 612 10009',NULL,true),
+ ('00000000-0000-4000-8000-000000000010','vida.mockute','Vida Mockutė','+370 612 10010',NULL,true),
+ ('00000000-0000-4000-8000-000000000011','admin.smartspare','SmartSpare Administrator',NULL,NULL,true),
+ ('00000000-0000-4000-8000-000000000012','paulius.urbonas','Paulius Urbonas','+370 612 10012','KNS',true)
+) AS u (id, un, fn, ph, wh, act)
 LEFT JOIN inventory.warehouse w ON w.code = u.wh;
 
 INSERT INTO iam.user_role (user_id, role_id, granted_by)

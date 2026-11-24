@@ -43,6 +43,21 @@ BEGIN
     END IF;
 END $$;
 
+-- Iteration count of an ASP.NET Core Identity V3 hash with PRF HMAC-SHA512 and a 16-byte salt; NULL for anything
+-- else. The V3 header is: marker 0x01, then PRF, iteration count and salt length as big-endian int32.
+-- Tests check the decoded header instead of a literal prefix, which changes with the iteration count.
+CREATE OR REPLACE FUNCTION pg_temp.identity_v3_iterations(p_hash text) RETURNS bigint
+LANGUAGE sql AS $$
+    -- << and | have the same precedence in PostgreSQL, hence the parentheses around every shift.
+    SELECT CASE
+             WHEN length(b) >= 61 AND get_byte(b, 0) = 1
+              AND ((get_byte(b, 1)::bigint << 24) | (get_byte(b, 2) << 16) | (get_byte(b, 3) << 8) | get_byte(b, 4)) = 2
+              AND ((get_byte(b, 9)::bigint << 24) | (get_byte(b, 10) << 16) | (get_byte(b, 11) << 8) | get_byte(b, 12)) = 16
+             THEN (get_byte(b, 5)::bigint << 24) | (get_byte(b, 6) << 16) | (get_byte(b, 7) << 8) | get_byte(b, 8)
+           END
+    FROM (SELECT decode(p_hash, 'base64') AS b) AS h
+$$;
+
 CREATE OR REPLACE FUNCTION pg_temp.act_as(p_user_name text) RETURNS uuid
 LANGUAGE sql AS $$
     SELECT set_config('app.user_id', (SELECT id::text FROM iam.app_user WHERE user_name = p_user_name), false)::uuid
