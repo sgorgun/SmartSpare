@@ -2,7 +2,7 @@
 
 Status: **proposed** (24 November 2026). Stage 3 of the work plan ([ARCHITECTURE_DECISIONS.md, section 12](../architecture/ARCHITECTURE_DECISIONS.md#12-work-plan)): cookie sign-in, roles and policies, and the Blazor client skeleton with MudBlazor and the sign-in page. Release target: **v0.3.0**.
 
-Inputs: ARCHITECTURE_DECISIONS sections 6, 7 and 12; [ADR 0006](../adr/0006-frontend-blazor-wasm-mudblazor-bff.md), [ADR 0012](../adr/0012-evolvability-principles.md), [ADR 0013](../adr/0013-domain-model-and-persistence.md); the `iam` schema in [DATA_DICTIONARY.md](../database/DATA_DICTIONARY.md#3-schema-iam--identity) and the trust model in [MODULE_MAPPING.md, section 3.6](../database/MODULE_MAPPING.md); issues #7, #11, #22, #33, #38. The sign-in design is recorded in [ADR 0014](../adr/0014-browser-sign-in-through-bff-endpoints.md).
+Inputs: ARCHITECTURE_DECISIONS sections 6, 7 and 12; [ADR 0006](../adr/0006-frontend-blazor-wasm-mudblazor-bff.md), [ADR 0012](../adr/0012-evolvability-principles.md), [ADR 0013](../adr/0013-domain-model-and-persistence.md); the `iam` schema in [DATA_DICTIONARY.md](../database/DATA_DICTIONARY.md#3-schema-iam--identity) and the trust model in [MODULE_MAPPING.md, section 3.6](../database/MODULE_MAPPING.md); issues #7, #11, #22, #33, #38. The sign-in design is recorded in [ADR 0014](../adr/0014-browser-sign-in-through-bff-endpoints.md) (**Accepted** 24 November 2026; PRs 3b–3d implement it).
 
 Every technical choice below was checked against the official documentation for **ASP.NET Core 10.0** (links use `?view=aspnetcore-10.0`; see [section 11](#11-references)). Learn now opens on the ASP.NET Core 11 preview by default, and some of what it shows there does not exist in .NET 10 (for example, the automatic `Sec-Fetch-Site` CSRF middleware). The plan uses only .NET 10 features.
 
@@ -191,7 +191,7 @@ The role-to-policy matrix is fixed for stage 3. Stages 4–8 add rows next to th
 
 ### 3.3 Brand scope (resource-based)
 
-`BrandScopeRequirement` with `BrandScopeHandler : AuthorizationHandler<BrandScopeRequirement, IBrandScoped>` in `SmartSpare.Infrastructure.Security`. A user **with the `BRAND_MANAGER` role** passes only if the resource's `BrandId` is in their `ss:brand` claims. Other roles aren't brand-scoped, which matches `iam.user_brand` being documented as "brand manager ↔ brands". Endpoints call `IAuthorizationService.AuthorizeAsync(user, resource, BrandScope)` after loading the resource, and get **403** on failure. Stage 3 proves it with a test endpoint in the integration test host. The first real use is in stage 4.
+`BrandScopeRequirement` with `BrandScopeHandler : AuthorizationHandler<BrandScopeRequirement, IBrandScoped>` in `SmartSpare.Infrastructure.Security`. A user **with the `BRAND_MANAGER` role** passes only if the resource's `BrandId` is in their `ss:brand` claims. Other roles aren't brand-scoped. This matches `iam.user_brand`, which is documented as "brand manager ↔ brands", and the rule has been confirmed against the BA. Endpoints call `IAuthorizationService.AuthorizeAsync(user, resource, BrandScope)` after loading the resource, and get **403** on failure. Stage 3 proves it with a test endpoint in the integration test host. The first real use is in stage 4.
 
 The database repeats the role check (`util.require_role`, section 6), so a bug in a policy can't bypass the SQL second line of defence (ARCHITECTURE_DECISIONS section 7).
 
@@ -201,7 +201,11 @@ The database repeats the role check (`util.require_role`, section 6), so a bug i
 
 - `AddRateLimiter` with a named policy `login`: `RateLimitPartition.GetFixedWindowLimiter` partitioned by `HttpContext.Connection.RemoteIpAddress`, **10 requests per minute**, no queue. `RejectionStatusCode = 429`, and `OnRejected` copies `MetadataName.RetryAfter` into `Retry-After` ([Rate limiting middleware](https://learn.microsoft.com/aspnet/core/performance/rate-limit?view=aspnetcore-10.0)). `/bff/login` uses `.RequireRateLimiting("login")`, and `app.UseRateLimiter()` runs after routing.
 - Account-level brute force is handled by lockout (2.4), so partitioning by user name, which would mean reading the body in the limiter, isn't needed.
-- **Known limits, deferred:** the limiter is in-memory per instance (#49). Behind App Service the client IP must come from `X-Forwarded-For` via the forwarded-headers middleware with known proxies, otherwise every request shares the proxy's IP. The docs also warn that IP partitions can be spoofed ([Rate limiter samples](https://learn.microsoft.com/aspnet/core/performance/rate-limit-samples?view=aspnetcore-10.0)). That is configured with the deployment (#48).
+**Known limits:**
+
+- **Per-instance limiter.** The limiter is in memory, so each replica has its own budget. Accepted while the app runs as one instance (#49).
+- **Client IP behind a proxy.** Behind App Service, `RemoteIpAddress` is the front end. The client IP must come from `X-Forwarded-For` via the forwarded-headers middleware, trusted only from known proxies; otherwise every user shares one partition and one user can block sign-in for everyone. The docs also warn that IP partitions can be spoofed ([Rate limiter samples](https://learn.microsoft.com/aspnet/core/performance/rate-limit-samples?view=aspnetcore-10.0)). **#48 must be done before the first Azure deployment** (stage 9).
+- **Lockout as a denial-of-service vector.** Anyone who knows or guesses a user name can lock that account for 15 minutes with five wrong passwords, repeatedly. Accepted for now: the user names aren't published, the IP rate limit slows the attack, a lockout ends on its own, and an administrator can unlock early (#46). Detecting lockout spikes is part of the security event log (#51). MFA (#50) would let lockout be relaxed for second-factor failures only.
 
 ---
 
@@ -243,7 +247,7 @@ The database repeats the role check (`util.require_role`, section 6), so a bug i
 | `UserName`, `EmailAddress` | value objects | Validation equal to `ck_app_user_user_name` / `ck_app_user_email`. |
 
 - EF configurations in `Infrastructure/Persistence/Configurations` map these directly: private constructors, backing fields for the collections, value converters for the value objects, and `xmin` concurrency on `AppUser`. The Identity classes in `PersistenceModel.cs` (`AppUser`, `Role`, `UserBrand`, `UserRole`) are deleted. `RefBrand` stays as the read-only FK principal.
-- `MigrationRunner check-model` must report no pending changes for `IdentityDbContext`, apart from the **one intentional migration** that adds `data_protection_keys` (section 5) and the SQL for #11.
+- `MigrationRunner check-model` must report **no pending changes** for `IdentityDbContext` after the remap (PR 3a). The only Identity schema changes in stage 3 are deliberate migrations in PR 3c: the `data_protection_keys` table (section 5) and the SQL for #11 (section 6).
 - Only stage 3 needs `UserDeactivated` as a domain event. Publishing it as an integration event waits for a consumer (#46).
 
 ---
@@ -295,7 +299,25 @@ One typed `HttpClient` per module (`IdentityClient`, later `InventoryClient`, �
 
 ### 8.7 Security headers
 
-The host sends `Content-Security-Policy` as a header, built from the docs' client-side baseline ([Enforce a CSP for Blazor](https://learn.microsoft.com/aspnet/core/blazor/security/content-security-policy?view=aspnetcore-10.0)): `default-src 'self'; script-src 'self' 'wasm-unsafe-eval' <import-map hash>; style-src 'self' <MudBlazor hashes as needed>; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; upgrade-insecure-requests`. It also sends `X-Content-Type-Options: nosniff` and `Referrer-Policy: strict-origin-when-cross-origin`, and keeps `UseHsts` outside Development. An integration test asserts the headers on `/`.
+The host sends `Content-Security-Policy` as a header, built from the docs' client-side baseline ([Enforce a CSP for Blazor](https://learn.microsoft.com/aspnet/core/blazor/security/content-security-policy?view=aspnetcore-10.0)):
+
+```
+default-src 'self';
+script-src 'self' 'wasm-unsafe-eval' 'sha256-<import map>';
+style-src 'self' 'unsafe-inline';
+img-src 'self' data:;
+connect-src 'self';
+object-src 'none';
+base-uri 'self';
+frame-ancestors 'none';
+upgrade-insecure-requests
+```
+
+**Why `style-src 'unsafe-inline'`.** MudBlazor sets inline `style` attributes at runtime (positions of popovers, menus and tooltips, widths, colours from the theme). Hashes and nonces in `style-src` cover `<style>` elements, but browsers apply them to `style` attributes only together with `'unsafe-hashes'`, and only for fixed values. These values are computed at runtime, so no hash can match them. Without `'unsafe-inline'` the components would render broken.
+
+**Accepted risk.** An attacker who can inject markup could add CSS. That allows defacement, UI redressing inside the page, or reading attribute values through CSS selectors that load background images; the last is limited by `img-src 'self' data:` and `connect-src 'self'`. Injected CSS cannot run script. `script-src` stays strict, with no `'unsafe-inline'` and no `'unsafe-eval'`, and Blazor's rendering encodes text, so the main XSS defence is unchanged. If MudBlazor moves away from inline styles, or browsers allow per-attribute style nonces, we revisit this.
+
+The host also sends `X-Content-Type-Options: nosniff` and `Referrer-Policy: strict-origin-when-cross-origin`, and keeps `UseHsts` outside Development. An integration test asserts the headers on `/`, including that `script-src` contains neither `'unsafe-inline'` nor `'unsafe-eval'`.
 
 ---
 
@@ -355,12 +377,12 @@ Each PR is merged with a green build (`-warnaserror`), all tests, `dotnet format
 
 ### 3a: Identity domain and persistence
 
-Scope: section 7 (aggregates, configurations, delete persistence classes). `iam.data_protection_keys` table, migration and grants (section 5, table only). `MigrationRunner set-demo-passwords` and the T001/`.env.example` change (2.3). AppHost "Load demo data" command.
+Scope: section 7 (aggregates, configurations, delete the persistence classes). `MigrationRunner set-demo-passwords` and the T001/`.env.example` change (2.3). AppHost "Load demo data" command.
 
 Acceptance:
-- `check-model` clean apart from the intentional migration, explained in the PR.
+- `check-model` reports no pending changes (no migration in this PR).
 - `verify_database.sh` green, including the T03 hash-format assertion.
-- Unit tests 9.1 for the aggregate.
+- Unit tests 9.1 for the aggregate and the value objects.
 - `.env.example` contains no real password, and demo users get the hash of the password chosen in `.env`.
 - Demo data loads into the AppHost database without copying a port or password, and the README is updated.
 
@@ -368,33 +390,46 @@ Closes **#38, #7, #33**.
 
 ### 3b: Cookie authentication, BFF endpoints and authorization
 
-Scope: sections 1.2, 1.3, 1.5, 2, 3, 4, 5 (wiring and key protection), 6. Packages `Microsoft.AspNetCore.Identity` (shared framework), `Microsoft.AspNetCore.DataProtection.EntityFrameworkCore`. ApiContracts gets the Identity DTOs, validator and authorization constants. The architecture test is updated for S14.
+Scope: sections 1.2, 1.3, 1.5, 2, 3 and 4. Identity core with the custom stores, the cookie, `/bff/login`, `/bff/logout`, `/bff/me`, `/bff/antiforgery`, the antiforgery endpoint filter, `AppPolicies` and the brand scope handler, the `login` rate limit. ApiContracts gets the Identity DTOs, validator and authorization constants, and the architecture test is updated for S14. Data Protection keeps the default per-instance key ring in this PR.
 
 Acceptance:
-- All integration tests in 9.2 except the CSP header test, which moves to 3c.
-- Policy and brand unit tests.
-- SQL suite green with the GUC-based checks.
-- ADR 0014 accepted.
+- Integration tests 9.2: sign-in and cookie flags, uniform failures, lockout, antiforgery, logout, security stamp, 401 vs 403 and brand scope, rate limiting.
+- Unit tests for the stores, the principal factory, the policies and `BrandScopeHandler`.
+- The implementation matches ADR 0014 (accepted). Any deviation needs a new ADR.
+
+Closes no issue on its own; it implements ADR 0014 on the server.
+
+### 3c: Session GUCs and Data Protection keys
+
+Scope: section 6 (`ICurrentUser` with roles and warehouse, `ClaimsCurrentUser`, `SessionContextInterceptor`, the Platform, Inventory, Identity and Reporting SQL migrations, `pg_temp.act_as`) and section 5 (`iam.data_protection_keys` table, migration and grants, `PersistKeysToDbContext` in the installer, application name and per-environment key protection in the host).
+
+Acceptance:
+- The integration tests for the session GUCs and for a cookie shared by two host instances.
+- SQL suite (97 assertions) green on the EF-built database with the GUC-based checks; `schema_diff` allow-list entries explained in the PR.
+- `check-model` shows only the deliberate migrations of this PR.
+- Key protection is configurable per environment and documented (README or `docs/`).
 
 Closes **#11, #22**.
 
-### 3c: Blazor client skeleton
+### 3d: Blazor client skeleton
 
-Scope: section 8 (hosting in `SmartSpare.Host`, `SmartSpare.Web.Client`, MudBlazor 9.12, layout, sign-in page, typed clients, localization, CSP), section 1.4. bUnit project 9.3.
+Scope: section 8 (hosting in `SmartSpare.Host`, `SmartSpare.Web.Client`, MudBlazor 9.12, layout, sign-in page, typed clients, localization, CSP and security headers) and section 1.4. bUnit project 9.3.
 
 Acceptance:
 - `dotnet run --project src/SmartSpare.AppHost`, then sign in as a demo user, see the role-dependent menu and sign out. A 401 after stamp rotation sends the user back to `/login`.
-- bUnit tests green, CSP header test green.
+- bUnit tests green. The security-header test is green, and `script-src` contains no `'unsafe-inline'`.
 - An architecture test checks that the client references only ApiContracts.
 
-### 3d: End-to-end smoke test, documentation and release
+### 3e: End-to-end smoke test, documentation and release
 
-Scope: Playwright smoke test (9.4) and CI job. ARCHITECTURE_DECISIONS sections 6/7 and the solution diagram marked implemented for stage 3. README sign-in instructions. `docs/database` regenerated if the view or table changed. CHANGELOG / release notes.
+Scope: Playwright smoke test (9.4) and its CI job. ARCHITECTURE_DECISIONS sections 6/7 and the solution diagram marked implemented for stage 3. README sign-in instructions. `docs/database` regenerated for the new table and the changed view. Release notes.
 
 Acceptance:
 - E2E job green.
-- Docs generators and stale-terms check green.
+- Docs generators and the stale-terms check green.
 - Tag `v0.3.0`.
+
+User administration (#46) is an optional PR 3f after the release.
 
 ### Exit criteria for v0.3.0
 
