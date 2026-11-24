@@ -4,7 +4,7 @@
 // grey fill = external system. Cluster titles are label nodes, so the edge router keeps edges off them.
 digraph A {
   graph [rankdir=TB, compound=true, newrank=true, fontname="Helvetica", nodesep=0.3, ranksep=0.55,
-         label=<<B>SmartSpare — one codebase, two topologies</B><BR/><FONT POINT-SIZE="12">production: YARP gateway + six services on Azure Container Apps · development and tests: single host<BR/>ARCHITECTURE_DECISIONS.md · ADR 0002–0019 · status as of stage 2</FONT>>,
+         label=<<B>SmartSpare — one codebase, two topologies</B><BR/><FONT POINT-SIZE="12">production: YARP gateway + six services on Azure Container Apps · development and tests: single host<BR/>ARCHITECTURE_DECISIONS.md · ADR 0002–0019 · status as of stage 3</FONT>>,
          labelloc=t, fontsize=20, pad=0.3];
   node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=11, fillcolor="#FFFFFF", color="#555555"];
   edge [fontname="Helvetica", fontsize=9, color="#555555"];
@@ -22,14 +22,14 @@ digraph A {
   supp [label="OEM suppliers\n(purchase order files)", fillcolor="#EEEEEE"];
   oncall [label="On-call channels\nTelegram · e-mail", fillcolor="#EEEEEE"];
 
-  web [label="SmartSpare.Web.Client (stage 3)\nBlazor WebAssembly + MudBlazor, runs in the browser\ntyped HTTP clients · SmartSpare.ApiContracts DTOs · no tokens", style="rounded,dashed,filled"];
+  web [label="SmartSpare.Web.Client\nBlazor WebAssembly + MudBlazor, runs in the browser, prerendered by its host\nsign-in page · menu by policy · typed HTTP clients with antiforgery\nSmartSpare.ApiContracts DTOs only · no tokens in the browser"];
 
   subgraph cluster_aca { label=""; style="rounded,dashed"; color="#1E88E5"; bgcolor="#E3F2FD";
     t_aca [shape=plaintext, style="", label=<<B>Azure Container Apps environment (stage 4)</B><BR/><FONT POINT-SIZE="10">one image and one revision per app · every app scales to zero · warm-up before demos · ADR 0009, 0015</FONT>>];
     gw [label="SmartSpare.Gateway — YARP BFF (stage 4)\nexternal HTTPS ingress · hosts the WASM client · /bff sign-in\nHttpOnly SameSite cookie + antiforgery · rate limit · /scalar + OpenAPI\nswaps the cookie for a 2-min ES256 internal token (ADR 0016)\ncookie scheme only · never routes /internal · scales to zero", style="rounded,dashed,filled"];
     svcs [shape=plain, label=<<TABLE BORDER="1" STYLE="ROUNDED,DASHED" COLOR="#1E88E5" CELLBORDER="1" CELLSPACING="6" CELLPADDING="6" BGCOLOR="white">
       <TR><TD COLSPAN="6" BORDER="0" ALIGN="LEFT"><B>Six module services</B> (service hosts: stage 4) — each: own image, own database login, JwtBearer only, scale to zero (woken by HTTP or its queues),<BR ALIGN="LEFT"/>handler pipeline (ADR 0005), outbox / inbox (ADR 0003), DbContext + migrations. Module code is implemented; use cases come with the module's stage<BR ALIGN="LEFT"/></TD></TR>
-      <TR><TD PORT="id" BGCOLOR="#F3E5F5" COLOR="#8E24AA" STYLE="ROUNDED,DASHED">identity<BR/><FONT POINT-SIZE="10">iam</FONT><BR/><FONT POINT-SIZE="10">use cases: stage 3</FONT></TD><TD PORT="inv" BGCOLOR="#E0F2F1" COLOR="#00897B" STYLE="ROUNDED,DASHED">inventory<BR/><FONT POINT-SIZE="10">catalog · inventory · raw · staging</FONT><BR/><FONT POINT-SIZE="10">use cases: stage 5</FONT></TD><TD PORT="fleet" BGCOLOR="#FFF3E0" COLOR="#FB8C00" STYLE="ROUNDED,DASHED">fleet<BR/><FONT POINT-SIZE="10">fleet</FONT><BR/><FONT POINT-SIZE="10">use cases: stage 6</FONT></TD><TD PORT="proc" BGCOLOR="#FCE4EC" COLOR="#D81B60" STYLE="ROUNDED,DASHED">procurement<BR/><FONT POINT-SIZE="10">procurement</FONT><BR/><FONT POINT-SIZE="10">use cases: stage 7</FONT></TD><TD PORT="fc" BGCOLOR="#E8EAF6" COLOR="#3949AB" STYLE="ROUNDED,DASHED">forecasting<BR/><FONT POINT-SIZE="10">forecast · ML.NET</FONT><BR/><FONT POINT-SIZE="10">use cases: stage 8</FONT></TD><TD PORT="rep" BGCOLOR="#E8F5E9" COLOR="#43A047" STYLE="ROUNDED,DASHED">reporting<BR/><FONT POINT-SIZE="10">mart, read-only · audit jobs</FONT><BR/><FONT POINT-SIZE="10">use cases: stage 9</FONT></TD></TR>
+      <TR><TD PORT="id" BGCOLOR="#F3E5F5" COLOR="#8E24AA" STYLE="ROUNDED,DASHED">identity<BR/><FONT POINT-SIZE="10">iam</FONT><BR/><FONT POINT-SIZE="10">sign-in, session checks: done</FONT></TD><TD PORT="inv" BGCOLOR="#E0F2F1" COLOR="#00897B" STYLE="ROUNDED,DASHED">inventory<BR/><FONT POINT-SIZE="10">catalog · inventory · raw · staging</FONT><BR/><FONT POINT-SIZE="10">use cases: stage 5</FONT></TD><TD PORT="fleet" BGCOLOR="#FFF3E0" COLOR="#FB8C00" STYLE="ROUNDED,DASHED">fleet<BR/><FONT POINT-SIZE="10">fleet</FONT><BR/><FONT POINT-SIZE="10">use cases: stage 6</FONT></TD><TD PORT="proc" BGCOLOR="#FCE4EC" COLOR="#D81B60" STYLE="ROUNDED,DASHED">procurement<BR/><FONT POINT-SIZE="10">procurement</FONT><BR/><FONT POINT-SIZE="10">use cases: stage 7</FONT></TD><TD PORT="fc" BGCOLOR="#E8EAF6" COLOR="#3949AB" STYLE="ROUNDED,DASHED">forecasting<BR/><FONT POINT-SIZE="10">forecast · ML.NET</FONT><BR/><FONT POINT-SIZE="10">use cases: stage 8</FONT></TD><TD PORT="rep" BGCOLOR="#E8F5E9" COLOR="#43A047" STYLE="ROUNDED,DASHED">reporting<BR/><FONT POINT-SIZE="10">mart, read-only · audit jobs</FONT><BR/><FONT POINT-SIZE="10">use cases: stage 9</FONT></TD></TR>
     </TABLE>>];
     mljob [label="Container Apps jobs, cron (stage 4+)\nreservation expiry · mart refresh · audit purge\nbroker metrics · ML training (stage 8)", style="rounded,dashed,filled"];
     t_aca -> gw [style=invis];
@@ -49,10 +49,10 @@ digraph A {
 
   subgraph cluster_dev { label=""; style="rounded"; color="#9E9E9E"; bgcolor="#FAFAFA";
     t_dev [shape=plaintext, style="", label=<<B>Development, tests and delivery</B>>];
-    single [label="Single-host topology — SmartSpare.Host\nall six modules in one process · in-process events and Contracts queries\nused locally, in unit / integration tests and CI (BFF cookie: stage 3)"];
+    single [label="Single-host topology — SmartSpare.Host\nHTTP API + BFF: /bff sign-in, HttpOnly cookie, antiforgery, strict CSP\nhosts the WASM client · all six modules in one process\nin-process events and Contracts queries · used locally, in tests and CI"];
     aspire [label=".NET Aspire AppHost (local only)\nPostgreSQL 17 container · telemetry dashboard\n--topology services (stage 4): gateway, services, RabbitMQ,\nCollector · Prometheus · Loki · Tempo · Grafana (self-hosted)"];
     runner [label="SmartSpare.MigrationRunner\nbootstrap + EF migrations in ModuleCatalog order\ncheck-model · used by Aspire and CI"];
-    ci [label="GitHub Actions CI\nbuild · format · check-model · tests\nSQL suite on the EF-built database"];
+    ci [label="GitHub Actions CI (tools/check.sh)\nbuild · format · check-model · tests\nSQL suite on the EF-built database\nPlaywright smoke test in Chromium"];
     cd [label="Per-service CD (stage 4)\nOIDC · image → Azure Container Registry\n→ module migration bundle → new revision", style="rounded,dashed,filled"];
     t_dev -> ci [style=invis]; t_dev -> aspire [style=invis];
     aspire -> single [label=" starts"];
@@ -62,7 +62,7 @@ digraph A {
   }
 
   // request flow
-  users -> web [label=" HTTPS", style=dashed];
+  users -> web [label=" HTTPS"];
   web -> gw [label=" REST/JSON + HttpOnly cookie", style=dashed];
   gw -> svcs:n [label=" /api/v1/{module} + internal token\n /internal credential checks → identity", style=dashed];
   erp -> gw [label=" CSV upload (stage 5)", style=dashed];
