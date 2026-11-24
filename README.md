@@ -28,19 +28,29 @@ no sign-in.
 To run the host alone, without Aspire: `dotnet run --project src/Bootstrapper/SmartSpare.Host` (https://localhost:7080; the
 session cookies are `Secure`, so the default launch profile is HTTPS).
 
-### Sign-in (server side, stage 3)
+### Sign in as a demo user
+
+1. Start everything: `dotnet run --project src/SmartSpare.AppHost` (Docker running). The Aspire dashboard opens.
+2. Load the demo data once: on the `postgres` resource, open the menu "..." and run **Load demo data** (details in the
+   database quick start below).
+3. Look up the demo users' password: the AppHost parameter `demo-user-password`, under **Parameters** in the dashboard.
+   To choose your own, run `dotnet user-secrets set Parameters:demo-user-password <value> --project src/SmartSpare.AppHost`
+   before loading the demo data.
+4. Open https://localhost:7080 (or the `host` link in the dashboard). You are sent to the sign-in page.
+5. Sign in, for example as `tomas.radzevicius` (brand manager: every area) or `lukas.vaitkus` (warehouse keeper:
+   inventory, procurement, reporting). The menu follows the user's roles; every endpoint checks its own policy on the
+   server. Sign out from the account menu at the top right.
+
+An error message ends with "Reference: <trace id>"; [docs/operations/TRACING.md](docs/operations/TRACING.md) shows how
+to find that request's trace. The same flow runs in CI as a Playwright test in Chromium (`tools/check.sh e2e`).
+
+### Sign-in endpoints (BFF)
 
 The browser signs in through the BFF endpoints of the host ([ADR 0014](docs/adr/0014-browser-sign-in-through-bff-endpoints.md),
 [ADR 0016](docs/adr/0016-authentication-behind-the-gateway.md)): `GET /bff/antiforgery` returns a request token,
 `POST /bff/login` with `{ "userName", "password", "rememberMe" }` and the token in the `X-XSRF-TOKEN` header sets the
 HttpOnly cookie `__Host-SmartSpare`, `GET /bff/me` shows the session, and `POST /bff/logout` ends it. The cookie and
 antiforgery cookies are `Secure`, so use the HTTPS URL. Demo users and their password: see the database quick start.
-
-In the browser: open the host (https://localhost:7080, or the `host` link in the Aspire dashboard), sign in on the
-MudBlazor sign-in page as a demo user, for example `tomas.radzevicius` (brand manager: every area) or `lukas.vaitkus`
-(warehouse keeper: inventory, procurement, reporting), and sign out from the account menu. The menu follows the
-user's roles; every endpoint checks its own policy on the server. Error messages end with "Reference: <trace id>",
-which finds the request in the traces and logs.
 
 Module endpoints also accept an **internal token** (`Authorization: Bearer`), the 2-minute ES256 token the gateway
 will mint in stage 4. The single host validates it with a key that never lives in a file of the repository. Without a
@@ -73,6 +83,7 @@ The gateway (stage 4) keeps its key ring in Blob Storage, protected with Key Vau
 | **All checks, exactly as CI** (Docker running) | `tools/check.sh` — stale terms, locked restore, Release build with `-warnaserror`, format, check-model, tests with coverage, integration tests, database verification |
 | Checks without Docker (the CI "Build and test" job) | `tools/check.sh fast` |
 | Selected checks | `tools/check.sh <step> ...` with steps `stale-terms restore build format check-model test integration database` |
+| End-to-end smoke test (Docker; installs Chromium) | `tools/check.sh restore build e2e` — Playwright signs in and out in Chromium; screenshots in `TestResults/e2e` |
 | Schema diff (Docker) | `tools/schema_diff.sh` — EF-built schema vs. the frozen V016 baseline |
 
 Run `tools/check.sh` (Git Bash on Windows) before pushing. Stage new files first: the stale-terms check scans tracked
@@ -80,13 +91,15 @@ files only. While iterating, plain `dotnet build` / `dotnet test --filter "Categ
 the script reproduces CI.
 
 CI (`.github/workflows/ci.yml`) runs the same script on every push and pull request to `main`: the "Build and test" job
-runs the steps of `tools/check.sh fast`, the integration job runs `integration` and `database`.
+runs the steps of `tools/check.sh fast`, the integration job runs `integration` and `database`, and the end-to-end job
+runs `e2e` and uploads screenshots and the Playwright trace when it fails.
 
 ## Repository layout
 
 ```
 src/
-  Bootstrapper/SmartSpare.Host          single host (development, tests): all modules, BFF (stage 3), health, OpenAPI;
+  Bootstrapper/SmartSpare.Host          single host (development, tests): all modules, BFF sign-in, the web app with a
+                                        strict CSP, health, OpenAPI;
                                         the gateway and one host per module service follow in stage 4 (ADR 0015)
   Bootstrapper/SmartSpare.ModuleCatalog the modules and their databases in migration order (shared by host and runner)
   Bootstrapper/SmartSpare.MigrationRunner  bootstrap + EF migrations of every context; check-model (dev and CI only)
@@ -94,24 +107,30 @@ src/
     SmartSpare.SharedKernel             Entity, AggregateRoot, ValueObject, Result, Error — no dependencies
     SmartSpare.Infrastructure           command/query handlers + decorators, IModuleInstaller, Result → ProblemDetails,
                                         Persistence (Platform DbContext, unit of work, outbox/inbox, interceptors)
+    SmartSpare.Bff                      /bff sign-in endpoints, session cookie, antiforgery, internal-token issuer
     SmartSpare.ServiceDefaults          OpenTelemetry, health checks, service discovery, HTTP resilience
   Modules/<Module>/                     Identity, Inventory, Fleet, Procurement, Forecasting, Reporting
     SmartSpare.Modules.<Module>         internal implementation: Domain/, Features/<UseCase>/, Infrastructure/,
                                         public <Module>ModuleInstaller
     SmartSpare.Modules.<Module>.Contracts  public surface: integration events, read-only query interfaces
-  Web/SmartSpare.ApiContracts           HTTP DTOs + validators shared with the Blazor client
+  Web/SmartSpare.Web.Client             Blazor WebAssembly + MudBlazor: sign-in page, menu by policy, typed HTTP clients
+  Web/SmartSpare.ApiContracts           HTTP DTOs + validators, role, claim, policy and problem-code names
   SmartSpare.AppHost                    .NET Aspire, local development only
 tests/
   SmartSpare.SharedKernel.UnitTests, SmartSpare.Infrastructure.UnitTests
   SmartSpare.ArchitectureTests          module boundaries (NetArchTest + project references)
-  SmartSpare.Host.IntegrationTests      in-memory smoke test of every module endpoint
+  SmartSpare.Modules.Identity.UnitTests, SmartSpare.Modules.Identity.IntegrationTests
+  SmartSpare.Host.IntegrationTests      sign-in, cookie, antiforgery, authorization, internal tokens, CSP (in memory and
+                                        on postgres:17)
+  SmartSpare.Web.Tests                  bUnit: sign-in page, menu, HTTP handlers
+  SmartSpare.E2E                        Playwright smoke test in Chromium (Category=E2E, tools/check.sh e2e)
   SmartSpare.Persistence.IntegrationTests  migrations, ownership, unit of work and outbox on postgres:17 (Testcontainers)
 db/
   bootstrap/000_bootstrap_cluster.sql   roles + database (once per server; run by the MigrationRunner or the server admin)
   sql/<module>/                         SQL parts of the EF migrations: triggers, functions, views, grants, seed
                                         (embedded in the module assembly, applied by migrationBuilder.Sql — ADR 0004)
   testdata/T001__demo_dataset.sql       deterministic synthetic dataset (dev/test only)
-  tests/                                SQL test suite (102 assertions) + concurrency test
+  tests/                                SQL test suite (103 assertions) + concurrency test
   scripts/                              reset_local.sh, load_testdata.sh, env.sh (credentials from .env)
   baseline/v016_schema.sql              frozen schema of the former SQL-built database (input of tools/schema_diff.sh)
   ddl/smartspare_schema.sql             complete DDL of the EF-built database (generated)
@@ -124,6 +143,8 @@ docs/
   database/MODULE_MAPPING.md            ownership of every database object per module (stage 2)
   database/DATA_DICTIONARY.md           data dictionary (generated from the catalogue)
   database/diagrams/                    logical schema (colour-coded), data flow
+  operations/TRACING.md                 from an error reference to its trace
+  stage-3/STAGE_3_PLAN.md               plan and exit criteria of stage 3
 tools/                                  verify_database.sh, schema_diff.sh, DDL / doc / diagram generators
 ```
 
@@ -147,7 +168,7 @@ cp .env.example .env                              # then set your own passwords 
 docker compose up -d                              # PostgreSQL 17 on localhost:5432
 db/scripts/reset_local.sh                         # drop + MigrationRunner: bootstrap + all EF migrations
 db/scripts/load_testdata.sh                       # demo dataset T001 (2,000 SKUs, ~30 s) + demo-user passwords
-db/tests/run_tests.sh                             # SQL test suite (102 assertions)
+db/tests/run_tests.sh                             # SQL test suite (103 assertions)
 db/tests/concurrency_test.sh                      # row-lock test (NFR03)
 ```
 
