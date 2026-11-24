@@ -1,6 +1,6 @@
 # SmartSpare — Stage 3 Plan: Identity, BFF and Blazor Skeleton
 
-Status: **proposed** (24 November 2026). Stage 3 of the work plan ([ARCHITECTURE_DECISIONS.md, section 13](../architecture/ARCHITECTURE_DECISIONS.md#13-work-plan)): cookie sign-in, roles and policies, and the Blazor client skeleton with MudBlazor and the sign-in page. Release target: **v0.3.0**.
+Status: **done** (25 November 2026; proposed 24 November 2026). Implemented in PRs 3a–3e (#70, #73, #74, #76 and PR 3e); the exit criteria are checked one by one in [section 10](#exit-criteria-for-v030). Stage 3 of the work plan ([ARCHITECTURE_DECISIONS.md, section 13](../architecture/ARCHITECTURE_DECISIONS.md#13-work-plan)): cookie sign-in, roles and policies, and the Blazor client skeleton with MudBlazor and the sign-in page. Release target: **v0.3.0**.
 
 Inputs: ARCHITECTURE_DECISIONS sections 6, 7 and 13; [ADR 0006](../adr/0006-frontend-blazor-wasm-mudblazor-bff.md), [ADR 0012](../adr/0012-evolvability-principles.md), [ADR 0013](../adr/0013-domain-model-and-persistence.md); the `iam` schema in [DATA_DICTIONARY.md](../database/DATA_DICTIONARY.md#3-schema-iam--identity) and the trust model in [MODULE_MAPPING.md, section 3.6](../database/MODULE_MAPPING.md); issues #7, #11, #22, #33, #38. The sign-in design is recorded in [ADR 0014](../adr/0014-browser-sign-in-through-bff-endpoints.md) (**Accepted** 24 November 2026; PRs 3b–3d implement it). [ADR 0016](../adr/0016-authentication-behind-the-gateway.md) extends it to the production topology of [ADR 0015](../adr/0015-deployment-topology-microservices-behind-yarp-gateway.md). PR 3b already builds the sign-in so that it works unchanged behind the gateway in stage 4 (section 1.6).
 
@@ -477,10 +477,11 @@ All new tests follow the pyramid (ARCHITECTURE_DECISIONS section 11). Testcontai
 This test is cheap because the host already runs in-process with Testcontainers for the integration tests. A Kestrel-bound `WebApplicationFactory` serves the app, and Playwright for .NET (Chromium only) runs:
 
 1. open `/` → redirected to `/login`;
-2. sign in as `tomas.radzevicius` (BRAND_MANAGER) → home page with the user menu;
-3. sign out → back to `/login`.
+2. a wrong password → the generic message with "Reference: <32 hex digits>" (#72);
+3. sign in as `tomas.radzevicius` (BRAND_MANAGER) → home page with the brand manager's menu; the session cookie is HttpOnly and nothing token-like is visible to scripts (`document.cookie`, `localStorage`, `sessionStorage`);
+4. sign out → back to `/login`, and `/bff/me` reports no session.
 
-It runs in a separate CI job (`Category=E2E`) that installs Chromium. The job doesn't block local `dotnet test --filter "Category!=Integration"`. The full UC01/UC02 scenarios and tablet viewports stay in stage 11 (work plan).
+Implemented as `SignInSmokeTest` in `tests/SmartSpare.E2E`: the real host on Kestrel with HTTPS, PostgreSQL 17 in Testcontainers built by the migration runner, T001 and `set-demo-passwords`. It waits for the pages to become interactive (`data-interactive="true"` on the sign-in form and the main layout), because a click on prerendered markup does nothing. It runs in a separate CI job (`Category=E2E`, `tools/check.sh e2e`) that installs Chromium and uploads screenshots and the Playwright trace when it fails. The default test step excludes it, so local runs need no browser. The full UC01/UC02 scenarios and tablet viewports stay in stage 11 (work plan).
 
 ---
 
@@ -544,24 +545,30 @@ Acceptance:
 
 ### 3e: End-to-end smoke test, documentation and release
 
-Scope: Playwright smoke test (9.4) and its CI job. ARCHITECTURE_DECISIONS sections 6/7 and the solution diagram marked implemented for stage 3. README sign-in instructions. `docs/database` regenerated for the new table and the changed view. Release notes.
+Scope: Playwright smoke test (9.4) and its CI job. ARCHITECTURE_DECISIONS sections 6/7 and the solution diagram marked implemented for stage 3. README sign-in instructions. `docs/database` regenerated for the new table and the changed view (already done in PR 3c, commit c0c6997). Release notes in `CHANGELOG.md`. The trace walkthrough of #72 ([TRACING.md](../operations/TRACING.md)); for it, the host now traces database commands (Npgsql, ADR 0018). A SQL assertion for exit criterion 4.
 
 Acceptance:
 - E2E job green.
 - Docs generators and the stale-terms check green.
-- Tag `v0.3.0`.
+- Tag `v0.3.0` after the merge, with a GitHub release from the CHANGELOG entry.
+
+Closes **#72**.
 
 User administration (#46) is an optional PR 3f after the release.
 
 ### Exit criteria for v0.3.0
 
-1. A demo user signs in through the MudBlazor sign-in page with the password chosen in `.env`, sees a menu that matches their roles and signs out. Nothing token-like is stored in the browser (the cookie is HttpOnly and `localStorage`/`sessionStorage` hold no credentials).
-2. The cookie flags, antiforgery, lockout, rate limiting, security stamp revocation, 401/403 behaviour and the brand scope are proven by integration tests against PostgreSQL 17.
-3. A cookie issued by one host instance works on another (#22).
-4. The database role and warehouse checks use the session GUCs. No module's SQL reads `iam` except Identity and Reporting, as MODULE_MAPPING allows. The 97 SQL assertions are green on the EF-built database.
-5. Identity has a real domain model, and its persistence classes are gone (ADR 0013).
-6. bUnit tests and one Playwright smoke test are green in CI.
-7. Issues #7, #11, #22, #33 and #38 are closed. Follow-ups are tracked: #46 (user administration), #47 (second UI culture), #48 (forwarded headers behind the platform's ingress, stage 4), #49 (distributed rate limiting), #50 (MFA for privileged roles), #51 (security event log), #53 (database-level brand check).
+Checked on 25 November 2026 against `main` plus PR 3e. CI jobs: "Build and test" (`tools/check.sh fast`), "Integration tests" (`integration`, `database`) and "End-to-end smoke test" (`e2e`).
+
+| # | Criterion | Status | Evidence |
+|---|---|---|---|
+| 1 | A demo user signs in through the MudBlazor sign-in page with the password chosen in `.env`, sees a menu that matches their roles and signs out. Nothing token-like is stored in the browser (the cookie is HttpOnly and `localStorage`/`sessionStorage` hold no credentials). | **met** | `SignInSmokeTest.A_demo_user_signs_in_sees_the_brand_manager_menu_and_signs_out` (`tests/SmartSpare.E2E`, job "End-to-end smoke test"). Chromium signs in with a password set by `MigrationRunner set-demo-passwords`, the same path that `.env` and the AppHost use. It checks the menu, the HttpOnly and Secure cookie, and that scripts see no credential (`localStorage` holds only Blazor's resource hash), then signs out. Menu per role: `WebAppTests.The_prerendered_menu_follows_the_roles_and_the_page_carries_no_security_stamp` and the bUnit `NavigationAndHttpTests`. Manual check with the AppHost in PR 3d (#76). |
+| 2 | The cookie flags, antiforgery, lockout, rate limiting, security stamp revocation, 401/403 behaviour and the brand scope are proven by integration tests against PostgreSQL 17. | **met, with a deviation** | On PostgreSQL 17 (Testcontainers, job "Integration tests"), `SignInTests`: `A_seeded_user_signs_in_and_gets_roles_brands_and_last_login`, `Wrong_password_unknown_user_deactivated_and_anonymised_users_get_identical_responses`, `Five_failures_lock_the_account_until_lockout_end_passes`, `A_rotated_security_stamp_ends_the_session_at_the_next_check`, `A_role_change_reaches_the_cookie_at_the_next_check`. **Deviation:** the following tests run through the real host pipeline on an in-memory host with a fake `ICredentialVerifier` and no database (job "Build and test"):<br>• cookie flags: `BffTests.Sign_in_issues_the_session_cookie_with_the_required_flags`;<br>• antiforgery: `BffTests.Sign_in_without_an_antiforgery_token_is_rejected`, `ErrorResponseTests.An_unsafe_api_request_with_the_cookie_needs_the_antiforgery_token`;<br>• rate limiting: `RateLimitTests`;<br>• 401/403: `AuthorizationTests.Anonymous_gets_401_and_a_wrong_role_gets_403_both_as_problem_details`;<br>• brand scope: `AuthorizationTests`, `BrandScopeTests`.<br>That is deliberate: it proves that the BFF works without the Identity database, as the gateway will (9.2, "BFF independence"). None of these behaviours reads the database. |
+| 3 | A cookie issued by one host instance works on another (#22). | **met** | `SignInTests.Two_host_instances_on_one_database_accept_each_others_cookies` (PostgreSQL 17, key ring in `iam.data_protection_keys`). |
+| 4 | The database role and warehouse checks use the session GUCs. No module's SQL reads `iam` except Identity and Reporting, as MODULE_MAPPING allows. The 97 SQL assertions are green on the EF-built database. | **met** | `SessionContextTests.The_claims_of_the_request_become_the_session_context` (cookie and internal token); T03 "DB-level RBAC reads the session roles" (#11). New in PR 3e, T03 "Only Identity and Reporting SQL reads iam": no function outside `iam` names it. The only views on it are Reporting's `audit.v_audit_log_masked` and two TRANSITIONAL views, `procurement.v_purchase_order_overview` and `forecast.v_recommendation_explained` (replaced in stages 7 and 8, #13, #14). The suite now has **103** assertions (97, plus 5 in PR 3c and 1 in PR 3e), green in job "Integration tests" (`tools/verify_database.sh`). |
+| 5 | Identity has a real domain model, and its persistence classes are gone (ADR 0013). | **met** | `src/Modules/Identity/SmartSpare.Modules.Identity/Domain` (`AppUser`, `UserName`, `EmailAddress`, `LockoutPolicy`, …), mapped directly by EF Core. Unit tests in `SmartSpare.Modules.Identity.UnitTests`, mapping in `AppUserMappingTests`, plus `ModuleBoundaryTests.Domain_DoesNotDependOnEfCoreOrAspNetCore`. #38 was closed by PR 3a (#70). |
+| 6 | bUnit tests and one Playwright smoke test are green in CI. | **met** | `tests/SmartSpare.Web.Tests` (22 bUnit tests, job "Build and test"); `SignInSmokeTest` (job "End-to-end smoke test"). |
+| 7 | Issues #7, #11, #22, #33 and #38 are closed. Follow-ups are tracked: #46 (user administration), #47 (second UI culture), #48 (forwarded headers behind the platform's ingress, stage 4), #49 (distributed rate limiting), #50 (MFA for privileged roles), #51 (security event log), #53 (database-level brand check). | **met** | Closed: #7, #11, #22, #33 and #38, plus #60, #69 and #71; PR 3e closes #72. #46–#51 and #53 are open. New during the stage: #75 (Docker clock steps make the SQL suite flaky locally). |
 
 ---
 

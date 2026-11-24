@@ -2,6 +2,7 @@
 
 - Status: Accepted, amended by [ADR 0016](0016-authentication-behind-the-gateway.md) (2026-11-24)
 - Date: 2026-11-24
+- Implementation: done in stage 3, release v0.3.0 (server side PR 3b, WASM client and sign-in page PR 3d, browser smoke test PR 3e; [STAGE_3_PLAN.md](../stage-3/STAGE_3_PLAN.md), section 10)
 
 ## Context
 

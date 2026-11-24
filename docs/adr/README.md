@@ -15,9 +15,9 @@
 | [0011](0011-database-ownership-per-module.md) | Database ownership per module | Accepted |
 | [0012](0012-evolvability-principles.md) | Evolvability principles | Accepted, amended by 0019 |
 | [0013](0013-domain-model-and-persistence.md) | Domain model and persistence | Accepted |
-| [0014](0014-browser-sign-in-through-bff-endpoints.md) | Browser sign-in through BFF endpoints | Accepted, amended by 0016 |
+| [0014](0014-browser-sign-in-through-bff-endpoints.md) | Browser sign-in through BFF endpoints | Accepted, amended by 0016; implemented in stage 3 |
 | [0015](0015-deployment-topology-microservices-behind-yarp-gateway.md) | Deployment topology: microservices behind a YARP gateway | Accepted |
-| [0016](0016-authentication-behind-the-gateway.md) | Authentication behind the gateway | Accepted |
+| [0016](0016-authentication-behind-the-gateway.md) | Authentication behind the gateway | Accepted; single-host part implemented in stage 3 |
 | [0017](0017-rabbitmq-integration-event-transport.md) | RabbitMQ as the integration-event transport | Accepted |
 | [0018](0018-observability-with-the-grafana-stack.md) | Observability with the Grafana stack | Accepted |
 | [0019](0019-public-api-documentation.md) | Public API documentation | Accepted |

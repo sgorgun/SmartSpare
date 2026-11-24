@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-11-24
+- Implementation: single-host part done in stage 3, release v0.3.0 (PRs 3b–3c: credential verifier, policy scheme, internal tokens, session context, shared key ring); gateway and services in stage 4 (#67)
 - Amends: [ADR 0014](0014-browser-sign-in-through-bff-endpoints.md)
 
 ## Context

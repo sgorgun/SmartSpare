@@ -1,6 +1,6 @@
 # SmartSpare — Architecture Decisions
 
-Status: **approved** (16 November 2026). **Amended** 24 November 2026 by the topology decisions D1–D4 of the product owner (ADRs 0015–0019).
+Status: **approved** (16 November 2026). **Amended** 24 November 2026 by the topology decisions D1–D4 of the product owner (ADRs 0015–0019). Stages 1–3 are implemented (release v0.3.0, 25 November 2026; see the [CHANGELOG](../../CHANGELOG.md)).
 
 This is the architecture of SmartSpare. It superseded the database-stage architecture note, which was removed (it remains in the Git history). Individual decisions are recorded as ADRs in [`docs/adr/`](../adr/README.md).
 
@@ -31,8 +31,8 @@ Business code is identical in both. Only the composition roots differ.
 | 15 | Repository language | English only | [0010](../adr/0010-english-only-repository.md) |
 | 16 | Evolvability | Abstractions only at seams to volatile technology; stable contracts (Contracts, versioned HTTP API, events); claims-based authorization | [0012](../adr/0012-evolvability-principles.md) |
 | 17 | Domain model and persistence | Aggregates in `Domain/` mapped directly by EF Core; stage 2 table mirrors removed per module stage; no generic repository | [0013](../adr/0013-domain-model-and-persistence.md) |
-| 18 | Browser sign-in | WASM sign-in page posts to `/bff` endpoints; ASP.NET Core Identity with custom stores over `iam`; antiforgery on every unsafe request. Implemented in stage 3 (server side PR 3b, WASM client and sign-in page PR 3d) | [0014](../adr/0014-browser-sign-in-through-bff-endpoints.md) |
-| 19 | Authentication behind the gateway | The BFF issues the cookie after the Identity module checks credentials; services receive a 2-minute ES256 internal token; one principal in both topologies. Single-host part implemented (stage 3, PRs 3b–3c: internal tokens, policy scheme, session context, shared key ring in `iam.data_protection_keys`); gateway and services in stage 4 | [0016](../adr/0016-authentication-behind-the-gateway.md) |
+| 18 | Browser sign-in | WASM sign-in page posts to `/bff` endpoints; ASP.NET Core Identity with custom stores over `iam`; antiforgery on every unsafe request. **Implemented** in stage 3, v0.3.0 (server side PR 3b, WASM client and sign-in page PR 3d, browser smoke test PR 3e) | [0014](../adr/0014-browser-sign-in-through-bff-endpoints.md) |
+| 19 | Authentication behind the gateway | The BFF issues the cookie after the Identity module checks credentials; services receive a 2-minute ES256 internal token; one principal in both topologies. Single-host part **implemented** in stage 3, v0.3.0 (PRs 3b–3c: internal tokens, policy scheme, session context, shared key ring in `iam.data_protection_keys`); gateway and services in stage 4 | [0016](../adr/0016-authentication-behind-the-gateway.md) |
 | 20 | API documentation | OpenAPI per service + Scalar UI, published without sign-in; endpoints still require authorization | [0019](../adr/0019-public-api-documentation.md) |
 
 ## 1. Architectural style
@@ -164,7 +164,7 @@ The frontend is **Blazor WebAssembly with MudBlazor**, as stated in the topic ap
   - in development, `SmartSpare.Host`.
 
   Both use the same `SmartSpare.Bff` building block ([ADR 0015](../adr/0015-deployment-topology-microservices-behind-yarp-gateway.md), [ADR 0016](../adr/0016-authentication-behind-the-gateway.md)). The frontend is the same in both topologies.
-- **Sign-in flow** — the MudBlazor sign-in page posts JSON to `/bff/login`. The BFF asks the Identity module (`ICredentialVerifier`, custom Identity stores over `iam`) to check the credentials, then issues the cookie ([ADR 0014](../adr/0014-browser-sign-in-through-bff-endpoints.md), [ADR 0016](../adr/0016-authentication-behind-the-gateway.md); plan in [STAGE_3_PLAN.md](../stage-3/STAGE_3_PLAN.md)).
+- **Sign-in flow** — the MudBlazor sign-in page posts JSON to `/bff/login`. The BFF asks the Identity module (`ICredentialVerifier`, custom Identity stores over `iam`) to check the credentials, then issues the cookie ([ADR 0014](../adr/0014-browser-sign-in-through-bff-endpoints.md), [ADR 0016](../adr/0016-authentication-behind-the-gateway.md); plan in [STAGE_3_PLAN.md](../stage-3/STAGE_3_PLAN.md)). Implemented in stage 3 and covered end to end by a Playwright test in Chromium (`tests/SmartSpare.E2E`).
 - **Structure per module** — `Features/Fleet`, `Features/Inventory`, `Features/Procurement`, `Features/Forecasting`, `Features/Identity`: pages, components and a typed HTTP client per module.
 - **`SmartSpare.ApiContracts`** — shared DTOs of the public HTTP API and FluentValidation validators, the same for the form and the server. The frontend never references the modules' internal `*.Contracts`.
 - **API documentation** — OpenAPI per module and a Scalar UI at `/scalar`, published without sign-in ([ADR 0019](../adr/0019-public-api-documentation.md)).
@@ -181,7 +181,7 @@ The frontend is **Blazor WebAssembly with MudBlazor**, as stated in the topic ap
 
 Security is layered: browser → BFF → services → database, and each layer checks permissions on its own.
 
-- **Authentication** ([ADR 0016](../adr/0016-authentication-behind-the-gateway.md)):
+- **Authentication** ([ADR 0016](../adr/0016-authentication-behind-the-gateway.md); the single-host part is implemented since stage 3, the gateway part follows in stage 4):
   - an HttpOnly, SameSite=Strict cookie between the browser and the BFF;
   - between the gateway and the services, a 2-minute ES256 internal token. Only the gateway holds the private key; services hold only the public key.
   - The browser never holds a token. Services are reachable only through internal ingress.
@@ -243,7 +243,7 @@ Every host emits OpenTelemetry logs, metrics and traces over OTLP ([ADR 0018](..
 
 - **Locally:** the Aspire dashboard.
 - **Production:** the apps export OTLP directly to Grafana Cloud Free: Prometheus-compatible metrics, Loki and Tempo. Grafana shows provisioned dashboards (ASP.NET Core, per-service RED metrics, messaging, business KPIs, free-tier usage) and sends alerts to Telegram and e-mail. Locally, `--topology services` runs the same stack self-hosted (Collector, Prometheus, Loki, Tempo, Grafana).
-- **Correlation:** the W3C trace id is the correlation id. It is propagated through HTTP and RabbitMQ, written to every log record and returned in every ProblemDetails (#60).
+- **Correlation:** the W3C trace id is the correlation id. It is propagated through HTTP and RabbitMQ, written to every log record and returned in every ProblemDetails (#60). The web client shows it as "Reference" in every error message, and the trace includes the request's database commands; [TRACING.md](../operations/TRACING.md) walks from a reference to its trace (#72).
 - **Retention:** 14 days in Grafana Cloud Free; limits of 10k active series and 50 GB of logs and of traces per month (ADR 0018 §5).
 
 ## 11. Testing and quality
@@ -255,7 +255,7 @@ Tests follow the pyramid and run in CI on every pull request.
 | Unit | xUnit + Shouldly/AwesomeAssertions | Domain: states, invariants, calculations |
 | Integration | Testcontainers (real PostgreSQL 17) + WebApplicationFactory on the single host | Endpoints, migrations, triggers, Outbox, cookie and internal-token authentication |
 | Topology | Testcontainers (PostgreSQL, RabbitMQ) + gateway and two services | Routing through the gateway, `/internal` never routed (route-table test), internal token, an event round trip over RabbitMQ |
-| Database | 102 SQL assertions + concurrency test | Stock, locking, permissions, audit, session context |
+| Database | 103 SQL assertions + concurrency test | Stock, locking, permissions, audit, session context, schema boundaries |
 | Architecture | NetArchTest | Module and layer boundaries, no topology concerns in modules |
 | UI components | bUnit | Forms, validation, status display |
 | End-to-end | Playwright | UC01, UC02 on desktop and tablet |
@@ -319,7 +319,7 @@ Work is done on the developer machine (.NET 10 SDK + Docker), where the code can
 
 1. **Skeleton.** Solution, `Directory.*.props`, BuildingBlocks, host, Aspire, empty modules, architecture tests, CI build.
 2. **Data layer.** DbContexts and Fluent configurations for all modules, initial migrations with SQL parts from V001–V016, Outbox/Inbox. Check: schema matches the current one, 97 SQL tests green.
-3. **Identity and BFF.** Cookie sign-in, roles, policies, internal-token validation (ADR 0016); Blazor client skeleton with MudBlazor and the sign-in page.
+3. **Identity and BFF.** Cookie sign-in, roles, policies, internal-token validation (ADR 0016); Blazor client skeleton with MudBlazor and the sign-in page. **Done:** v0.3.0, PRs 3a–3e ([STAGE_3_PLAN.md](../stage-3/STAGE_3_PLAN.md), section 10).
 4. **Topology.** Service hosts, YARP gateway, RabbitMQ transport, Grafana stack, per-service CI/CD, first deployment of the walking skeleton to a dev Container Apps environment (ADRs 0015–0019). Forwarded headers behind the platform's ingress (#48) are part of this stage, because the first deployment depends on them. Plan: #67.
 5. **Inventory.** Stock, movements, reservations, transfers, file import + screens.
 6. **Fleet.** Machines, engine hours, service orders (UC02) + mobile card.
