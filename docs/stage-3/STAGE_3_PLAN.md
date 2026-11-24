@@ -26,7 +26,7 @@ Every technical choice below was checked against the official documentation for 
 | S12 | Identity aggregates move into `Domain/`, and the Identity classes in `PersistenceModel.cs` are deleted (ADR 0013, #38). | 7 |
 | S13 | New `SmartSpare.Web.Client` (Blazor WASM, MudBlazor **9.12.0**), hosted by `SmartSpare.Host` (and by the gateway from stage 4). Typed HTTP clients per module. `IStringLocalizer` with en-US only in this stage. | 8 |
 | S14 | Module implementation projects may reference `SmartSpare.ApiContracts`, the public HTTP contract. Role, claim and policy names live there, so host and client share one definition. | 8.4, ADR 0014 |
-| S15 | **One principal in both topologies.** The default scheme is the policy scheme `SmartSpare`: an internal ES256 bearer token goes to JwtBearer, anything else to the cookie. Module endpoints never name a scheme. The internal-token issuer is part of `SmartSpare.Bff`, and integration tests call module endpoints with the cookie and with an internal token. | 1.6, ADR 0016 |
+| S15 | **One principal in both topologies.** In the single host the default scheme is the policy scheme `SmartSpare` (services: JwtBearer only; gateway: cookie only, ADR 0016 §4): an internal ES256 bearer token goes to JwtBearer, anything else to the cookie. Module endpoints never name a scheme. The internal-token issuer is part of `SmartSpare.Bff`, and integration tests call module endpoints with the cookie and with an internal token. | 1.6, ADR 0016 |
 
 ---
 
@@ -102,7 +102,7 @@ PR 3b builds the sign-in so that stage 4 only has to add a gateway host and HTTP
 | Credential and session checks | `ICredentialVerifier`, in-process implementation in the Identity module | HTTP client to `POST /internal/v1/identity/credential-checks` and `/session-checks`, policy `GatewayOnly` |
 | Internal token | `InternalTokenIssuer` in `SmartSpare.Bff`: `JsonWebTokenHandler`, ES256, `iss=smartspare-gateway`, `aud=smartspare-internal`, the claims of 3.1 plus `sid` and `jti`, 2-minute lifetime. Key from user-secrets | Used by the YARP request transform for every proxied `/api/*` call. Key from Key Vault |
 | Token validation | JwtBearer scheme with the public JWKS, `ValidAlgorithms = [ES256]`, issuer, audience, lifetime, 30 s clock skew | The same registration in every service host (JwtBearer only) |
-| Default scheme | Policy scheme `SmartSpare`: `Authorization: Bearer` → JwtBearer, otherwise → cookie | Services register JwtBearer only |
+| Default scheme | Policy scheme `SmartSpare`: `Authorization: Bearer` → JwtBearer, otherwise → cookie (single host only) | Services register JwtBearer only. The gateway registers the cookie only and accepts no bearer token from outside (ADR 0016 §4) |
 
 Rules carried into the code from 3b on:
 - Module endpoints and policies never name an authentication scheme.

@@ -48,6 +48,6 @@ Option 4.
 - The `/bff` endpoints move into a BFF building block shared by the single host and the gateway.
 - Credentials are checked by the Identity module through `ICredentialVerifier`, in-process or through the Identity service's internal endpoint.
 - The gateway forwards the user to services as a 2-minute ES256 internal token, validated with JwtBearer.
-- Module endpoints accept the cookie or the internal token through one policy scheme.
+- In the single host, module endpoints accept the cookie or the internal token through one policy scheme. Services accept only the internal token, and the gateway accepts only the cookie.
 
 Everything this ADR says about the browser still holds: cookie flags, antiforgery, full reload, `iam` custom stores, lockout and stamp validation.
