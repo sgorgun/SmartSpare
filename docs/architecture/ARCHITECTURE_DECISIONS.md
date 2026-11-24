@@ -197,7 +197,7 @@ Tests follow the pyramid and run in CI on every pull request.
 | UI components | bUnit | Forms, validation, status display |
 | End-to-end | Playwright | UC01, UC02 on desktop and tablet |
 
-Code quality: `Directory.Build.props` with nullable and `TreatWarningsAsErrors`, .NET analyzers, `.editorconfig`, Central Package Management (`Directory.Packages.props`), coverage reported in CI. Decisions are recorded as ADRs in `docs/adr/`. All repository content — code, comments, docs and commit messages — is in English.
+Code quality: `Directory.Build.props` with nullable and `TreatWarningsAsErrors`, .NET analyzers, `.editorconfig`, Central Package Management (`Directory.Packages.props`), coverage collected in CI (report and gate: #63). Decisions are recorded as ADRs in `docs/adr/`. How the backend grading rubric is met, and what is still open, is tracked in [BACKEND_REQUIREMENTS.md](BACKEND_REQUIREMENTS.md). All repository content — code, comments, docs and commit messages — is in English.
 
 ## 11. Solution structure
 

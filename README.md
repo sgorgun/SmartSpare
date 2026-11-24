@@ -6,6 +6,7 @@ Stack: ASP.NET Core 10 · Blazor WebAssembly + MudBlazor · EF Core 10 + Npgsql 
 
 Architecture: a microservice-ready **modular monolith** — start with
 [ARCHITECTURE_DECISIONS.md](docs/architecture/ARCHITECTURE_DECISIONS.md) and the [ADRs](docs/adr/README.md).
+Compliance with the backend grading rubric: [BACKEND_REQUIREMENTS.md](docs/architecture/BACKEND_REQUIREMENTS.md).
 
 ## Quick start (application)
 
@@ -72,6 +73,7 @@ db/
   ddl/smartspare_schema.sql             complete DDL of the EF-built database (generated)
 docs/
   architecture/ARCHITECTURE_DECISIONS.md approved architecture (start here)
+  architecture/BACKEND_REQUIREMENTS.md  backend rubric compliance matrix (done / planned / gap)
   architecture/diagrams/                solution architecture diagram
   adr/                                  architecture decision records
   database/DATABASE_DESIGN.md           database design + requirements compliance matrix
