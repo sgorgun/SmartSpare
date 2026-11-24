@@ -15,6 +15,6 @@
 | [0011](0011-database-ownership-per-module.md) | Database ownership per module | Accepted |
 | [0012](0012-evolvability-principles.md) | Evolvability principles | Accepted |
 | [0013](0013-domain-model-and-persistence.md) | Domain model and persistence | Accepted |
-| [0014](0014-browser-sign-in-through-bff-endpoints.md) | Browser sign-in through BFF endpoints | Proposed |
+| [0014](0014-browser-sign-in-through-bff-endpoints.md) | Browser sign-in through BFF endpoints | Accepted |
 
 New ADRs use the next free number and the same Context / Decision / Consequences format.
