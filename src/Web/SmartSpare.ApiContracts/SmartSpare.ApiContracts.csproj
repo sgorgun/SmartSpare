@@ -1,8 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    Public HTTP API DTOs and FluentValidation validators shared by the host and the Blazor client
-    (ADR 0006). Must never reference module projects. Empty until the first screens (stage 3).
+    Public HTTP contract shared by the host, the modules and the Blazor client (ADR 0006, ADR 0014):
+    DTOs, FluentValidation validators, and the role, claim, policy and problem-code names.
+    Must never reference module projects, and depends only on FluentValidation and
+    Microsoft.AspNetCore.Authorization (architecture test), so it also runs in WebAssembly.
   -->
+
+  <ItemGroup>
+    <PackageReference Include="FluentValidation" />
+    <PackageReference Include="Microsoft.AspNetCore.Authorization" />
+  </ItemGroup>
 
 </Project>
