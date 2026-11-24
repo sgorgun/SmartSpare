@@ -140,7 +140,7 @@ services.AddScoped<IUserConfirmation<AppUser>, ActiveUserConfirmation>();
 | Identity concept | `iam` column | Notes |
 |---|---|---|
 | `Id` | `id uuid` | |
-| `UserName` / normalized name | `user_name citext` | `FindByNameAsync(normalized)` compares on `citext`, which is case-insensitive, so no normalized column is needed. The CHECK keeps stored names lower-case. A `LowerInvariantLookupNormalizer` makes the normalized value equal to the stored one. |
+| `UserName` / normalized name | `user_name citext` | `FindByNameAsync(normalized)` compares on `citext`, which is case-insensitive, so no normalized column is needed. The CHECK's regular expression is case-insensitive on `citext`, so stored names may contain upper-case letters (verified by the 3a parity tests); lookups compare case-insensitively anyway. A `LowerInvariantLookupNormalizer` makes the normalized value equal to the stored one. |
 | Email | `email citext` | Not used for sign-in in stage 3 (`IUserEmailStore` not implemented). |
 | `PasswordHash` | `password_hash text` | V3 format, protected by `ck_app_user_password_hash_format`. |
 | `SecurityStamp` | `security_stamp uuid` | See 2.5. |
@@ -163,7 +163,7 @@ Sign-in writes run in a transaction where `app.user_id` is the **user who is sig
 - **Work factor (PR 3a).** 100,000 is below the current OWASP recommendation for PBKDF2-HMAC-SHA512, which is **220,000 iterations** ([OWASP Password Storage Cheat Sheet, "PBKDF2"](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#pbkdf2)). PR 3a sets `Configure<PasswordHasherOptions>(o => o.IterationCount = 220_000)`, in one place shared by the host and `set-demo-passwords`. New hashes then start with `AQAAAAIAA1tg`. Existing hashes keep working: `VerifyHashedPassword` reads the algorithm and iteration count from the hash itself. When the stored count is lower than the configured one, it returns `PasswordVerificationResult.SuccessRehashNeeded`, so `UserManager` rehashes on the next successful sign-in. That write uses the `password_hash` grant and rotates the stamp. This is the OWASP approach of upgrading the work factor "when the user next authenticates".
 - The T03 SQL assertion changes from the literal prefix `AQAAAAIAAYag` to "V3, HMAC-SHA512, iteration count ≥ 220,000", decoded from the first 13 bytes of the hash. DATABASE_DESIGN §8.4 and the compliance matrix (100,000 iterations) are updated in the same PR.
 - An integration test pins compatibility: a user seeded with a 100,000-iteration hash signs in, and the stored hash is then a 220,000-iteration hash. A unit test checks that `PasswordHasher<AppUser>` output decodes to V3 / SHA512 / 220,000.
-- **#7:** T001 no longer contains literal hashes. A new `MigrationRunner set-demo-passwords` command reads `SMARTSPARE_DEMO_USER_PASSWORD`, hashes it with `PasswordHasher` and updates the demo users (by the fixed ids of T001) as `smartspare_migrator`. `db/scripts/load_testdata.sh` calls it after loading T001. `.env.example` gets a placeholder, and the README states that any password works for the demo users.
+- **#7:** T001 no longer contains literal hashes. Because `ck_app_user_active_has_password` requires a hash for active users, T001 stores a random placeholder per user: a valid V3 header (marker `0x01`, HMAC-SHA512, 220,000 iterations, salt length 16) with random salt and subkey from `pgcrypto`, so the format CHECK and the header test pass on plain T001 but no password verifies. A new `MigrationRunner set-demo-passwords` command reads `SMARTSPARE_DEMO_USER_PASSWORD`, hashes it with the shared `PasswordHasherOptions` and updates the demo users (by the fixed ids of T001) as `smartspare_migrator`. `db/scripts/load_testdata.sh` runs T001 and then the command; `tools/verify_database.sh` runs T001 with the container's psql and the command from the host with a throw-away password. `.env.example` gets a placeholder, and the README states that any password works for the demo users.
 - **#33:** the AppHost gets a resource command "Load demo data" on the database resource (`WithCommand`). It runs T001 and `set-demo-passwords` with the connection and parameters Aspire already holds, so nothing has to be copied from the dashboard.
 
 ### 2.4 Lockout
@@ -330,7 +330,8 @@ Five named requirements are registered next to the policies of 3.2. Each one's u
 | `UserName`, `EmailAddress` | value objects | Validation equal to `ck_app_user_user_name` / `ck_app_user_email`. |
 
 - EF configurations in `Infrastructure/Persistence/Configurations` map these directly: private constructors, backing fields for the collections, value converters for the value objects, and `xmin` concurrency on `AppUser`. The Identity classes in `PersistenceModel.cs` (`AppUser`, `Role`, `UserBrand`, `UserRole`) are deleted. `RefBrand` stays as the read-only FK principal.
-- `MigrationRunner check-model` must report **no pending changes** for `IdentityDbContext` after the remap (PR 3a). The only Identity schema changes in stage 3 are deliberate migrations in PR 3c: the `data_protection_keys` table (section 5) and the SQL for #11 (section 6).
+- The remap itself must not change the model: apart from `xmin`, `MigrationRunner check-model` reports no pending changes. Mapping `xmin` needs **one schema-free migration** (`AddAppUserXminConcurrency`): Npgsql emits no DDL for the system column, so up and down only touch the migrations history. The only Identity schema changes in stage 3 are deliberate migrations in PR 3c: the `data_protection_keys` table (section 5) and the SQL for #11 (section 6).
+- **Rule for later aggregates (stages 5–9):** mapping `xmin` as the concurrency token of an aggregate is always a schema-free migration of the same kind, reviewed with its generated SQL (history insert only).
 - Only stage 3 needs `UserDeactivated` as a domain event. Publishing it as an integration event waits for a consumer (#46).
 
 ---
@@ -484,7 +485,7 @@ Each PR is merged with a green build (`-warnaserror`), all tests, `dotnet format
 Scope: section 7 (aggregates, configurations, delete the persistence classes). `MigrationRunner set-demo-passwords` and the T001/`.env.example` change (2.3). AppHost "Load demo data" command.
 
 Acceptance:
-- `check-model` reports no pending changes (no migration in this PR).
+- One schema-free migration, `AddAppUserXminConcurrency`, for the `xmin` concurrency token; its generated SQL is only the migrations-history insert, `tools/schema_diff.sh` shows no schema change, and `check-model` reports no further pending changes.
 - `verify_database.sh` green, including the T03 hash-format assertion (now: V3, SHA512, ≥ 220,000 iterations).
 - `PasswordHasherOptions.IterationCount = 220_000`. Old hashes are rehashed on sign-in (2.3).
 - Unit tests 9.1 for the aggregate and the value objects.

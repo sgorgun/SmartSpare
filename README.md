@@ -92,13 +92,12 @@ The database is built by the **EF Core migrations of each module** (ADR 0004, AD
 grants and seed data are SQL parts of those migrations in `db/sql/`. There are two local ways to get one.
 
 **With the AppHost** (nothing else to configure): `dotnet run --project src/SmartSpare.AppHost` builds the database on
-start. The PostgreSQL port is shown in the Aspire dashboard (`postgres` resource), the generated login passwords are in
-the AppHost user secrets:
-
-```bash
-dotnet user-secrets list --project src/SmartSpare.AppHost     # Parameters:migrator-password, ...
-PGPORT=<port from the dashboard> SMARTSPARE_MIGRATOR_PASSWORD=<migrator-password> db/scripts/load_testdata.sh
-```
+start. To load the demo data, run the command **Load demo data** on the `postgres` resource in the Aspire dashboard
+(resource menu "..."). It runs T001 with the container's `psql` and then `MigrationRunner set-demo-passwords`, using the
+connection and the generated passwords Aspire already holds, so nothing is copied from the dashboard. The demo users'
+password is the AppHost parameter `demo-user-password` (shown under Parameters in the dashboard; choose your own with
+`dotnet user-secrets set Parameters:demo-user-password <value> --project src/SmartSpare.AppHost`). The command loads
+into a freshly migrated database; to reload, remove the `smartspare-postgres17-data` volume and start again.
 
 **With docker compose and `.env`** (fixed port 5432, needed by the SQL suite and the doc generators):
 
@@ -106,7 +105,7 @@ PGPORT=<port from the dashboard> SMARTSPARE_MIGRATOR_PASSWORD=<migrator-password
 cp .env.example .env                              # then set your own passwords in .env
 docker compose up -d                              # PostgreSQL 17 on localhost:5432
 db/scripts/reset_local.sh                         # drop + MigrationRunner: bootstrap + all EF migrations
-db/scripts/load_testdata.sh                       # synthetic demo dataset (2,000 SKUs, ~30 s)
+db/scripts/load_testdata.sh                       # demo dataset T001 (2,000 SKUs, ~30 s) + demo-user passwords
 db/tests/run_tests.sh                             # SQL test suite (97 assertions)
 db/tests/concurrency_test.sh                      # row-lock test (NFR03)
 ```
@@ -116,7 +115,7 @@ set your own passwords there; `docker compose`, the `db/` scripts and the `tools
 The scripts need `psql` (PostgreSQL 17 client) on `PATH`; `tools/verify_database.sh` needs only Docker, because it runs
 psql inside its own container.
 
-On Windows run the `.sh` scripts in Git Bash or WSL. Demo users (synthetic) such as `tomas.radzevicius` (brand manager) or `mantas.petrauskas` (service engineer) log in with the demo password, see `.env.example`.
+On Windows run the `.sh` scripts in Git Bash or WSL. Demo users (synthetic) such as `tomas.radzevicius` (brand manager) or `mantas.petrauskas` (service engineer) log in with the password you choose as `SMARTSPARE_DEMO_USER_PASSWORD` in `.env` (any value). No password or hash is stored in Git: T001 writes random placeholder hashes, and `load_testdata.sh` then runs `MigrationRunner set-demo-passwords`, which hashes your password with the application's settings (PBKDF2-HMAC-SHA512, 220,000 iterations).
 
 ## Diagrams
 

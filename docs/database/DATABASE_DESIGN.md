@@ -26,7 +26,7 @@ The database is submitted in the **Transactional databases (OLTP)** category. Ev
 | Structure created by scripts/migrations, not manually; in Git | `db/bootstrap` (roles, database) + EF Core migrations per module with SQL parts in `db/sql/`, applied by `SmartSpare.MigrationRunner` locally and in CI and by EF migration bundles on Azure (§9) |
 | Test data incl. edge cases; scripts for reference tables | Reference data: seed parts of the migrations ([`db/sql/platform/seed_ref.sql`](../../db/sql/platform/seed_ref.sql), [`identity/seed_roles.sql`](../../db/sql/identity/seed_roles.sql), [`inventory/seed_warehouses.sql`](../../db/sql/inventory/seed_warehouses.sql)). Test data: [`db/testdata/T001__demo_dataset.sql`](../../db/testdata/T001__demo_dataset.sql) (deterministic, ~200k ledger rows, invalid/duplicate import rows). Tests: 97 assertions + concurrency test, run in CI on the EF-built database (§10) |
 | Roles app_read, app_write, admin; app not superuser; permissions checked for new objects | Roles `app_read`, `app_write`, `app_ml`, `app_audit`, `app_admin` + 4 login roles; none is superuser; default privileges + automatic self-check view `util.v_privilege_findings` run by the tests (§8) |
-| Passwords only hashed, no outdated methods | Application users: ASP.NET Core Identity V3 (PBKDF2-HMAC-SHA512, 100,000 iterations, 128-bit salt), format enforced by a CHECK that rejects plain text, MD5 and SHA digests. DB logins: SCRAM-SHA-256 (§8.4) |
+| Passwords only hashed, no outdated methods | Application users: ASP.NET Core Identity V3 (PBKDF2-HMAC-SHA512, 220,000 iterations — the OWASP value — 128-bit salt; older 100,000-iteration hashes are rehashed at sign-in), format enforced by a CHECK that rejects plain text, MD5 and SHA digests. DB logins: SCRAM-SHA-256 (§8.4) |
 | Integrity via constraints and transactions | §5, §6 |
 | Restrictions: no plain-text passwords, no CSV-only storage, no unstructured JSON without a model, no ignored integrity | Satisfied; the only two `jsonb` columns are justified, typed by CHECK (`jsonb_typeof = 'object'`) and documented (§4.4) |
 
@@ -81,7 +81,7 @@ Statistics (EF-built database, all migrations of stage 2): 12 schemas · 51 busi
 | Where | What |
 |---|---|
 | `src/BuildingBlocks/SmartSpare.Infrastructure/Persistence/` | Shared plumbing: unit of work (`IUnitOfWork<TContext>`, `EfUnitOfWork`, writes the outbox in the same `SaveChanges`), session context (`SessionContextInterceptor` sets `app.user_id` and friends per transaction), error mapping (`DatabaseErrorMapper`, SQLSTATE SS1xx–SS4xx → ProblemDetails), SQL resource helper (`SqlResourceMigrationExtensions`, applies the embedded `db/sql` files from a migration), `IModuleDatabase` and the Npgsql/EF registration, and the Platform context (`Platform/PlatformDbContext`: `ref`, `util`, `audit`) |
-| `src/Modules/<Module>/…/Infrastructure/Persistence/` | Owned by each module: its `DbContext`, `Configurations/` (Fluent API per table), `Migrations/` (history in `<schema>.__ef_migrations_history`) and, until its module stage, the stage 2 table mirrors in `PersistenceModel.cs` |
+| `src/Modules/<Module>/…/Infrastructure/Persistence/` | Owned by each module: its `DbContext`, `Configurations/` (Fluent API per table), `Migrations/` (history in `<schema>.__ef_migrations_history`) and, until its module stage, the stage 2 table mirrors in `PersistenceModel.cs` (Identity maps its domain aggregates directly since stage 3, ADR 0013) |
 | `db/sql/<module>/` | The SQL parts of that module's migrations: triggers, functions, views, partitions, grants, seed data (ADR 0004) |
 | `src/Bootstrapper/SmartSpare.MigrationRunner`, `SmartSpare.ModuleCatalog` | The catalogue lists every module database in migration order (shared with the host); the runner bootstraps the server and applies the migrations locally and in CI, and runs `check-model` |
 
@@ -350,7 +350,7 @@ The API sets `app.user_id` (and optionally `app.reason`) **transaction-locally**
 
 ### 8.4 Passwords and secrets
 
-* Application users: ASP.NET Core Identity `PasswordHasher` V3 — PBKDF2 with HMAC-SHA512, 128-bit salt, 256-bit subkey, 100,000 iterations. A CHECK accepts only this format, so plain text, MD5 or SHA digests cannot be stored even by mistake. The demo users' hashes are genuine V3 hashes.
+* Application users: ASP.NET Core Identity `PasswordHasher` V3 — PBKDF2 with HMAC-SHA512, 128-bit salt, 256-bit subkey, 220,000 iterations (OWASP; `IdentityModuleInstaller.ConfigurePasswordHasher` is the one configuration, also used for the demo users). Hashes with fewer iterations keep verifying and are rehashed at the next sign-in. A CHECK accepts only this format, so plain text, MD5 or SHA digests cannot be stored even by mistake. The demo users' hashes are genuine V3 hashes.
 * Database logins: `password_encryption = scram-sha-256`; passwords are passed to the bootstrap script as variables and never committed; in Azure they come from Key Vault.
 * Pseudonymisation key (`app.pseudonym_key`) is supplied per session from Key Vault, never stored in the database.
 
@@ -433,7 +433,7 @@ or, with a fixed port and the passwords in `.env` (needed by the SQL suite and t
 cp .env.example .env                       # local passwords (gitignored), see .env.example
 docker compose up -d                       # PostgreSQL 17 on localhost:5432
 db/scripts/reset_local.sh                  # drop + MigrationRunner: bootstrap roles + database, all EF migrations
-db/scripts/load_testdata.sh                # T001 demo dataset, 2,000 SKUs (~30 s); argument 20000 for load tests
+db/scripts/load_testdata.sh                # T001 demo dataset, 2,000 SKUs (~30 s), then set-demo-passwords; argument 20000 for load tests
 db/tests/run_tests.sh                      # SQL test suite as the local superuser
 db/tests/concurrency_test.sh               # row-lock test (NFR03)
 tools/export_ddl.sh && python3 tools/generate_db_docs.py && python3 tools/generate_editable_diagrams.py   # regenerate DDL, dictionary, diagrams (PNG/SVG, draw.io, DBML)
