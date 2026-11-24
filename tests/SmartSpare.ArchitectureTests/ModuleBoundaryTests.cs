@@ -122,6 +122,21 @@ public sealed class ModuleBoundaryTests
     }
 
     [Fact]
+    public void WebClient_ReferencesOnlyApiContracts()
+    {
+        // The browser gets the public HTTP contract only (ADR 0006, STAGE_3_PLAN 8.2): no module, no building block.
+        Solution.ProjectReferences("SmartSpare.Web.Client").ShouldBe(["SmartSpare.ApiContracts"]);
+        Solution.SmartSpareReferences(Solution.WebClient).ShouldAllBe(r => r == "SmartSpare.ApiContracts");
+        Solution.PackageReferences("SmartSpare.Web.Client")
+            .ShouldNotContain(p => p.StartsWith("Microsoft.EntityFrameworkCore", StringComparison.Ordinal) || p.StartsWith("Npgsql", StringComparison.Ordinal));
+
+        var result = Selection.Of(Solution.WebClient)
+            .ShouldNot().HaveDependencyOnAny("SmartSpare.Modules", "SmartSpare.Infrastructure", "SmartSpare.Bff", "SmartSpare.SharedKernel")
+            .GetResult();
+        result.IsSuccessful.ShouldBeTrue(Describe(result));
+    }
+
+    [Fact]
     public void ApiContracts_DependsOnlyOnFluentValidationAndAuthorization()
     {
         // It is shared with the WebAssembly client: no ASP.NET Core framework, no EF Core, nothing of the server.
