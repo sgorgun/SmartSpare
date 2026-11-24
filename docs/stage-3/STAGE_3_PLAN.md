@@ -19,7 +19,7 @@ Every technical choice below was checked against the official documentation for 
 | S5 | **`AddIdentityCore<AppUser>` with custom stores** over the existing `iam` tables. `AppUser` is the domain aggregate from `Domain/`, not an `IdentityUser`. No schema changes for Identity itself. | 2 |
 | S6 | Seeded V3 hashes (PBKDF2-HMAC-SHA512, 100,000 iterations) verify unchanged. The demo password comes from `.env` at load time (#7). | 2.3 |
 | S7 | Security stamp checked every 5 minutes. Lockout after 5 failures for 15 minutes. Deactivated users cannot sign in, and their cookies stop working at the next stamp check. | 2.4–2.6 |
-| S8 | Claims: `sub`, `name`, `role` (n), `ss:brand` (n), `ss:warehouse`. Policies use claims only (ADR 0012). Brand scope is checked against the resource. | 3 |
+| S8 | Claims: `sub`, `name`, `role` (n), `ss:brand` (n), `ss:warehouse`. Policies use claims only (ADR 0012). Reads are never brand-scoped. Approvals by a `BRAND_MANAGER` require every line's brand to be in their claims, unless another role grants the action unscoped. | 3 |
 | S9 | Fixed-window rate limit on `/bff/login`, partitioned by client IP. Returns 429 with `Retry-After`. | 4 |
 | S10 | Data Protection key ring in `iam.data_protection_keys` via `PersistKeysToDbContext`, application name `SmartSpare`. Key protection at rest is configured in the host per environment (#22). | 5 |
 | S11 | `SessionContextInterceptor` also sets `app.user_roles` and `app.home_warehouse_id`. The SQL role and warehouse checks read these GUCs, and `iam.v_app_user_masked` becomes module-local (#11). | 6 |
@@ -184,16 +184,59 @@ Policies are claims-only (ADR 0012) and registered by one shared method, `AppPol
 | `PlanInventory` | role `INVENTORY_PLANNER` or `BRAND_MANAGER` |
 | `ManageWarehouse` | role `WAREHOUSE_KEEPER` and an `ss:warehouse` claim |
 | `ServiceMachines` | role `SERVICE_ENGINEER` |
-| `ApprovePurchases` | role `BRAND_MANAGER` or `SPONSOR` |
+| `ApproveTransfer` | role `BRAND_MANAGER`, **brand-scoped** (3.3) |
+| `ApprovePurchaseOrder` | role `SPONSOR` (unscoped) or `BRAND_MANAGER` (**brand-scoped**, 3.3) |
+| `DecideRecommendation` | role `INVENTORY_PLANNER` (unscoped) or `BRAND_MANAGER` (**brand-scoped**, 3.3) |
 | `ReadAudit` | role `SPONSOR` or `ADMINISTRATOR` |
 
-The role-to-policy matrix is fixed for stage 3. Stages 4–8 add rows next to the endpoints that need them.
+Read policies (viewing stock, transfers, purchase orders, recommendations) are **never brand-scoped**: every role allowed to view sees all brands, `BRAND_MANAGER` included. The three approval policies are the endpoint gate (does the user hold a role that may perform the action at all?). The brand check runs afterwards against the loaded document (3.3). The role-to-policy matrix is fixed for stage 3. Stages 4–8 add rows next to the endpoints that need them.
 
 ### 3.3 Brand scope (resource-based)
 
-`BrandScopeRequirement` with `BrandScopeHandler : AuthorizationHandler<BrandScopeRequirement, IBrandScoped>` in `SmartSpare.Infrastructure.Security`. A user **with the `BRAND_MANAGER` role** passes only if the resource's `BrandId` is in their `ss:brand` claims. Other roles aren't brand-scoped. This matches `iam.user_brand`, which is documented as "brand manager ↔ brands", and the rule has been confirmed against the BA. Endpoints call `IAuthorizationService.AuthorizeAsync(user, resource, BrandScope)` after loading the resource, and get **403** on failure. Stage 3 proves it with a test endpoint in the integration test host. The first real use is in stage 4.
+**Business rule** (set by the product owner on 24 November 2026; it refines the `iam.user_brand` description "brand manager ↔ brands"):
 
-The database repeats the role check (`util.require_role`, section 6), so a bug in a policy can't bypass the SQL second line of defence (ARCHITECTURE_DECISIONS section 7).
+1. **Reads are not brand-scoped.** Every role allowed to view stock, transfers, purchase orders or recommendations sees all brands, `BRAND_MANAGER` included.
+2. **Brand scope applies only to approval and decision actions:** approve a transfer, approve a purchase order, accept or reject a recommendation. Brand lives on `catalog.part`, not on the document, so a `BRAND_MANAGER` may act only if the brands of **all** lines of the document are in their `ss:brand` claims. A single line of another brand → **403**.
+3. **An unscoped role overrides the scope.** If the user also holds a role that grants the same action without brand scope, that role decides. For example, a user with `BRAND_MANAGER` + `SPONSOR` may approve any purchase order as `SPONSOR`.
+4. **All other roles are not brand-scoped.**
+
+**Model.**
+
+```csharp
+// SmartSpare.Infrastructure.Security
+public interface IBrandScoped
+{
+    IReadOnlySet<short> BrandIds { get; }   // distinct brands of all lines of the document
+}
+
+public sealed record BrandScopedActionRequirement(
+    IReadOnlySet<string> UnscopedRoles,     // e.g. { SPONSOR } for ApprovePurchaseOrder
+    string ScopedRole)                       // BRAND_MANAGER
+    : IAuthorizationRequirement;
+
+internal sealed class BrandScopedActionHandler
+    : AuthorizationHandler<BrandScopedActionRequirement, IBrandScoped> { ... }
+```
+
+The handler evaluates in a fixed order:
+
+1. If the user has **any unscoped role** of the requirement → succeed. Brands are not looked at.
+2. Else, if the user has the scoped role **and** `BrandIds` is non-empty **and** every id in `BrandIds` is in the user's `ss:brand` claims → succeed.
+3. Otherwise → not satisfied (403).
+
+An empty `BrandIds` (a document without lines) does not pass step 2. The handler denies by default, and the domain rejects empty documents anyway.
+
+Three named requirements are registered next to the policies of 3.2:
+
+| Requirement | Unscoped roles | Scoped role |
+|---|---|---|
+| `ApproveTransferScope` | — | `BRAND_MANAGER` |
+| `ApprovePurchaseOrderScope` | `SPONSOR` | `BRAND_MANAGER` |
+| `DecideRecommendationScope` | `INVENTORY_PLANNER` | `BRAND_MANAGER` |
+
+**Use in endpoints.** The endpoint first passes its policy (3.2). The handler then loads the document and builds the `IBrandScoped` view from the brands of its lines, read from module-local data (Inventory: `catalog.part`; Procurement and Forecasting: their local part copies with brand, ARCHITECTURE_DECISIONS section 4) or through an `Inventory.Contracts` query. Brand ids never come from the request body. It then calls `IAuthorizationService.AuthorizeAsync(user, document, requirement)` and returns **403 ProblemDetails** on failure, before any state change. Stage 3 proves the handler with test endpoints in the integration test host. The first real uses are transfer approval (stage 4), purchase-order approval (stage 6) and recommendation decisions (stage 7).
+
+**Database.** The SQL business functions repeat the **role** check (`util.require_role`, section 6), so a bug in a policy can't bypass that second line of defence (ARCHITECTURE_DECISIONS section 7). They do **not** enforce brand scope. A bug in the resource check above would not be caught by the database. A database-level brand check is tracked as #53.
 
 ---
 
@@ -333,7 +376,16 @@ All new tests follow the pyramid (ARCHITECTURE_DECISIONS section 10). Testcontai
 - `AppUserClaimsPrincipalFactory`: claim set, and no personal data.
 - `PasswordHasher<AppUser>` output starts with `AQAAAAIAAYag` (V3 / SHA512 / 100k).
 - `LoginRequestValidator` (ApiContracts).
-- `AppPolicies` evaluated with `DefaultAuthorizationService` for each role, plus `BrandScopeHandler`.
+- `AppPolicies` evaluated with `DefaultAuthorizationService` for each role. Read policies never consider brands.
+- `BrandScopedActionHandler`, for each of the three requirements:
+  - only own brands → succeed;
+  - one foreign line among own lines → fail;
+  - empty `BrandIds` → fail;
+  - `BRAND_MANAGER` without `ss:brand` claims → fail;
+  - unscoped role alone (e.g. `SPONSOR`) with foreign brands → succeed;
+  - `BRAND_MANAGER` + `SPONSOR` with foreign brands on `ApprovePurchaseOrderScope` → succeed;
+  - `BRAND_MANAGER` + `SPONSOR` with foreign brands on `ApproveTransferScope` → fail, because `SPONSOR` doesn't grant that action;
+  - a role outside the requirement (e.g. `WAREHOUSE_KEEPER`) → fail.
 
 ### 9.2 Integration (`tests/SmartSpare.Host.IntegrationTests`, Testcontainers PostgreSQL 17 + `WebApplicationFactory<Program>`)
 
@@ -345,7 +397,8 @@ All new tests follow the pyramid (ARCHITECTURE_DECISIONS section 10). Testcontai
 | Antiforgery | `POST /bff/login` and an authenticated `POST /api/...` without `X-XSRF-TOKEN` → 400 `SS-AUTH-002`. With a token from `/bff/antiforgery` → success. A token issued to anonymous is rejected after sign-in. |
 | Logout | After `POST /bff/logout`, the old cookie no longer reaches protected endpoints (cleared). |
 | Security stamp | Rotate the stamp in the database. After the validation interval (`TimeProvider`), the old cookie → 401. |
-| 401 vs 403 | Anonymous `/api/v1/...` → 401 (no redirect). Wrong role → 403. `BRAND_MANAGER` on another brand's resource → 403, on their own → 200 (test endpoint). |
+| 401 vs 403 | Anonymous `/api/v1/...` → 401 (no redirect). Wrong role → 403. |
+| Brand scope (test endpoints with documents whose lines carry brands) | `BRAND_MANAGER` (Claas, Lemken) approves a document with only Claas lines → **200**. Approves a document with Claas and one foreign-brand line → **403**, and the document is unchanged. Reads a foreign-brand document → **200**. `BRAND_MANAGER` + `SPONSOR` approves a foreign-brand purchase order → **200**. |
 | Rate limiting | The 11th login in a minute from one IP → 429 with `Retry-After`. |
 | Data Protection (#22) | Two `WebApplicationFactory` hosts share one database. A cookie issued by host A is accepted by host B. Keys are in `iam.data_protection_keys`. |
 | Session GUCs (#11) | Inside a request, `current_setting('app.user_roles')` and `app.home_warehouse_id` match the claims. `util.require_role` passes or fails accordingly. |
@@ -390,11 +443,11 @@ Closes **#38, #7, #33**.
 
 ### 3b: Cookie authentication, BFF endpoints and authorization
 
-Scope: sections 1.2, 1.3, 1.5, 2, 3 and 4. Identity core with the custom stores, the cookie, `/bff/login`, `/bff/logout`, `/bff/me`, `/bff/antiforgery`, the antiforgery endpoint filter, `AppPolicies` and the brand scope handler, the `login` rate limit. ApiContracts gets the Identity DTOs, validator and authorization constants, and the architecture test is updated for S14. Data Protection keeps the default per-instance key ring in this PR.
+Scope: sections 1.2, 1.3, 1.5, 2, 3 and 4. Identity core with the custom stores, the cookie, `/bff/login`, `/bff/logout`, `/bff/me`, `/bff/antiforgery`, the antiforgery endpoint filter, `AppPolicies` and the brand-scoped action requirements with their handler (3.3), the `login` rate limit. ApiContracts gets the Identity DTOs, validator and authorization constants, and the architecture test is updated for S14. Data Protection keeps the default per-instance key ring in this PR.
 
 Acceptance:
 - Integration tests 9.2: sign-in and cookie flags, uniform failures, lockout, antiforgery, logout, security stamp, 401 vs 403 and brand scope, rate limiting.
-- Unit tests for the stores, the principal factory, the policies and `BrandScopeHandler`.
+- Unit tests for the stores, the principal factory, the policies and `BrandScopedActionHandler`.
 - The implementation matches ADR 0014 (accepted). Any deviation needs a new ADR.
 
 Closes no issue on its own; it implements ADR 0014 on the server.
@@ -439,7 +492,7 @@ User administration (#46) is an optional PR 3f after the release.
 4. The database role and warehouse checks use the session GUCs. No module's SQL reads `iam` except Identity and Reporting, as MODULE_MAPPING allows. The 97 SQL assertions are green on the EF-built database.
 5. Identity has a real domain model, and its persistence classes are gone (ADR 0013).
 6. bUnit tests and one Playwright smoke test are green in CI.
-7. Issues #7, #11, #22, #33 and #38 are closed. Follow-ups are tracked: #46 (user administration), #47 (second UI culture), #48 (forwarded headers behind App Service), #49 (distributed rate limiting), #50 (MFA for privileged roles), #51 (security event log).
+7. Issues #7, #11, #22, #33 and #38 are closed. Follow-ups are tracked: #46 (user administration), #47 (second UI culture), #48 (forwarded headers behind App Service), #49 (distributed rate limiting), #50 (MFA for privileged roles), #51 (security event log), #53 (database-level brand check).
 
 ---
 
