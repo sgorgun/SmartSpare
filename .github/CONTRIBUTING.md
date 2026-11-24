@@ -44,13 +44,16 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
    Merge commits are disabled: `main` keeps a linear history either way. Before using rebase, tidy the branch if needed (`git rebase -i main` to squash fix-ups) so that every commit on `main` is meaningful.
 
-Before pushing, run locally:
+Before pushing, run the same checks as CI. CI calls `tools/check.sh` step by step, so a green local run means a green CI run (Release configuration, coverage collected exactly as in CI):
 
 ```
-dotnet build SmartSpare.slnx -warnaserror
-dotnet test SmartSpare.slnx --filter "Category!=Integration"
-dotnet format SmartSpare.slnx --verify-no-changes
+tools/check.sh              # all steps, needs Docker: stale terms, locked restore, build, format,
+                            # check-model, tests with coverage, integration tests, database verification
+tools/check.sh fast         # the steps without Docker (the CI "Build and test" job)
+tools/check.sh build test   # selected steps
 ```
+
+Stage new files (`git add`) first: the stale-terms check scans tracked files only. On Windows, run the script in Git Bash.
 
 ## Releases
 
