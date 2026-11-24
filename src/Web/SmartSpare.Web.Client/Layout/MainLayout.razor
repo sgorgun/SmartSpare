@@ -6,7 +6,8 @@
 <MudDialogProvider />
 <MudSnackbarProvider />
 
-<MudLayout>
+@* data-interactive turns true once WebAssembly runs the layout (end-to-end tests wait for it before using the menus). *@
+<MudLayout data-interactive="@(_interactive ? "true" : "false")">
     <MudAppBar Elevation="1">
         <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start"
                        OnClick="@(() => _drawerOpen = !_drawerOpen)" aria-label="@Text["Nav.Menu"]" />
@@ -26,4 +27,14 @@
 
 @code {
     private bool _drawerOpen = true;
+    private bool _interactive;
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender && RendererInfo.IsInteractive)
+        {
+            _interactive = true;
+            StateHasChanged();
+        }
+    }
 }
