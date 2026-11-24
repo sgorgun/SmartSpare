@@ -2,8 +2,15 @@
 """
 Fails when a tracked file describes a retired part of the architecture as if it were current.
 
-Terms: MediatR, JWT, SmartSpare.DbMigrator, db/migrations, db/seed, SmartSpare.Api, SmartSpare.Domain
-(replaced by own handlers, the BFF cookie, EF migrations and the module structure; ADR 0002-0013).
+Terms: MediatR, SmartSpare.DbMigrator, db/migrations, db/seed, SmartSpare.Api, SmartSpare.Domain
+(replaced by own handlers, EF migrations and the module structure; ADR 0002-0013).
+
+Since the topology decisions of 24 November 2026 (ADR 0015-0018) also: "single deployable" / "one deployable",
+App Service, Application Insights and Azure Service Bus. They were replaced by Container Apps services, the
+Grafana stack and RabbitMQ.
+
+"JWT" is no longer a stale term: the internal gateway-to-service tokens are JWTs (ADR 0016). Only tokens in the
+browser are ruled out.
 
 A match is accepted when
   * the file is excluded: docs/adr/ (decisions record history), the frozen baseline db/baseline/,
@@ -21,9 +28,12 @@ import subprocess
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-TERMS = re.compile(r"MediatR|JWT|DbMigrator|db/migrations|db/seed|SmartSpare\.Api\b|SmartSpare\.Domain\b")
+TERMS = re.compile(
+    r"MediatR|DbMigrator|db/migrations|db/seed|SmartSpare\.Api\b|SmartSpare\.Domain\b"
+    r"|single deployable|one deployable|App Service|Application Insights|Azure Service Bus")
 HISTORY = re.compile(
-    r"instead of|rather than|not us(e|ed|ing)|replac(ed|es|ing)|retired|remov(e|ed|al)|supersed|former|no longer|previously|history",
+    r"instead of|rather than|not us(e|ed|ing)|replac(ed|es|ing)|retired|remov(e|ed|al)|supersed|former|no longer|previously|history"
+    r"|reject|originally",
     re.IGNORECASE)
 WINDOW = 120
 EXCLUDED = ["docs/adr/*", "db/baseline/*", "*/Migrations/*", "tools/check_stale_terms.py", "tools/stale_terms.allow"]
