@@ -1,6 +1,6 @@
 # ADR 0014: Browser sign-in through BFF endpoints
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-24
 
 ## Context
@@ -36,6 +36,7 @@ Option 4.
 - One rendering model (WASM with MudBlazor) for every page, including sign-in.
 - No Identity schema change: the existing CHECKs, grants, audit triggers and 97 SQL tests stay valid.
 - We own about 200 lines of store code and must keep it consistent with Identity's manager contracts. Integration tests cover sign-in, lockout and the stamp.
+- The CSP allows `style-src 'unsafe-inline'`, because MudBlazor computes inline `style` attributes at runtime and no hash or nonce can match them. The accepted risk is CSS injection (defacement, UI redressing, attribute reads through CSS selectors), limited by `img-src` and `connect-src 'self'`. `script-src` stays strict (`'self' 'wasm-unsafe-eval'` plus the import-map hash), so injected markup still can't run script ([STAGE_3_PLAN.md](../stage-3/STAGE_3_PLAN.md), section 8.7).
 - A full page reload after sign-in and sign-out is a visible but accepted UX cost.
 - SameSite=Strict means a first navigation from another site looks signed-out until the sign-in page checks `/bff/me` and reloads.
 - New client types (mobile, third-party) need a token issuer later. Policies are claims-based (ADR 0012), so endpoints don't change.
