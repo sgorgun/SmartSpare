@@ -2,8 +2,7 @@
 -- Identity 0001 — iam: functions, triggers, audit triggers.
 -- Statements copied verbatim from V001 (schema comment), V004 and V015. Tables, keys,
 -- CHECKs, indexes and comments are created by IdentityDbContext (ADR 0011, MODULE_MAPPING 1.2).
--- Not here: iam.v_app_user_masked reads inventory.warehouse and is created by the last
--- Reporting migration in PR 2d (MODULE_MAPPING 3.2).
+-- iam.v_app_user_masked: 0005_masked_user_view.sql (module-local since PR 3c, MODULE_MAPPING X18).
 -- =============================================================================
 
 COMMENT ON SCHEMA iam         IS 'Core layer / IAM module: application users, roles, brand assignments.';

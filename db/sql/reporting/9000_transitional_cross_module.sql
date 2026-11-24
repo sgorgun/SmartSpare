@@ -217,22 +217,3 @@ JOIN forecast.forecast_run fr      ON fr.id = r.forecast_run_id
 JOIN forecast.ml_model_version mv  ON mv.id = fr.model_version_id;
 COMMENT ON VIEW forecast.v_recommendation_explained IS 'NFR08: decomposition (a) base demand, (b) maintenance, (c) lead-time buffer, (d) safety stock, stock position and economics of each proposal.';
 GRANT SELECT ON forecast.v_recommendation_explained TO app_read;
-
--- TRANSITIONAL: replaced by a module-local view in stage 3 (reads inventory.warehouse; X18) (#11)
--- ===========================================================================
--- Personal data: masked views (granted to app_read / app_audit instead of
--- the base table columns)
--- ===========================================================================
-CREATE VIEW iam.v_app_user_masked AS
-SELECT u.id, u.user_name,
-       util.mask_name(u.full_name) AS full_name_masked,
-       util.mask_email(u.email)    AS email_masked,
-       util.mask_phone(u.phone)    AS phone_masked,
-       u.is_active, w.code AS home_warehouse_code,
-       (SELECT array_agg(r.code ORDER BY r.code) FROM iam.user_role ur JOIN iam.role r ON r.id = ur.role_id
-        WHERE ur.user_id = u.id) AS roles,
-       u.last_login_at, u.created_at, u.anonymised_at IS NOT NULL AS is_anonymised
-FROM iam.app_user u
-LEFT JOIN inventory.warehouse w ON w.id = u.home_warehouse_id;
-COMMENT ON VIEW iam.v_app_user_masked IS 'User directory with masked personal data (name -> initials, e-mail and phone partially hidden).';
-GRANT SELECT ON iam.v_app_user_masked TO app_read;

@@ -2,7 +2,7 @@
 -- Identity 0002 — privileges on iam objects. V015 statements restricted to iam;
 -- personal-data columns (full_name, email, phone, password hash) stay hidden from app_read.
 -- Roles are cluster objects created by db/bootstrap/000_bootstrap_cluster.sql.
--- iam.v_app_user_masked and its grant follow in PR 2d (Reporting, MODULE_MAPPING 3.2).
+-- iam.v_app_user_masked and its grant: 0005_masked_user_view.sql (PR 3c).
 -- =============================================================================
 
 REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA iam FROM PUBLIC;
