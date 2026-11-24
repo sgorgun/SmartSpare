@@ -1,0 +1,171 @@
+using System.Net;
+using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
+using Microsoft.IdentityModel.JsonWebTokens;
+using Microsoft.IdentityModel.Tokens;
+using SmartSpare.ApiContracts;
+using SmartSpare.ApiContracts.Authorization;
+using SmartSpare.Host.IntegrationTests.Support;
+using SmartSpare.Infrastructure.Security;
+
+namespace SmartSpare.Host.IntegrationTests;
+
+/// <summary>
+/// One principal in both topologies (ADR 0016 section 4): the single host accepts the cookie and the internal token
+/// through the policy scheme, and module endpoints behave the same with either. Invalid tokens are rejected.
+/// </summary>
+public sealed class InternalTokenTests(FakeIdentityHostFactory factory) : IClassFixture<FakeIdentityHostFactory>
+{
+    [Fact]
+    public async Task Module_endpoints_give_the_same_results_with_the_cookie_and_with_an_internal_token()
+    {
+        var user = factory.Users.Add(TestUser.Create("tomas.both", [AppRoles.BrandManager, AppRoles.Sponsor], [1, 5], warehouse: 2));
+        using var withCookie = factory.NewBrowser();
+        await withCookie.LoginOrFailAsync(user);
+        using var withToken = factory.NewBrowser();
+        var token = factory.Token(user.Principal());
+
+        foreach (var path in new[] { "/api/identity/ping", "/api/inventory/ping" })
+        {
+            using var cookieResponse = await withCookie.GetAsync(path);
+            using var tokenResponse = await withToken.GetAsync(path, bearer: token);
+
+            tokenResponse.StatusCode.ShouldBe(cookieResponse.StatusCode);
+            (await tokenResponse.Content.ReadAsStringAsync(Ct)).ShouldBe(await cookieResponse.Content.ReadAsStringAsync(Ct));
+        }
+
+        (await withToken.MeAsync(bearer: token)).ShouldBeEquivalentTo(await withCookie.MeAsync());
+    }
+
+    [Fact]
+    public async Task The_token_carries_the_claims_of_the_session_but_not_the_security_stamp()
+    {
+        var user = factory.Users.Add(TestUser.Create("tomas.claims", [AppRoles.InventoryPlanner], [2], warehouse: 4));
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(user.Claims()));
+
+        var token = new JsonWebToken(factory.Token(principal));
+
+        token.Issuer.ShouldBe(InternalTokenDefaults.Issuer);
+        token.Audiences.ShouldBe([InternalTokenDefaults.Audience]);
+        token.Alg.ShouldBe(SecurityAlgorithms.EcdsaSha256);
+        token.Kid.ShouldNotBeNullOrEmpty();
+        (token.ValidTo - token.IssuedAt).ShouldBe(InternalTokenDefaults.Lifetime);
+        token.Subject.ShouldBe(user.Id.ToString());
+        token.GetClaim(AppClaimTypes.Role).Value.ShouldBe(AppRoles.InventoryPlanner);
+        token.GetClaim(AppClaimTypes.Brand).Value.ShouldBe("2");
+        token.GetClaim(AppClaimTypes.Warehouse).Value.ShouldBe("4");
+        token.TryGetClaim(AppClaimTypes.SessionId, out _).ShouldBeTrue();
+        token.TryGetClaim(JwtRegisteredClaimNames.Jti, out _).ShouldBeTrue();
+        token.Claims.ShouldNotContain(c => c.Type == Modules.Identity.Contracts.IdentityClaimTypes.SecurityStamp);
+    }
+
+    public static TheoryData<string> InvalidTokens => new()
+    {
+        "expired",
+        "wrong audience",
+        "wrong issuer",
+        "signed with another key",
+        "HS256",
+        "alg none",
+        "not a token",
+    };
+
+    [Theory]
+    [MemberData(nameof(InvalidTokens))]
+    public async Task Invalid_internal_tokens_are_rejected(string kind)
+    {
+        using var browser = factory.NewBrowser();
+
+        using var response = await browser.GetAsync("/api/identity/ping", bearer: Invalid(kind));
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        (await Problem.ReadAsync(response)).Code.ShouldBe(ProblemCodes.Unauthenticated);
+    }
+
+    [Fact]
+    public async Task A_bearer_header_is_never_combined_with_the_cookie()
+    {
+        // The policy scheme sends a bearer request to the internal-token scheme only: a valid cookie can't rescue it.
+        var user = factory.Users.Add(TestUser.Create("tomas.mixed", [AppRoles.BrandManager]));
+        using var browser = factory.NewBrowser();
+        await browser.LoginOrFailAsync(user);
+
+        using var response = await browser.GetAsync("/api/identity/ping", bearer: Invalid("signed with another key"));
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task Without_a_configured_key_every_internal_token_is_rejected()
+    {
+        await using var withoutKey = new HostFactory { WithSigningKey = false };
+        using var browser = withoutKey.NewBrowser();
+
+        using var response = await browser.GetAsync("/api/identity/ping", bearer: factory.Token(TestUser.Create("x", []).Principal()));
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+    }
+
+    private static string Invalid(string kind)
+    {
+        var now = DateTime.UtcNow;
+        var descriptor = new SecurityTokenDescriptor
+        {
+            Issuer = InternalTokenDefaults.Issuer,
+            Audience = InternalTokenDefaults.Audience,
+            Subject = new ClaimsIdentity(TestUser.ClaimsFor(Guid.NewGuid(), "attacker", [AppRoles.Administrator], [], null)),
+            IssuedAt = now,
+            NotBefore = now,
+            Expires = now + InternalTokenDefaults.Lifetime,
+            SigningCredentials = TestSigning(),
+        };
+        var handler = new JsonWebTokenHandler();
+
+        switch (kind)
+        {
+            case "expired":
+                descriptor.IssuedAt = descriptor.NotBefore = now.AddMinutes(-10);
+                descriptor.Expires = now.AddMinutes(-8);     // beyond the 30 s clock skew
+                break;
+            case "wrong audience":
+                descriptor.Audience = "smartspare-somewhere-else";
+                break;
+            case "wrong issuer":
+                descriptor.Issuer = "someone-else";
+                break;
+            case "signed with another key":
+                descriptor.SigningCredentials = OtherKey();
+                break;
+            case "HS256":
+                descriptor.SigningCredentials = new SigningCredentials(
+                    new SymmetricSecurityKey(RandomNumberGenerator.GetBytes(32)), SecurityAlgorithms.HmacSha256);
+                break;
+            case "alg none":
+                var header = Base64UrlEncoder.Encode(Encoding.UTF8.GetBytes("""{"alg":"none","typ":"JWT"}"""));
+                var payload = Base64UrlEncoder.Encode(Encoding.UTF8.GetBytes(
+                    $$"""{"iss":"{{InternalTokenDefaults.Issuer}}","aud":"{{InternalTokenDefaults.Audience}}","sub":"{{Guid.NewGuid()}}","role":"ADMINISTRATOR","exp":{{new DateTimeOffset(now.AddMinutes(2)).ToUnixTimeSeconds()}}}"""));
+                return $"{header}.{payload}.";
+            case "not a token":
+                return "definitely-not-a-jwt";
+        }
+
+        return handler.CreateToken(descriptor);
+    }
+
+    /// <summary>The host's own key: valid signatures, so only the property under test makes the token invalid.</summary>
+    private static SigningCredentials TestSigning()
+    {
+        var key = ECDsa.Create();
+        key.ImportFromPem(TestKeys.SigningKeyPem);
+        return new SigningCredentials(new ECDsaSecurityKey(key), SecurityAlgorithms.EcdsaSha256);
+    }
+
+    private static SigningCredentials OtherKey()
+    {
+        var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        return new SigningCredentials(new ECDsaSecurityKey(key), SecurityAlgorithms.EcdsaSha256);
+    }
+
+    private static CancellationToken Ct => TestContext.Current.CancellationToken;
+}

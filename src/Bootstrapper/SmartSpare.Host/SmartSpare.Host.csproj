@@ -11,6 +11,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\BuildingBlocks\SmartSpare.ServiceDefaults\SmartSpare.ServiceDefaults.csproj" />
     <ProjectReference Include="..\..\BuildingBlocks\SmartSpare.Infrastructure\SmartSpare.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\BuildingBlocks\SmartSpare.Bff\SmartSpare.Bff.csproj" />
   </ItemGroup>
 
   <!-- Modules come in through the shared, ordered catalogue (also used by the migration runner). -->
