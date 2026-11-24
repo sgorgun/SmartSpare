@@ -1,9 +1,10 @@
-// Solution architecture. Status is taken from the code, not from the plan:
-// solid border = implemented, dashed border + "(stage N)" = planned (ARCHITECTURE_DECISIONS section 12),
+// Solution architecture: the production topology (ADR 0015) and, in the development box, the single-host topology.
+// Status is taken from the code, not from the plan:
+// solid border = implemented, dashed border + "(stage N)" = planned (ARCHITECTURE_DECISIONS section 13),
 // grey fill = external system. Cluster titles are label nodes, so the edge router keeps edges off them.
 digraph A {
-  graph [rankdir=TB, compound=true, newrank=true, fontname="Helvetica", nodesep=0.3, ranksep=0.5,
-         label=<<B>SmartSpare — microservice-ready modular monolith</B><BR/><FONT POINT-SIZE="12">ARCHITECTURE_DECISIONS.md · ADR 0002–0013 · status as of stage 2</FONT>>,
+  graph [rankdir=TB, compound=true, newrank=true, fontname="Helvetica", nodesep=0.3, ranksep=0.55,
+         label=<<B>SmartSpare — one codebase, two topologies</B><BR/><FONT POINT-SIZE="12">production: YARP gateway + six services on Azure Container Apps · development and tests: single host<BR/>ARCHITECTURE_DECISIONS.md · ADR 0002–0019 · status as of stage 2</FONT>>,
          labelloc=t, fontsize=20, pad=0.3];
   node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=11, fillcolor="#FFFFFF", color="#555555"];
   edge [fontname="Helvetica", fontsize=9, color="#555555"];
@@ -19,67 +20,73 @@ digraph A {
   users [label="Users (browser / tablet)\nBrand manager · Service engineer · Warehouse keeper\nInventory planner · Sponsor · Administrator", fillcolor="#EEEEEE"];
   erp [label="Legacy dealer ERP\n(CSV export: catalogue, demand history)", fillcolor="#EEEEEE"];
   supp [label="OEM suppliers\n(purchase order files)", fillcolor="#EEEEEE"];
+  oncall [label="On-call channels\nTelegram · e-mail", fillcolor="#EEEEEE"];
 
-  web [label="SmartSpare.Web.Client (stage 3)\nBlazor WebAssembly + MudBlazor, runs in the browser\ntyped HTTP clients · SmartSpare.ApiContracts DTOs", style="rounded,dashed,filled"];
+  web [label="SmartSpare.Web.Client (stage 3)\nBlazor WebAssembly + MudBlazor, runs in the browser\ntyped HTTP clients · SmartSpare.ApiContracts DTOs · no tokens", style="rounded,dashed,filled"];
 
-  subgraph cluster_app { label=""; style="rounded"; color="#1E88E5"; bgcolor="#E3F2FD";
-    t_app [shape=plaintext, style="", label=<<B>SmartSpare.Host process — one deployable</B><BR/><FONT POINT-SIZE="10">container on Azure App Service (stage 9)</FONT>>];
-    host [label="SmartSpare.Host — HTTP API\nASP.NET Core 10 minimal APIs · OpenAPI · ProblemDetails\n/health/live, /health/ready · module installers"];
-    bff [label="BFF (stage 3)\nHttpOnly SameSite cookie + antiforgery\nclaims-based policies · serves the WASM client", style="rounded,dashed,filled"];
-    pipe [label="Command / query pipeline (ADR 0005)\nown ICommandHandler / IQueryHandler instead of MediatR\ndecorators: logging → validation → transaction (unit of work)"];
-    bus [label="Outbox / Inbox (ADR 0003)\nper-module outbox_message / inbox_message,\ndispatcher with FOR UPDATE SKIP LOCKED, idempotent inbox\nfirst integration events (stages 5–7)", fillcolor="#FFFDE7", color="#C0A000"];
-    jobs [label="Background jobs, Quartz.NET (from stage 4)\nreservation expiry · mart refresh · audit purge\nML training (stage 7)", style="rounded,dashed,filled"];
-
-    mods [shape=plain, label=<<TABLE BORDER="1" STYLE="ROUNDED" COLOR="#1E88E5" CELLBORDER="1" CELLSPACING="6" CELLPADDING="6" BGCOLOR="white">
-      <TR><TD COLSPAN="6" BORDER="0" ALIGN="LEFT"><B>Modules</B> — each: DbContext, migrations, Contracts, installer (implemented)<BR ALIGN="LEFT"/><FONT POINT-SIZE="10">Domain/ aggregates and Features/ use cases come with the module's stage (ADR 0013)</FONT><BR ALIGN="LEFT"/></TD></TR>
-      <TR><TD PORT="id" BGCOLOR="#F3E5F5" COLOR="#8E24AA" STYLE="ROUNDED">Identity<BR/><FONT POINT-SIZE="10">iam</FONT><BR/><FONT POINT-SIZE="10">use cases: stage 3</FONT></TD><TD PORT="inv" BGCOLOR="#E0F2F1" COLOR="#00897B" STYLE="ROUNDED">Inventory<BR/><FONT POINT-SIZE="10">catalog · inventory · raw · staging</FONT><BR/><FONT POINT-SIZE="10">use cases: stage 4</FONT></TD><TD PORT="fleet" BGCOLOR="#FFF3E0" COLOR="#FB8C00" STYLE="ROUNDED">Fleet<BR/><FONT POINT-SIZE="10">fleet</FONT><BR/><FONT POINT-SIZE="10">use cases: stage 5</FONT></TD><TD PORT="proc" BGCOLOR="#FCE4EC" COLOR="#D81B60" STYLE="ROUNDED">Procurement<BR/><FONT POINT-SIZE="10">procurement</FONT><BR/><FONT POINT-SIZE="10">use cases: stage 6</FONT></TD><TD PORT="fc" BGCOLOR="#E8EAF6" COLOR="#3949AB" STYLE="ROUNDED">Forecasting<BR/><FONT POINT-SIZE="10">forecast</FONT><BR/><FONT POINT-SIZE="10">use cases: stage 7 (+ ML.NET)</FONT></TD><TD PORT="rep" BGCOLOR="#E8F5E9" COLOR="#43A047" STYLE="ROUNDED">Reporting<BR/><FONT POINT-SIZE="10">mart, read-only</FONT><BR/><FONT POINT-SIZE="10">use cases: stage 8</FONT></TD></TR>
+  subgraph cluster_aca { label=""; style="rounded,dashed"; color="#1E88E5"; bgcolor="#E3F2FD";
+    t_aca [shape=plaintext, style="", label=<<B>Azure Container Apps environment (stage 4)</B><BR/><FONT POINT-SIZE="10">one image and one revision per app · internal ingress for services · ADR 0009, 0015</FONT>>];
+    gw [label="SmartSpare.Gateway — YARP BFF (stage 4)\nexternal HTTPS ingress · hosts the WASM client · /bff sign-in\nHttpOnly SameSite cookie + antiforgery · rate limit · /scalar + OpenAPI\nswaps the cookie for a 2-min ES256 internal token (ADR 0016)", style="rounded,dashed,filled"];
+    svcs [shape=plain, label=<<TABLE BORDER="1" STYLE="ROUNDED,DASHED" COLOR="#1E88E5" CELLBORDER="1" CELLSPACING="6" CELLPADDING="6" BGCOLOR="white">
+      <TR><TD COLSPAN="6" BORDER="0" ALIGN="LEFT"><B>Six module services</B> (service hosts: stage 4) — each: own image, own database login, JwtBearer for the internal token,<BR ALIGN="LEFT"/>handler pipeline (ADR 0005), outbox / inbox (ADR 0003), DbContext + migrations. Module code is implemented; use cases come with the module's stage<BR ALIGN="LEFT"/></TD></TR>
+      <TR><TD PORT="id" BGCOLOR="#F3E5F5" COLOR="#8E24AA" STYLE="ROUNDED,DASHED">identity<BR/><FONT POINT-SIZE="10">iam</FONT><BR/><FONT POINT-SIZE="10">use cases: stage 3</FONT></TD><TD PORT="inv" BGCOLOR="#E0F2F1" COLOR="#00897B" STYLE="ROUNDED,DASHED">inventory<BR/><FONT POINT-SIZE="10">catalog · inventory · raw · staging</FONT><BR/><FONT POINT-SIZE="10">use cases: stage 5</FONT></TD><TD PORT="fleet" BGCOLOR="#FFF3E0" COLOR="#FB8C00" STYLE="ROUNDED,DASHED">fleet<BR/><FONT POINT-SIZE="10">fleet</FONT><BR/><FONT POINT-SIZE="10">use cases: stage 6</FONT></TD><TD PORT="proc" BGCOLOR="#FCE4EC" COLOR="#D81B60" STYLE="ROUNDED,DASHED">procurement<BR/><FONT POINT-SIZE="10">procurement</FONT><BR/><FONT POINT-SIZE="10">use cases: stage 7</FONT></TD><TD PORT="fc" BGCOLOR="#E8EAF6" COLOR="#3949AB" STYLE="ROUNDED,DASHED">forecasting<BR/><FONT POINT-SIZE="10">forecast · ML.NET</FONT><BR/><FONT POINT-SIZE="10">use cases: stage 8</FONT></TD><TD PORT="rep" BGCOLOR="#E8F5E9" COLOR="#43A047" STYLE="ROUNDED,DASHED">reporting<BR/><FONT POINT-SIZE="10">mart, read-only · audit jobs</FONT><BR/><FONT POINT-SIZE="10">use cases: stage 9</FONT></TD></TR>
     </TABLE>>];
+    mljob [label="ML training job (stage 8)\nContainer Apps job (cron), Forecasting image", style="rounded,dashed,filled"];
+    t_aca -> gw [style=invis];
+  }
+
+  subgraph cluster_vm { label=""; style="rounded,dashed"; color="#8E24AA"; bgcolor="#F3E5F5";
+    t_vm [shape=plaintext, style="", label=<<B>Stateful host — Linux VM with a managed disk (stage 4)</B><BR/><FONT POINT-SIZE="10">private network of the environment · local-disk storage for the broker and Prometheus</FONT>>];
+    mq [label="RabbitMQ 4.4 (ADR 0017)\ntopic exchange per publishing module\nquorum queue per consumer · delayed retry · DLX by policy", style="rounded,dashed,filled", fillcolor="#FFFDE7", color="#C0A000"];
+    obs [label="Grafana stack (ADR 0018)\nOpenTelemetry Collector → Prometheus · Loki · Tempo\nGrafana dashboards and alert rules", style="rounded,dashed,filled"];
+    t_vm -> mq [style=invis]; t_vm -> obs [style=invis];
   }
 
   subgraph cluster_db { label=""; style="rounded"; color="#43A047"; bgcolor="#E8F5E9";
-    t_db [shape=plaintext, style="", label=<<B>PostgreSQL 17 — one database, schemas owned by modules (ADR 0011)</B><BR/><FONT POINT-SIZE="10">locally Aspire / docker compose, in CI Testcontainers · Azure Database for PostgreSQL Flexible Server (stage 9)</FONT>>];
-    db [shape=cylinder, label="ref · util · audit (Platform) │ iam │ catalog · inventory · raw · staging │ fleet │ procurement │ forecast │ mart\nno FKs, JOINs or transactions across modules · outbox / inbox and __ef_migrations_history per module\ntriggers · functions · views · materialised views · roles and grants (SQL parts in db/sql/<module>)"];
+    t_db [shape=plaintext, style="", label=<<B>PostgreSQL 17 — one database, schemas owned by modules (ADR 0011)</B><BR/><FONT POINT-SIZE="10">locally Aspire / docker compose, in CI Testcontainers · Azure Database for PostgreSQL Flexible Server (stage 4)</FONT>>];
+    db [shape=cylinder, label="ref · util · audit (Platform) │ iam │ catalog · inventory · raw · staging │ fleet │ procurement │ forecast │ mart\nno FKs, JOINs or transactions across modules · outbox / inbox and __ef_migrations_history per module\ntriggers · functions · views · materialised views · roles and grants (SQL parts in db/sql/<module>)\none login per service (smartspare_identity … smartspare_reporting), per-module roles in stage 10"];
     t_db -> db [style=invis];
   }
 
-  blob [shape=cylinder, label="Azure Blob Storage (stages 4, 7)\nimport files · ML.NET model versions", style="dashed,filled"];
-  kv [label="Azure Key Vault + Managed Identity (stage 9)\nsecrets · PostgreSQL via Entra ID", style="rounded,dashed,filled"];
-  appi [label="Application Insights (stage 9)\nOpenTelemetry export", style="rounded,dashed,filled"];
+  blob [shape=cylinder, label="Azure Blob Storage (stages 4, 5, 8)\nimport files · ML.NET models · gateway key ring\nLoki and Tempo data", style="dashed,filled"];
+  kv [label="Azure Key Vault + Managed Identity per app (stage 4)\ntoken signing key · broker and alerting secrets\nPostgreSQL via Entra ID (stage 10)", style="rounded,dashed,filled"];
 
   subgraph cluster_dev { label=""; style="rounded"; color="#9E9E9E"; bgcolor="#FAFAFA";
-    t_dev [shape=plaintext, style="", label=<<B>Development and delivery</B>>];
-    aspire [label=".NET Aspire AppHost (local only)\nPostgreSQL 17 container · telemetry dashboard"];
+    t_dev [shape=plaintext, style="", label=<<B>Development, tests and delivery</B>>];
+    single [label="Single-host topology — SmartSpare.Host\nall six modules in one process · in-process events and Contracts queries\nused locally, in unit / integration tests and CI (BFF cookie: stage 3)"];
+    aspire [label=".NET Aspire AppHost (local only)\nPostgreSQL 17 container · telemetry dashboard\n--topology services: gateway, services, RabbitMQ, Grafana (stage 4)"];
     runner [label="SmartSpare.MigrationRunner\nbootstrap + EF migrations in ModuleCatalog order\ncheck-model · used by Aspire and CI"];
     ci [label="GitHub Actions CI\nbuild · format · check-model · tests\nSQL suite on the EF-built database"];
-    deploy [label="Deployment (stage 9)\nOIDC sign-in · EF migration bundle per context\n→ PostgreSQL as smartspare_migrator, then the container", style="rounded,dashed,filled"];
-    t_dev -> aspire [style=invis]; t_dev -> ci [style=invis];
+    cd [label="Per-service CD (stage 4)\nOIDC · image → Azure Container Registry\n→ module migration bundle → new revision", style="rounded,dashed,filled"];
+    t_dev -> ci [style=invis]; t_dev -> aspire [style=invis];
+    aspire -> single [label=" starts"];
     aspire -> runner [label=" runs before the host"];
     ci -> runner [label=" runs"];
-    ci -> deploy [style=dashed];
+    ci -> cd [style=dashed, label=" when green"];
   }
 
-  // flow
+  // request flow
   users -> web [label=" HTTPS", style=dashed];
-  web -> bff [label=" REST/JSON + cookie", style=dashed];
-  t_app -> host [style=invis];
-  bff -> host [style=dashed];
-  host -> pipe;
-  pipe -> mods:n [label=" commands / queries"];
-  mods:n -> bus [dir=both, label=" publish / consume"];
-  mods:s -> db [lhead=cluster_db, label=" one DbContext per module · smartspare_api"];
-  jobs -> db [lhead=cluster_db, style=dashed, label=" smartspare_jobs"];
-  erp -> host [label=" CSV upload (stage 4)", style=dashed];
-  mods:proc:s -> supp [label=" PO export (stage 6)", style=dashed];
-  mods:fc:s -> blob [label=" model files (stage 7)", style=dashed];
-  host -> kv [style=dashed, label=" secrets"];
-  host -> appi [style=dashed, label=" telemetry"];
-  runner:w -> db:s [lhead=cluster_db, constraint=false, label=" migrations"];
+  web -> gw [label=" REST/JSON + HttpOnly cookie", style=dashed];
+  gw -> svcs:n [label=" /api/v1/{module} + internal token\n /internal credential checks → identity", style=dashed];
+  erp -> gw [label=" CSV upload (stage 5)", style=dashed];
 
-  { rank=same; legend; users; }
-  { rank=same; web; erp; }
-  { rank=same; bff; host; kv; }
-  { rank=same; jobs; pipe; bus; appi; }
-  { rank=same; t_db; t_dev; supp; blob; }
-  jobs -> pipe [style=invis]; pipe -> bus [style=invis];
-  host -> kv [style=invis, weight=5];
+  // integration, data, telemetry
+  svcs:s -> mq [dir=both, label=" outbox publish with confirms\n consume into inbox", style=dashed];
+  svcs:s -> db [lhead=cluster_db, label=" login per service", style=dashed];
+  mljob -> db [lhead=cluster_db, style=dashed];
+  svcs:proc:s -> supp [label=" PO export (stage 7)", style=dashed];
+  svcs:fc:s -> blob [label=" models (stage 8)", style=dashed];
+  gw -> kv [style=dashed, label=" secrets"];
+  svcs:s -> obs [label=" OTLP", style=dashed];
+  obs -> oncall [label=" alerts", style=dashed];
+  cd -> t_aca [lhead=cluster_aca, style=dashed, label=" deploy", constraint=false];
+  runner -> db [lhead=cluster_db, label=" migrations", constraint=false];
+  single -> db [lhead=cluster_db, label=" smartspare_api", constraint=false];
+  db -> t_dev [style=invis]; mq -> t_dev [style=invis];
+
+  { rank=same; legend; users; erp; }
+  { rank=same; web; kv; }
+  { rank=same; t_db; t_vm; supp; blob; }
+  { rank=same; mq; obs; oncall; }
 }

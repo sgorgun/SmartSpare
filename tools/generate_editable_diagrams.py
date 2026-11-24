@@ -89,7 +89,7 @@ def graphviz_layout(dot_path):
                 x0, y0, x1, y1 = map(float, o["bb"].split(","))
                 clusters.append({"name": o["name"], "x": x0, "y": H - y1, "w": x1 - x0, "h": y1 - y0,
                                  "label": o.get("label", ""), "fill": o.get("fillcolor") or o.get("bgcolor"),
-                                 "color": o.get("color")})
+                                 "color": o.get("color"), "style": o.get("style", "")})
             continue
         if "pos" not in o:
             continue
@@ -200,7 +200,7 @@ def generic_page(dot_path, title):
     page = Page(title)
     page.vertex(f"<b>{html.escape(title)}</b>", "text;html=1;fontSize=20;align=left;verticalAlign=top;", 10, -50, 1200, 36)
     for c in sorted(clusters, key=lambda c: -c["w"] * c["h"]):     # big containers first (background)
-        dashed = "dashed=1;" if "dashed" in (c.get("label") or "") else ""
+        dashed = "dashed=1;" if "dashed" in (c.get("style") or "") else ""   # planned infrastructure
         page.vertex(plain_label(c["label"]),
                     f"rounded=1;arcSize=3;whiteSpace=wrap;html=1;verticalAlign=top;fontSize=14;fontStyle=1;{dashed}"
                     f"fillColor={c['fill'] or '#FFFFFF'};strokeColor={c['color'] or '#888888'};strokeWidth=2;",
