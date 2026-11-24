@@ -21,6 +21,8 @@ internal static class Solution
 
     public static readonly Assembly ApiContracts = Assembly.Load("SmartSpare.ApiContracts");
 
+    public static readonly Assembly Bff = typeof(Bff.BffDefaults).Assembly;
+
     public static readonly IReadOnlyList<Module> Modules =
     [
         Create(typeof(Modules.Identity.IdentityModuleInstaller), typeof(Modules.Identity.Contracts.IdentityModule)),
@@ -78,6 +80,23 @@ internal static class Solution
                 .Where(p => !p.Contains($"{separator}obj{separator}", StringComparison.Ordinal)
                             && !p.Contains($"{separator}bin{separator}", StringComparison.Ordinal)),
         ];
+    }
+
+    /// <summary>Package names from &lt;PackageReference&gt; items of a project under <c>src/</c>.</summary>
+    public static IEnumerable<string> PackageReferences(string projectName) =>
+        ProjectItems(projectName, "PackageReference");
+
+    /// <summary>Framework names from &lt;FrameworkReference&gt; items of a project under <c>src/</c>.</summary>
+    public static IEnumerable<string> FrameworkReferences(string projectName) =>
+        ProjectItems(projectName, "FrameworkReference");
+
+    private static IEnumerable<string> ProjectItems(string projectName, string item)
+    {
+        var path = Directory
+            .EnumerateFiles(Path.Combine(RootDirectory, "src"), projectName + ".csproj", SearchOption.AllDirectories)
+            .Single();
+
+        return XDocument.Load(path).Descendants(item).Select(e => e.Attribute("Include")!.Value);
     }
 
     private static Module Create(Type installer, Type contractsType) =>
