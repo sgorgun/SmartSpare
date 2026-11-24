@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    End-to-end smoke test (STAGE_3_PLAN 9.4): the real host on Kestrel, PostgreSQL 17 in Testcontainers with the
+    migrations, T001 and set-demo-passwords, driven by Playwright in Chromium. Category=E2E; it runs in its own CI job
+    and through `tools/check.sh e2e`, never in the default test step.
+  -->
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Playwright" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Bootstrapper\SmartSpare.Host\SmartSpare.Host.csproj" />
+    <!-- Aliased: the runner has its own top-level Program, like the host. -->
+    <ProjectReference Include="..\..\src\Bootstrapper\SmartSpare.MigrationRunner\SmartSpare.MigrationRunner.csproj" Aliases="runner" />
+  </ItemGroup>
+
+</Project>
