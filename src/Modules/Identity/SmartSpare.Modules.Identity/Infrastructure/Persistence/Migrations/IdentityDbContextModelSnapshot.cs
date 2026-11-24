@@ -112,7 +112,7 @@ namespace SmartSpare.Modules.Identity.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("SmartSpare.Modules.Identity.Infrastructure.Persistence.AppUser", b =>
+            modelBuilder.Entity("SmartSpare.Modules.Identity.Domain.AppUser", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -216,6 +216,12 @@ namespace SmartSpare.Modules.Identity.Infrastructure.Persistence.Migrations
                         .HasColumnName("user_name")
                         .HasColumnOrder(1);
 
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
                     b.HasKey("Id")
                         .HasName("pk_app_user");
 
@@ -248,22 +254,7 @@ namespace SmartSpare.Modules.Identity.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("SmartSpare.Modules.Identity.Infrastructure.Persistence.RefBrand", b =>
-                {
-                    b.Property<short>("Id")
-                        .HasColumnType("smallint")
-                        .HasColumnName("id");
-
-                    b.HasKey("Id")
-                        .HasName("pk_brand");
-
-                    b.ToTable("brand", "ref", t =>
-                        {
-                            t.ExcludeFromMigrations();
-                        });
-                });
-
-            modelBuilder.Entity("SmartSpare.Modules.Identity.Infrastructure.Persistence.Role", b =>
+            modelBuilder.Entity("SmartSpare.Modules.Identity.Domain.Role", b =>
                 {
                     b.Property<short>("Id")
                         .ValueGeneratedOnAdd()
@@ -308,7 +299,7 @@ namespace SmartSpare.Modules.Identity.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("SmartSpare.Modules.Identity.Infrastructure.Persistence.UserBrand", b =>
+            modelBuilder.Entity("SmartSpare.Modules.Identity.Domain.UserBrandAssignment", b =>
                 {
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid")
@@ -316,16 +307,16 @@ namespace SmartSpare.Modules.Identity.Infrastructure.Persistence.Migrations
                         .HasColumnOrder(0)
                         .HasComment("Reference to iam.app_user.");
 
-                    b.Property<short>("BrandId")
+                    b.Property<short>("Id")
                         .HasColumnType("smallint")
                         .HasColumnName("brand_id")
                         .HasColumnOrder(1)
                         .HasComment("Reference to ref.brand.");
 
-                    b.HasKey("UserId", "BrandId")
+                    b.HasKey("UserId", "Id")
                         .HasName("pk_user_brand");
 
-                    b.HasIndex("BrandId")
+                    b.HasIndex("Id")
                         .HasDatabaseName("ix_user_brand_brand");
 
                     b.ToTable("user_brand", "iam", t =>
@@ -334,7 +325,7 @@ namespace SmartSpare.Modules.Identity.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("SmartSpare.Modules.Identity.Infrastructure.Persistence.UserRole", b =>
+            modelBuilder.Entity("SmartSpare.Modules.Identity.Domain.UserRoleAssignment", b =>
                 {
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid")
@@ -342,7 +333,7 @@ namespace SmartSpare.Modules.Identity.Infrastructure.Persistence.Migrations
                         .HasColumnOrder(0)
                         .HasComment("Reference to iam.app_user.");
 
-                    b.Property<short>("RoleId")
+                    b.Property<short>("Id")
                         .HasColumnType("smallint")
                         .HasColumnName("role_id")
                         .HasColumnOrder(1)
@@ -362,13 +353,13 @@ namespace SmartSpare.Modules.Identity.Infrastructure.Persistence.Migrations
                         .HasColumnOrder(3)
                         .HasComment("User who performed the step (iam.app_user).");
 
-                    b.HasKey("UserId", "RoleId")
+                    b.HasKey("UserId", "Id")
                         .HasName("pk_user_role");
 
                     b.HasIndex("GrantedBy")
                         .HasDatabaseName("ix_user_role_granted_by");
 
-                    b.HasIndex("RoleId")
+                    b.HasIndex("Id")
                         .HasDatabaseName("ix_user_role_role");
 
                     b.ToTable("user_role", "iam", t =>
@@ -377,44 +368,66 @@ namespace SmartSpare.Modules.Identity.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("SmartSpare.Modules.Identity.Infrastructure.Persistence.UserBrand", b =>
+            modelBuilder.Entity("SmartSpare.Modules.Identity.Infrastructure.Persistence.RefBrand", b =>
+                {
+                    b.Property<short>("Id")
+                        .HasColumnType("smallint")
+                        .HasColumnName("id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_brand");
+
+                    b.ToTable("brand", "ref", t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
+                });
+
+            modelBuilder.Entity("SmartSpare.Modules.Identity.Domain.UserBrandAssignment", b =>
                 {
                     b.HasOne("SmartSpare.Modules.Identity.Infrastructure.Persistence.RefBrand", null)
                         .WithMany()
-                        .HasForeignKey("BrandId")
+                        .HasForeignKey("Id")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_user_brand_brand");
 
-                    b.HasOne("SmartSpare.Modules.Identity.Infrastructure.Persistence.AppUser", null)
-                        .WithMany()
+                    b.HasOne("SmartSpare.Modules.Identity.Domain.AppUser", null)
+                        .WithMany("Brands")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_user_brand_user");
                 });
 
-            modelBuilder.Entity("SmartSpare.Modules.Identity.Infrastructure.Persistence.UserRole", b =>
+            modelBuilder.Entity("SmartSpare.Modules.Identity.Domain.UserRoleAssignment", b =>
                 {
-                    b.HasOne("SmartSpare.Modules.Identity.Infrastructure.Persistence.AppUser", null)
+                    b.HasOne("SmartSpare.Modules.Identity.Domain.AppUser", null)
                         .WithMany()
                         .HasForeignKey("GrantedBy")
                         .OnDelete(DeleteBehavior.SetNull)
                         .HasConstraintName("fk_user_role_granted_by");
 
-                    b.HasOne("SmartSpare.Modules.Identity.Infrastructure.Persistence.Role", null)
+                    b.HasOne("SmartSpare.Modules.Identity.Domain.Role", null)
                         .WithMany()
-                        .HasForeignKey("RoleId")
+                        .HasForeignKey("Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_user_role_role");
 
-                    b.HasOne("SmartSpare.Modules.Identity.Infrastructure.Persistence.AppUser", null)
-                        .WithMany()
+                    b.HasOne("SmartSpare.Modules.Identity.Domain.AppUser", null)
+                        .WithMany("Roles")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_user_role_user");
+                });
+
+            modelBuilder.Entity("SmartSpare.Modules.Identity.Domain.AppUser", b =>
+                {
+                    b.Navigation("Brands");
+
+                    b.Navigation("Roles");
                 });
 #pragma warning restore 612, 618
         }

@@ -13,8 +13,9 @@
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
 
-  <!-- Each production project exposes its internals to its own unit-test project only. -->
+  <!-- Each production project exposes its internals to its own unit- and integration-test projects only. -->
   <ItemGroup Condition="!$(MSBuildProjectName.EndsWith('Tests'))">
     <InternalsVisibleTo Include="$(MSBuildProjectName).UnitTests" />
+    <InternalsVisibleTo Include="$(MSBuildProjectName).IntegrationTests" />
   </ItemGroup>
 </Project>

@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Needs Docker (Testcontainers, postgres:17); every test class is tagged Category=Integration. -->
+
+  <ItemGroup>
+    <PackageReference Include="Testcontainers.PostgreSql" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Bootstrapper\SmartSpare.MigrationRunner\SmartSpare.MigrationRunner.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Identity\SmartSpare.Modules.Identity\SmartSpare.Modules.Identity.csproj" />
+  </ItemGroup>
+
+  <!-- The same accept/reject cases as the unit tests, checked here against the real CHECK constraints. -->
+  <ItemGroup>
+    <Compile Include="..\SmartSpare.Modules.Identity.UnitTests\ValueObjectCases.cs" Link="ValueObjectCases.cs" />
+  </ItemGroup>
+
+</Project>
