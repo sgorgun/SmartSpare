@@ -1,9 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using SmartSpare.Modules.Identity.Domain;
 
 namespace SmartSpare.Modules.Identity.Infrastructure.Persistence.Configurations;
 
-/// <summary><c>iam.role</c> as created by V016 (names, types, constraints and comments unchanged).</summary>
+/// <summary>Maps the read-only <see cref="Role"/> reference entity onto <c>iam.role</c> as created by V016 (unchanged).</summary>
 internal sealed class RoleConfiguration : IEntityTypeConfiguration<Role>
 {
     public void Configure(EntityTypeBuilder<Role> builder)
