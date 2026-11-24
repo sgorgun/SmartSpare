@@ -249,7 +249,7 @@ Work is done on the developer machine (.NET 10 SDK + Docker), where the code can
 6. **Procurement.** Purchase orders with the four-eyes rule.
 7. **Forecasting.** ML.NET models and benchmark, recommendations and UC01 events between modules.
 8. **Reporting.** Dashboards and KPIs on the marts.
-9. **Azure.** Bicep, GitHub Actions with OIDC, first deployment, telemetry.
+9. **Azure.** Bicep, GitHub Actions with OIDC, first deployment, telemetry. Forwarded headers for the real client IP behind App Service (#48) must be in place before the first deployment, because the sign-in rate limit depends on it.
 10. **Defence polish.** Playwright scenarios, updated diagrams and documentation.
 
 Stages 4–8 follow the same pattern: domain → use cases → endpoints → tests → screens. The order can shift to match diploma submission deadlines.
