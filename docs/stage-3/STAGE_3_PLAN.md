@@ -24,7 +24,7 @@ Every technical choice below was checked against the official documentation for 
 | S10 | Data Protection key ring in `iam.data_protection_keys` via `PersistKeysToDbContext`, application name `SmartSpare`. Key protection at rest is configured in the host per environment (#22). This store is for the single host; the gateway uses Blob Storage + Key Vault (ADR 0016 §6, stage 4). | 5 |
 | S11 | `SessionContextInterceptor` also sets `app.user_roles` and `app.home_warehouse_id`. The SQL role and warehouse checks read these GUCs, and `iam.v_app_user_masked` becomes module-local (#11). | 6 |
 | S12 | Identity aggregates move into `Domain/`, and the Identity classes in `PersistenceModel.cs` are deleted (ADR 0013, #38). | 7 |
-| S13 | New `SmartSpare.Web.Client` (Blazor WASM, MudBlazor **9.12.0**), hosted by `SmartSpare.Host` (and by the gateway from stage 4). Typed HTTP clients per module. `IStringLocalizer` with en-US only in this stage. | 8 |
+| S13 | New `SmartSpare.Web.Client` (Blazor WASM, MudBlazor **9.14.0**), hosted by `SmartSpare.Host` (and by the gateway from stage 4). Typed HTTP clients per module. `IStringLocalizer` with en-US only in this stage. | 8 |
 | S14 | Module implementation projects may reference `SmartSpare.ApiContracts`, the public HTTP contract. Role, claim and policy names live there, so host and client share one definition. | 8.4, ADR 0014 |
 | S15 | **One principal in both topologies.** In the single host the default scheme is the policy scheme `SmartSpare` (services: JwtBearer only; gateway: cookie only, ADR 0016 §4): an internal ES256 bearer token goes to JwtBearer, anything else to the cookie. Module endpoints never name a scheme. The internal-token issuer is part of `SmartSpare.Bff`, and integration tests call module endpoints with the cookie and with an internal token. | 1.6, ADR 0016 |
 
@@ -367,9 +367,9 @@ SmartSpare.Web.Client/
 
 The client references **only `SmartSpare.ApiContracts`** (existing architecture rule). An architecture test checks that it doesn't reference any `SmartSpare.Modules.*` assembly.
 
-### 8.3 MudBlazor 9.12
+### 8.3 MudBlazor 9.x
 
-- Package `MudBlazor` **9.12.0** (latest 9.x on NuGet; 9.x fully supports .NET 10). Central version in `Directory.Packages.props`.
+- Package `MudBlazor` **9.14.0**, the latest 9.x on NuGet when PR 3d was implemented (the plan named 9.12.0; 9.x fully supports .NET 10). In 9.x the HTML element of `MudText` is `HtmlTag`. Central version in `Directory.Packages.props`.
 - Setup per the [installation guide](https://mudblazor.com/getting-started/installation): `builder.Services.AddMudServices(...)` in the client, `@using MudBlazor` in `_Imports.razor`, the MudBlazor CSS and JS references in `App.razor`, and `MudThemeProvider`, `MudPopoverProvider`, `MudDialogProvider` and `MudSnackbarProvider` in `MainLayout`. Snackbar position and a theme with WCAG 2.1 AA contrast (section 6 of the architecture).
 - The sign-in page is a `MudForm` with `MudTextField` (user name, password with `InputType.Password`, `autocomplete="username"` / `"current-password"`), `MudCheckBox` (remember me) and a `MudButton` with a busy state. Validation messages come from the FluentValidation `LoginRequestValidator` in ApiContracts. The server runs the same validator.
 
@@ -379,7 +379,7 @@ The client references **only `SmartSpare.ApiContracts`** (existing architecture 
 
 ### 8.5 Typed HTTP clients
 
-One typed `HttpClient` per module (`IdentityClient`, later `InventoryClient`, …), registered with `AddHttpClient<T>(c => c.BaseAddress = new(builder.HostEnvironment.BaseAddress))` and the `AntiforgeryHandler` + `UnauthorizedHandler` chain. Same origin, so the cookie is sent automatically, with no CORS and no tokens. Errors: `ApiClientBase` reads `application/problem+json` into a `Result<T>`-like `ApiResult<T>`, and pages show `ProblemDetails` codes SS1xx–SS4xx and SS-AUTH-xxx as localized messages in MudSnackbar ([Call a web API from Blazor](https://learn.microsoft.com/aspnet/core/blazor/call-web-api?view=aspnetcore-10.0)).
+One typed `HttpClient` per module (`IdentityClient`, later `InventoryClient`, …) with the `AntiforgeryHandler` + `UnauthorizedHandler` chain and the app's base address. **Composed per DI scope, not with `AddHttpClient<T>` (PR 3d):** `IHttpClientFactory` creates handlers in their own DI scope, where `AntiforgeryStateProvider` and `NavigationManager` would be different, uninitialised instances. In WebAssembly the default antiforgery provider takes the persisted token once, so a second instance would have none. `ClientServices.AddSmartSpareClient` registers the same services in the browser and in the host, which prerenders the components. Same origin, so the cookie is sent automatically, with no CORS and no tokens. Errors: `ApiClientBase` reads `application/problem+json` into a `Result<T>`-like `ApiResult<T>`, and pages show `ProblemDetails` codes SS1xx–SS4xx and SS-AUTH-xxx as localized messages in MudSnackbar ([Call a web API from Blazor](https://learn.microsoft.com/aspnet/core/blazor/call-web-api?view=aspnetcore-10.0)).
 
 ### 8.6 Localization
 
@@ -404,6 +404,10 @@ upgrade-insecure-requests
 **Why `style-src 'unsafe-inline'`.** MudBlazor sets inline `style` attributes at runtime (positions of popovers, menus and tooltips, widths, colours from the theme). Hashes and nonces in `style-src` cover `<style>` elements, but browsers apply them to `style` attributes only together with `'unsafe-hashes'`, and only for fixed values. These values are computed at runtime, so no hash can match them. Without `'unsafe-inline'` the components would render broken.
 
 **Accepted risk.** An attacker who can inject markup could add CSS. That allows defacement, UI redressing inside the page, or reading attribute values through CSS selectors that load background images; the last is limited by `img-src 'self' data:` and `connect-src 'self'`. Injected CSS cannot run script. `script-src` stays strict, with no `'unsafe-inline'` and no `'unsafe-eval'`, and Blazor's rendering encodes text, so the main XSS defence is unchanged. If MudBlazor moves away from inline styles, or browsers allow per-attribute style nonces, we revisit this.
+
+**Import-map hash (PR 3d).** The import map is computed per request: fingerprinted assets change it per build, and in .NET 10 it includes the WebAssembly resource collection. The host hashes the endpoint's `ImportMapDefinition` (what the `ImportMap` component renders) with line endings normalised to LF, because HTML parsing turns CRLF into LF before the browser hashes an inline script. A test compares the header with the hash of the rendered import map as a browser computes it, and checks that it is the only inline script.
+
+**Resource collection and the fallback policy (PR 3d).** `_framework/resource-collection.{fingerprint}.js` is a component endpoint the framework builds without endpoint conventions, so it can't be marked `AllowAnonymous` like the static assets. The host's fallback policy is therefore "authenticated, or the resource collection"; without it WebAssembly could not start on the sign-in page. A test fetches every module of the import map anonymously.
 
 The host also sends `X-Content-Type-Options: nosniff` and `Referrer-Policy: strict-origin-when-cross-origin`, and keeps `UseHsts` outside Development. An integration test asserts the headers on `/`, including that `script-src` contains neither `'unsafe-inline'` nor `'unsafe-eval'`.
 
@@ -531,7 +535,7 @@ Closes **#11, #22, #69, #71**.
 
 ### 3d: Blazor client skeleton
 
-Scope: section 8 (hosting in `SmartSpare.Host`, `SmartSpare.Web.Client`, MudBlazor 9.12, layout, sign-in page, typed clients, localization, CSP and security headers) and section 1.4. bUnit project 9.3.
+Scope: section 8 (hosting in `SmartSpare.Host`, `SmartSpare.Web.Client`, MudBlazor 9.x, layout, sign-in page, typed clients, localization, CSP and security headers) and section 1.4. bUnit project 9.3.
 
 Acceptance:
 - `dotnet run --project src/SmartSpare.AppHost`, then sign in as a demo user, see the role-dependent menu and sign out. A 401 after stamp rotation sends the user back to `/login`.
@@ -577,4 +581,4 @@ Official documentation (ASP.NET Core 10.0), checked 24 November 2026:
 - [Key storage providers](https://learn.microsoft.com/aspnet/core/security/data-protection/implementation/key-storage-providers?view=aspnetcore-10.0) and [Configure ASP.NET Core Data Protection](https://learn.microsoft.com/aspnet/core/security/data-protection/configuration/overview?view=aspnetcore-10.0): `PersistKeysToDbContext`, `SetApplicationName`, `ProtectKeysWithAzureKeyVault`, `ProtectKeysWithCertificate`.
 - [Enforce a Content Security Policy for ASP.NET Core Blazor](https://learn.microsoft.com/aspnet/core/blazor/security/content-security-policy?view=aspnetcore-10.0)
 - [ASP.NET Core Blazor globalization and localization](https://learn.microsoft.com/aspnet/core/blazor/globalization-localization?view=aspnetcore-10.0)
-- [MudBlazor installation](https://mudblazor.com/getting-started/installation) and [MudBlazor on NuGet](https://www.nuget.org/packages/MudBlazor/) (9.12.0; 9.x supports .NET 8, 9 and 10; no static rendering).
+- [MudBlazor installation](https://mudblazor.com/getting-started/installation) and [MudBlazor on NuGet](https://www.nuget.org/packages/MudBlazor/) (9.14.0 used; 9.x supports .NET 8, 9 and 10; no static rendering).

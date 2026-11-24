@@ -35,7 +35,12 @@ The browser signs in through the BFF endpoints of the host ([ADR 0014](docs/adr/
 `POST /bff/login` with `{ "userName", "password", "rememberMe" }` and the token in the `X-XSRF-TOKEN` header sets the
 HttpOnly cookie `__Host-SmartSpare`, `GET /bff/me` shows the session, and `POST /bff/logout` ends it. The cookie and
 antiforgery cookies are `Secure`, so use the HTTPS URL. Demo users and their password: see the database quick start.
-The sign-in page arrives with the Blazor client (PR 3d).
+
+In the browser: open the host (https://localhost:7080, or the `host` link in the Aspire dashboard), sign in on the
+MudBlazor sign-in page as a demo user, for example `tomas.radzevicius` (brand manager: every area) or `lukas.vaitkus`
+(warehouse keeper: inventory, procurement, reporting), and sign out from the account menu. The menu follows the
+user's roles; every endpoint checks its own policy on the server. Error messages end with "Reference: <trace id>",
+which finds the request in the traces and logs.
 
 Module endpoints also accept an **internal token** (`Authorization: Bearer`), the 2-minute ES256 token the gateway
 will mint in stage 4. The single host validates it with a key that never lives in a file of the repository. Without a
