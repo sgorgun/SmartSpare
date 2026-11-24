@@ -131,4 +131,8 @@ SELECT pg_temp.ok(
     (SELECT count(*) = max(substr(number, 9)::int) FROM inventory.transfer_order WHERE number LIKE 'TR-' || extract(year FROM now()) || '-%'),
     'Document numbers are gap-less within a year');
 
+-- #69: the regex of ck_app_user_user_name matches case-insensitively on citext; the CHECK also keeps names lower-case.
+SELECT pg_temp.expect_error($$UPDATE iam.app_user SET user_name = 'Tomas.Radzevicius' WHERE user_name = 'tomas.radzevicius'$$,
+                            '23514', 'CHECK: user names are stored in lower case (#69)');
+
 ROLLBACK;
