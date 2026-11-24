@@ -20,7 +20,7 @@ public sealed class ModuleBoundaryTests
         var module = Solution.Get(name);
         var otherImplementations = Solution.Modules.Where(m => m != module).ToList();
 
-        var result = Types.InAssembly(module.Implementation)
+        var result = Selection.Of(module.Implementation)
             .ShouldNot()
             .HaveDependencyOnAny([.. otherImplementations.SelectMany(ImplementationNamespaces)])
             .GetResult();
@@ -49,8 +49,7 @@ public sealed class ModuleBoundaryTests
     {
         var module = Solution.Get(name);
 
-        var result = Types.InAssembly(module.Implementation)
-            .That().ResideInNamespaceStartingWith(module.Namespace + ".Domain")
+        var result = Selection.InArea(module, "Domain")
             .ShouldNot().HaveDependencyOnAny("Microsoft.EntityFrameworkCore", "Microsoft.AspNetCore", "Npgsql")
             .GetResult();
 
@@ -67,7 +66,7 @@ public sealed class ModuleBoundaryTests
         Solution.SmartSpareReferences(module.Contracts).ShouldAllBe(r => r == allowed);
         Solution.ProjectReferences(module.Contracts.GetName().Name!).ShouldAllBe(r => r == allowed);
 
-        var result = Types.InAssembly(module.Contracts)
+        var result = Selection.Of(module.Contracts)
             .ShouldNot().HaveDependencyOnAny("Microsoft.EntityFrameworkCore", "Microsoft.AspNetCore", "SmartSpare.Infrastructure")
             .GetResult();
         result.IsSuccessful.ShouldBeTrue(Describe(result));
@@ -102,7 +101,7 @@ public sealed class ModuleBoundaryTests
         Solution.SmartSpareReferences(Solution.SharedKernel).ShouldBeEmpty();
         Solution.ProjectReferences("SmartSpare.SharedKernel").ShouldBeEmpty();
 
-        var result = Types.InAssembly(Solution.SharedKernel)
+        var result = Selection.Of(Solution.SharedKernel)
             .ShouldNot().HaveDependencyOnAny("Microsoft.EntityFrameworkCore", "Microsoft.AspNetCore", "Npgsql", "FluentValidation")
             .GetResult();
         result.IsSuccessful.ShouldBeTrue(Describe(result));
