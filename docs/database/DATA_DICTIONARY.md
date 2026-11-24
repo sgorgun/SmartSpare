@@ -1,6 +1,6 @@
 # SmartSpare — Data Dictionary
 
-_Generated from the PostgreSQL catalogue by `tools/generate_db_docs.py` on 2026-11-17. Do not edit by hand — change the EF Core migrations (or their SQL parts in `db/sql/`) and regenerate._
+_Generated from the PostgreSQL catalogue by `tools/generate_db_docs.py` on 2026-11-24. Do not edit by hand — change the EF Core migrations (or their SQL parts in `db/sql/`) and regenerate._
 
 The database is built by the EF Core migrations of each module (ADR 0004, ADR 0011); references between modules are plain ids, not foreign keys. Row counts are those of the synthetic demo dataset (`db/testdata/T001`, 2,000 SKUs).
 
@@ -11,7 +11,7 @@ The database is built by the EF Core migrations of each module (ADR 0004, ADR 00
 | Schema | Layer / module | Tables | Views | Mat. views |
 |---|---|---:|---:|---:|
 | `ref` | Platform — reference data | 9 | 0 | 0 |
-| `iam` | Identity | 7 | 1 | 0 |
+| `iam` | Identity | 8 | 1 | 0 |
 | `catalog` | Inventory — catalogue | 2 | 0 | 0 |
 | `inventory` | Inventory — stock & transfers | 12 | 2 | 0 |
 | `fleet` | Fleet | 11 | 2 | 0 |
@@ -245,7 +245,7 @@ Rows (demo): **5**
 
 ### `iam.__ef_migrations_history` (table)
 
-Rows (demo): **3**
+Rows (demo): **7**
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -273,7 +273,7 @@ Rows (demo): **12**
 | `email` | `citext` | UQ, NN |  | PERSONAL DATA (GDPR). Corporate e-mail; masked by util.mask_email for read-only roles. |
 | `full_name` | `character varying(150)` | NN |  | PERSONAL DATA (GDPR). Masked by util.mask_name for read-only roles. |
 | `phone` | `character varying(30)` |  |  | PERSONAL DATA (GDPR). Masked by util.mask_phone for read-only roles. |
-| `password_hash` | `text` |  |  | ASP.NET Core Identity V3 hash (PBKDF2-HMAC-SHA512, 100k iterations). Plain text is impossible by CHECK. |
+| `password_hash` | `text` |  |  | ASP.NET Core Identity V3 hash (PBKDF2-HMAC-SHA512, 220,000 iterations; older hashes are rehashed at sign-in). Plain text is impossible by CHECK. |
 | `security_stamp` | `uuid` | NN | `gen_random_uuid()` | Changes on password/role change; invalidates issued sign-in cookies (security stamp validation). |
 | `is_active` | `boolean` | NN | `true` | FALSE = deactivated, kept for history. |
 | `failed_login_count` | `smallint` | NN | `0` |  |
@@ -295,7 +295,7 @@ Rows (demo): **12**
 - Check `ck_app_user_failed_logins`: `CHECK (((failed_login_count >= 0) AND (failed_login_count <= 100)))`
 - Check `ck_app_user_password_hash_format`: `CHECK (((password_hash IS NULL) OR (password_hash ~ '^AQAAAA[A-Za-z0-9+/]{76,}={0,2}$'::text)))`
 - Check `ck_app_user_phone`: `CHECK (((phone IS NULL) OR ((phone)::text ~ '^\+?[0-9 ()-]{7,20}$'::text)))`
-- Check `ck_app_user_user_name`: `CHECK ((user_name ~ '^[a-z0-9._-]{3,50}$'::citext))`
+- Check `ck_app_user_user_name`: `CHECK (((user_name ~ '^[a-z0-9._-]{3,50}$'::citext) AND ((user_name)::text = lower((user_name)::text))))`
 
 **Indexes**
 
@@ -305,6 +305,26 @@ Rows (demo): **12**
 - `uq_app_user_user_name` — `btree (user_name)`
 
 **Triggers:** `trg_app_user_updated_at: util.trg_set_updated_at`, `trg_audit: audit.trg_row_audit`
+
+### `iam.data_protection_keys` (table)
+
+ASP.NET Core Data Protection key ring of the single host (cookies, antiforgery tokens). Secret material: no app_read grant, no audit.
+
+Rows (demo): **0**
+
+| Column | Type | Keys / flags | Default | Description |
+|---|---|---|---|---|
+| `id` | `integer` | PK, NN, ID | `identity` |  |
+| `friendly_name` | `text` |  |  | Key id as written by the key manager (key-<guid>). |
+| `xml` | `text` |  |  | Key descriptor XML; encrypted at rest when the host configures key protection. |
+
+**Data quality expectations / integrity rules**
+
+- Primary key `pk_data_protection_keys`: `PRIMARY KEY (id)`
+
+**Indexes**
+
+- `pk_data_protection_keys` — `btree (id)`
 
 ### `iam.inbox_message` (table)
 
@@ -441,7 +461,7 @@ User directory with masked personal data (name -> initials, e-mail and phone par
 | `email_masked` | `text` |  |  |  |
 | `phone_masked` | `text` |  |  |  |
 | `is_active` | `boolean` |  |  |  |
-| `home_warehouse_code` | `character varying(10)` |  |  |  |
+| `home_warehouse_id` | `smallint` |  |  |  |
 | `roles` | `character varying[]` |  |  |  |
 | `last_login_at` | `timestamp with time zone` |  |  |  |
 | `created_at` | `timestamp with time zone` |  |  |  |
@@ -524,7 +544,7 @@ Rows (demo): **1**
 
 ### `inventory.__ef_migrations_history` (table)
 
-Rows (demo): **2**
+Rows (demo): **3**
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -709,7 +729,7 @@ Rows (demo): **7,111**
 
 Append-only stock ledger (single source of truth for stock and demand history). Partitioned by month; corrections only via compensating movements.
 
-Rows (demo): **197,944** · Partitioning: `RANGE (occurred_at)`, 61 partitions
+Rows (demo): **197,902** · Partitioning: `RANGE (occurred_at)`, 61 partitions
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -1449,7 +1469,7 @@ Rows (demo): **0**
 
 Supplier purchase order (PO-YYYY-NNNNNN). Drafts are generated from recommendations and approved by management (US14).
 
-Rows (demo): **31**
+Rows (demo): **33**
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -1980,7 +2000,7 @@ NFR08: decomposition (a) base demand, (b) maintenance, (c) lead-time buffer, (d)
 
 Immutable audit trail of state-changing operations: timestamp, user, action, previous and new values, reason (US18).
 
-Rows (demo): **26,950** · Partitioning: `RANGE (occurred_at)`, 49 partitions
+Rows (demo): **26,955** · Partitioning: `RANGE (occurred_at)`, 49 partitions
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -2039,7 +2059,7 @@ Audit trail for the sponsor / auditors with the actor's name masked.
 
 Raw layer: historical demand (ERP sales/service issues) CSV rows as text.
 
-Rows (demo): **186,859**
+Rows (demo): **186,816**
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -2134,7 +2154,7 @@ Rows (demo): **2,070**
 
 Staging layer: typed historical demand rows; duplicates (same row_hash as an earlier loaded row) are flagged, not loaded.
 
-Rows (demo): **186,859**
+Rows (demo): **186,816**
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -2265,7 +2285,7 @@ Rows (demo): **7,197**
 
 Data mart: weekly demand (only non-zero weeks) per warehouse and part; source for ML training and accuracy.
 
-Rows (demo): **189,713**
+Rows (demo): **189,670**
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -2405,7 +2425,7 @@ ML.NET training/inference features: dense weekly series with season, lags (1,2,4
 
 ### `util.__ef_migrations_history` (table)
 
-Rows (demo): **2**
+Rows (demo): **4**
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -2495,14 +2515,16 @@ Security self-check: must return zero rows. Executed by the test suite after eve
 | `forecast.promote_model(integer,numeric)` | function (plpgsql) | DEFINER | `boolean` | Promotes a candidate only if its weighted RMSSE is >= 10 % lower than the best of the 5 benchmarks; retires the previous active model atomically. |
 | `forecast.trg_model_status_guard()` | trigger function (plpgsql) | invoker | `trigger` |  |
 | `audit.purge_expired(interval)` | procedure (plpgsql) | invoker | `procedure` | Drops audit partitions older than the retention period (default 180 days). Run monthly by Quartz.NET. |
-| `audit.trg_row_audit()` | trigger function (plpgsql) | DEFINER | `trigger` | AFTER ROW trigger writing changed columns into audit.audit_log; arguments = excluded columns (PII, secrets). |
+| `audit.trg_row_audit()` | trigger function (plpgsql) | DEFINER | `trigger` | AFTER ROW trigger writing changed columns into audit.audit_log; record_id = id column or the *_id columns of a composite key; arguments = excluded columns (PII, secrets). |
 | `staging.load_demand_history(bigint)` | function (plpgsql) | invoker | `integer` |  |
 | `staging.load_part_catalog(bigint)` | function (plpgsql) | invoker | `integer` |  |
 | `staging.process_batch(bigint,numeric)` | function (plpgsql) | DEFINER | `raw.import_batch` | Validates a raw batch into staging and loads core tables if the share of invalid rows <= threshold (default 5 %). Returns the load report. |
 | `staging.validate_demand_history(bigint)` | function (plpgsql) | invoker | `integer` |  |
 | `staging.validate_part_catalog(bigint)` | function (plpgsql) | invoker | `integer` |  |
 | `mart.refresh_all()` | procedure (plpgsql) | DEFINER | `procedure` | Refreshes the data marts (concurrently once populated) and logs duration/rows/failures. Nightly Quartz.NET job and after imports. |
+| `util.current_app_roles()` | function (sql) | invoker | `text[]` | Role codes of the application user of the current transaction (GUC app.user_roles set by the EF Core interceptor); empty for system jobs. |
 | `util.current_app_user()` | function (sql) | invoker | `uuid` | Application user of the current transaction (GUC app.user_id set by the EF Core interceptor); NULL for system jobs. |
+| `util.current_home_warehouse_id()` | function (sql) | invoker | `smallint` | Home warehouse of the application user of the current transaction (GUC app.home_warehouse_id set by the EF Core interceptor); NULL if the user has none. |
 | `util.ensure_monthly_partitions(regclass,date,integer)` | function (plpgsql) | invoker | `integer` | Creates missing monthly RANGE partitions of a partitioned table; returns the number created. |
 | `util.mask_email(text)` | function (sql) | invoker | `text` | Masks an e-mail address for display to roles without access to personal data. |
 | `util.mask_name(text)` | function (sql) | invoker | `text` | Masks a full name to initials. |
@@ -2510,7 +2532,7 @@ Security self-check: must return zero rows. Executed by the test suite after eve
 | `util.next_document_number(text,timestamp with time zone)` | function (plpgsql) | invoker | `text` | Returns the next gap-less document number, e.g. SO-2026-000412. Runs inside the caller's transaction, so a rollback releases nothing and no gap appears. |
 | `util.pseudonymise(text)` | function (plpgsql) | invoker | `bytea` | Keyed HMAC-SHA256 pseudonym of an external identifier (GDPR Art. 4(5)). Key supplied per session via app.pseudonym_key. |
 | `util.require_app_user()` | function (plpgsql) | invoker | `uuid` |  |
-| `util.require_role(text[])` | function (plpgsql) | invoker | `uuid` | Returns the session user if it has one of the roles, otherwise raises SS301 (defence in depth behind API authorisation). |
+| `util.require_role(text[])` | function (plpgsql) | invoker | `uuid` | Returns the session user if the session roles (app.user_roles) include one of the roles, otherwise raises SS301 (defence in depth behind API authorisation). |
 | `util.trg_assign_document_number()` | trigger function (plpgsql) | DEFINER | `trigger` |  |
 | `util.trg_forbid_modification()` | trigger function (plpgsql) | invoker | `trigger` | BEFORE UPDATE/DELETE trigger for append-only tables (stock ledger, audit log). |
 | `util.trg_set_updated_at()` | trigger function (plpgsql) | invoker | `trigger` | BEFORE UPDATE trigger: sets updated_at = now(). |

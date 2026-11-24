@@ -4,11 +4,11 @@
 -- Last migration per context (history schema: migration):
 --   fleet: 20261116230235_AddOutboxInbox
 --   forecast: 20261116230242_InitialForecasting
---   iam: 20261117014122_UpdateSecurityStampComment
---   inventory: 20261116230231_AddOutboxInbox
+--   iam: 20261124200146_ModuleLocalMaskedUserView
+--   inventory: 20261124200231_WarehouseCheckFromSessionContext
 --   mart: 20261116230254_TransitionalCrossModuleObjects
 --   procurement: 20261116230533_InitialProcurement
---   util: 20261117014047_UpdateRefSchemaComment
+--   util: 20261124200228_AuditRecordIdOfUpdates
 --
 -- PostgreSQL database dump
 --
@@ -536,12 +536,21 @@ CREATE FUNCTION audit.trg_row_audit() RETURNS trigger
     SET search_path TO 'pg_catalog', 'pg_temp'
     AS $$
 DECLARE
+    v_row      jsonb := coalesce(to_jsonb(NEW), to_jsonb(OLD));
     v_old      jsonb;
     v_new      jsonb;
     v_excluded text[] := ARRAY['updated_at'] || coalesce(TG_ARGV::text[], '{}');
     v_changed  text[];
     v_id       text;
 BEGIN
+    -- record id from the full row, before the values are reduced to the changed columns
+    v_id := v_row ->> 'id';
+    IF v_id IS NULL THEN  -- composite keys: concatenate *_id columns
+        SELECT string_agg(value, '|' ORDER BY key) INTO v_id
+        FROM jsonb_each_text(v_row)
+        WHERE key LIKE '%\_id' ESCAPE '\';
+    END IF;
+
     IF TG_OP IN ('UPDATE', 'DELETE') THEN v_old := to_jsonb(OLD) - v_excluded; END IF;
     IF TG_OP IN ('INSERT', 'UPDATE') THEN v_new := to_jsonb(NEW) - v_excluded; END IF;
 
@@ -554,13 +563,6 @@ BEGIN
         SELECT jsonb_object_agg(k, v_old -> k), jsonb_object_agg(k, v_new -> k)
           INTO v_old, v_new
         FROM unnest(v_changed) AS k;
-    END IF;
-
-    v_id := coalesce(v_new, v_old) ->> 'id';
-    IF v_id IS NULL THEN  -- composite keys: concatenate *_id columns
-        SELECT string_agg(value, '|' ORDER BY key) INTO v_id
-        FROM jsonb_each_text(coalesce(to_jsonb(NEW), to_jsonb(OLD)))
-        WHERE key LIKE '%\_id' ESCAPE '\';
     END IF;
 
     INSERT INTO audit.audit_log (user_id, action, table_name, record_id, old_values, new_values, changed_columns, reason)
@@ -578,7 +580,7 @@ ALTER FUNCTION audit.trg_row_audit() OWNER TO smartspare_owner;
 -- Name: FUNCTION trg_row_audit(); Type: COMMENT; Schema: audit; Owner: smartspare_owner
 --
 
-COMMENT ON FUNCTION audit.trg_row_audit() IS 'AFTER ROW trigger writing changed columns into audit.audit_log; arguments = excluded columns (PII, secrets).';
+COMMENT ON FUNCTION audit.trg_row_audit() IS 'AFTER ROW trigger writing changed columns into audit.audit_log; record_id = id column or the *_id columns of a composite key; arguments = excluded columns (PII, secrets).';
 
 
 --
@@ -1282,7 +1284,7 @@ BEGIN
     IF v_order.status <> 'approved' THEN
         RAISE EXCEPTION 'Transfer order % is %, only approved orders can be dispatched', v_order.number, v_order.status USING ERRCODE = 'SS300';
     END IF;
-    SELECT home_warehouse_id INTO v_home FROM iam.app_user WHERE id = v_user;
+    v_home := util.current_home_warehouse_id();      -- claim of the signed-in keeper (X2)
     IF v_home IS NOT NULL AND v_home <> v_order.from_warehouse_id THEN
         RAISE EXCEPTION 'Only a keeper of the donor warehouse can dispatch order %', v_order.number USING ERRCODE = 'SS302';
     END IF;
@@ -1455,7 +1457,7 @@ BEGIN
     IF v_order.status <> 'dispatched' THEN
         RAISE EXCEPTION 'Transfer order % is %, only dispatched orders can be received', v_order.number, v_order.status USING ERRCODE = 'SS300';
     END IF;
-    SELECT home_warehouse_id INTO v_home FROM iam.app_user WHERE id = v_user;
+    v_home := util.current_home_warehouse_id();      -- claim of the signed-in keeper (X2)
     IF v_home IS NOT NULL AND v_home <> v_order.to_warehouse_id THEN
         RAISE EXCEPTION 'Only a keeper of the recipient warehouse can receive order %', v_order.number USING ERRCODE = 'SS302';
     END IF;
@@ -2341,6 +2343,26 @@ END $_$;
 ALTER FUNCTION staging.validate_part_catalog(p_batch_id bigint) OWNER TO smartspare_owner;
 
 --
+-- Name: current_app_roles(); Type: FUNCTION; Schema: util; Owner: smartspare_owner
+--
+
+CREATE FUNCTION util.current_app_roles() RETURNS text[]
+    LANGUAGE sql STABLE
+    AS $$
+    SELECT coalesce(string_to_array(nullif(current_setting('app.user_roles', true), ''), ','), '{}')
+$$;
+
+
+ALTER FUNCTION util.current_app_roles() OWNER TO smartspare_owner;
+
+--
+-- Name: FUNCTION current_app_roles(); Type: COMMENT; Schema: util; Owner: smartspare_owner
+--
+
+COMMENT ON FUNCTION util.current_app_roles() IS 'Role codes of the application user of the current transaction (GUC app.user_roles set by the EF Core interceptor); empty for system jobs.';
+
+
+--
 -- Name: current_app_user(); Type: FUNCTION; Schema: util; Owner: smartspare_owner
 --
 
@@ -2358,6 +2380,26 @@ ALTER FUNCTION util.current_app_user() OWNER TO smartspare_owner;
 --
 
 COMMENT ON FUNCTION util.current_app_user() IS 'Application user of the current transaction (GUC app.user_id set by the EF Core interceptor); NULL for system jobs.';
+
+
+--
+-- Name: current_home_warehouse_id(); Type: FUNCTION; Schema: util; Owner: smartspare_owner
+--
+
+CREATE FUNCTION util.current_home_warehouse_id() RETURNS smallint
+    LANGUAGE sql STABLE
+    AS $$
+    SELECT nullif(current_setting('app.home_warehouse_id', true), '')::smallint
+$$;
+
+
+ALTER FUNCTION util.current_home_warehouse_id() OWNER TO smartspare_owner;
+
+--
+-- Name: FUNCTION current_home_warehouse_id(); Type: COMMENT; Schema: util; Owner: smartspare_owner
+--
+
+COMMENT ON FUNCTION util.current_home_warehouse_id() IS 'Home warehouse of the application user of the current transaction (GUC app.home_warehouse_id set by the EF Core interceptor); NULL if the user has none.';
 
 
 --
@@ -2558,7 +2600,7 @@ CREATE FUNCTION util.require_role(VARIADIC p_roles text[]) RETURNS uuid
 DECLARE
     v_user uuid := util.require_app_user();
 BEGIN
-    IF NOT iam.user_has_role(v_user, VARIADIC p_roles) THEN
+    IF NOT (util.current_app_roles() && p_roles) THEN
         RAISE EXCEPTION 'User % lacks the required role (one of %)', v_user, p_roles USING ERRCODE = 'SS301';
     END IF;
     RETURN v_user;
@@ -2571,7 +2613,7 @@ ALTER FUNCTION util.require_role(VARIADIC p_roles text[]) OWNER TO smartspare_ow
 -- Name: FUNCTION require_role(VARIADIC p_roles text[]); Type: COMMENT; Schema: util; Owner: smartspare_owner
 --
 
-COMMENT ON FUNCTION util.require_role(VARIADIC p_roles text[]) IS 'Returns the session user if it has one of the roles, otherwise raises SS301 (defence in depth behind API authorisation).';
+COMMENT ON FUNCTION util.require_role(VARIADIC p_roles text[]) IS 'Returns the session user if the session roles (app.user_roles) include one of the roles, otherwise raises SS301 (defence in depth behind API authorisation).';
 
 
 --
@@ -4060,7 +4102,7 @@ CREATE TABLE iam.app_user (
     CONSTRAINT ck_app_user_failed_logins CHECK (((failed_login_count >= 0) AND (failed_login_count <= 100))),
     CONSTRAINT ck_app_user_password_hash_format CHECK (((password_hash IS NULL) OR (password_hash ~ '^AQAAAA[A-Za-z0-9+/]{76,}={0,2}$'::text))),
     CONSTRAINT ck_app_user_phone CHECK (((phone IS NULL) OR ((phone)::text ~ '^\+?[0-9 ()-]{7,20}$'::text))),
-    CONSTRAINT ck_app_user_user_name CHECK ((user_name OPERATOR(public.~) '^[a-z0-9._-]{3,50}$'::public.citext))
+    CONSTRAINT ck_app_user_user_name CHECK (((user_name OPERATOR(public.~) '^[a-z0-9._-]{3,50}$'::public.citext) AND ((user_name)::text = lower((user_name)::text))))
 );
 
 
@@ -4105,7 +4147,7 @@ COMMENT ON COLUMN iam.app_user.phone IS 'PERSONAL DATA (GDPR). Masked by util.ma
 -- Name: COLUMN app_user.password_hash; Type: COMMENT; Schema: iam; Owner: smartspare_owner
 --
 
-COMMENT ON COLUMN iam.app_user.password_hash IS 'ASP.NET Core Identity V3 hash (PBKDF2-HMAC-SHA512, 100k iterations). Plain text is impossible by CHECK.';
+COMMENT ON COLUMN iam.app_user.password_hash IS 'ASP.NET Core Identity V3 hash (PBKDF2-HMAC-SHA512, 220,000 iterations; older hashes are rehashed at sign-in). Plain text is impossible by CHECK.';
 
 
 --
@@ -6352,6 +6394,54 @@ CREATE TABLE iam.__ef_migrations_history (
 ALTER TABLE iam.__ef_migrations_history OWNER TO smartspare_owner;
 
 --
+-- Name: data_protection_keys; Type: TABLE; Schema: iam; Owner: smartspare_owner
+--
+
+CREATE TABLE iam.data_protection_keys (
+    id integer NOT NULL,
+    friendly_name text,
+    xml text
+);
+
+
+ALTER TABLE iam.data_protection_keys OWNER TO smartspare_owner;
+
+--
+-- Name: TABLE data_protection_keys; Type: COMMENT; Schema: iam; Owner: smartspare_owner
+--
+
+COMMENT ON TABLE iam.data_protection_keys IS 'ASP.NET Core Data Protection key ring of the single host (cookies, antiforgery tokens). Secret material: no app_read grant, no audit.';
+
+
+--
+-- Name: COLUMN data_protection_keys.friendly_name; Type: COMMENT; Schema: iam; Owner: smartspare_owner
+--
+
+COMMENT ON COLUMN iam.data_protection_keys.friendly_name IS 'Key id as written by the key manager (key-<guid>).';
+
+
+--
+-- Name: COLUMN data_protection_keys.xml; Type: COMMENT; Schema: iam; Owner: smartspare_owner
+--
+
+COMMENT ON COLUMN iam.data_protection_keys.xml IS 'Key descriptor XML; encrypted at rest when the host configures key protection.';
+
+
+--
+-- Name: data_protection_keys_id_seq; Type: SEQUENCE; Schema: iam; Owner: smartspare_owner
+--
+
+ALTER TABLE iam.data_protection_keys ALTER COLUMN id ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME iam.data_protection_keys_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
 -- Name: inbox_message; Type: TABLE; Schema: iam; Owner: smartspare_owner
 --
 
@@ -6618,22 +6708,21 @@ COMMENT ON COLUMN iam.user_role.granted_by IS 'User who performed the step (iam.
 --
 
 CREATE VIEW iam.v_app_user_masked AS
- SELECT u.id,
-    u.user_name,
-    util.mask_name((u.full_name)::text) AS full_name_masked,
-    util.mask_email((u.email)::text) AS email_masked,
-    util.mask_phone((u.phone)::text) AS phone_masked,
-    u.is_active,
-    w.code AS home_warehouse_code,
+ SELECT id,
+    user_name,
+    util.mask_name((full_name)::text) AS full_name_masked,
+    util.mask_email((email)::text) AS email_masked,
+    util.mask_phone((phone)::text) AS phone_masked,
+    is_active,
+    home_warehouse_id,
     ( SELECT array_agg(r.code ORDER BY r.code) AS array_agg
            FROM (iam.user_role ur
              JOIN iam.role r ON ((r.id = ur.role_id)))
           WHERE (ur.user_id = u.id)) AS roles,
-    u.last_login_at,
-    u.created_at,
-    (u.anonymised_at IS NOT NULL) AS is_anonymised
-   FROM (iam.app_user u
-     LEFT JOIN inventory.warehouse w ON ((w.id = u.home_warehouse_id)));
+    last_login_at,
+    created_at,
+    (anonymised_at IS NOT NULL) AS is_anonymised
+   FROM iam.app_user u;
 
 
 ALTER VIEW iam.v_app_user_masked OWNER TO smartspare_owner;
@@ -13150,6 +13239,14 @@ ALTER TABLE ONLY iam.__ef_migrations_history
 
 ALTER TABLE ONLY iam.app_user
     ADD CONSTRAINT pk_app_user PRIMARY KEY (id);
+
+
+--
+-- Name: data_protection_keys pk_data_protection_keys; Type: CONSTRAINT; Schema: iam; Owner: smartspare_owner
+--
+
+ALTER TABLE ONLY iam.data_protection_keys
+    ADD CONSTRAINT pk_data_protection_keys PRIMARY KEY (id);
 
 
 --
@@ -23952,11 +24049,27 @@ REVOKE ALL ON FUNCTION staging.validate_part_catalog(p_batch_id bigint) FROM PUB
 
 
 --
+-- Name: FUNCTION current_app_roles(); Type: ACL; Schema: util; Owner: smartspare_owner
+--
+
+REVOKE ALL ON FUNCTION util.current_app_roles() FROM PUBLIC;
+GRANT ALL ON FUNCTION util.current_app_roles() TO app_write;
+
+
+--
 -- Name: FUNCTION current_app_user(); Type: ACL; Schema: util; Owner: smartspare_owner
 --
 
 REVOKE ALL ON FUNCTION util.current_app_user() FROM PUBLIC;
 GRANT ALL ON FUNCTION util.current_app_user() TO app_read;
+
+
+--
+-- Name: FUNCTION current_home_warehouse_id(); Type: ACL; Schema: util; Owner: smartspare_owner
+--
+
+REVOKE ALL ON FUNCTION util.current_home_warehouse_id() FROM PUBLIC;
+GRANT ALL ON FUNCTION util.current_home_warehouse_id() TO app_write;
 
 
 --
@@ -24575,6 +24688,20 @@ GRANT INSERT,UPDATE ON TABLE procurement.supplier TO app_write;
 --
 
 GRANT SELECT ON TABLE forecast.v_recommendation_explained TO app_read;
+
+
+--
+-- Name: TABLE data_protection_keys; Type: ACL; Schema: iam; Owner: smartspare_owner
+--
+
+GRANT SELECT,INSERT ON TABLE iam.data_protection_keys TO app_write;
+
+
+--
+-- Name: SEQUENCE data_protection_keys_id_seq; Type: ACL; Schema: iam; Owner: smartspare_owner
+--
+
+GRANT USAGE ON SEQUENCE iam.data_protection_keys_id_seq TO app_write;
 
 
 --

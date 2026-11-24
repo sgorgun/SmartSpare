@@ -278,8 +278,23 @@
 <text text-anchor="start" x="2272" y="-2028" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#666666">timestamptz</text>
 <polygon fill="none" stroke="#8e24aa" points="2161,-2021 2161,-2295 2339,-2295 2339,-2021 2161,-2021"/>
 </g>
-<!-- iam.role -->
+<!-- iam.data_protection_keys -->
 <g id="node11" class="node">
+<title>iam.data_protection_keys</title>
+<polygon fill="white" stroke="transparent" points="1881,-2282 1881,-2352 2010,-2352 2010,-2282 1881,-2282"/>
+<polygon fill="#8e24aa" stroke="transparent" points="1882.5,-2334 1882.5,-2351 2009.5,-2351 2009.5,-2334 1882.5,-2334"/>
+<text text-anchor="start" x="1885.5" y="-2341" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="10.00" fill="white">data_protection_keys</text>
+<text text-anchor="start" x="1885.5" y="-2324" font-family="Helvetica,sans-Serif" font-size="10.00">PK </text>
+<text text-anchor="start" x="1901.5" y="-2324" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="10.00">id</text>
+<text text-anchor="start" x="1966.5" y="-2323" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#666666">integer</text>
+<text text-anchor="start" x="1885.5" y="-2306" font-family="Helvetica,sans-Serif" font-size="10.00">friendly_name</text>
+<text text-anchor="start" x="1966.5" y="-2306" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#666666">text</text>
+<text text-anchor="start" x="1885.5" y="-2289" font-family="Helvetica,sans-Serif" font-size="10.00">xml</text>
+<text text-anchor="start" x="1966.5" y="-2289" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#666666">text</text>
+<polygon fill="none" stroke="#8e24aa" points="1881,-2282 1881,-2352 2010,-2352 2010,-2282 1881,-2282"/>
+</g>
+<!-- iam.role -->
+<g id="node12" class="node">
 <title>iam.role</title>
 <polygon fill="white" stroke="transparent" points="2187,-2320.5 2187,-2407.5 2313,-2407.5 2313,-2320.5 2187,-2320.5"/>
 <polygon fill="#8e24aa" stroke="transparent" points="2188,-2389 2188,-2406 2312,-2406 2312,-2389 2188,-2389"/>
@@ -296,7 +311,7 @@
 <polygon fill="none" stroke="#8e24aa" points="2187,-2320.5 2187,-2407.5 2313,-2407.5 2313,-2320.5 2187,-2320.5"/>
 </g>
 <!-- iam.user_brand -->
-<g id="node12" class="node">
+<g id="node13" class="node">
 <title>iam.user_brand</title>
 <polygon fill="white" stroke="transparent" points="1877,-2029.5 1877,-2082.5 2014,-2082.5 2014,-2029.5 1877,-2029.5"/>
 <polygon fill="#8e24aa" stroke="transparent" points="1878.5,-2064 1878.5,-2081 2013.5,-2081 2013.5,-2064 1878.5,-2064"/>
@@ -340,7 +355,7 @@
 </g>
 </g>
 <!-- iam.user_role -->
-<g id="node13" class="node">
+<g id="node14" class="node">
 <title>iam.user_role</title>
 <polygon fill="white" stroke="transparent" points="1870,-2114.5 1870,-2201.5 2021,-2201.5 2021,-2114.5 1870,-2114.5"/>
 <polygon fill="#8e24aa" stroke="transparent" points="1871.5,-2183 1871.5,-2200 2020.5,-2200 2020.5,-2183 1871.5,-2183"/>
@@ -401,7 +416,7 @@
 </g>
 </g>
 <!-- catalog.part -->
-<g id="node14" class="node">
+<g id="node15" class="node">
 <title>catalog.part</title>
 <polygon fill="white" stroke="transparent" points="1854.5,-1750.5 1854.5,-1973.5 2036.5,-1973.5 2036.5,-1750.5 1854.5,-1750.5"/>
 <polygon fill="#1e88e5" stroke="transparent" points="1855.5,-1955 1855.5,-1972 2035.5,-1972 2035.5,-1955 1855.5,-1955"/>
@@ -479,7 +494,7 @@
 </g>
 </g>
 <!-- catalog.part_analogue -->
-<g id="node15" class="node">
+<g id="node16" class="node">
 <title>catalog.part_analogue</title>
 <polygon fill="white" stroke="transparent" points="1493.5,-1811 1493.5,-1915 1700.5,-1915 1700.5,-1811 1493.5,-1811"/>
 <polygon fill="#1e88e5" stroke="transparent" points="1495,-1897 1495,-1914 1700,-1914 1700,-1897 1495,-1897"/>
@@ -529,7 +544,7 @@
 </g>
 </g>
 <!-- inventory.demand_exception -->
-<g id="node16" class="node">
+<g id="node17" class="node">
 <title>inventory.demand_exception</title>
 <polygon fill="white" stroke="transparent" points="55,-1275.5 55,-1396.5 296,-1396.5 296,-1275.5 55,-1275.5"/>
 <polygon fill="#00897b" stroke="transparent" points="56.5,-1378 56.5,-1395 295.5,-1395 295.5,-1378 56.5,-1378"/>
@@ -551,7 +566,7 @@
 <polygon fill="none" stroke="#00897b" points="55,-1275.5 55,-1396.5 296,-1396.5 296,-1275.5 55,-1275.5"/>
 </g>
 <!-- inventory.stock_movement -->
-<g id="node18" class="node">
+<g id="node19" class="node">
 <title>inventory.stock_movement</title>
 <polygon fill="white" stroke="transparent" points="461.5,-1199 461.5,-1473 674.5,-1473 674.5,-1199 461.5,-1199"/>
 <polygon fill="#00897b" stroke="transparent" points="463,-1455 463,-1472 674,-1472 674,-1455 463,-1455"/>
@@ -606,7 +621,7 @@
 </g>
 </g>
 <!-- inventory.stock_balance -->
-<g id="node17" class="node">
+<g id="node18" class="node">
 <title>inventory.stock_balance</title>
 <polygon fill="white" stroke="transparent" points="788.5,-1565 788.5,-1703 981.5,-1703 981.5,-1565 788.5,-1565"/>
 <polygon fill="#00897b" stroke="transparent" points="790,-1685 790,-1702 981,-1702 981,-1685 790,-1685"/>
@@ -630,7 +645,7 @@
 <polygon fill="none" stroke="#00897b" points="788.5,-1565 788.5,-1703 981.5,-1703 981.5,-1565 788.5,-1565"/>
 </g>
 <!-- inventory.warehouse_part -->
-<g id="node23" class="node">
+<g id="node24" class="node">
 <title>inventory.warehouse_part</title>
 <polygon fill="white" stroke="transparent" points="1500.5,-1546 1500.5,-1684 1693.5,-1684 1693.5,-1546 1500.5,-1546"/>
 <polygon fill="#00897b" stroke="transparent" points="1502,-1666 1502,-1683 1693,-1683 1693,-1666 1502,-1666"/>
@@ -699,7 +714,7 @@
 </g>
 </g>
 <!-- inventory.transfer_order_line -->
-<g id="node21" class="node">
+<g id="node22" class="node">
 <title>inventory.transfer_order_line</title>
 <polygon fill="white" stroke="transparent" points="791,-1412.5 791,-1533.5 979,-1533.5 979,-1412.5 791,-1412.5"/>
 <polygon fill="#00897b" stroke="transparent" points="792,-1515 792,-1532 978,-1532 978,-1515 792,-1515"/>
@@ -733,7 +748,7 @@
 </g>
 </g>
 <!-- inventory.warehouse -->
-<g id="node22" class="node">
+<g id="node23" class="node">
 <title>inventory.warehouse</title>
 <polygon fill="white" stroke="transparent" points="1869,-1374.5 1869,-1563.5 2022,-1563.5 2022,-1374.5 1869,-1374.5"/>
 <polygon fill="#00897b" stroke="transparent" points="1870.5,-1545 1870.5,-1562 2021.5,-1562 2021.5,-1545 1870.5,-1545"/>
@@ -777,7 +792,7 @@
 </g>
 </g>
 <!-- inventory.stock_reservation -->
-<g id="node19" class="node">
+<g id="node20" class="node">
 <title>inventory.stock_reservation</title>
 <polygon fill="white" stroke="transparent" points="430,-1498 430,-1704 706,-1704 706,-1498 430,-1498"/>
 <polygon fill="#00897b" stroke="transparent" points="431,-1686 431,-1703 705,-1703 705,-1686 431,-1686"/>
@@ -836,7 +851,7 @@
 </g>
 </g>
 <!-- inventory.transfer_order -->
-<g id="node20" class="node">
+<g id="node21" class="node">
 <title>inventory.transfer_order</title>
 <polygon fill="white" stroke="transparent" points="1093,-1326.5 1093,-1617.5 1347,-1617.5 1347,-1326.5 1093,-1326.5"/>
 <polygon fill="#00897b" stroke="transparent" points="1094,-1599 1094,-1616 1346,-1616 1346,-1599 1094,-1599"/>
@@ -877,7 +892,7 @@
 <polygon fill="none" stroke="#00897b" points="1093,-1326.5 1093,-1617.5 1347,-1617.5 1347,-1326.5 1093,-1326.5"/>
 </g>
 <!-- inventory.warehouse_route -->
-<g id="node24" class="node">
+<g id="node25" class="node">
 <title>inventory.warehouse_route</title>
 <polygon fill="white" stroke="transparent" points="1484.5,-1417 1484.5,-1521 1709.5,-1521 1709.5,-1417 1484.5,-1417"/>
 <polygon fill="#00897b" stroke="transparent" points="1486,-1503 1486,-1520 1709,-1520 1709,-1503 1486,-1503"/>
@@ -1002,7 +1017,7 @@
 </g>
 </g>
 <!-- fleet.customer -->
-<g id="node25" class="node">
+<g id="node26" class="node">
 <title>fleet.customer</title>
 <polygon fill="white" stroke="transparent" points="1852.5,-901 1852.5,-1039 2038.5,-1039 2038.5,-901 1852.5,-901"/>
 <polygon fill="#fb8c00" stroke="transparent" points="1853.5,-1021 1853.5,-1038 2037.5,-1038 2037.5,-1021 1853.5,-1021"/>
@@ -1025,7 +1040,7 @@
 <polygon fill="none" stroke="#fb8c00" points="1852.5,-901 1852.5,-1039 2038.5,-1039 2038.5,-901 1852.5,-901"/>
 </g>
 <!-- fleet.engine_hours_reading -->
-<g id="node26" class="node">
+<g id="node27" class="node">
 <title>fleet.engine_hours_reading</title>
 <polygon fill="white" stroke="transparent" points="1124,-636 1124,-774 1316,-774 1316,-636 1124,-636"/>
 <polygon fill="#fb8c00" stroke="transparent" points="1125,-756 1125,-773 1315,-773 1315,-756 1125,-756"/>
@@ -1048,7 +1063,7 @@
 <polygon fill="none" stroke="#fb8c00" points="1124,-636 1124,-774 1316,-774 1316,-636 1124,-636"/>
 </g>
 <!-- fleet.machine -->
-<g id="node27" class="node">
+<g id="node28" class="node">
 <title>fleet.machine</title>
 <polygon fill="white" stroke="transparent" points="1472,-783 1472,-1023 1722,-1023 1722,-783 1472,-783"/>
 <polygon fill="#fb8c00" stroke="transparent" points="1473,-1005 1473,-1022 1721,-1022 1721,-1005 1473,-1005"/>
@@ -1128,7 +1143,7 @@
 </g>
 </g>
 <!-- fleet.machine_model -->
-<g id="node28" class="node">
+<g id="node29" class="node">
 <title>fleet.machine_model</title>
 <polygon fill="white" stroke="transparent" points="1857.5,-1064.5 1857.5,-1151.5 2033.5,-1151.5 2033.5,-1064.5 1857.5,-1064.5"/>
 <polygon fill="#fb8c00" stroke="transparent" points="1858.5,-1133 1858.5,-1150 2032.5,-1150 2032.5,-1133 1858.5,-1133"/>
@@ -1190,7 +1205,7 @@
 </g>
 </g>
 <!-- fleet.maintenance_plan -->
-<g id="node29" class="node">
+<g id="node30" class="node">
 <title>fleet.maintenance_plan</title>
 <polygon fill="white" stroke="transparent" points="1520.5,-1048 1520.5,-1152 1673.5,-1152 1673.5,-1048 1520.5,-1048"/>
 <polygon fill="#fb8c00" stroke="transparent" points="1522,-1134 1522,-1151 1673,-1151 1673,-1134 1522,-1134"/>
@@ -1224,7 +1239,7 @@
 </g>
 </g>
 <!-- fleet.maintenance_plan_part -->
-<g id="node30" class="node">
+<g id="node31" class="node">
 <title>fleet.maintenance_plan_part</title>
 <polygon fill="white" stroke="transparent" points="1103,-1082 1103,-1152 1337,-1152 1337,-1082 1103,-1082"/>
 <polygon fill="#fb8c00" stroke="transparent" points="1104,-1134 1104,-1151 1336,-1151 1336,-1134 1104,-1134"/>
@@ -1255,7 +1270,7 @@
 </g>
 </g>
 <!-- fleet.service_order -->
-<g id="node31" class="node">
+<g id="node32" class="node">
 <title>fleet.service_order</title>
 <polygon fill="white" stroke="transparent" points="1088,-799.5 1088,-1056.5 1352,-1056.5 1352,-799.5 1088,-799.5"/>
 <polygon fill="#fb8c00" stroke="transparent" points="1089,-1038 1089,-1055 1351,-1055 1351,-1038 1089,-1038"/>
@@ -1320,7 +1335,7 @@
 </g>
 </g>
 <!-- fleet.service_order_line -->
-<g id="node32" class="node">
+<g id="node33" class="node">
 <title>fleet.service_order_line</title>
 <polygon fill="white" stroke="transparent" points="792.5,-876 792.5,-980 977.5,-980 977.5,-876 792.5,-876"/>
 <polygon fill="#fb8c00" stroke="transparent" points="794,-962 794,-979 977,-979 977,-962 794,-962"/>
@@ -1354,7 +1369,7 @@
 </g>
 </g>
 <!-- procurement.purchase_order -->
-<g id="node33" class="node">
+<g id="node34" class="node">
 <title>procurement.purchase_order</title>
 <polygon fill="white" stroke="transparent" points="450,-2021.5 450,-2346.5 686,-2346.5 686,-2021.5 450,-2021.5"/>
 <polygon fill="#d81b60" stroke="transparent" points="451,-2328 451,-2345 685,-2345 685,-2328 451,-2328"/>
@@ -1399,7 +1414,7 @@
 <polygon fill="none" stroke="#d81b60" points="450,-2021.5 450,-2346.5 686,-2346.5 686,-2021.5 450,-2021.5"/>
 </g>
 <!-- procurement.supplier -->
-<g id="node35" class="node">
+<g id="node36" class="node">
 <title>procurement.supplier</title>
 <polygon fill="white" stroke="transparent" points="785,-1811.5 785,-2000.5 985,-2000.5 985,-1811.5 785,-1811.5"/>
 <polygon fill="#d81b60" stroke="transparent" points="786,-1982 786,-1999 984,-1999 984,-1982 786,-1982"/>
@@ -1443,7 +1458,7 @@
 </g>
 </g>
 <!-- procurement.purchase_order_line -->
-<g id="node34" class="node">
+<g id="node35" class="node">
 <title>procurement.purchase_order_line</title>
 <polygon fill="white" stroke="transparent" points="78.5,-2098 78.5,-2270 272.5,-2270 272.5,-2098 78.5,-2098"/>
 <polygon fill="#d81b60" stroke="transparent" points="79.5,-2252 79.5,-2269 271.5,-2269 271.5,-2252 79.5,-2252"/>
@@ -1485,7 +1500,7 @@
 </g>
 </g>
 <!-- procurement.supplier_part -->
-<g id="node36" class="node">
+<g id="node37" class="node">
 <title>procurement.supplier_part</title>
 <polygon fill="white" stroke="transparent" points="473,-1807.5 473,-1996.5 663,-1996.5 663,-1807.5 473,-1807.5"/>
 <polygon fill="#d81b60" stroke="transparent" points="474,-1978 474,-1995 662,-1995 662,-1978 474,-1978"/>
@@ -1529,7 +1544,7 @@
 </g>
 </g>
 <!-- procurement.supplier_price -->
-<g id="node37" class="node">
+<g id="node38" class="node">
 <title>procurement.supplier_price</title>
 <polygon fill="white" stroke="transparent" points="84,-1858.5 84,-1945.5 267,-1945.5 267,-1858.5 84,-1858.5"/>
 <polygon fill="#d81b60" stroke="transparent" points="85.5,-1927 85.5,-1944 266.5,-1944 266.5,-1927 85.5,-1927"/>
@@ -1561,7 +1576,7 @@
 </g>
 </g>
 <!-- forecast.benchmark_result -->
-<g id="node38" class="node">
+<g id="node39" class="node">
 <title>forecast.benchmark_result</title>
 <polygon fill="white" stroke="transparent" points="1455,-128.5 1455,-249.5 1739,-249.5 1739,-128.5 1455,-128.5"/>
 <polygon fill="#3949ab" stroke="transparent" points="1456,-231 1456,-248 1738,-248 1738,-231 1456,-231"/>
@@ -1599,7 +1614,7 @@
 </g>
 </g>
 <!-- forecast.ml_model_version -->
-<g id="node41" class="node">
+<g id="node42" class="node">
 <title>forecast.ml_model_version</title>
 <polygon fill="white" stroke="transparent" points="1818,-227.5 1818,-586.5 2073,-586.5 2073,-227.5 1818,-227.5"/>
 <polygon fill="#3949ab" stroke="transparent" points="1819.5,-568 1819.5,-585 2072.5,-585 2072.5,-568 1819.5,-568"/>
@@ -1663,7 +1678,7 @@
 </g>
 </g>
 <!-- forecast.demand_forecast -->
-<g id="node39" class="node">
+<g id="node40" class="node">
 <title>forecast.demand_forecast</title>
 <polygon fill="white" stroke="transparent" points="1118.5,-16 1118.5,-120 1321.5,-120 1321.5,-16 1118.5,-16"/>
 <polygon fill="#3949ab" stroke="transparent" points="1120,-102 1120,-119 1321,-119 1321,-102 1120,-102"/>
@@ -1685,7 +1700,7 @@
 <polygon fill="none" stroke="#3949ab" points="1118.5,-16 1118.5,-120 1321.5,-120 1321.5,-16 1118.5,-16"/>
 </g>
 <!-- forecast.forecast_run -->
-<g id="node40" class="node">
+<g id="node41" class="node">
 <title>forecast.forecast_run</title>
 <polygon fill="white" stroke="transparent" points="1489,-274.5 1489,-463.5 1705,-463.5 1705,-274.5 1489,-274.5"/>
 <polygon fill="#3949ab" stroke="transparent" points="1490,-445 1490,-462 1704,-462 1704,-445 1490,-445"/>
@@ -1757,7 +1772,7 @@
 </g>
 </g>
 <!-- forecast.recommendation -->
-<g id="node42" class="node">
+<g id="node43" class="node">
 <title>forecast.recommendation</title>
 <polygon fill="white" stroke="transparent" points="1064,-145 1064,-589 1376,-589 1376,-145 1064,-145"/>
 <polygon fill="#3949ab" stroke="transparent" points="1065,-571 1065,-588 1375,-588 1375,-571 1065,-571"/>
@@ -1831,7 +1846,7 @@
 </g>
 </g>
 <!-- audit.audit_log -->
-<g id="node43" class="node">
+<g id="node44" class="node">
 <title>audit.audit_log</title>
 <polygon fill="white" stroke="transparent" points="93,-2392.5 93,-2615.5 258,-2615.5 258,-2392.5 93,-2392.5"/>
 <polygon fill="#546e7a" stroke="transparent" points="94.5,-2597 94.5,-2614 257.5,-2614 257.5,-2597 94.5,-2597"/>
@@ -1865,7 +1880,7 @@
 <polygon fill="none" stroke="#546e7a" points="93,-2392.5 93,-2615.5 258,-2615.5 258,-2392.5 93,-2392.5"/>
 </g>
 <!-- legend -->
-<g id="node44" class="node">
+<g id="node45" class="node">
 <title>legend</title>
 <polygon fill="white" stroke="transparent" points="0,-2655 0,-2785 351,-2785 351,-2655 0,-2655"/>
 <text text-anchor="start" x="7.5" y="-2771" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="10.00">Legend</text>

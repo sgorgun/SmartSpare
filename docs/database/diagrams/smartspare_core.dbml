@@ -177,7 +177,7 @@ Table iam.app_user [headercolor: #8E24AA, note: 'Dealership employees using Smar
   "email" "citext" [not null, unique, note: 'PERSONAL DATA (GDPR). Corporate e-mail; masked by util.mask_email for read-only roles.']
   "full_name" "character varying(150)" [not null, note: 'PERSONAL DATA (GDPR). Masked by util.mask_name for read-only roles.']
   "phone" "character varying(30)" [note: 'PERSONAL DATA (GDPR). Masked by util.mask_phone for read-only roles.']
-  "password_hash" "text" [note: 'ASP.NET Core Identity V3 hash (PBKDF2-HMAC-SHA512, 100k iterations). Plain text is impossible by CHECK.']
+  "password_hash" "text" [note: 'ASP.NET Core Identity V3 hash (PBKDF2-HMAC-SHA512, 220,000 iterations; older hashes are rehashed at sign-in). Plain text is impossible by CHECK.']
   "security_stamp" "uuid" [not null, default: `gen_random_uuid()`, note: 'Changes on password/role change; invalidates issued sign-in cookies (security stamp validation).']
   "is_active" "boolean" [not null, default: `true`, note: 'FALSE = deactivated, kept for history.']
   "failed_login_count" "smallint" [not null, default: `0`]
@@ -188,7 +188,13 @@ Table iam.app_user [headercolor: #8E24AA, note: 'Dealership employees using Smar
   "created_at" "timestamp with time zone" [not null, default: `now()`, note: 'Time the record was created.']
   "updated_at" "timestamp with time zone" [not null, default: `now()`, note: 'Time of the last change (maintained by trigger).']
 
-  Note: 'Integrity rules: ck_app_user_active_has_password: CHECK (((password_hash IS NOT NULL) OR (NOT is_active))); ck_app_user_anonymised_inactive: CHECK (((anonymised_at IS NULL) OR (NOT is_active))); ck_app_user_email: CHECK ((email ~ \'^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$\'::citext)); ck_app_user_failed_logins: CHECK (((failed_login_count >= 0) AND (failed_login_count <= 100))); ck_app_user_password_hash_format: CHECK (((password_hash IS NULL) OR (password_hash ~ \'^AQAAAA[A-Za-z0-9+/]{76,}={0,2}$\'::text))); ck_app_user_phone: CHECK (((phone IS NULL) OR ((phone)::text ~ \'^\\+?[0-9 ()-]{7,20}$\'::text))); ck_app_user_user_name: CHECK ((user_name ~ \'^[a-z0-9._-]{3,50}$\'::citext))'
+  Note: 'Integrity rules: ck_app_user_active_has_password: CHECK (((password_hash IS NOT NULL) OR (NOT is_active))); ck_app_user_anonymised_inactive: CHECK (((anonymised_at IS NULL) OR (NOT is_active))); ck_app_user_email: CHECK ((email ~ \'^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$\'::citext)); ck_app_user_failed_logins: CHECK (((failed_login_count >= 0) AND (failed_login_count <= 100))); ck_app_user_password_hash_format: CHECK (((password_hash IS NULL) OR (password_hash ~ \'^AQAAAA[A-Za-z0-9+/]{76,}={0,2}$\'::text))); ck_app_user_phone: CHECK (((phone IS NULL) OR ((phone)::text ~ \'^\\+?[0-9 ()-]{7,20}$\'::text))); ck_app_user_user_name: CHECK (((user_name ~ \'^[a-z0-9._-]{3,50}$\'::citext) AND ((user_name)::text = lower((user_name)::text))))'
+}
+
+Table iam.data_protection_keys [headercolor: #8E24AA, note: 'ASP.NET Core Data Protection key ring of the single host (cookies, antiforgery tokens). Secret material: no app_read grant, no audit.'] {
+  "id" "integer" [pk, increment]
+  "friendly_name" "text" [note: 'Key id as written by the key manager (key-<guid>).']
+  "xml" "text" [note: 'Key descriptor XML; encrypted at rest when the host configures key protection.']
 }
 
 Table iam.role [headercolor: #8E24AA, note: 'Application (RBAC) roles from the BA: BRAND_MANAGER, SERVICE_ENGINEER, WAREHOUSE_KEEPER, INVENTORY_PLANNER, SPONSOR, ADMINISTRATOR.'] {
@@ -795,6 +801,7 @@ TableGroup ref [color: #777777, note: 'Platform — reference data'] {
 }
 TableGroup iam [color: #8E24AA, note: 'Identity'] {
   iam.app_user
+  iam.data_protection_keys
   iam.role
   iam.user_brand
   iam.user_role
