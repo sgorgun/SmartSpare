@@ -153,7 +153,7 @@ CREATE TRIGGER trg_stock_reservation_guard BEFORE INSERT OR UPDATE ON inventory.
 CREATE TRIGGER trg_stock_reservation_sync AFTER INSERT OR UPDATE OR DELETE ON inventory.stock_reservation
     FOR EACH ROW EXECUTE FUNCTION inventory.trg_stock_reservation_sync();
 
--- TRANSITIONAL: replaced by the ServiceKitReservationExpired event flow in stage 5, #12 (writes fleet.service_order; MODULE_MAPPING 3.1 X5)
+-- TRANSITIONAL: replaced by the ServiceKitReservationExpired event flow in stage 6, #12 (writes fleet.service_order; MODULE_MAPPING 3.1 X5)
 -- Background job (Quartz.NET, every 15 min): expire 7-day soft holds of service kits.
 CREATE PROCEDURE inventory.expire_soft_reservations(INOUT p_expired integer DEFAULT 0)
 LANGUAGE plpgsql AS $$

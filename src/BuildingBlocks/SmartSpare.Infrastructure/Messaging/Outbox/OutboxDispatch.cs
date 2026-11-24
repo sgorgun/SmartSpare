@@ -10,7 +10,7 @@ using SmartSpare.SharedKernel;
 
 namespace SmartSpare.Infrastructure.Messaging.Outbox;
 
-/// <summary>Handles an integration event in the consuming module (in-process now, Azure Service Bus later).</summary>
+/// <summary>Handles an integration event in the consuming module (in-process in the single host, RabbitMQ between services; ADR 0017).</summary>
 public interface IIntegrationEventConsumer<in TEvent>
     where TEvent : IIntegrationEvent
 {

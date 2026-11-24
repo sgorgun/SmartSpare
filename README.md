@@ -2,9 +2,11 @@
 
 Agricultural machinery maintenance planning and spare-parts demand forecasting (EHU bachelor's diploma project, Sergei Gorgun, 2026/27).
 
-Stack: ASP.NET Core 10 · Blazor WebAssembly + MudBlazor · EF Core 10 + Npgsql · **PostgreSQL 17** · ML.NET · Quartz.NET · Microsoft Azure.
+Stack: ASP.NET Core 10 · Blazor WebAssembly + MudBlazor · EF Core 10 + Npgsql · **PostgreSQL 17** · ML.NET · Quartz.NET ·
+YARP · RabbitMQ · OpenTelemetry + Grafana stack · Azure Container Apps.
 
-Architecture: a microservice-ready **modular monolith** — start with
+Architecture: **one codebase, two topologies**. Development and tests run a modular monolith (one host). Production runs
+every module as its own service behind a YARP gateway (ADR 0015, from stage 4). Start with
 [ARCHITECTURE_DECISIONS.md](docs/architecture/ARCHITECTURE_DECISIONS.md) and the [ADRs](docs/adr/README.md).
 Compliance with the backend grading rubric: [BACKEND_REQUIREMENTS.md](docs/architecture/BACKEND_REQUIREMENTS.md).
 
@@ -30,7 +32,7 @@ To run the host alone, without Aspire: `dotnet run --project src/Bootstrapper/Sm
 | Test (no Docker) | `dotnet test SmartSpare.slnx --filter "Category!=Integration"` |
 | Test (all, Docker running) | `dotnet test SmartSpare.slnx` |
 | Format check | `dotnet format SmartSpare.slnx --verify-no-changes` |
-| Stale architecture terms | `python3 tools/check_stale_terms.py` — retired designs (MediatR, JWT in the browser, V-scripts …) must not be described as current |
+| Stale architecture terms | `python3 tools/check_stale_terms.py` — retired designs (MediatR, V-scripts, App Service hosting, Application Insights …) must not be described as current |
 
 | Pending model changes | `dotnet run --project src/Bootstrapper/SmartSpare.MigrationRunner -- check-model` |
 | Verify the database (Docker) | `tools/verify_database.sh` — EF-built database + T001 + 97 SQL assertions + concurrency test |
@@ -43,7 +45,8 @@ CI (`.github/workflows/ci.yml`) runs the build, format check, model check and te
 
 ```
 src/
-  Bootstrapper/SmartSpare.Host          ASP.NET Core host: installs the listed modules, BFF (later), health, OpenAPI
+  Bootstrapper/SmartSpare.Host          single host (development, tests): all modules, BFF (stage 3), health, OpenAPI;
+                                        the gateway and one host per module service follow in stage 4 (ADR 0015)
   Bootstrapper/SmartSpare.ModuleCatalog the modules and their databases in migration order (shared by host and runner)
   Bootstrapper/SmartSpare.MigrationRunner  bootstrap + EF migrations of every context; check-model (dev and CI only)
   BuildingBlocks/

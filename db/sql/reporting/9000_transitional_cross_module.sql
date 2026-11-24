@@ -7,7 +7,7 @@
 -- script and adds the module-local version to its own module.
 -- =============================================================================
 
--- TRANSITIONAL: replaced by a read of inventory.expected_receipt in stage 6 (reads procurement; X13) (#13)
+-- TRANSITIONAL: replaced by a read of inventory.expected_receipt in stage 7 (reads procurement; X13) (#13)
 -- ---------------------------------------------------------------------------
 -- In-transit quantity: dispatched transfers + open purchase orders
 -- ---------------------------------------------------------------------------
@@ -27,7 +27,7 @@ $$;
 COMMENT ON FUNCTION inventory.fn_in_transit_qty(smallint, bigint) IS 'Inbound quantity: dispatched transfers + not yet received approved purchase orders.';
 GRANT EXECUTE ON FUNCTION inventory.fn_in_transit_qty(smallint, bigint) TO app_read;
 
--- TRANSITIONAL: replaced by inventory.expected_receipt in stage 6 (reads procurement; X13) (#13)
+-- TRANSITIONAL: replaced by inventory.expected_receipt in stage 7 (reads procurement; X13) (#13)
 CREATE VIEW inventory.v_in_transit AS
 SELECT warehouse_id, part_id,
        sum(qty)                                    AS in_transit_qty,
@@ -48,7 +48,7 @@ GROUP BY warehouse_id, part_id;
 COMMENT ON VIEW inventory.v_in_transit IS 'Inbound quantity per hub and part: dispatched transfers + open approved purchase orders.';
 GRANT SELECT ON inventory.v_in_transit TO app_read;
 
--- TRANSITIONAL: replaced by the module-local in-transit view in stage 6 (depends on v_in_transit; X13) (#13)
+-- TRANSITIONAL: replaced by the module-local in-transit view in stage 7 (depends on v_in_transit; X13) (#13)
 -- US04: 7-warehouse stock breakdown
 CREATE VIEW inventory.v_stock_overview AS
 SELECT p.id                               AS part_id,
@@ -79,7 +79,7 @@ LEFT JOIN inventory.v_in_transit it  ON it.warehouse_id = wp.warehouse_id AND it
 COMMENT ON VIEW inventory.v_stock_overview IS 'US04: on-hand, reserved, available and in-transit stock per part and warehouse with last-updated timestamp.';
 GRANT SELECT ON inventory.v_stock_overview TO app_read;
 
--- TRANSITIONAL: replaced by a module-local view in stage 5 (reads inventory.warehouse; X10) (#12)
+-- TRANSITIONAL: replaced by a module-local view in stage 6 (reads inventory.warehouse; X10) (#12)
 CREATE VIEW fleet.v_machine_maintenance_status AS
 SELECT m.id                      AS machine_id,
        m.vin,
@@ -109,7 +109,7 @@ WHERE m.status = 'active';
 COMMENT ON VIEW fleet.v_machine_maintenance_status IS 'Machine card (WF03): current engine hours and the next not yet planned OEM service.';
 GRANT SELECT ON fleet.v_machine_maintenance_status TO app_read;
 
--- TRANSITIONAL: replaced by fleet.part_snapshot and qty_reserved in stage 5 (reads catalog and inventory; X9) (#12)
+-- TRANSITIONAL: replaced by fleet.part_snapshot and qty_reserved in stage 6 (reads catalog and inventory; X9) (#12)
 CREATE VIEW fleet.v_service_kit_shortage AS
 SELECT s.id AS service_order_id, s.number, s.status, w.code AS warehouse_code,
        l.part_id, p.oem_part_number, p.description,
@@ -126,7 +126,7 @@ WHERE s.status IN ('draft', 'parts_reserved', 'in_progress')
 COMMENT ON VIEW fleet.v_service_kit_shortage IS 'Open service orders whose kit could not be fully reserved (input for transfers / purchasing).';
 GRANT SELECT ON fleet.v_service_kit_shortage TO app_read;
 
--- TRANSITIONAL: replaced by a module-local view in stage 6 (reads inventory.warehouse and iam.app_user; X14) (#13)
+-- TRANSITIONAL: replaced by a module-local view in stage 7 (reads inventory.warehouse and iam.app_user; X14) (#13)
 CREATE VIEW procurement.v_purchase_order_overview AS
 SELECT po.id, po.number, s.code AS supplier_code, s.name AS supplier_name, w.code AS warehouse_code,
        po.status, po.is_urgent, po.total_amount, po.currency_code,
@@ -147,7 +147,7 @@ GROUP BY po.id, s.code, s.name, w.code, cu.user_name, au.user_name;
 COMMENT ON VIEW procurement.v_purchase_order_overview IS 'WF04: purchase order list with totals and approval state.';
 GRANT SELECT ON procurement.v_purchase_order_overview TO app_read;
 
--- TRANSITIONAL: replaced by the C# recommendation engine in stage 7 (reads inventory, fleet and procurement; X15) (#14)
+-- TRANSITIONAL: replaced by the C# recommendation engine in stage 8 (reads inventory, fleet and procurement; X15) (#14)
 -- UC01 step 5 / NFR08: decomposed stock position of one SKU at one hub.
 CREATE FUNCTION forecast.fn_stock_position(p_warehouse_id smallint, p_part_id bigint, p_forecast_run_id bigint,
                                            p_lead_time_days numeric DEFAULT NULL)
@@ -188,7 +188,7 @@ $$;
 COMMENT ON FUNCTION forecast.fn_stock_position(smallint, bigint, bigint, numeric) IS 'Net = Available + InTransit - (ML forecast + unreserved maintenance demand + lead-time buffer + safety stock). Used by the recommendation engine.';
 GRANT EXECUTE ON FUNCTION forecast.fn_stock_position(smallint, bigint, bigint, numeric) TO app_read;
 
--- TRANSITIONAL: replaced by forecast.part_snapshot in stage 7 (reads catalog, inventory, iam and suppliers; X17) (#14)
+-- TRANSITIONAL: replaced by forecast.part_snapshot in stage 8 (reads catalog, inventory, iam and suppliers; X17) (#14)
 -- NFR08 / US09 / WF02 "Explain calculation"
 CREATE VIEW forecast.v_recommendation_explained AS
 SELECT r.id, r.kind, r.status, r.created_at,

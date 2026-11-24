@@ -52,7 +52,7 @@ BEGIN
 END $$;
 COMMENT ON FUNCTION forecast.promote_model(integer, numeric) IS 'Promotes a candidate only if its weighted RMSSE is >= 10 % lower than the best of the 5 benchmarks; retires the previous active model atomically.';
 
--- TRANSITIONAL: replaced by TransferRequested / PurchaseRequested in stage 7, #14 (writes inventory and procurement; MODULE_MAPPING 3.1 X16)
+-- TRANSITIONAL: replaced by TransferRequested / PurchaseRequested in stage 8, #14 (writes inventory and procurement; MODULE_MAPPING 3.1 X16)
 -- UC01 steps 10-11 and A2 / US13: human decision on a recommendation.
 CREATE FUNCTION forecast.decide_recommendation(p_recommendation_id bigint, p_decision text,
                                                p_final_qty numeric DEFAULT NULL, p_reason text DEFAULT NULL)

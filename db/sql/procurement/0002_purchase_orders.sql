@@ -136,7 +136,7 @@ BEGIN
     UPDATE procurement.purchase_order SET status = 'exported', exported_at = now() WHERE id = p_po_id;
 END $$;
 
--- TRANSITIONAL: replaced by PurchaseOrderLineReceived and inventory.expected_receipt in stage 6, #13 (writes inventory.stock_movement; MODULE_MAPPING 3.1 X12)
+-- TRANSITIONAL: replaced by PurchaseOrderLineReceived and inventory.expected_receipt in stage 7, #13 (writes inventory.stock_movement; MODULE_MAPPING 3.1 X12)
 CREATE FUNCTION procurement.receive_purchase_order_line(p_line_id bigint, p_quantity numeric) RETURNS void
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 DECLARE
