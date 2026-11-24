@@ -6,12 +6,18 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\BuildingBlocks\SmartSpare.ServiceDefaults\SmartSpare.ServiceDefaults.csproj" />
     <ProjectReference Include="..\..\BuildingBlocks\SmartSpare.Infrastructure\SmartSpare.Infrastructure.csproj" />
     <ProjectReference Include="..\..\BuildingBlocks\SmartSpare.Bff\SmartSpare.Bff.csproj" />
+  </ItemGroup>
+
+  <!-- The Blazor WebAssembly client the host serves and prerenders (STAGE_3_PLAN 8.1). -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\Web\SmartSpare.Web.Client\SmartSpare.Web.Client.csproj" />
   </ItemGroup>
 
   <!-- Modules come in through the shared, ordered catalogue (also used by the migration runner). -->

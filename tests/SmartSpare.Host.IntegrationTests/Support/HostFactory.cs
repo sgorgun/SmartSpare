@@ -26,9 +26,17 @@ public class HostFactory : WebApplicationFactory<Program>
 
     public bool WithSigningKey { get; init; } = true;
 
+    /// <summary>The host environment; <see langword="null"/> keeps the factory's default (Development).</summary>
+    public string? EnvironmentName { get; init; }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
+
+        if (EnvironmentName is not null)
+        {
+            builder.UseEnvironment(EnvironmentName);
+        }
 
         if (WithSigningKey)
         {

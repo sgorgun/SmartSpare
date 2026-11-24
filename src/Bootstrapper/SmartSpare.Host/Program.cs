@@ -1,10 +1,12 @@
 using SmartSpare.Bff;
 using SmartSpare.Host;
+using SmartSpare.Host.Components;
 using SmartSpare.Infrastructure.Http;
 using SmartSpare.Infrastructure.Messaging;
 using SmartSpare.Infrastructure.Messaging.Outbox;
 using SmartSpare.Infrastructure.Persistence;
 using SmartSpare.ModuleCatalog;
+using SmartSpare.Web.Client;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -41,8 +43,19 @@ builder.AddSmartSpareDataProtection();
 builder.Services.AddBff();
 builder.Services.AddSingleHostAuthentication();
 
+// The Blazor Web App (ADR 0006, STAGE_3_PLAN 8.1): global InteractiveWebAssembly with prerendering. The host prerenders the
+// client's components, so it registers the client's services too, and hands the browser an allow-listed principal (1.4).
+builder.Services.AddRazorComponents()
+    .AddInteractiveWebAssemblyComponents()
+    .AddAuthenticationStateSerialization(ClientAuthenticationState.Configure);
+builder.Services.AddSmartSpareClient();
+
+// After AppPolicies: the fallback also admits the WebAssembly resource collection, which can't be marked AllowAnonymous.
+builder.Services.AddAuthorization(AuthenticatedOrResourceCollection.UseAsFallback);
+
 var app = builder.Build();
 
+// Pipeline order of STAGE_3_PLAN 8.1.
 app.UseSmartSpareProblemDetails();
 
 if (app.Environment.IsDevelopment())
@@ -55,7 +68,15 @@ else
     app.UseHsts();
 }
 
+app.UseHttpsRedirection();
+app.UseSecurityHeaders();
+app.UseRequestLocalization(options => options.SetDefaultCulture("en-US").AddSupportedCultures("en-US").AddSupportedUICultures("en-US"));
+
+// Fingerprinted static assets, including the WebAssembly runtime; public, unlike every page and API (fallback policy).
+app.MapStaticAssets().AllowAnonymous();
+
 app.UseBff();
+app.UseAntiforgery();
 
 app.MapDefaultEndpoints();
 app.MapBff();
@@ -67,6 +88,10 @@ foreach (var module in modules)
 {
     module.MapEndpoints(moduleEndpoints);
 }
+
+app.MapRazorComponents<App>()
+    .AddInteractiveWebAssemblyRenderMode()
+    .AddAdditionalAssemblies(typeof(SmartSpare.Web.Client.Routes).Assembly);
 
 await app.RunAsync().ConfigureAwait(false);
 
