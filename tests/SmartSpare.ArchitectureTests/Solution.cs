@@ -58,6 +58,28 @@ internal static class Solution
             .Select(e => Path.GetFileNameWithoutExtension(e.Attribute("Include")!.Value.Replace('\\', '/')));
     }
 
+    /// <summary>
+    /// C# source files of <paramref name="module"/> under its <c>{area}/</c> folder (for example <c>Domain</c>),
+    /// without build output.
+    /// </summary>
+    public static IReadOnlyList<string> SourceFiles(Module module, string area)
+    {
+        ArgumentNullException.ThrowIfNull(module);
+        var folder = Path.Combine(RootDirectory, "src", "Modules", module.Name, $"SmartSpare.Modules.{module.Name}", area);
+        if (!Directory.Exists(folder))
+        {
+            return [];
+        }
+
+        var separator = Path.DirectorySeparatorChar;
+        return
+        [
+            .. Directory.EnumerateFiles(folder, "*.cs", SearchOption.AllDirectories)
+                .Where(p => !p.Contains($"{separator}obj{separator}", StringComparison.Ordinal)
+                            && !p.Contains($"{separator}bin{separator}", StringComparison.Ordinal)),
+        ];
+    }
+
     private static Module Create(Type installer, Type contractsType) =>
         new(installer.Name.Replace("ModuleInstaller", string.Empty, StringComparison.Ordinal), installer.Assembly, contractsType.Assembly);
 

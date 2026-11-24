@@ -21,15 +21,16 @@ public sealed class EvolvabilityTests
     {
         var module = Solution.Get(name);
 
-        var implementationTypes = Types.InAssembly(module.Implementation).That();
+        var implementationTypes = Selection.Of(module.Implementation).That();
         var outsideTheSeam = module.Implementation.GetName().Name == ForecastingProject
             ? implementationTypes.DoNotResideInNamespaceStartingWith(ForecastingInfrastructureNamespace)
             : implementationTypes.ResideInNamespaceStartingWith(module.Namespace);
 
-        var result = outsideTheSeam.ShouldNot().HaveDependencyOn(MachineLearningNamespace).GetResult();
+        var result = Selection.NotEmpty(outsideTheSeam, $"{name} outside the ML seam")
+            .ShouldNot().HaveDependencyOn(MachineLearningNamespace).GetResult();
         result.IsSuccessful.ShouldBeTrue(Describe(result));
 
-        var contracts = Types.InAssembly(module.Contracts).ShouldNot().HaveDependencyOn(MachineLearningNamespace).GetResult();
+        var contracts = Selection.Of(module.Contracts).ShouldNot().HaveDependencyOn(MachineLearningNamespace).GetResult();
         contracts.IsSuccessful.ShouldBeTrue(Describe(contracts));
     }
 
@@ -52,7 +53,7 @@ public sealed class EvolvabilityTests
 
         foreach (var assembly in new[] { module.Implementation, module.Contracts })
         {
-            var result = Types.InAssembly(assembly).ShouldNot().HaveDependencyOnAny(CloudSdkNamespaces).GetResult();
+            var result = Selection.Of(assembly).ShouldNot().HaveDependencyOnAny(CloudSdkNamespaces).GetResult();
             result.IsSuccessful.ShouldBeTrue(Describe(result));
 
             assembly.GetReferencedAssemblies()
@@ -70,8 +71,7 @@ public sealed class EvolvabilityTests
     {
         var module = Solution.Get(name);
 
-        var result = Types.InAssembly(module.Implementation)
-            .That().ResideInNamespaceStartingWith(module.Namespace + ".Domain")
+        var result = Selection.InArea(module, "Domain")
             .Should().OnlyHaveDependenciesOn("System", "SmartSpare.SharedKernel", module.Namespace + ".Domain", CoverageTrackerNamespace)
             .GetResult();
 
