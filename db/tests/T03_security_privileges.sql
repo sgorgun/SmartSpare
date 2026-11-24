@@ -38,8 +38,9 @@ SELECT pg_temp.expect_error($$DELETE FROM audit.audit_log WHERE false$$, '42501'
 SELECT pg_temp.expect_error($$UPDATE inventory.stock_movement SET quantity = 1 WHERE false$$, '42501', 'app_write: ledger not updatable');
 SELECT pg_temp.expect_error($$CREATE TABLE public.hack (id int)$$, '42501', 'app_write: cannot create objects (no DDL)');
 SELECT pg_temp.expect_error($$SELECT iam.anonymise_user(gen_random_uuid())$$, '42501', 'app_write: cannot run admin-only functions');
-SELECT pg_temp.ok((SELECT count(*) = 1 FROM iam.app_user WHERE user_name = 'tomas.radzevicius' AND password_hash LIKE 'AQAAAAIAAYag%'),
-                  'app_write: reads the Identity V3 hash for login (PBKDF2-HMAC-SHA512, 100k iterations)');
+SELECT pg_temp.ok((SELECT count(*) = 11 AND bool_and(coalesce(pg_temp.identity_v3_iterations(password_hash), 0) >= 220000)
+                   FROM iam.app_user WHERE id::text LIKE '00000000-0000-4000-8000-0000000000__' AND anonymised_at IS NULL),
+                  'app_write: reads the Identity V3 hashes of the demo users for login (PBKDF2-HMAC-SHA512, >= 220,000 iterations)');
 SELECT pg_temp.act_as('jonas.balciunas');
 SELECT pg_temp.expect_error($$SELECT procurement.approve_purchase_order(1)$$, 'SS301', 'DB-level RBAC: a service engineer cannot approve POs');
 

@@ -11,6 +11,8 @@ using SmartSpare.ModuleCatalog;
 //   dotnet run --project src/Bootstrapper/SmartSpare.MigrationRunner -- check-model  exit 1 if a context's model
 //                                                                                    has changes without a migration
 //   dotnet run --project src/Bootstrapper/SmartSpare.MigrationRunner -- list         print the migration order
+//   dotnet run --project src/Bootstrapper/SmartSpare.MigrationRunner -- set-demo-passwords
+//                                hash SMARTSPARE_DEMO_USER_PASSWORD for the T001 demo users (after loading T001)
 var command = args.FirstOrDefault(a => !a.StartsWith('-')) ?? "migrate";
 
 var builder = Host.CreateApplicationBuilder(args);
@@ -63,7 +65,20 @@ switch (command)
             return 1;
         }
 
+    case "set-demo-passwords":
+        var password = builder.Configuration[DemoPasswords.PasswordVariable];
+        if (string.IsNullOrWhiteSpace(password))
+        {
+            await Console.Error.WriteLineAsync(
+                $"{DemoPasswords.PasswordVariable} is not set: choose a demo password in .env (see .env.example).").ConfigureAwait(false);
+            return 1;
+        }
+
+        var updated = await DemoPasswords.SetAsync(options.BuildMigratorConnectionString(), password, CancellationToken.None).ConfigureAwait(false);
+        Console.WriteLine($"Set the password of {updated} demo users (anonymised users are skipped).");
+        return 0;
+
     default:
-        await Console.Error.WriteLineAsync($"Unknown command '{command}'. Use migrate, check-model or list.").ConfigureAwait(false);
+        await Console.Error.WriteLineAsync($"Unknown command '{command}'. Use migrate, check-model, list or set-demo-passwords.").ConfigureAwait(false);
         return 2;
 }
