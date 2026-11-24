@@ -94,10 +94,10 @@ internal sealed partial class AppUser : AggregateRoot<Guid>
         return new AppUser(id, userName, email, fullName, phone, passwordHash, homeWarehouseId);
     }
 
-    /// <summary>Whether the account is locked at <paramref name="now"/>.</summary>
-    public bool IsLockedOut(DateTimeOffset now) => LockoutEnd is { } end && end > now;
-
-    /// <summary>A sign-in succeeded: remember the time and clear the failure count and any lockout.</summary>
+    /// <summary>
+    /// A sign-in succeeded: remember the time. Refused for an inactive user. The failure counter is reset by
+    /// ASP.NET Core Identity through <see cref="ResetFailedSignIns"/>, which owns the lockout algorithm.
+    /// </summary>
     public Result RecordSuccessfulSignIn(DateTimeOffset now)
     {
         if (!IsActive)
@@ -106,34 +106,32 @@ internal sealed partial class AppUser : AggregateRoot<Guid>
         }
 
         LastLoginAt = now;
-        FailedLoginCount = 0;
-        LockoutEnd = null;
         return Result.Success();
     }
 
     /// <summary>
-    /// A sign-in failed. After <see cref="LockoutPolicy.MaxFailedAttempts"/> failures the account is locked
-    /// for <see cref="LockoutPolicy.Duration"/> and the counter starts again, so it never approaches the CHECK's limit.
+    /// Counts one failed sign-in and returns the new count. ASP.NET Core Identity decides when the count reaches
+    /// <see cref="LockoutPolicy.MaxFailedAttempts"/>, locks the account (<see cref="SetLockoutEnd"/>) and resets the
+    /// counter (<see cref="ResetFailedSignIns"/>), so the count never approaches the CHECK's limit; the guard here
+    /// only protects that invariant.
     /// </summary>
-    /// <returns><see langword="true"/> if this failure locked the account.</returns>
-    public bool RecordFailedSignIn(DateTimeOffset now, LockoutPolicy policy)
+    public short RecordFailedSignIn()
     {
-        ArgumentNullException.ThrowIfNull(policy);
-        if (policy.MaxFailedAttempts is < 1 or > MaxFailedLoginCount)
+        if (FailedLoginCount >= MaxFailedLoginCount)
         {
-            throw new ArgumentOutOfRangeException(nameof(policy), "MaxFailedAttempts must be between 1 and 100.");
+            throw new InvalidOperationException($"failed_login_count cannot exceed {MaxFailedLoginCount}.");
         }
 
-        FailedLoginCount++;
-        if (FailedLoginCount < policy.MaxFailedAttempts)
-        {
-            return false;
-        }
-
-        LockoutEnd = now + policy.Duration;
-        FailedLoginCount = 0;
-        return true;
+        return ++FailedLoginCount;
     }
+
+    /// <summary>Clears the failed sign-in counter (after a successful sign-in or when a lockout starts).</summary>
+    public void ResetFailedSignIns() => FailedLoginCount = 0;
+
+    /// <summary>
+    /// Locks the account until <paramref name="lockoutEnd"/>; a time in the past or <see langword="null"/> unlocks it.
+    /// </summary>
+    public void SetLockoutEnd(DateTimeOffset? lockoutEnd) => LockoutEnd = lockoutEnd;
 
     /// <summary>Replaces the password hash (new password or rehash with more iterations) and rotates the stamp.</summary>
     public void ChangePasswordHash(string passwordHash)
