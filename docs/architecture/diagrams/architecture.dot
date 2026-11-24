@@ -1,4 +1,4 @@
-// Solution architecture: the production topology (ADR 0015) and, in the development box, the single-host topology.
+// Solution architecture: the production topology (ADR 0015, hosting per the ADR 0009 amendment) and, in the development box, the single-host topology.
 // Status is taken from the code, not from the plan:
 // solid border = implemented, dashed border + "(stage N)" = planned (ARCHITECTURE_DECISIONS section 13),
 // grey fill = external system. Cluster titles are label nodes, so the edge router keeps edges off them.
@@ -25,36 +25,32 @@ digraph A {
   web [label="SmartSpare.Web.Client (stage 3)\nBlazor WebAssembly + MudBlazor, runs in the browser\ntyped HTTP clients · SmartSpare.ApiContracts DTOs · no tokens", style="rounded,dashed,filled"];
 
   subgraph cluster_aca { label=""; style="rounded,dashed"; color="#1E88E5"; bgcolor="#E3F2FD";
-    t_aca [shape=plaintext, style="", label=<<B>Azure Container Apps environment (stage 4)</B><BR/><FONT POINT-SIZE="10">one image and one revision per app · internal ingress for services · ADR 0009, 0015</FONT>>];
-    gw [label="SmartSpare.Gateway — YARP BFF (stage 4)\nexternal HTTPS ingress · hosts the WASM client · /bff sign-in\nHttpOnly SameSite cookie + antiforgery · rate limit · /scalar + OpenAPI\nswaps the cookie for a 2-min ES256 internal token (ADR 0016)", style="rounded,dashed,filled"];
+    t_aca [shape=plaintext, style="", label=<<B>Azure Container Apps environment (stage 4)</B><BR/><FONT POINT-SIZE="10">one image and one revision per app · every app scales to zero · warm-up before demos · ADR 0009, 0015</FONT>>];
+    gw [label="SmartSpare.Gateway — YARP BFF (stage 4)\nexternal HTTPS ingress · hosts the WASM client · /bff sign-in\nHttpOnly SameSite cookie + antiforgery · rate limit · /scalar + OpenAPI\nswaps the cookie for a 2-min ES256 internal token (ADR 0016)\ncookie scheme only · never routes /internal · scales to zero", style="rounded,dashed,filled"];
     svcs [shape=plain, label=<<TABLE BORDER="1" STYLE="ROUNDED,DASHED" COLOR="#1E88E5" CELLBORDER="1" CELLSPACING="6" CELLPADDING="6" BGCOLOR="white">
-      <TR><TD COLSPAN="6" BORDER="0" ALIGN="LEFT"><B>Six module services</B> (service hosts: stage 4) — each: own image, own database login, JwtBearer for the internal token,<BR ALIGN="LEFT"/>handler pipeline (ADR 0005), outbox / inbox (ADR 0003), DbContext + migrations. Module code is implemented; use cases come with the module's stage<BR ALIGN="LEFT"/></TD></TR>
+      <TR><TD COLSPAN="6" BORDER="0" ALIGN="LEFT"><B>Six module services</B> (service hosts: stage 4) — each: own image, own database login, JwtBearer only, scale to zero (woken by HTTP or its queues),<BR ALIGN="LEFT"/>handler pipeline (ADR 0005), outbox / inbox (ADR 0003), DbContext + migrations. Module code is implemented; use cases come with the module's stage<BR ALIGN="LEFT"/></TD></TR>
       <TR><TD PORT="id" BGCOLOR="#F3E5F5" COLOR="#8E24AA" STYLE="ROUNDED,DASHED">identity<BR/><FONT POINT-SIZE="10">iam</FONT><BR/><FONT POINT-SIZE="10">use cases: stage 3</FONT></TD><TD PORT="inv" BGCOLOR="#E0F2F1" COLOR="#00897B" STYLE="ROUNDED,DASHED">inventory<BR/><FONT POINT-SIZE="10">catalog · inventory · raw · staging</FONT><BR/><FONT POINT-SIZE="10">use cases: stage 5</FONT></TD><TD PORT="fleet" BGCOLOR="#FFF3E0" COLOR="#FB8C00" STYLE="ROUNDED,DASHED">fleet<BR/><FONT POINT-SIZE="10">fleet</FONT><BR/><FONT POINT-SIZE="10">use cases: stage 6</FONT></TD><TD PORT="proc" BGCOLOR="#FCE4EC" COLOR="#D81B60" STYLE="ROUNDED,DASHED">procurement<BR/><FONT POINT-SIZE="10">procurement</FONT><BR/><FONT POINT-SIZE="10">use cases: stage 7</FONT></TD><TD PORT="fc" BGCOLOR="#E8EAF6" COLOR="#3949AB" STYLE="ROUNDED,DASHED">forecasting<BR/><FONT POINT-SIZE="10">forecast · ML.NET</FONT><BR/><FONT POINT-SIZE="10">use cases: stage 8</FONT></TD><TD PORT="rep" BGCOLOR="#E8F5E9" COLOR="#43A047" STYLE="ROUNDED,DASHED">reporting<BR/><FONT POINT-SIZE="10">mart, read-only · audit jobs</FONT><BR/><FONT POINT-SIZE="10">use cases: stage 9</FONT></TD></TR>
     </TABLE>>];
-    mljob [label="ML training job (stage 8)\nContainer Apps job (cron), Forecasting image", style="rounded,dashed,filled"];
+    mljob [label="Container Apps jobs, cron (stage 4+)\nreservation expiry · mart refresh · audit purge\nbroker metrics · ML training (stage 8)", style="rounded,dashed,filled"];
     t_aca -> gw [style=invis];
   }
 
-  subgraph cluster_vm { label=""; style="rounded,dashed"; color="#8E24AA"; bgcolor="#F3E5F5";
-    t_vm [shape=plaintext, style="", label=<<B>Stateful host — Linux VM with a managed disk (stage 4)</B><BR/><FONT POINT-SIZE="10">private network of the environment · local-disk storage for the broker and Prometheus</FONT>>];
-    mq [label="RabbitMQ 4.4 (ADR 0017)\ntopic exchange per publishing module\nquorum queue per consumer · delayed retry · DLX by policy", style="rounded,dashed,filled", fillcolor="#FFFDE7", color="#C0A000"];
-    obs [label="Grafana stack (ADR 0018)\nOpenTelemetry Collector → Prometheus · Loki · Tempo\nGrafana dashboards and alert rules", style="rounded,dashed,filled"];
-    t_vm -> mq [style=invis]; t_vm -> obs [style=invis];
-  }
+  mq [label="CloudAMQP — RabbitMQ, free Little Lemur plan (stage 4, ADR 0017)\ntopic exchange per publishing module · durable queue per consumer\none dead-letter queue per module · 1 connection per service · ≤ 100 queues", style="rounded,dashed,filled", fillcolor="#EEEEEE"];
+  obs [label="Grafana Cloud Free (stage 4, ADR 0018)\nPrometheus-compatible metrics · Loki · Tempo · Grafana\ndashboards and alert rules as code · 14-day retention", style="rounded,dashed,filled", fillcolor="#EEEEEE"];
 
   subgraph cluster_db { label=""; style="rounded"; color="#43A047"; bgcolor="#E8F5E9";
     t_db [shape=plaintext, style="", label=<<B>PostgreSQL 17 — one database, schemas owned by modules (ADR 0011)</B><BR/><FONT POINT-SIZE="10">locally Aspire / docker compose, in CI Testcontainers · Azure Database for PostgreSQL Flexible Server (stage 4)</FONT>>];
-    db [shape=cylinder, label="ref · util · audit (Platform) │ iam │ catalog · inventory · raw · staging │ fleet │ procurement │ forecast │ mart\nno FKs, JOINs or transactions across modules · outbox / inbox and __ef_migrations_history per module\ntriggers · functions · views · materialised views · roles and grants (SQL parts in db/sql/<module>)\none login per service (smartspare_identity … smartspare_reporting), per-module roles in stage 10"];
+    db [shape=cylinder, label="ref · util · audit (Platform) │ iam │ catalog · inventory · raw · staging │ fleet │ procurement │ forecast │ mart\nno FKs, JOINs or transactions across modules · outbox / inbox and __ef_migrations_history per module\ntriggers · functions · views · materialised views · roles and grants (SQL parts in db/sql/<module>)\none login per service (smartspare_identity … smartspare_reporting), pool ≤ 4 each (B1ms: 35 connections), per-module roles in stage 10"];
     t_db -> db [style=invis];
   }
 
-  blob [shape=cylinder, label="Azure Blob Storage (stages 4, 5, 8)\nimport files · ML.NET models · gateway key ring\nLoki and Tempo data", style="dashed,filled"];
-  kv [label="Azure Key Vault + Managed Identity per app (stage 4)\ntoken signing key · broker and alerting secrets\nPostgreSQL via Entra ID (stage 10)", style="rounded,dashed,filled"];
+  blob [shape=cylinder, label="Azure Blob Storage (stages 4, 5, 8)\nimport files · ML.NET models\ngateway Data Protection key ring", style="dashed,filled"];
+  kv [label="Azure Key Vault + Managed Identity per app (stage 4)\ntoken signing key · CloudAMQP URL · Grafana Cloud token\nPostgreSQL via Entra ID (stage 10)", style="rounded,dashed,filled"];
 
   subgraph cluster_dev { label=""; style="rounded"; color="#9E9E9E"; bgcolor="#FAFAFA";
     t_dev [shape=plaintext, style="", label=<<B>Development, tests and delivery</B>>];
     single [label="Single-host topology — SmartSpare.Host\nall six modules in one process · in-process events and Contracts queries\nused locally, in unit / integration tests and CI (BFF cookie: stage 3)"];
-    aspire [label=".NET Aspire AppHost (local only)\nPostgreSQL 17 container · telemetry dashboard\n--topology services: gateway, services, RabbitMQ, Grafana (stage 4)"];
+    aspire [label=".NET Aspire AppHost (local only)\nPostgreSQL 17 container · telemetry dashboard\n--topology services (stage 4): gateway, services, RabbitMQ,\nCollector · Prometheus · Loki · Tempo · Grafana (self-hosted)"];
     runner [label="SmartSpare.MigrationRunner\nbootstrap + EF migrations in ModuleCatalog order\ncheck-model · used by Aspire and CI"];
     ci [label="GitHub Actions CI\nbuild · format · check-model · tests\nSQL suite on the EF-built database"];
     cd [label="Per-service CD (stage 4)\nOIDC · image → Azure Container Registry\n→ module migration bundle → new revision", style="rounded,dashed,filled"];
@@ -72,13 +68,13 @@ digraph A {
   erp -> gw [label=" CSV upload (stage 5)", style=dashed];
 
   // integration, data, telemetry
-  svcs:s -> mq [dir=both, label=" outbox publish with confirms\n consume into inbox", style=dashed];
+  svcs:s -> mq [dir=both, label=" AMQPS: publish with confirms\n consume into inbox", style=dashed];
   svcs:s -> db [lhead=cluster_db, label=" login per service", style=dashed];
   mljob -> db [lhead=cluster_db, style=dashed];
   svcs:proc:s -> supp [label=" PO export (stage 7)", style=dashed];
   svcs:fc:s -> blob [label=" models (stage 8)", style=dashed];
   gw -> kv [style=dashed, label=" secrets"];
-  svcs:s -> obs [label=" OTLP", style=dashed];
+  svcs:s -> obs [label=" OTLP, direct export", style=dashed];
   obs -> oncall [label=" alerts", style=dashed];
   cd -> t_aca [lhead=cluster_aca, style=dashed, label=" deploy", constraint=false];
   runner -> db [lhead=cluster_db, label=" migrations", constraint=false];
@@ -87,6 +83,6 @@ digraph A {
 
   { rank=same; legend; users; erp; }
   { rank=same; web; kv; }
-  { rank=same; t_db; t_vm; supp; blob; }
+  { rank=same; t_db; supp; blob; }
   { rank=same; mq; obs; oncall; }
 }
