@@ -1,8 +1,8 @@
 # SmartSpare — Stage 3 Plan: Identity, BFF and Blazor Skeleton
 
-Status: **proposed** (24 November 2026). Stage 3 of the work plan ([ARCHITECTURE_DECISIONS.md, section 12](../architecture/ARCHITECTURE_DECISIONS.md#12-work-plan)): cookie sign-in, roles and policies, and the Blazor client skeleton with MudBlazor and the sign-in page. Release target: **v0.3.0**.
+Status: **proposed** (24 November 2026). Stage 3 of the work plan ([ARCHITECTURE_DECISIONS.md, section 13](../architecture/ARCHITECTURE_DECISIONS.md#13-work-plan)): cookie sign-in, roles and policies, and the Blazor client skeleton with MudBlazor and the sign-in page. Release target: **v0.3.0**.
 
-Inputs: ARCHITECTURE_DECISIONS sections 6, 7 and 12; [ADR 0006](../adr/0006-frontend-blazor-wasm-mudblazor-bff.md), [ADR 0012](../adr/0012-evolvability-principles.md), [ADR 0013](../adr/0013-domain-model-and-persistence.md); the `iam` schema in [DATA_DICTIONARY.md](../database/DATA_DICTIONARY.md#3-schema-iam--identity) and the trust model in [MODULE_MAPPING.md, section 3.6](../database/MODULE_MAPPING.md); issues #7, #11, #22, #33, #38. The sign-in design is recorded in [ADR 0014](../adr/0014-browser-sign-in-through-bff-endpoints.md) (**Accepted** 24 November 2026; PRs 3b–3d implement it).
+Inputs: ARCHITECTURE_DECISIONS sections 6, 7 and 13; [ADR 0006](../adr/0006-frontend-blazor-wasm-mudblazor-bff.md), [ADR 0012](../adr/0012-evolvability-principles.md), [ADR 0013](../adr/0013-domain-model-and-persistence.md); the `iam` schema in [DATA_DICTIONARY.md](../database/DATA_DICTIONARY.md#3-schema-iam--identity) and the trust model in [MODULE_MAPPING.md, section 3.6](../database/MODULE_MAPPING.md); issues #7, #11, #22, #33, #38. The sign-in design is recorded in [ADR 0014](../adr/0014-browser-sign-in-through-bff-endpoints.md) (**Accepted** 24 November 2026; PRs 3b–3d implement it). [ADR 0016](../adr/0016-authentication-behind-the-gateway.md) extends it to the production topology of [ADR 0015](../adr/0015-deployment-topology-microservices-behind-yarp-gateway.md). PR 3b already builds the sign-in so that it works unchanged behind the gateway in stage 4 (section 1.6).
 
 Every technical choice below was checked against the official documentation for **ASP.NET Core 10.0** (links use `?view=aspnetcore-10.0`; see [section 11](#11-references)). Learn now opens on the ASP.NET Core 11 preview by default, and some of what it shows there does not exist in .NET 10 (for example, the automatic `Sec-Fetch-Site` CSRF middleware). The plan uses only .NET 10 features.
 
@@ -12,20 +12,21 @@ Every technical choice below was checked against the official documentation for 
 
 | # | Decision | Section |
 |---|---|---|
-| S1 | The WASM sign-in page posts JSON to **Host endpoints** `/bff/login`, `/bff/logout` and `/bff/me`. `SignInManager` runs only in those endpoints, never in Razor components. | 1, ADR 0014 |
+| S1 | The WASM sign-in page posts JSON to **BFF endpoints** `/bff/login`, `/bff/logout` and `/bff/me`. They live in a `SmartSpare.Bff` building block, used by `SmartSpare.Host` now and by the gateway in stage 4. They check credentials through `Identity.Contracts.ICredentialVerifier`. `SignInManager` runs only inside the Identity module, never in Razor components or in the BFF. | 1, ADR 0014, ADR 0016 |
 | S2 | Auth cookie `__Host-SmartSpare`: HttpOnly, Secure, SameSite=Strict, 8 h sliding expiry. No tokens reach the browser. | 1.3 |
 | S3 | Auth state reaches WASM through `AddAuthenticationStateSerialization`, with a custom callback that sends only id, name, roles, brands and warehouse. After sign-in and sign-out the page does a **full reload**. | 1.4 |
 | S4 | Token-based antiforgery on **every unsafe `/bff` and `/api` request**, including login, plus SameSite=Strict as a second layer. | 1.5 |
 | S5 | **`AddIdentityCore<AppUser>` with custom stores** over the existing `iam` tables. `AppUser` is the domain aggregate from `Domain/`, not an `IdentityUser`. No schema changes for Identity itself. | 2 |
 | S6 | Seeded V3 hashes (PBKDF2-HMAC-SHA512, 100,000 iterations) verify unchanged and are rehashed with **220,000 iterations** (OWASP) on the next sign-in. The demo password comes from `.env` at load time (#7). | 2.3 |
-| S7 | Security stamp checked every 5 minutes. Lockout after 5 failures for 15 minutes. Deactivated users cannot sign in, and their cookies stop working at the next stamp check. | 2.4–2.6 |
+| S7 | Session (security stamp) re-validated by the BFF every 5 minutes through `ICredentialVerifier`. Lockout after 5 failures for 15 minutes. Deactivated users cannot sign in, and their cookies stop working at the next stamp check. | 2.4–2.6 |
 | S8 | Claims: `sub`, `name`, `role` (n), `ss:brand` (n), `ss:warehouse`. Policies use claims only (ADR 0012). Reads are never brand-scoped. Approvals by a `BRAND_MANAGER` require every line's brand to be in their claims, unless another role grants the action unscoped. | 3 |
 | S9 | Fixed-window rate limit on `/bff/login`, partitioned by client IP. Returns 429 with `Retry-After`. | 4 |
-| S10 | Data Protection key ring in `iam.data_protection_keys` via `PersistKeysToDbContext`, application name `SmartSpare`. Key protection at rest is configured in the host per environment (#22). | 5 |
+| S10 | Data Protection key ring in `iam.data_protection_keys` via `PersistKeysToDbContext`, application name `SmartSpare`. Key protection at rest is configured in the host per environment (#22). This store is for the single host; the gateway uses Blob Storage + Key Vault (ADR 0016 §6, stage 4). | 5 |
 | S11 | `SessionContextInterceptor` also sets `app.user_roles` and `app.home_warehouse_id`. The SQL role and warehouse checks read these GUCs, and `iam.v_app_user_masked` becomes module-local (#11). | 6 |
 | S12 | Identity aggregates move into `Domain/`, and the Identity classes in `PersistenceModel.cs` are deleted (ADR 0013, #38). | 7 |
-| S13 | New `SmartSpare.Web.Client` (Blazor WASM, MudBlazor **9.12.0**), hosted by `SmartSpare.Host`. Typed HTTP clients per module. `IStringLocalizer` with en-US only in this stage. | 8 |
+| S13 | New `SmartSpare.Web.Client` (Blazor WASM, MudBlazor **9.12.0**), hosted by `SmartSpare.Host` (and by the gateway from stage 4). Typed HTTP clients per module. `IStringLocalizer` with en-US only in this stage. | 8 |
 | S14 | Module implementation projects may reference `SmartSpare.ApiContracts`, the public HTTP contract. Role, claim and policy names live there, so host and client share one definition. | 8.4, ADR 0014 |
+| S15 | **One principal in both topologies.** The default scheme is the policy scheme `SmartSpare`: an internal ES256 bearer token goes to JwtBearer, anything else to the cookie. Module endpoints never name a scheme. The internal-token issuer is part of `SmartSpare.Bff`, and integration tests call module endpoints with the cookie and with an internal token. | 1.6, ADR 0016 |
 
 ---
 
@@ -40,11 +41,17 @@ Every technical choice below was checked against the official documentation for 
 
 ### 1.2 Endpoints
 
-The endpoints belong to the Identity module, which owns `AppUser`, the stores and `SignInManager<AppUser>`. They are mapped by `IdentityModuleInstaller.MapEndpoints` under an unversioned `/bff` group. They are browser-session plumbing of the BFF, not part of the versioned public API (ADR 0012). After the split they move to the YARP gateway's identity service.
+The endpoints belong to the **BFF building block `SmartSpare.Bff`** ([ADR 0016](../adr/0016-authentication-behind-the-gateway.md) §1). The host maps them now; in stage 4 the YARP gateway maps the same code under an unversioned `/bff` group. They are browser-session plumbing, not part of the versioned public API (ADR 0012).
+
+The BFF never touches `iam`. It calls **`Identity.Contracts.ICredentialVerifier`**:
+- `VerifyAsync(userName, password, clientIp)` returns the user's claims and security stamp on success, or a uniform failure.
+- `ValidateSessionAsync(userId, stamp)` returns the current claims, or "revoked".
+
+The Identity module, which owns `AppUser`, the stores and `SignInManager<AppUser>`, implements it in process. In stage 4 an HTTP client implements it against the Identity service's internal endpoints.
 
 | Endpoint | Auth | Antiforgery | Rate limit | Behaviour |
 |---|---|---|---|---|
-| `POST /bff/login` (`LoginRequest { UserName, Password, RememberMe }`) | anonymous | required | `login` policy | `PasswordSignInAsync(lockoutOnFailure: true)`. **204** and `Set-Cookie` on success. On failure **400 ProblemDetails** with code `SS-AUTH-001` for every case (wrong user, wrong password, deactivated, locked out), so the response can't be used to enumerate accounts. Lockout is logged on the server. |
+| `POST /bff/login` (`LoginRequest { UserName, Password, RememberMe }`) | anonymous | required | `login` policy | `ICredentialVerifier.VerifyAsync`, which in the Identity module runs `SignInManager.CheckPasswordSignInAsync(lockoutOnFailure: true)`, then `HttpContext.SignInAsync` with the returned claims. **204** and `Set-Cookie` on success. On failure **400 ProblemDetails** with code `SS-AUTH-001` for every case (wrong user, wrong password, deactivated, locked out), so the response can't be used to enumerate accounts. Lockout is logged on the server. |
 | `POST /bff/logout` | authenticated | required | — | `SignOutAsync()`, **204**. A cross-site POST is stopped by antiforgery and SameSite, so another site can't sign the user out. |
 | `GET /bff/me` | anonymous allowed | — | — | `CurrentUserResponse { IsAuthenticated, UserId, UserName, Roles[], BrandIds[], HomeWarehouseId }` from claims, with no database call. The client uses it to recover after SameSite=Strict navigations (1.3) and after a 401. |
 | `GET /bff/antiforgery` | anonymous allowed | — | — | Returns a fresh request token for the current principal (fallback; normally the token comes with the prerendered page, see 1.5). |
@@ -53,7 +60,7 @@ The endpoints belong to the Identity module, which owns `AppUser`, the stores an
 
 ### 1.3 Cookie
 
-`AddAuthentication(IdentityConstants.ApplicationScheme).AddIdentityCookies()` with `ConfigureApplicationCookie`:
+`AddAuthentication("SmartSpare")` registers three schemes: the policy scheme `SmartSpare` (1.6) as the default, the cookie scheme below (`AddCookie`), and the internal JwtBearer scheme. Identity's own `AddIdentityCookies` is not used, because the cookie belongs to the BFF, which has no `SignInManager`. The cookie scheme is configured as:
 
 | Setting | Value | Why |
 |---|---|---|
@@ -64,6 +71,7 @@ The endpoints belong to the Identity module, which owns `AppUser`, the stores an
 | `ExpireTimeSpan` / `SlidingExpiration` | 8 h / true | One work shift. |
 | `LoginPath` | `/login` | For full page navigations to protected Blazor routes during prerendering. |
 | `Events.OnRedirectToLogin` / `OnRedirectToAccessDenied` | **401** / **403** for `/api` and `/bff` paths | APIs must not redirect to HTML. |
+| `Events.OnValidatePrincipal` | Every 5 minutes: `ICredentialVerifier.ValidateSessionAsync(userId, stamp)`. Revoked → reject (401); changed claims → renew the cookie | Replaces Identity's `SecurityStampValidator`, so the host and the gateway behave the same (2.5) |
 
 **SameSite=Strict caveat.** The first top-level navigation from another site, such as a link in an e-mail, doesn't carry the cookie, so the prerendered page shows the user as signed out. The `/login` page first calls `GET /bff/me`. That request is same-site, so it carries the cookie. If the user turns out to be signed in, the page reloads the return URL straight away. This is covered by a Playwright check (section 9.4).
 
@@ -84,6 +92,24 @@ The endpoints belong to the Identity module, which owns `AppUser`, the stores an
 3. The client gets the request token from **`AntiforgeryStateProvider`**. Blazor persists it with the prerendered component state ([Call a web API from Blazor, "Antiforgery support"](https://learn.microsoft.com/aspnet/core/blazor/call-web-api?view=aspnetcore-10.0#antiforgery-support)). An `AntiforgeryHandler : DelegatingHandler` adds the header to unsafe requests. The token is bound to the principal, which is one more reason for the full reload after sign-in.
 4. `app.UseAntiforgery()` stays in the pipeline (required by `MapRazorComponents`), after `UseAuthentication`/`UseAuthorization`.
 
+### 1.6 Behind the gateway ([ADR 0016](../adr/0016-authentication-behind-the-gateway.md))
+
+PR 3b builds the sign-in so that stage 4 only has to add a gateway host and HTTP clients, without touching module code:
+
+| Piece | Built in 3b (single host) | Added in stage 4 (services) |
+|---|---|---|
+| `/bff` endpoints, cookie, antiforgery, sign-in rate limit | `SmartSpare.Bff`, mapped by `SmartSpare.Host` | The same `SmartSpare.Bff`, mapped by `SmartSpare.Gateway` |
+| Credential and session checks | `ICredentialVerifier`, in-process implementation in the Identity module | HTTP client to `POST /internal/v1/identity/credential-checks` and `/session-checks`, policy `GatewayOnly` |
+| Internal token | `InternalTokenIssuer` in `SmartSpare.Bff`: `JsonWebTokenHandler`, ES256, `iss=smartspare-gateway`, `aud=smartspare-internal`, the claims of 3.1 plus `sid` and `jti`, 2-minute lifetime. Key from user-secrets | Used by the YARP request transform for every proxied `/api/*` call. Key from Key Vault |
+| Token validation | JwtBearer scheme with the public JWKS, `ValidAlgorithms = [ES256]`, issuer, audience, lifetime, 30 s clock skew | The same registration in every service host (JwtBearer only) |
+| Default scheme | Policy scheme `SmartSpare`: `Authorization: Bearer` → JwtBearer, otherwise → cookie | Services register JwtBearer only |
+
+Rules carried into the code from 3b on:
+- Module endpoints and policies never name an authentication scheme.
+- `ICurrentUser` and the session GUCs read the same claim types (`AppClaimTypes`) from either principal.
+- Antiforgery runs only for cookie-authenticated requests (1.5).
+- Contracts queries are called only while handling a user request (ADR 0015 §4).
+
 ---
 
 ## 2. ASP.NET Core Identity over the existing `iam` tables
@@ -96,7 +122,7 @@ The endpoints belong to the Identity module, which owns `AppUser`, the stores an
 | `AppUser : IdentityUser<Guid>` mapped onto `iam.app_user` | Rejected. `Domain/` may not depend on framework packages (ADR 0013, architecture tests), and `IdentityUser` brings public setters for every field. |
 | **`AddIdentityCore<AppUser>()` + custom `IUserStore` implementations in `Infrastructure/Identity`** | **Chosen.** Identity's managers work with any `TUser : class` and only the store interfaces we implement ([Custom storage providers for ASP.NET Core Identity](https://learn.microsoft.com/aspnet/core/security/authentication/identity-custom-storage-providers?view=aspnetcore-10.0)). The store translates between Identity's calls and the aggregate's behaviour methods. |
 
-Registration (inside `IdentityModuleInstaller.AddServices`):
+Registration inside `IdentityModuleInstaller.AddServices`. The module uses this machinery only behind `ICredentialVerifier` (1.2). It never issues cookies.
 
 ```csharp
 services.AddIdentityCore<AppUser>(o => { /* 2.4–2.6 */ })
@@ -142,17 +168,17 @@ Sign-in writes run in a transaction where `app.user_id` is the **user who is sig
 
 ### 2.4 Lockout
 
-`o.Lockout.AllowedForNewUsers = true`, `MaxFailedAccessAttempts = 5`, `DefaultLockoutTimeSpan = 15 min`. `PasswordSignInAsync(..., lockoutOnFailure: true)` increments `failed_login_count`, sets `lockout_end` and resets the counter, so the value never approaches the CHECK's 100. A locked-out user gets the same generic 400 response (1.2). Unlocking early is an administrator action (#46).
+`o.Lockout.AllowedForNewUsers = true`, `MaxFailedAccessAttempts = 5`, `DefaultLockoutTimeSpan = 15 min`. `CheckPasswordSignInAsync(..., lockoutOnFailure: true)` increments `failed_login_count`, sets `lockout_end` and resets the counter, so the value never approaches the CHECK's 100. A locked-out user gets the same generic 400 response (1.2). Unlocking early is an administrator action (#46).
 
 ### 2.5 Security stamp validation
 
-- `Configure<SecurityStampValidatorOptions>(o => o.ValidationInterval = TimeSpan.FromMinutes(5))`. The default is 30 minutes, and each check costs one database query per user per interval ([Blazor authentication and authorization, "Sign out for ASP.NET Core Identity"](https://learn.microsoft.com/aspnet/core/blazor/security/?view=aspnetcore-10.0); [Configure Identity, "ISecurityStampValidator and SignOut everywhere"](https://learn.microsoft.com/aspnet/core/security/authentication/identity-configuration?view=aspnetcore-10.0#isecuritystampvalidator-and-signout-everywhere)).
+- The BFF's cookie `OnValidatePrincipal` (1.3) checks the session every **5 minutes** through `ICredentialVerifier.ValidateSessionAsync`. It replaces Identity's `SecurityStampValidator` (default interval 30 minutes), so the same code runs in the host and the gateway. Each check costs one database query per user per interval ([Blazor authentication and authorization, "Sign out for ASP.NET Core Identity"](https://learn.microsoft.com/aspnet/core/blazor/security/?view=aspnetcore-10.0); [Configure Identity, "ISecurityStampValidator and SignOut everywhere"](https://learn.microsoft.com/aspnet/core/security/authentication/identity-configuration?view=aspnetcore-10.0#isecuritystampvalidator-and-signout-everywhere)).
 - `security_stamp` is a `uuid`, while `UserManager` generates Base32 strings. `SetSecurityStampAsync` therefore ignores the proposed string and calls `AppUser.RotateSecurityStamp()`, which stores a new `Guid`. `GetSecurityStampAsync` returns the stored Guid as `"N"` text. The validator only compares the claim with the stored value, so the stamp only has to change. It doesn't have to match Identity's format.
-- The stamp rotates on password change, role or brand change, deactivation and anonymisation. Anonymisation already does this in SQL: `iam.anonymise_user` sets `security_stamp = gen_random_uuid()`. In each case the user's cookies stop working within 5 minutes. The principal is then rebuilt, so new roles also take effect within 5 minutes.
+- The stamp rotates on password change, role or brand change, deactivation and anonymisation. Anonymisation already does this in SQL: `iam.anonymise_user` sets `security_stamp = gen_random_uuid()`. In each case the user's cookies stop working within 5 minutes in the single host. Behind the gateway it takes up to about 7 minutes, because of the 2-minute internal token (ADR 0016 §3). The principal is then rebuilt, so new roles take effect within the same time.
 
 ### 2.6 Deactivated and anonymised users
 
-`o.SignIn.RequireConfirmedAccount = true` together with `ActiveUserConfirmation : IUserConfirmation<AppUser>` returning `user.IsActive && user.AnonymisedAt is null`. `SignInManager.CanSignInAsync` then refuses those users, and the stamp validator refuses their existing cookies, because both deactivation and anonymisation rotate the stamp. This uses only documented extension points, with no `SignInManager` subclass.
+`o.SignIn.RequireConfirmedAccount = true` together with `ActiveUserConfirmation : IUserConfirmation<AppUser>` returning `user.IsActive && user.AnonymisedAt is null`. `SignInManager.CanSignInAsync` (called by `CheckPasswordSignInAsync`) then refuses those users, and the BFF's session check refuses their existing cookies, because both deactivation and anonymisation rotate the stamp. This uses only documented extension points, with no `SignInManager` subclass.
 
 ### 2.7 Password policy
 
@@ -198,10 +224,10 @@ Policies are claims-only (ADR 0012) and registered by one shared method, `AppPol
 
 Notes:
 
-- Policies that front no function (fallback, `ReadAudit`, and the read policies stages 4–8 add) are outside the parity rule. Every read policy is **never brand-scoped** (3.3 rule 1).
+- Policies that front no function (fallback, `ReadAudit`, and the read policies stages 5–9 add) are outside the parity rule. Every read policy is **never brand-scoped** (3.3 rule 1).
 - **Warehouse match** for `MoveStock` mirrors SS302 in `dispatch_transfer` / `receive_transfer`: a user with an `ss:warehouse` claim may only dispatch from or receive into that warehouse; a user without one (an administrator) is not restricted. The role gate is therefore role-only. The earlier draft required `ss:warehouse` in the policy, which would have locked out `ADMINISTRATOR`, whom SQL allows.
 - `RecordServiceWork` and `ManageServiceOrders` replace the earlier single `ServiceMachines` (`SERVICE_ENGINEER` only), which didn't match the SQL role lists.
-- The matrix is fixed for stage 3. Stages 4–8 add rows next to the endpoints that need them, under the same parity rule.
+- The matrix is fixed for stage 3. Stages 5–9 add rows next to the endpoints that need them, under the same parity rule.
 
 ### 3.3 Brand scope (resource-based)
 
@@ -248,7 +274,7 @@ Five named requirements are registered next to the policies of 3.2. Each one's u
 | `CancelPurchaseOrderScope` | `SPONSOR`, `ADMINISTRATOR` | `BRAND_MANAGER` |
 | `DecideRecommendationScope` | `INVENTORY_PLANNER` | `BRAND_MANAGER` |
 
-**Use in endpoints.** The endpoint first passes its policy (3.2). The handler then loads the document and builds the `IBrandScoped` view from the brands of its lines, read from module-local data (Inventory: `catalog.part`; Procurement and Forecasting: their local part copies with brand, ARCHITECTURE_DECISIONS section 4) or through an `Inventory.Contracts` query. Brand ids never come from the request body. It then calls `IAuthorizationService.AuthorizeAsync(user, document, requirement)` and returns **403 ProblemDetails** on failure, before any state change. Stage 3 proves the handler with test endpoints in the integration test host. The first real uses are transfer approval and cancellation (stage 4), purchase-order approval and cancellation (stage 6) and recommendation decisions (stage 7).
+**Use in endpoints.** The endpoint first passes its policy (3.2). The handler then loads the document and builds the `IBrandScoped` view from the brands of its lines, read from module-local data (Inventory: `catalog.part`; Procurement and Forecasting: their local part copies with brand, ARCHITECTURE_DECISIONS section 4) or through an `Inventory.Contracts` query. Brand ids never come from the request body. It then calls `IAuthorizationService.AuthorizeAsync(user, document, requirement)` and returns **403 ProblemDetails** on failure, before any state change. Stage 3 proves the handler with test endpoints in the integration test host. The first real uses are transfer approval and cancellation (stage 5), purchase-order approval and cancellation (stage 7) and recommendation decisions (stage 8).
 
 **Database.** The SQL business functions repeat the **role** check (`util.require_role`, section 6), so a bug in a policy can't bypass that second line of defence (ARCHITECTURE_DECISIONS section 7). They do **not** enforce brand scope. A bug in the resource check above would not be caught by the database. A database-level brand check is tracked as #53.
 
@@ -261,7 +287,7 @@ Five named requirements are registered next to the policies of 3.2. Each one's u
 **Known limits:**
 
 - **Per-instance limiter.** The limiter is in memory, so each replica has its own budget. Accepted while the app runs as one instance (#49).
-- **Client IP behind a proxy.** Behind App Service, `RemoteIpAddress` is the front end. The client IP must come from `X-Forwarded-For` via the forwarded-headers middleware, trusted only from known proxies; otherwise every user shares one partition and one user can block sign-in for everyone. The docs also warn that IP partitions can be spoofed ([Rate limiter samples](https://learn.microsoft.com/aspnet/core/performance/rate-limit-samples?view=aspnetcore-10.0)). **#48 must be done before the first Azure deployment** (stage 9).
+- **Client IP behind a proxy.** Behind the gateway's Container Apps ingress, `RemoteIpAddress` is the platform's proxy. The client IP must come from `X-Forwarded-For` via the forwarded-headers middleware, trusted only from known proxies; otherwise every user shares one partition and one user can block sign-in for everyone. The docs also warn that IP partitions can be spoofed ([Rate limiter samples](https://learn.microsoft.com/aspnet/core/performance/rate-limit-samples?view=aspnetcore-10.0)). **#48 must be done before the first Azure deployment** (stage 4).
 - **Lockout as a denial-of-service vector.** Anyone who knows or guesses a user name can lock that account for 15 minutes with five wrong passwords, repeatedly. Accepted for now: the user names aren't published, the IP rate limit slows the attack, a lockout ends on its own, and an administrator can unlock early (#46). Detecting lockout spikes is part of the security event log (#51). MFA (#50) would let lockout be relaxed for second-factor failures only.
 
 ---
@@ -271,7 +297,7 @@ Five named requirements are registered next to the policies of 3.2. Each one's u
 - Package `Microsoft.AspNetCore.DataProtection.EntityFrameworkCore` (10.0.x, central version). `IdentityDbContext` implements `IDataProtectionKeyContext` (`DbSet<DataProtectionKey> DataProtectionKeys`), mapped to **`iam.data_protection_keys`** (`id`, `friendly_name`, `xml`). The table is created by a new Identity migration ([Key storage providers, "Entity Framework Core"](https://learn.microsoft.com/aspnet/core/security/data-protection/implementation/key-storage-providers?view=aspnetcore-10.0#entity-framework-core)).
 - Grants (SQL part of the migration, ADR 0004): `SELECT, INSERT` on the table and `USAGE` on its sequence to `app_write`, nothing to `app_read`. Key XML is secret material. The audit trigger is **not** attached.
 - Wiring is split across the boundary. `IdentityDbContext` is internal, so **the Identity installer** calls `services.AddDataProtection().PersistKeysToDbContext<IdentityDbContext>()`. **The host** adds `.SetApplicationName("SmartSpare")` and protection at rest ([Configure ASP.NET Core Data Protection](https://learn.microsoft.com/aspnet/core/security/data-protection/configuration/overview?view=aspnetcore-10.0)):
-  - Azure: `ProtectKeysWithAzureKeyVault` with the Managed Identity. Host only, because modules may not reference cloud SDKs (ADR 0012, architecture tests). The Key Vault key is created in stage 9 (#16). Until then the switch is configuration-driven and off.
+  - Azure: `ProtectKeysWithAzureKeyVault` with the Managed Identity. Host only, because modules may not reference cloud SDKs (ADR 0012, architecture tests). The single host is not deployed, so this switch stays configuration-driven and off. In production the cookie lives in the gateway, whose key ring goes to Blob Storage, protected with Key Vault, in stage 4 (ADR 0016 §6).
   - Other environments: `ProtectKeysWithCertificate` when `DataProtection:CertificateThumbprint`/`Path` is configured.
   - Local development: unprotected keys (accepted in #22).
 - The Data Protection key table is technical state, not a domain aggregate. ADR 0013 rule 3 lets it stay a framework class.
@@ -280,7 +306,7 @@ Five named requirements are registered next to the policies of 3.2. Each one's u
 
 ## 6. Session context and database checks (#11)
 
-- `ICurrentUser` (BuildingBlocks) gains `IReadOnlyCollection<string> Roles` and `short? HomeWarehouseId`. A new `ClaimsCurrentUser` in `SmartSpare.Infrastructure` reads the claims through `IHttpContextAccessor` and replaces `NoCurrentUser` in the host. Background jobs keep `NoCurrentUser`. The sign-in handler uses a scoped override for the user who is signing in (2.2).
+- `ICurrentUser` (BuildingBlocks) gains `IReadOnlyCollection<string> Roles` and `short? HomeWarehouseId`. A new `ClaimsCurrentUser` in `SmartSpare.Infrastructure` reads the claims through `IHttpContextAccessor`, whichever scheme authenticated the request (cookie or internal token, 1.6), and replaces `NoCurrentUser` in the host. Background jobs keep `NoCurrentUser`. The sign-in handler uses a scoped override for the user who is signing in (2.2).
 - `SessionContextInterceptor` sets four transaction-local GUCs: `app.user_id`, `app.reason`, **`app.user_roles`** (comma-separated role codes) and **`app.home_warehouse_id`**, all with `set_config(..., true)`. The trust model is unchanged ([MODULE_MAPPING 3.6](../database/MODULE_MAPPING.md)).
 - SQL, applied through new migrations of the owning modules (ADR 0004):
   - Platform: `util.require_role` checks `app.user_roles` instead of calling `iam.user_has_role` (X1).
@@ -380,7 +406,7 @@ The host also sends `X-Content-Type-Options: nosniff` and `Referrer-Policy: stri
 
 ## 9. Test plan
 
-All new tests follow the pyramid (ARCHITECTURE_DECISIONS section 10). Testcontainers tests are `Category=Integration`.
+All new tests follow the pyramid (ARCHITECTURE_DECISIONS section 11). Testcontainers tests are `Category=Integration`.
 
 ### 9.1 Unit (`tests/SmartSpare.Modules.Identity.UnitTests`, new)
 
@@ -419,7 +445,9 @@ All new tests follow the pyramid (ARCHITECTURE_DECISIONS section 10). Testcontai
 | Lockout | The 5th wrong password locks the user. The correct password is then still rejected. After `lockout_end` passes (injected `TimeProvider`) sign-in works. |
 | Antiforgery | `POST /bff/login` and an authenticated `POST /api/...` without `X-XSRF-TOKEN` → 400 `SS-AUTH-002`. With a token from `/bff/antiforgery` → success. A token issued to anonymous is rejected after sign-in. |
 | Logout | After `POST /bff/logout`, the old cookie no longer reaches protected endpoints (cleared). |
-| Security stamp | Rotate the stamp in the database. After the validation interval (`TimeProvider`), the old cookie → 401. |
+| Security stamp | Rotate the stamp in the database. After the validation interval (`TimeProvider`), the old cookie → 401, through `ICredentialVerifier.ValidateSessionAsync`. A role change renews the cookie with the new roles. |
+| Internal token (ADR 0016) | A module endpoint called with a minted internal token returns the same result as with the cookie (same policies, same `ICurrentUser`, same session GUCs). Rejected with 401: expired token, wrong audience, wrong issuer, signed with another key, `alg` HS256 or `none`. A bearer request needs no antiforgery token; a cookie request still does. |
+| BFF independence | The BFF endpoints run against a fake `ICredentialVerifier` with no Identity database, which proves the gateway can use them as they are. |
 | 401 vs 403 | Anonymous `/api/v1/...` → 401 (no redirect). Wrong role → 403. |
 | Brand scope (test endpoints with documents whose lines carry brands) | `BRAND_MANAGER` (Claas, Lemken) approves a document with only Claas lines → **200**. Approves a document with Claas and one foreign-brand line → **403**, and the document is unchanged. Reads a foreign-brand document → **200**. `BRAND_MANAGER` + `SPONSOR` approves a foreign-brand purchase order → **200**. `BRAND_MANAGER` cancels a mixed-brand transfer or purchase order → **403**. `INVENTORY_PLANNER` approves a foreign-brand transfer → **200**. `ADMINISTRATOR` cancels a foreign-brand transfer → **200**. |
 | Rate limiting | The 11th login in a minute from one IP → 429 with `Retry-After`. |
@@ -443,7 +471,7 @@ This test is cheap because the host already runs in-process with Testcontainers 
 2. sign in as `tomas.radzevicius` (BRAND_MANAGER) → home page with the user menu;
 3. sign out → back to `/login`.
 
-It runs in a separate CI job (`Category=E2E`) that installs Chromium. The job doesn't block local `dotnet test --filter "Category!=Integration"`. The full UC01/UC02 scenarios and tablet viewports stay in stage 10 (work plan).
+It runs in a separate CI job (`Category=E2E`) that installs Chromium. The job doesn't block local `dotnet test --filter "Category!=Integration"`. The full UC01/UC02 scenarios and tablet viewports stay in stage 11 (work plan).
 
 ---
 
@@ -467,14 +495,20 @@ Closes **#38, #7, #33**.
 
 ### 3b: Cookie authentication, BFF endpoints and authorization
 
-Scope: sections 1.2, 1.3, 1.5, 2, 3 and 4. Identity core with the custom stores, the cookie, `/bff/login`, `/bff/logout`, `/bff/me`, `/bff/antiforgery`, the antiforgery endpoint filter, `AppPolicies` and the brand-scoped action requirements with their handler (3.3), the `login` rate limit. ApiContracts gets the Identity DTOs, validator and authorization constants, and the architecture test is updated for S14. Data Protection keeps the default per-instance key ring in this PR.
+Scope: sections 1.2, 1.3, 1.5, 1.6, 2, 3 and 4.
+- Identity core with the custom stores, behind `Identity.Contracts.ICredentialVerifier` with its in-process implementation.
+- The `SmartSpare.Bff` building block: `/bff/login`, `/bff/logout`, `/bff/me` and `/bff/antiforgery`, the cookie with the session check, the internal-token issuer.
+- The policy scheme `SmartSpare` with the cookie and internal JwtBearer schemes.
+- The antiforgery endpoint filter, `AppPolicies` and the brand-scoped action requirements with their handler (3.3), the `login` rate limit. ApiContracts gets the Identity DTOs, validator and authorization constants, and the architecture test is updated for S14. Data Protection keeps the default per-instance key ring in this PR.
 
 Acceptance:
 - Integration tests 9.2: sign-in and cookie flags, uniform failures, lockout, antiforgery, logout, security stamp, 401 vs 403 and brand scope, rate limiting.
+- Internal-token and BFF-independence tests (9.2, ADR 0016): module endpoints behave the same with the cookie and with an internal token, and invalid tokens are rejected.
+- The BFF references no module implementation, only `Identity.Contracts` (architecture test).
 - Unit tests for the stores, the principal factory, the policies and `BrandScopedActionHandler`; `PolicySqlRoleParityTests` green.
-- The implementation matches ADR 0014 (accepted). Any deviation needs a new ADR.
+- The implementation matches ADR 0014 and ADR 0016 (accepted). Any deviation needs a new ADR.
 
-Closes no issue on its own; it implements ADR 0014 on the server.
+Closes no issue on its own. It implements ADR 0014 on the server, and the single-host half of ADR 0016.
 
 ### 3c: Session GUCs and Data Protection keys
 
@@ -516,7 +550,7 @@ User administration (#46) is an optional PR 3f after the release.
 4. The database role and warehouse checks use the session GUCs. No module's SQL reads `iam` except Identity and Reporting, as MODULE_MAPPING allows. The 97 SQL assertions are green on the EF-built database.
 5. Identity has a real domain model, and its persistence classes are gone (ADR 0013).
 6. bUnit tests and one Playwright smoke test are green in CI.
-7. Issues #7, #11, #22, #33 and #38 are closed. Follow-ups are tracked: #46 (user administration), #47 (second UI culture), #48 (forwarded headers behind App Service), #49 (distributed rate limiting), #50 (MFA for privileged roles), #51 (security event log), #53 (database-level brand check).
+7. Issues #7, #11, #22, #33 and #38 are closed. Follow-ups are tracked: #46 (user administration), #47 (second UI culture), #48 (forwarded headers behind the platform's ingress, stage 4), #49 (distributed rate limiting), #50 (MFA for privileged roles), #51 (security event log), #53 (database-level brand check).
 
 ---
 
