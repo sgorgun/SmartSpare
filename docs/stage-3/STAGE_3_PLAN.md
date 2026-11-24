@@ -554,7 +554,7 @@ Acceptance:
 
 Closes **#72**.
 
-User administration (#46) is an optional PR 3f after the release.
+User administration (#46) is not part of stage 3. It moved to stage 5: stage 4 (topology) goes first as the highest-risk stage, and user administration is then built with the first business screens, already behind the gateway.
 
 ### Exit criteria for v0.3.0
 
@@ -568,7 +568,7 @@ Checked on 25 November 2026 against `main` plus PR 3e. CI jobs: "Build and test"
 | 4 | The database role and warehouse checks use the session GUCs. No module's SQL reads `iam` except Identity and Reporting, as MODULE_MAPPING allows. The 97 SQL assertions are green on the EF-built database. | **met** | `SessionContextTests.The_claims_of_the_request_become_the_session_context` (cookie and internal token); T03 "DB-level RBAC reads the session roles" (#11). New in PR 3e, T03 "Only Identity and Reporting SQL reads iam": no function outside `iam` names it. The only views on it are Reporting's `audit.v_audit_log_masked` and two TRANSITIONAL views, `procurement.v_purchase_order_overview` and `forecast.v_recommendation_explained` (replaced in stages 7 and 8, #13, #14). The suite now has **103** assertions (97, plus 5 in PR 3c and 1 in PR 3e), green in job "Integration tests" (`tools/verify_database.sh`). |
 | 5 | Identity has a real domain model, and its persistence classes are gone (ADR 0013). | **met** | `src/Modules/Identity/SmartSpare.Modules.Identity/Domain` (`AppUser`, `UserName`, `EmailAddress`, `LockoutPolicy`, …), mapped directly by EF Core. Unit tests in `SmartSpare.Modules.Identity.UnitTests`, mapping in `AppUserMappingTests`, plus `ModuleBoundaryTests.Domain_DoesNotDependOnEfCoreOrAspNetCore`. #38 was closed by PR 3a (#70). |
 | 6 | bUnit tests and one Playwright smoke test are green in CI. | **met** | `tests/SmartSpare.Web.Tests` (22 bUnit tests, job "Build and test"); `SignInSmokeTest` (job "End-to-end smoke test"). |
-| 7 | Issues #7, #11, #22, #33 and #38 are closed. Follow-ups are tracked: #46 (user administration), #47 (second UI culture), #48 (forwarded headers behind the platform's ingress, stage 4), #49 (distributed rate limiting), #50 (MFA for privileged roles), #51 (security event log), #53 (database-level brand check). | **met** | Closed: #7, #11, #22, #33 and #38, plus #60, #69 and #71; PR 3e closes #72. #46–#51 and #53 are open. New during the stage: #75 (Docker clock steps make the SQL suite flaky locally). |
+| 7 | Issues #7, #11, #22, #33 and #38 are closed. Follow-ups are tracked: #46 (user administration, stage 5), #47 (second UI culture), #48 (forwarded headers behind the platform's ingress, stage 4), #49 (distributed rate limiting), #50 (MFA for privileged roles), #51 (security event log), #53 (database-level brand check). | **met** | Closed: #7, #11, #22, #33 and #38, plus #60, #69 and #71; PR 3e closes #72. #46–#51 and #53 are open. New during the stage: #75 (Docker clock steps make the SQL suite flaky locally). |
 
 ---
 
