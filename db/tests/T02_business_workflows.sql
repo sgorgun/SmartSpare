@@ -169,6 +169,17 @@ SELECT pg_temp.ok((SELECT changed_columns = ARRAY['unit_cost'] AND reason = 'Sup
                           AND user_id = util.current_app_user() AND old_values ? 'unit_cost'
                    FROM audit.audit_log WHERE table_name = 'catalog.part' ORDER BY id DESC LIMIT 1),
                   'US18: audit row with user, previous/new value and reason');
+-- #71: an UPDATE row names the changed record, also for a composite key (*_id columns joined in name order).
+SELECT pg_temp.ok((SELECT record_id = (SELECT id::text FROM catalog.part WHERE oem_part_number = 'RE900001')
+                   FROM audit.audit_log WHERE table_name = 'catalog.part' AND action = 'UPDATE' ORDER BY id DESC LIMIT 1),
+                  'Audit: an UPDATE row carries the id of the changed record (#71)');
+UPDATE inventory.warehouse_part SET safety_stock_qty = safety_stock_qty + 1
+WHERE (warehouse_id, part_id) = (SELECT warehouse_id, part_id FROM inventory.warehouse_part ORDER BY warehouse_id, part_id LIMIT 1);
+SELECT pg_temp.ok((SELECT a.record_id = (SELECT part_id || '|' || warehouse_id FROM inventory.warehouse_part
+                                          ORDER BY warehouse_id, part_id LIMIT 1)
+                   FROM audit.audit_log a WHERE a.table_name = 'inventory.warehouse_part' AND a.action = 'UPDATE'
+                   ORDER BY a.id DESC LIMIT 1),
+                  'Audit: an UPDATE row of a composite key carries its key columns (#71)');
 SELECT pg_temp.act_as('admin.smartspare');
 UPDATE iam.app_user SET full_name = 'Rasa Kazlauskienė-Test', email = 'rasa.test@dealer.example' WHERE user_name = 'rasa.kazlauskiene';
 SELECT pg_temp.ok((SELECT NOT (coalesce(new_values, '{}') ? 'email') AND NOT (coalesce(new_values, '{}') ? 'full_name')
