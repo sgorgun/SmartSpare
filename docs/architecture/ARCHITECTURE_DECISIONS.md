@@ -31,8 +31,8 @@ Business code is identical in both. Only the composition roots differ.
 | 15 | Repository language | English only | [0010](../adr/0010-english-only-repository.md) |
 | 16 | Evolvability | Abstractions only at seams to volatile technology; stable contracts (Contracts, versioned HTTP API, events); claims-based authorization | [0012](../adr/0012-evolvability-principles.md) |
 | 17 | Domain model and persistence | Aggregates in `Domain/` mapped directly by EF Core; stage 2 table mirrors removed per module stage; no generic repository | [0013](../adr/0013-domain-model-and-persistence.md) |
-| 18 | Browser sign-in | WASM sign-in page posts to `/bff` endpoints; ASP.NET Core Identity with custom stores over `iam`; antiforgery on every unsafe request (stage 3) | [0014](../adr/0014-browser-sign-in-through-bff-endpoints.md) |
-| 19 | Authentication behind the gateway | The BFF issues the cookie after the Identity module checks credentials; services receive a 2-minute ES256 internal token; one principal in both topologies | [0016](../adr/0016-authentication-behind-the-gateway.md) |
+| 18 | Browser sign-in | WASM sign-in page posts to `/bff` endpoints; ASP.NET Core Identity with custom stores over `iam`; antiforgery on every unsafe request. Server side implemented (stage 3, PR 3b); the WASM sign-in page follows in PR 3d | [0014](../adr/0014-browser-sign-in-through-bff-endpoints.md) |
+| 19 | Authentication behind the gateway | The BFF issues the cookie after the Identity module checks credentials; services receive a 2-minute ES256 internal token; one principal in both topologies. Single-host part implemented (stage 3, PR 3b); gateway and services in stage 4 | [0016](../adr/0016-authentication-behind-the-gateway.md) |
 | 20 | API documentation | OpenAPI per service + Scalar UI, published without sign-in; endpoints still require authorization | [0019](../adr/0019-public-api-documentation.md) |
 
 ## 1. Architectural style

@@ -170,6 +170,10 @@ Sign-in writes run in a transaction where `app.user_id` is the **user who is sig
 
 `o.Lockout.AllowedForNewUsers = true`, `MaxFailedAccessAttempts = 5`, `DefaultLockoutTimeSpan = 15 min`. `CheckPasswordSignInAsync(..., lockoutOnFailure: true)` increments `failed_login_count`, sets `lockout_end` and resets the counter, so the value never approaches the CHECK's 100. A locked-out user gets the same generic 400 response (1.2). Unlocking early is an administrator action (#46).
 
+**One source of truth (PR 3b).** ASP.NET Core Identity runs the lockout algorithm; the domain does not duplicate it. `AppUserStore` maps `IncrementAccessFailedCount`, `SetLockoutEndDate` and `ResetAccessFailedCount` onto the `AppUser` behaviour methods `RecordFailedSignIn()`, `SetLockoutEnd(end)` and `ResetFailedSignIns()`. The policy values come from one place, the domain's `LockoutPolicy.Default` (5 attempts, 15 minutes, validated against the CHECK's limit), which the Identity installer copies into `IdentityOptions.Lockout`.
+
+**Clock.** `UserManager<TUser>` in ASP.NET Core 10 compares `lockout_end` with `DateTimeOffset.UtcNow`; it takes no `TimeProvider` (its constructor has none, and `Microsoft.Extensions.Identity.Core` 10.0 doesn't reference the type). Lockout therefore runs on the system clock. `TimeProvider` is used for the cookie and the session checks (1.3, 2.5) and for `last_login_at`.
+
 ### 2.5 Security stamp validation
 
 - The BFF's cookie `OnValidatePrincipal` (1.3) checks the session every **5 minutes** through `ICredentialVerifier.ValidateSessionAsync`. It replaces Identity's `SecurityStampValidator` (default interval 30 minutes), so the same code runs in the host and the gateway. Each check costs one database query per user per interval ([Blazor authentication and authorization, "Sign out for ASP.NET Core Identity"](https://learn.microsoft.com/aspnet/core/blazor/security/?view=aspnetcore-10.0); [Configure Identity, "ISecurityStampValidator and SignOut everywhere"](https://learn.microsoft.com/aspnet/core/security/authentication/identity-configuration?view=aspnetcore-10.0#isecuritystampvalidator-and-signout-everywhere)).
@@ -323,7 +327,7 @@ Five named requirements are registered next to the policies of 3.2. Each one's u
 
 | Type | Kind | Behaviour |
 |---|---|---|
-| `AppUser : AggregateRoot<Guid>` | aggregate | Private state. `RecordSuccessfulSignIn(now)`, `RecordFailedSignIn(now, policy)` → lockout, `ChangePasswordHash(hash)` (rotates stamp), `RotateSecurityStamp()`, `Deactivate()` (rotates stamp, raises `UserDeactivated`), `AssignRole` / `RevokeRole` and `AssignBrand` / `RemoveBrand` (rotate stamp). Invariants mirror the CHECKs: an active user has a password, an anonymised user is inactive, the failure counter stays in 0..100. |
+| `AppUser : AggregateRoot<Guid>` | aggregate | Private state. `RecordSuccessfulSignIn(now)`; `RecordFailedSignIn()`, `SetLockoutEnd(end)` and `ResetFailedSignIns()`, driven by Identity's lockout algorithm (2.4); `ChangePasswordHash(hash)` (rotates stamp), `RotateSecurityStamp()`, `Deactivate()` (rotates stamp, raises `UserDeactivated`), `AssignRole` / `RevokeRole` and `AssignBrand` / `RemoveBrand` (rotate stamp). Invariants mirror the CHECKs: an active user has a password, an anonymised user is inactive, the failure counter stays in 0..100. |
 | `UserRoleAssignment : Entity<…>` | child entity | `RoleId`, `GrantedAt`, `GrantedBy` |
 | `UserBrandAssignment` | child entity / owned | `BrandId` |
 | `Role : Entity<short>` | reference entity | Read-only, seeded (`Code`, `Name`). |
@@ -411,7 +415,7 @@ All new tests follow the pyramid (ARCHITECTURE_DECISIONS section 11). Testcontai
 
 ### 9.1 Unit (`tests/SmartSpare.Modules.Identity.UnitTests`, new)
 
-- `AppUser`: sign-in success resets the counter and sets `last_login_at`. Five failures lock the user and reset the counter. Deactivation rotates the stamp and raises `UserDeactivated`. Role or brand change rotates the stamp. Invariants match the CHECKs (active ⇒ password, anonymised ⇒ inactive, counter range).
+- `AppUser`: sign-in success sets `last_login_at` (refused for inactive users). Failed sign-ins are counted one by one and never exceed the CHECK's 100; lockout end and counter reset are plain state changes, because Identity decides when to lock (2.4). `LockoutPolicy` rejects values outside the CHECK's range. Deactivation rotates the stamp and raises `UserDeactivated`. Role or brand change rotates the stamp. Invariants match the CHECKs (active ⇒ password, anonymised ⇒ inactive, counter range).
 - `UserName` / `EmailAddress` accept and reject the same values as the SQL CHECKs (shared test cases).
 - `AppUserStore` security-stamp translation (Base32 proposal → new Guid). `ActiveUserConfirmation`.
 - `AppUserClaimsPrincipalFactory`: claim set, and no personal data.
@@ -443,7 +447,7 @@ All new tests follow the pyramid (ARCHITECTURE_DECISIONS section 11). Testcontai
 |---|---|
 | Sign-in with a seeded V3 user | 204 and `Set-Cookie` with `__Host-SmartSpare`, `HttpOnly`, `Secure`, `SameSite=Strict`, `Path=/`, no `Domain`. Then `/bff/me` returns the roles and brands. `last_login_at` is set. |
 | Wrong password, unknown user, deactivated user | Identical 400 `SS-AUTH-001` bodies. |
-| Lockout | The 5th wrong password locks the user. The correct password is then still rejected. After `lockout_end` passes (injected `TimeProvider`) sign-in works. |
+| Lockout | The 5th wrong password locks the user for 15 minutes and resets the counter; the lockout is audited with the user signing in as actor and the reason `sign-in`. The correct password is then still rejected. The test then moves `lockout_end` into the past in the database (the same effect as an early unlock by an administrator, #46), and sign-in works. `UserManager` uses `DateTimeOffset.UtcNow`, not `TimeProvider`, for lockout (2.4), so the test can't move the clock instead. |
 | Antiforgery | `POST /bff/login` and an authenticated `POST /api/...` without `X-XSRF-TOKEN` → 400 `SS-AUTH-002`. With a token from `/bff/antiforgery` → success. A token issued to anonymous is rejected after sign-in. |
 | Logout | After `POST /bff/logout`, the old cookie no longer reaches protected endpoints (cleared). |
 | Security stamp | Rotate the stamp in the database. After the validation interval (`TimeProvider`), the old cookie → 401, through `ICredentialVerifier.ValidateSessionAsync`. A role change renews the cookie with the new roles. |
@@ -509,7 +513,7 @@ Acceptance:
 - Unit tests for the stores, the principal factory, the policies and `BrandScopedActionHandler`; `PolicySqlRoleParityTests` green.
 - The implementation matches ADR 0014 and ADR 0016 (accepted). Any deviation needs a new ADR.
 
-Closes no issue on its own. It implements ADR 0014 on the server, and the single-host half of ADR 0016.
+Closes **#60** (trace id in every ProblemDetails; the client snackbar and the walkthrough moved to #72). It implements ADR 0014 on the server, and the single-host half of ADR 0016.
 
 ### 3c: Session GUCs and Data Protection keys
 
