@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -8,8 +9,10 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using SmartSpare.Infrastructure.Messaging;
 using SmartSpare.Infrastructure.Modules;
 using SmartSpare.Infrastructure.Persistence;
+using SmartSpare.ApiContracts.Authorization;
 using SmartSpare.Modules.Identity.Contracts;
 using SmartSpare.Modules.Identity.Domain;
+using SmartSpare.Modules.Identity.Infrastructure.Identity;
 using SmartSpare.Modules.Identity.Infrastructure.Persistence;
 using SmartSpare.Modules.Identity.Features.Ping;
 
@@ -48,6 +51,49 @@ public sealed class IdentityModuleInstaller : IModuleInstaller
 
         services.Configure<PasswordHasherOptions>(ConfigurePasswordHasher);
         services.TryAddSingleton<IPasswordHasher<AppUser>, PasswordHasher<AppUser>>();
+
+        // ASP.NET Core Identity over the iam tables (STAGE_3_PLAN section 2, ADR 0014). Used only behind
+        // ICredentialVerifier: the module checks credentials and sessions, the BFF issues the cookie.
+        services.TryAddSingleton(TimeProvider.System);
+
+        // The token providers need Data Protection. Registering it here keeps the module usable in any host; the
+        // key store in iam.data_protection_keys follows in PR 3c (#22).
+        services.AddDataProtection();
+        services.AddSingleton<ILookupNormalizer, LowerInvariantLookupNormalizer>();
+        services.AddIdentityCore<AppUser>(ConfigureIdentity)
+            .AddUserStore<AppUserStore>()
+            .AddClaimsPrincipalFactory<AppUserClaimsPrincipalFactory>()
+            .AddSignInManager()
+            .AddDefaultTokenProviders();
+        services.AddScoped<IUserConfirmation<AppUser>, ActiveUserConfirmation>();
+        services.AddScoped<ICredentialVerifier, CredentialVerifier>();
+    }
+
+    /// <summary>
+    /// Identity options of SmartSpare. Lockout comes from <see cref="LockoutPolicy.Default"/>, the one source of
+    /// these values; Identity runs the lockout algorithm with them (section 2.4).
+    /// </summary>
+    internal static void ConfigureIdentity(IdentityOptions options)
+    {
+        options.ClaimsIdentity.UserIdClaimType = AppClaimTypes.Subject;
+        options.ClaimsIdentity.UserNameClaimType = AppClaimTypes.Name;
+        options.ClaimsIdentity.RoleClaimType = AppClaimTypes.Role;
+        options.ClaimsIdentity.SecurityStampClaimType = IdentityClaimTypes.SecurityStamp;
+
+        options.Lockout.AllowedForNewUsers = true;
+        options.Lockout.MaxFailedAccessAttempts = LockoutPolicy.Default.MaxFailedAttempts;
+        options.Lockout.DefaultLockoutTimeSpan = LockoutPolicy.Default.Duration;
+
+        // Deactivated and anonymised users are refused through ActiveUserConfirmation (section 2.6).
+        options.SignIn.RequireConfirmedAccount = true;
+
+        // New passwords only (user administration, #46); length matters more than character classes (section 2.7).
+        options.Password.RequiredLength = 12;
+        options.Password.RequiredUniqueChars = 4;
+        options.Password.RequireNonAlphanumeric = false;
+        options.Password.RequireUppercase = false;
+        options.Password.RequireLowercase = false;
+        options.Password.RequireDigit = false;
     }
 
     public void MapEndpoints(IEndpointRouteBuilder endpoints)
