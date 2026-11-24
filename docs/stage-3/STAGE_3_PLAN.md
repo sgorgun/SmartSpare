@@ -300,7 +300,7 @@ Five named requirements are registered next to the policies of 3.2. Each one's u
 
 - Package `Microsoft.AspNetCore.DataProtection.EntityFrameworkCore` (10.0.x, central version). `IdentityDbContext` implements `IDataProtectionKeyContext` (`DbSet<DataProtectionKey> DataProtectionKeys`), mapped to **`iam.data_protection_keys`** (`id`, `friendly_name`, `xml`). The table is created by a new Identity migration ([Key storage providers, "Entity Framework Core"](https://learn.microsoft.com/aspnet/core/security/data-protection/implementation/key-storage-providers?view=aspnetcore-10.0#entity-framework-core)).
 - Grants (SQL part of the migration, ADR 0004): `SELECT, INSERT` on the table and `USAGE` on its sequence to `app_write`, nothing to `app_read`. Key XML is secret material. The audit trigger is **not** attached.
-- Wiring is split across the boundary. `IdentityDbContext` is internal, so **the Identity installer** calls `services.AddDataProtection().PersistKeysToDbContext<IdentityDbContext>()`. **The host** adds `.SetApplicationName("SmartSpare")` and protection at rest ([Configure ASP.NET Core Data Protection](https://learn.microsoft.com/aspnet/core/security/data-protection/configuration/overview?view=aspnetcore-10.0)):
+- **The host owns the configuration (PR 3c).** It calls `AddDataProtection().SetApplicationName("SmartSpare")`, decides where keys live and how they are protected. For the storage it calls `IdentityModuleInstaller.PersistDataProtectionKeys(IDataProtectionBuilder)`, which wraps `PersistKeysToDbContext<IdentityDbContext>()`: `IdentityDbContext` stays internal, and an architecture test allows this installer method explicitly. The Identity installer's `AddServices` only requires Data Protection (`AddDataProtection()`, for the token providers). Protection at rest ([Configure ASP.NET Core Data Protection](https://learn.microsoft.com/aspnet/core/security/data-protection/configuration/overview?view=aspnetcore-10.0)):
   - Azure: `ProtectKeysWithAzureKeyVault` with the Managed Identity. Host only, because modules may not reference cloud SDKs (ADR 0012, architecture tests). The single host is not deployed, so this switch stays configuration-driven and off. In production the cookie lives in the gateway, whose key ring goes to Blob Storage, protected with Key Vault, in stage 4 (ADR 0016 §6).
   - Other environments: `ProtectKeysWithCertificate` when `DataProtection:CertificateThumbprint`/`Path` is configured.
   - Local development: unprotected keys (accepted in #22).
@@ -315,9 +315,9 @@ Five named requirements are registered next to the policies of 3.2. Each one's u
 - SQL, applied through new migrations of the owning modules (ADR 0004):
   - Platform: `util.require_role` checks `app.user_roles` instead of calling `iam.user_has_role` (X1).
   - Inventory: `dispatch_transfer` and `receive_transfer` read `app.home_warehouse_id` instead of `iam.app_user` (X2).
-  - Identity: `iam.v_app_user_masked` returns `home_warehouse_id` instead of the code (X18), and the transitional copy in the Reporting migration is dropped. Reporting gets a new migration that drops it.
+  - Identity: `iam.v_app_user_masked` returns `home_warehouse_id` instead of the code (X18). The view is removed from the transitional Reporting script (`9000_transitional_cross_module.sql`, MODULE_MAPPING 3.2) and created by a new Identity migration (`ModuleLocalMaskedUserView`) with `DROP VIEW IF EXISTS` + `CREATE VIEW`, so a database built before PR 3c is upgraded too. No Reporting migration: Reporting runs after Identity in the migration order, so a Reporting migration that dropped the view would drop the Identity one. `pg_depend` showed no dependent objects (no CASCADE).
   - `db/tests/_helpers.sql`: `pg_temp.act_as` also sets `app.user_roles` and `app.home_warehouse_id`.
-- Checks: the 97 SQL assertions stay green on the EF-built database (`tools/verify_database.sh`). `tools/schema_diff.sh` gets allow-list entries for the changed function bodies and view columns, each explained in the PR.
+- Checks: the SQL assertions stay green on the EF-built database (`tools/verify_database.sh`; 97, plus 5 new ones in PR 3c = 102). `tools/schema_diff.sh` gets allow-list entries for the changed function bodies and view columns, each explained in the PR.
 
 ---
 
@@ -521,12 +521,13 @@ Scope: section 6 (`ICurrentUser` with roles and warehouse, `ClaimsCurrentUser`, 
 
 Acceptance:
 - The integration tests for the session GUCs and for a cookie shared by two host instances.
-- SQL suite (97 assertions) green on the EF-built database with the GUC-based checks; `schema_diff` allow-list entries explained in the PR.
+- SQL suite (102 assertions) green on the EF-built database with the GUC-based checks; `schema_diff` allow-list entries explained in the PR.
+- #71: audit rows of UPDATEs carry the record id (Platform migration), with SQL assertions for a single-column and a composite key.
 - `check-model` shows only the deliberate migrations of this PR.
 - #69 in the Identity migration: `ck_app_user_user_name` also requires `user_name = lower(user_name)`, and the `password_hash` comment states 220,000 iterations.
 - Key protection is configurable per environment and documented (README or `docs/`).
 
-Closes **#11, #22, #69**.
+Closes **#11, #22, #69, #71**.
 
 ### 3d: Blazor client skeleton
 

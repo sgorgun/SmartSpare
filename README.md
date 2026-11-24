@@ -50,6 +50,19 @@ rm key.pem
 
 Services in stage 4 get only the public key as a JWKS document (`InternalTokens:Jwks`).
 
+**Data Protection keys** (cookies and antiforgery tokens, #22). With a database, the host keeps its key ring in
+`iam.data_protection_keys` under the application name `SmartSpare`, so every instance of the host accepts the others'
+cookies. Protection of the keys at rest is configured per environment in the section `DataProtection`:
+
+| Setting | Effect |
+|---|---|
+| none (local development) | keys stored unencrypted in the table (readable only by the API login) |
+| `DataProtection:CertificatePath` + `DataProtection:CertificatePassword` (secret) | keys encrypted with the certificate from a PFX file |
+| `DataProtection:CertificateThumbprint` | keys encrypted with a certificate from the CurrentUser\My store |
+| `DataProtection:UseKeyVault` | refused until stage 10, when the production Key Vault exists |
+
+The gateway (stage 4) keeps its key ring in Blob Storage, protected with Key Vault ([ADR 0016](docs/adr/0016-authentication-behind-the-gateway.md) §6).
+
 | Task | Command |
 |---|---|
 | **All checks, exactly as CI** (Docker running) | `tools/check.sh` — stale terms, locked restore, Release build with `-warnaserror`, format, check-model, tests with coverage, integration tests, database verification |
@@ -93,7 +106,7 @@ db/
   sql/<module>/                         SQL parts of the EF migrations: triggers, functions, views, grants, seed
                                         (embedded in the module assembly, applied by migrationBuilder.Sql — ADR 0004)
   testdata/T001__demo_dataset.sql       deterministic synthetic dataset (dev/test only)
-  tests/                                SQL test suite (97 assertions) + concurrency test
+  tests/                                SQL test suite (102 assertions) + concurrency test
   scripts/                              reset_local.sh, load_testdata.sh, env.sh (credentials from .env)
   baseline/v016_schema.sql              frozen schema of the former SQL-built database (input of tools/schema_diff.sh)
   ddl/smartspare_schema.sql             complete DDL of the EF-built database (generated)
@@ -129,7 +142,7 @@ cp .env.example .env                              # then set your own passwords 
 docker compose up -d                              # PostgreSQL 17 on localhost:5432
 db/scripts/reset_local.sh                         # drop + MigrationRunner: bootstrap + all EF migrations
 db/scripts/load_testdata.sh                       # demo dataset T001 (2,000 SKUs, ~30 s) + demo-user passwords
-db/tests/run_tests.sh                             # SQL test suite (97 assertions)
+db/tests/run_tests.sh                             # SQL test suite (102 assertions)
 db/tests/concurrency_test.sh                      # row-lock test (NFR03)
 ```
 

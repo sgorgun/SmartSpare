@@ -32,7 +32,7 @@ Business code is identical in both. Only the composition roots differ.
 | 16 | Evolvability | Abstractions only at seams to volatile technology; stable contracts (Contracts, versioned HTTP API, events); claims-based authorization | [0012](../adr/0012-evolvability-principles.md) |
 | 17 | Domain model and persistence | Aggregates in `Domain/` mapped directly by EF Core; stage 2 table mirrors removed per module stage; no generic repository | [0013](../adr/0013-domain-model-and-persistence.md) |
 | 18 | Browser sign-in | WASM sign-in page posts to `/bff` endpoints; ASP.NET Core Identity with custom stores over `iam`; antiforgery on every unsafe request. Server side implemented (stage 3, PR 3b); the WASM sign-in page follows in PR 3d | [0014](../adr/0014-browser-sign-in-through-bff-endpoints.md) |
-| 19 | Authentication behind the gateway | The BFF issues the cookie after the Identity module checks credentials; services receive a 2-minute ES256 internal token; one principal in both topologies. Single-host part implemented (stage 3, PR 3b); gateway and services in stage 4 | [0016](../adr/0016-authentication-behind-the-gateway.md) |
+| 19 | Authentication behind the gateway | The BFF issues the cookie after the Identity module checks credentials; services receive a 2-minute ES256 internal token; one principal in both topologies. Single-host part implemented (stage 3, PRs 3b–3c: internal tokens, policy scheme, session context, shared key ring in `iam.data_protection_keys`); gateway and services in stage 4 | [0016](../adr/0016-authentication-behind-the-gateway.md) |
 | 20 | API documentation | OpenAPI per service + Scalar UI, published without sign-in; endpoints still require authorization | [0019](../adr/0019-public-api-documentation.md) |
 
 ## 1. Architectural style
@@ -142,7 +142,7 @@ Rules:
 
 - **Migrations per module.** Each DbContext keeps its history in its own schema (`inventory.__ef_migrations_history`). In production each service applies only its own module's migration bundle before its new revision starts.
 - **Business rules in the domain, protection in the database.** Triggers and CHECKs remain the last line of defence (stock ledger, stock row locks, audit), protecting data from both application bugs and direct database edits.
-- **Session context.** `SessionContextInterceptor` passes the user id into `app.user_id` so the audit knows who changed what.
+- **Session context.** `SessionContextInterceptor` passes the signed-in user's id, roles and home warehouse into `app.user_id`, `app.user_roles` and `app.home_warehouse_id` (from the claims, whichever scheme authenticated the request), so the audit knows who changed what and the SQL role and warehouse checks need no cross-module read (MODULE_MAPPING 3.6).
 - **Resilience.** `EnableRetryOnFailure` for Azure, optimistic concurrency via `xmin`, `AsNoTracking` for queries.
 - **Production rollout** uses an EF migration bundle from CI under the dedicated `smartspare_migrator` login. The application never migrates on startup.
 - **Database logins.**
@@ -255,7 +255,7 @@ Tests follow the pyramid and run in CI on every pull request.
 | Unit | xUnit + Shouldly/AwesomeAssertions | Domain: states, invariants, calculations |
 | Integration | Testcontainers (real PostgreSQL 17) + WebApplicationFactory on the single host | Endpoints, migrations, triggers, Outbox, cookie and internal-token authentication |
 | Topology | Testcontainers (PostgreSQL, RabbitMQ) + gateway and two services | Routing through the gateway, `/internal` never routed (route-table test), internal token, an event round trip over RabbitMQ |
-| Database | Existing 97 SQL assertions + concurrency test | Stock, locking, permissions, audit |
+| Database | 102 SQL assertions + concurrency test | Stock, locking, permissions, audit, session context |
 | Architecture | NetArchTest | Module and layer boundaries, no topology concerns in modules |
 | UI components | bUnit | Forms, validation, status display |
 | End-to-end | Playwright | UC01, UC02 on desktop and tablet |
