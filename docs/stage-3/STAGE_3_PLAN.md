@@ -175,28 +175,38 @@ Claim type and role names are constants in `SmartSpare.ApiContracts.Authorizatio
 
 ### 3.2 Policies
 
-Policies are claims-only (ADR 0012) and registered by one shared method, `AppPolicies.Register(AuthorizationOptions)`, which the host and the client both call:
+Policies are claims-only (ADR 0012) and registered by one shared method, `AppPolicies.Register(AuthorizationOptions)`, which the host and the client both call.
 
-| Policy | Rule |
-|---|---|
-| (fallback) | Authenticated user. Every `/api` endpoint requires authorization unless it explicitly allows anonymous access (health and module pings stay anonymous). |
-| `Administration` | role `ADMINISTRATOR` |
-| `PlanInventory` | role `INVENTORY_PLANNER` or `BRAND_MANAGER` |
-| `ManageWarehouse` | role `WAREHOUSE_KEEPER` and an `ss:warehouse` claim |
-| `ServiceMachines` | role `SERVICE_ENGINEER` |
-| `ApproveTransfer` | role `BRAND_MANAGER`, **brand-scoped** (3.3) |
-| `ApprovePurchaseOrder` | role `SPONSOR` (unscoped) or `BRAND_MANAGER` (**brand-scoped**, 3.3) |
-| `DecideRecommendation` | role `INVENTORY_PLANNER` (unscoped) or `BRAND_MANAGER` (**brand-scoped**, 3.3) |
-| `ReadAudit` | role `SPONSOR` or `ADMINISTRATOR` |
+**Parity rule.** A policy that fronts a SQL business function allows **exactly** the roles of that function's `util.require_role(...)` call, no more and no fewer. Each such policy is named after the action and lists its functions below. Two layers that disagree would either reject valid users in the database (SS301) or let the API accept requests the database refuses, so the two must not drift. A test enforces it (9.1). A new SQL function with a different role list gets its own policy rather than reusing a "close enough" one. Brand scope (3.3) and warehouse match are resource checks on top of the role gate. They never widen it.
 
-Read policies (viewing stock, transfers, purchase orders, recommendations) are **never brand-scoped**: every role allowed to view sees all brands, `BRAND_MANAGER` included. The three approval policies are the endpoint gate (does the user hold a role that may perform the action at all?). The brand check runs afterwards against the loaded document (3.3). The role-to-policy matrix is fixed for stage 3. Stages 4–8 add rows next to the endpoints that need them.
+| Policy | Roles | Fronts (`util.require_role` in `db/sql/`) | Resource check |
+|---|---|---|---|
+| (fallback) | any authenticated user | — | — |
+| `Administration` | `ADMINISTRATOR` | `iam.anonymise_user` | — |
+| `PlanInventory` | `BRAND_MANAGER`, `INVENTORY_PLANNER` | `inventory.flag_exceptional_demand`, `procurement.submit_purchase_order`, `procurement.export_purchase_order` | — |
+| `ApproveTransfer` | `BRAND_MANAGER`, `INVENTORY_PLANNER` | `inventory.approve_transfer` | brand scope (3.3) |
+| `CancelTransfer` | `BRAND_MANAGER`, `INVENTORY_PLANNER`, `ADMINISTRATOR` | `inventory.cancel_transfer` | brand scope (3.3) |
+| `MoveStock` | `WAREHOUSE_KEEPER`, `ADMINISTRATOR` | `inventory.dispatch_transfer`, `inventory.receive_transfer`, `procurement.receive_purchase_order_line` | warehouse match (below) |
+| `RecordServiceWork` | `SERVICE_ENGINEER`, `ADMINISTRATOR` | `fleet.log_engine_hours`, `fleet.complete_service_order` | — |
+| `ManageServiceOrders` | `SERVICE_ENGINEER`, `BRAND_MANAGER`, `ADMINISTRATOR` | `fleet.create_service_order_draft`, `fleet.cancel_service_order` | — |
+| `ApprovePurchaseOrder` | `BRAND_MANAGER`, `SPONSOR` | `procurement.approve_purchase_order` | brand scope (3.3) |
+| `CancelPurchaseOrder` | `BRAND_MANAGER`, `SPONSOR`, `ADMINISTRATOR` | `procurement.cancel_purchase_order` | brand scope (3.3) |
+| `DecideRecommendation` | `BRAND_MANAGER`, `INVENTORY_PLANNER` | `forecast.decide_recommendation` (and its event-based successor, MODULE_MAPPING 3.4) | brand scope (3.3) |
+| `ReadAudit` | `SPONSOR`, `ADMINISTRATOR` | — (read only) | — |
+
+Notes:
+
+- Policies that front no function (fallback, `ReadAudit`, and the read policies stages 4–8 add) are outside the parity rule. Every read policy is **never brand-scoped** (3.3 rule 1).
+- **Warehouse match** for `MoveStock` mirrors SS302 in `dispatch_transfer` / `receive_transfer`: a user with an `ss:warehouse` claim may only dispatch from or receive into that warehouse; a user without one (an administrator) is not restricted. The role gate is therefore role-only. The earlier draft required `ss:warehouse` in the policy, which would have locked out `ADMINISTRATOR`, whom SQL allows.
+- `RecordServiceWork` and `ManageServiceOrders` replace the earlier single `ServiceMachines` (`SERVICE_ENGINEER` only), which didn't match the SQL role lists.
+- The matrix is fixed for stage 3. Stages 4–8 add rows next to the endpoints that need them, under the same parity rule.
 
 ### 3.3 Brand scope (resource-based)
 
 **Business rule** (set by the product owner on 24 November 2026; it refines the `iam.user_brand` description "brand manager ↔ brands"):
 
 1. **Reads are not brand-scoped.** Every role allowed to view stock, transfers, purchase orders or recommendations sees all brands, `BRAND_MANAGER` included.
-2. **Brand scope applies only to approval and decision actions:** approve a transfer, approve a purchase order, accept or reject a recommendation. Brand lives on `catalog.part`, not on the document, so a `BRAND_MANAGER` may act only if the brands of **all** lines of the document are in their `ss:brand` claims. A single line of another brand → **403**.
+2. **Brand scope applies only to approval and decision actions:** approve or cancel a transfer, approve or cancel a purchase order, accept or reject a recommendation. Brand lives on `catalog.part`, not on the document, so a `BRAND_MANAGER` may act only if the brands of **all** lines of the document are in their `ss:brand` claims. A single line of another brand → **403**.
 3. **An unscoped role overrides the scope.** If the user also holds a role that grants the same action without brand scope, that role decides. For example, a user with `BRAND_MANAGER` + `SPONSOR` may approve any purchase order as `SPONSOR`.
 4. **All other roles are not brand-scoped.**
 
@@ -226,15 +236,17 @@ The handler evaluates in a fixed order:
 
 An empty `BrandIds` (a document without lines) does not pass step 2. The handler denies by default, and the domain rejects empty documents anyway.
 
-Three named requirements are registered next to the policies of 3.2:
+Five named requirements are registered next to the policies of 3.2. Each one's unscoped roles plus its scoped role equal the roles of the policy it refines, and therefore of the SQL function (parity rule, 3.2):
 
 | Requirement | Unscoped roles | Scoped role |
 |---|---|---|
-| `ApproveTransferScope` | — | `BRAND_MANAGER` |
+| `ApproveTransferScope` | `INVENTORY_PLANNER` | `BRAND_MANAGER` |
+| `CancelTransferScope` | `INVENTORY_PLANNER`, `ADMINISTRATOR` | `BRAND_MANAGER` |
 | `ApprovePurchaseOrderScope` | `SPONSOR` | `BRAND_MANAGER` |
+| `CancelPurchaseOrderScope` | `SPONSOR`, `ADMINISTRATOR` | `BRAND_MANAGER` |
 | `DecideRecommendationScope` | `INVENTORY_PLANNER` | `BRAND_MANAGER` |
 
-**Use in endpoints.** The endpoint first passes its policy (3.2). The handler then loads the document and builds the `IBrandScoped` view from the brands of its lines, read from module-local data (Inventory: `catalog.part`; Procurement and Forecasting: their local part copies with brand, ARCHITECTURE_DECISIONS section 4) or through an `Inventory.Contracts` query. Brand ids never come from the request body. It then calls `IAuthorizationService.AuthorizeAsync(user, document, requirement)` and returns **403 ProblemDetails** on failure, before any state change. Stage 3 proves the handler with test endpoints in the integration test host. The first real uses are transfer approval (stage 4), purchase-order approval (stage 6) and recommendation decisions (stage 7).
+**Use in endpoints.** The endpoint first passes its policy (3.2). The handler then loads the document and builds the `IBrandScoped` view from the brands of its lines, read from module-local data (Inventory: `catalog.part`; Procurement and Forecasting: their local part copies with brand, ARCHITECTURE_DECISIONS section 4) or through an `Inventory.Contracts` query. Brand ids never come from the request body. It then calls `IAuthorizationService.AuthorizeAsync(user, document, requirement)` and returns **403 ProblemDetails** on failure, before any state change. Stage 3 proves the handler with test endpoints in the integration test host. The first real uses are transfer approval and cancellation (stage 4), purchase-order approval and cancellation (stage 6) and recommendation decisions (stage 7).
 
 **Database.** The SQL business functions repeat the **role** check (`util.require_role`, section 6), so a bug in a policy can't bypass that second line of defence (ARCHITECTURE_DECISIONS section 7). They do **not** enforce brand scope. A bug in the resource check above would not be caught by the database. A database-level brand check is tracked as #53.
 
@@ -377,6 +389,12 @@ All new tests follow the pyramid (ARCHITECTURE_DECISIONS section 10). Testcontai
 - `PasswordHasher<AppUser>` output starts with `AQAAAAIAAYag` (V3 / SHA512 / 100k).
 - `LoginRequestValidator` (ApiContracts).
 - `AppPolicies` evaluated with `DefaultAuthorizationService` for each role. Read policies never consider brands.
+- **Policy ↔ SQL role parity** (`PolicySqlRoleParityTests` in `tests/SmartSpare.ArchitectureTests`, no database). The test reads the repository like the other architecture tests:
+  - It holds the table of 3.2, mapping each policy to the SQL functions it fronts.
+  - For each function it extracts the role list from the `util.require_role(...)` call in its `CREATE FUNCTION` body under `db/sql/`, and compares it as a set with the policy's roles in `AppPolicies`.
+  - For each brand-scoped policy it also checks that the requirement's unscoped roles plus its scoped role equal the policy's roles.
+  - It fails when a function in `db/sql/` calls `util.require_role` but isn't mapped to any policy, so a new SQL function can't slip in unnoticed.
+  - The expected rows are data (`[Theory]` with `MemberData`), so the test output names the policy, the function and the differing roles.
 - `BrandScopedActionHandler`, for each of the three requirements:
   - only own brands → succeed;
   - one foreign line among own lines → fail;
@@ -385,6 +403,9 @@ All new tests follow the pyramid (ARCHITECTURE_DECISIONS section 10). Testcontai
   - unscoped role alone (e.g. `SPONSOR`) with foreign brands → succeed;
   - `BRAND_MANAGER` + `SPONSOR` with foreign brands on `ApprovePurchaseOrderScope` → succeed;
   - `BRAND_MANAGER` + `SPONSOR` with foreign brands on `ApproveTransferScope` → fail, because `SPONSOR` doesn't grant that action;
+  - `INVENTORY_PLANNER` with foreign brands on `ApproveTransferScope` → succeed (unscoped);
+  - `ADMINISTRATOR` with foreign brands on `CancelTransferScope` and `CancelPurchaseOrderScope` → succeed (unscoped);
+  - `BRAND_MANAGER` with a mixed-brand document on `CancelTransferScope` and `CancelPurchaseOrderScope` → fail;
   - a role outside the requirement (e.g. `WAREHOUSE_KEEPER`) → fail.
 
 ### 9.2 Integration (`tests/SmartSpare.Host.IntegrationTests`, Testcontainers PostgreSQL 17 + `WebApplicationFactory<Program>`)
@@ -398,7 +419,7 @@ All new tests follow the pyramid (ARCHITECTURE_DECISIONS section 10). Testcontai
 | Logout | After `POST /bff/logout`, the old cookie no longer reaches protected endpoints (cleared). |
 | Security stamp | Rotate the stamp in the database. After the validation interval (`TimeProvider`), the old cookie → 401. |
 | 401 vs 403 | Anonymous `/api/v1/...` → 401 (no redirect). Wrong role → 403. |
-| Brand scope (test endpoints with documents whose lines carry brands) | `BRAND_MANAGER` (Claas, Lemken) approves a document with only Claas lines → **200**. Approves a document with Claas and one foreign-brand line → **403**, and the document is unchanged. Reads a foreign-brand document → **200**. `BRAND_MANAGER` + `SPONSOR` approves a foreign-brand purchase order → **200**. |
+| Brand scope (test endpoints with documents whose lines carry brands) | `BRAND_MANAGER` (Claas, Lemken) approves a document with only Claas lines → **200**. Approves a document with Claas and one foreign-brand line → **403**, and the document is unchanged. Reads a foreign-brand document → **200**. `BRAND_MANAGER` + `SPONSOR` approves a foreign-brand purchase order → **200**. `BRAND_MANAGER` cancels a mixed-brand transfer or purchase order → **403**. `INVENTORY_PLANNER` approves a foreign-brand transfer → **200**. `ADMINISTRATOR` cancels a foreign-brand transfer → **200**. |
 | Rate limiting | The 11th login in a minute from one IP → 429 with `Retry-After`. |
 | Data Protection (#22) | Two `WebApplicationFactory` hosts share one database. A cookie issued by host A is accepted by host B. Keys are in `iam.data_protection_keys`. |
 | Session GUCs (#11) | Inside a request, `current_setting('app.user_roles')` and `app.home_warehouse_id` match the claims. `util.require_role` passes or fails accordingly. |
@@ -447,7 +468,7 @@ Scope: sections 1.2, 1.3, 1.5, 2, 3 and 4. Identity core with the custom stores,
 
 Acceptance:
 - Integration tests 9.2: sign-in and cookie flags, uniform failures, lockout, antiforgery, logout, security stamp, 401 vs 403 and brand scope, rate limiting.
-- Unit tests for the stores, the principal factory, the policies and `BrandScopedActionHandler`.
+- Unit tests for the stores, the principal factory, the policies and `BrandScopedActionHandler`; `PolicySqlRoleParityTests` green.
 - The implementation matches ADR 0014 (accepted). Any deviation needs a new ADR.
 
 Closes no issue on its own; it implements ADR 0014 on the server.
