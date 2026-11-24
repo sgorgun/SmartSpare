@@ -40,6 +40,7 @@ public static class PersistenceRegistration
         ArgumentNullException.ThrowIfNull(moduleAssembly);
 
         services.TryAddScoped<ICurrentUser, NoCurrentUser>();
+        services.TryAddScoped<ActingUser>();
         services.TryAddScoped<SessionContextInterceptor>();
         services.AddDbContext<TContext>((sp, options) =>
         {
