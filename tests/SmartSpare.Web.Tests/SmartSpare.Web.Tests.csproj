@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <!-- bUnit tests of the web client (STAGE_3_PLAN 9.3); no browser, no server. -->
+
+  <ItemGroup>
+    <PackageReference Include="bunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Web\SmartSpare.Web.Client\SmartSpare.Web.Client.csproj" />
+  </ItemGroup>
+
+</Project>
