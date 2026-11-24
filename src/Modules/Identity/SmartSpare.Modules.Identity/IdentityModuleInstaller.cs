@@ -43,6 +43,16 @@ public sealed class IdentityModuleInstaller : IModuleInstaller
         options.IterationCount = PasswordHashIterations;
     }
 
+    /// <summary>
+    /// Stores the Data Protection key ring in <c>iam.data_protection_keys</c> (#22). Called by the host, which owns the
+    /// Data Protection configuration (application name, key protection); the context type stays internal to the module.
+    /// </summary>
+    public static IDataProtectionBuilder PersistDataProtectionKeys(IDataProtectionBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        return builder.PersistKeysToDbContext<IdentityDbContext>();
+    }
+
     public void AddServices(IServiceCollection services, IConfiguration configuration)
     {
         var assembly = typeof(IdentityModuleInstaller).Assembly;
@@ -56,8 +66,8 @@ public sealed class IdentityModuleInstaller : IModuleInstaller
         // ICredentialVerifier: the module checks credentials and sessions, the BFF issues the cookie.
         services.TryAddSingleton(TimeProvider.System);
 
-        // The token providers need Data Protection. Registering it here keeps the module usable in any host; the
-        // key store in iam.data_protection_keys follows in PR 3c (#22).
+        // The token providers need Data Protection. The module only requires it; where the keys live and how they
+        // are protected is the host's decision (STAGE_3_PLAN section 5), see PersistDataProtectionKeys.
         services.AddDataProtection();
         services.AddSingleton<ILookupNormalizer, LowerInvariantLookupNormalizer>();
         services.AddIdentityCore<AppUser>(ConfigureIdentity)

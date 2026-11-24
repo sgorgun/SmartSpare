@@ -6,6 +6,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- The Data Protection key ring lives in iam.data_protection_keys (#22); the host decides to use it. -->
+    <PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\..\BuildingBlocks\SmartSpare.Infrastructure\SmartSpare.Infrastructure.csproj" />
     <ProjectReference Include="..\SmartSpare.Modules.Identity.Contracts\SmartSpare.Modules.Identity.Contracts.csproj" />
     <!-- The public HTTP contract: claim types and role names (STAGE_3_PLAN S14, ADR 0014). -->

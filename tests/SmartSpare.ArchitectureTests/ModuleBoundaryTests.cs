@@ -88,6 +88,30 @@ public sealed class ModuleBoundaryTests
         installer.IsSealed.ShouldBeTrue();
     }
 
+    /// <summary>
+    /// Public static methods a host may call on a module installer, besides the <c>IModuleInstaller</c> members. Each one
+    /// hands the host a module capability without exposing a module type (STAGE_3_PLAN sections 2.3 and 5).
+    /// </summary>
+    private static readonly Dictionary<string, string[]> AllowedInstallerMethods = new(StringComparer.Ordinal)
+    {
+        ["Identity"] = ["ConfigurePasswordHasher", "PersistDataProtectionKeys"],
+    };
+
+    [Theory]
+    [MemberData(nameof(Solution.ModuleNames), MemberType = typeof(Solution))]
+    public void Installer_PublicStaticMethods_AreExplicitlyAllowed(string name)
+    {
+        var installer = Solution.Get(name).Implementation.GetExportedTypes().Single();
+
+        var methods = installer
+            .GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.DeclaredOnly)
+            .Where(m => !m.IsSpecialName)
+            .Select(m => m.Name)
+            .Order(StringComparer.Ordinal);
+
+        methods.ShouldBe(AllowedInstallerMethods.GetValueOrDefault(name, []).Order(StringComparer.Ordinal));
+    }
+
     [Fact]
     public void ApiContracts_DoesNotReferenceModules()
     {

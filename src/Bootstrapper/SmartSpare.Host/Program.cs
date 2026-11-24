@@ -1,4 +1,5 @@
 using SmartSpare.Bff;
+using SmartSpare.Host;
 using SmartSpare.Infrastructure.Http;
 using SmartSpare.Infrastructure.Messaging;
 using SmartSpare.Infrastructure.Messaging.Outbox;
@@ -28,6 +29,12 @@ if (builder.Configuration.GetConnectionString(PersistenceRegistration.Connection
 {
     builder.Services.AddOutboxDispatcher();
 }
+
+// The session context of every module transaction comes from the request's claims (#11).
+builder.Services.AddClaimsCurrentUser();
+
+// One key ring for every instance of the host (#22): cookies and antiforgery tokens work across instances.
+builder.AddSmartSpareDataProtection();
 
 // The BFF (ADR 0014) and the single-host authentication (ADR 0016 section 4): the policy scheme sends
 // "Authorization: Bearer" to the internal-token scheme and everything else to the cookie.
