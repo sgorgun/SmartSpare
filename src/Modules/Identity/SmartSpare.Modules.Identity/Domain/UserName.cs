@@ -8,8 +8,8 @@ namespace SmartSpare.Modules.Identity.Domain;
 /// <c>user_name ~ '^[a-z0-9._-]{3,50}$'</c> on a <c>citext</c> column. A regular expression match on
 /// <c>citext</c> is case-insensitive, so upper-case ASCII letters pass the CHECK as well, and the value object
 /// accepts the same strings. Its canonical form is lower-case: <see cref="Create"/> stores
-/// <c>Tomas.R</c> as <c>tomas.r</c>. Equality stays case-insensitive, like <c>citext</c>. PR 3c tightens the
-/// CHECK to <c>user_name = lower(user_name)</c> as well (#69).
+/// <c>Tomas.R</c> as <c>tomas.r</c>. Equality stays case-insensitive, like <c>citext</c>. The CHECK also requires
+/// <c>user_name::text = lower(user_name::text)</c> (#69), so the database stores only the canonical form too.
 /// </summary>
 internal sealed partial class UserName : ValueObject
 {
