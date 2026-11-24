@@ -25,8 +25,8 @@ Business code is identical in both. Only the composition roots differ.
 | 9 | API contracts | Shared `SmartSpare.ApiContracts` project with DTOs and FluentValidation validators | [0006](../adr/0006-frontend-blazor-wasm-mudblazor-bff.md) |
 | 10 | Platform | .NET 10 LTS | [0007](../adr/0007-dotnet-10-lts.md) |
 | 11 | Machine learning | ML.NET: gradient boosting + intermittent-demand baselines | [0008](../adr/0008-mlnet-demand-forecasting.md) |
-| 12 | Azure | Container Apps for the gateway and services, a stateful host VM for RabbitMQ and observability; Bicep, GitHub Actions with OIDC | [0009](../adr/0009-azure-hosting-and-delivery.md) |
-| 13 | Observability | OpenTelemetry → Collector → Prometheus, Loki, Tempo, Grafana (alerts to Telegram and e-mail); Aspire dashboard locally | [0018](../adr/0018-observability-with-the-grafana-stack.md) |
+| 12 | Azure | Container Apps for the gateway and services, all scaling to zero; CloudAMQP (free) for RabbitMQ; Bicep, GitHub Actions with OIDC; about €22–23/month | [0009](../adr/0009-azure-hosting-and-delivery.md) |
+| 13 | Observability | OpenTelemetry → Grafana Cloud Free (Prometheus-compatible metrics, Loki, Tempo, Grafana; alerts to Telegram and e-mail); the self-hosted stack and the Aspire dashboard locally | [0018](../adr/0018-observability-with-the-grafana-stack.md) |
 | 14 | Testing | Unit, integration with Testcontainers, architecture tests, a topology test, bUnit, Playwright | — |
 | 15 | Repository language | English only | [0010](../adr/0010-english-only-repository.md) |
 | 16 | Evolvability | Abstractions only at seams to volatile technology; stable contracts (Contracts, versioned HTTP API, events); claims-based authorization | [0012](../adr/0012-evolvability-principles.md) |
@@ -107,7 +107,8 @@ Modules change each other only through **integration events** with guaranteed de
 - **RabbitMQ topology.**
   - One topic exchange per publishing module, with routing key `<Event>.v<N>`.
   - One quorum queue per consumer, using native delayed retry.
-  - Dead-lettering by policy, with an alert on dead letters.
+  - One dead-letter queue per consuming module, with an alert on dead letters.
+  - Designed within the free CloudAMQP plan's limits: one connection per service, ≤ 100 queues, 1 M messages a month (ADR 0017 §5).
 - **Synchronous queries** are read-only and go only through an interface in `Contracts` (for example, `IStockQueries`):
   - in-process in the single host;
   - between services, an HTTP client to the owning service's `/internal/v1/...` endpoint, carrying the caller's internal token.
@@ -188,7 +189,7 @@ Security is layered: browser → BFF → services → database, and each layer c
 - **Database login per service and role per module** — each service connects with its own login. The per-module roles (stage 10) then let each module see only its own schema. This is both protection and an enforcement of module boundaries at the PostgreSQL level.
 - **Secrets** — no passwords in code or configuration:
   - in Azure, Managed Identity per service and Microsoft Entra authentication to PostgreSQL;
-  - everything else (token signing key, broker credentials, alerting tokens) in Key Vault;
+  - everything else (token signing key, CloudAMQP URL, Grafana Cloud token, alerting tokens) in Key Vault;
   - locally, user-secrets.
 - **Personal data** — already in the database: customer pseudonymisation, masking, GDPR anonymisation, immutable audit with 180-day retention. Telemetry is filtered so it carries no personal data (ADR 0018).
 - **Web protection** — in the BFF: HTTPS and HSTS, CSP headers, antiforgery, rate limiting on sign-in and import, forwarded headers from the platform's proxy only (#48), upload size limits.
@@ -200,13 +201,12 @@ Production runs on **Azure Container Apps** ([ADR 0009](../adr/0009-azure-hostin
 
 | Component | Production |
 |---|---|
-| Gateway (BFF) | Container Apps, external HTTPS ingress, at least one replica |
-| Six module services | Container Apps, internal ingress, scale to zero allowed |
-| ML training | Container Apps job (cron) from the Forecasting image |
+| Gateway (BFF) | Container Apps, external HTTPS ingress, scales to zero (warm-up before demos) |
+| Six module services | Container Apps, internal ingress, scale to zero; consumers also wake on RabbitMQ queue length (KEDA) |
+| Scheduled work | Container Apps jobs (cron) from the owning service's image: reservation expiry, mart refresh, audit purge, ML training, broker metrics |
 | Database | PostgreSQL Flexible Server 17, Burstable; one database, schema per module, login per service |
-| Events | RabbitMQ 4.4 on the stateful host (ADR 0017) |
-| Telemetry | OTLP → Collector → Prometheus, Loki, Tempo, Grafana on the stateful host; Loki and Tempo data in Blob Storage (ADR 0018) |
-| Stateful host | Small Linux VM with a managed disk in the environment's virtual network |
+| Events | RabbitMQ on CloudAMQP "Little Lemur" (free shared plan; ADR 0017) |
+| Telemetry | OTLP → Grafana Cloud Free (ADR 0018); no Log Analytics workspace |
 | Import files, model files, gateway Data Protection keys | Blob Storage |
 | Secrets | Key Vault + Managed Identity per service |
 | Images | Azure Container Registry, one image per service |
@@ -217,10 +217,10 @@ Production runs on **Azure Container Apps** ([ADR 0009](../adr/0009-azure-hostin
   - then, per changed service: image to ACR → that module's EF migration bundle → new Container Apps revision.
 
   Azure sign-in via OIDC (federated credentials), no long-lived secrets. Each service deploys independently.
-- **Background jobs** — run inside the owning service and are safe with several instances: Quartz in clustered mode (reservation expiry in Inventory; mart refresh and audit purge in Reporting), Outbox via `SKIP LOCKED`.
+- **Background jobs** — Quartz in the single host; in production, Container Apps jobs with cron triggers, because apps scale to zero. The job code is the same. The outbox is dispatched by the publishing service while it is awake (`SKIP LOCKED`, safe with several replicas).
 - **Local development** — .NET Aspire. By default it starts PostgreSQL, the Blob emulator, the single host and the dashboard. `--topology services` additionally starts the gateway, the six services, RabbitMQ and the Grafana stack. Aspire is not used to deploy to Azure — Bicep is.
 - **Health** — `/health/live` and `/health/ready` on every service for Container Apps probes. They are not routed by the gateway.
-- **Cost** — the always-on topology exceeds NFR07 (≤ €35/month). The cost controls and the open decision are in ADR 0009 and #66.
+- **Cost** — about €22–23/month (PostgreSQL B1ms and ACR Basic; Container Apps within the free grant; CloudAMQP and Grafana Cloud free), within NFR07 (≤ €35/month). The table, the cold-start trade-off and the rejected self-hosted VM are in the ADR 0009 amendment (#66, closed).
 
 ## 9. Demand forecasting (ML.NET)
 
@@ -242,9 +242,9 @@ ML is built with **ML.NET 5.x** inside the Forecasting module: one language, one
 Every host emits OpenTelemetry logs, metrics and traces over OTLP ([ADR 0018](../adr/0018-observability-with-the-grafana-stack.md)).
 
 - **Locally:** the Aspire dashboard.
-- **Production:** an OpenTelemetry Collector feeds Prometheus (metrics), Loki (logs) and Tempo (traces). Grafana shows provisioned dashboards (ASP.NET Core, per-service RED metrics, outbox and queue health, business KPIs) and sends alerts to Telegram and e-mail.
+- **Production:** the apps export OTLP directly to Grafana Cloud Free: Prometheus-compatible metrics, Loki and Tempo. Grafana shows provisioned dashboards (ASP.NET Core, per-service RED metrics, messaging, business KPIs, free-tier usage) and sends alerts to Telegram and e-mail. Locally, `--topology services` runs the same stack self-hosted (Collector, Prometheus, Loki, Tempo, Grafana).
 - **Correlation:** the W3C trace id is the correlation id. It is propagated through HTTP and RabbitMQ, written to every log record and returned in every ProblemDetails (#60).
-- **Retention:** Prometheus 15 days, Loki 31 days, Tempo 14 days.
+- **Retention:** 14 days in Grafana Cloud Free; limits of 10k active series and 50 GB of logs and of traces per month (ADR 0018 §5).
 
 ## 11. Testing and quality
 
@@ -254,7 +254,7 @@ Tests follow the pyramid and run in CI on every pull request.
 |---|---|---|
 | Unit | xUnit + Shouldly/AwesomeAssertions | Domain: states, invariants, calculations |
 | Integration | Testcontainers (real PostgreSQL 17) + WebApplicationFactory on the single host | Endpoints, migrations, triggers, Outbox, cookie and internal-token authentication |
-| Topology | Testcontainers (PostgreSQL, RabbitMQ) + gateway and two services | Routing through the gateway, internal token, an event round trip over RabbitMQ |
+| Topology | Testcontainers (PostgreSQL, RabbitMQ) + gateway and two services | Routing through the gateway, `/internal` never routed (route-table test), internal token, an event round trip over RabbitMQ |
 | Database | Existing 97 SQL assertions + concurrency test | Stock, locking, permissions, audit |
 | Architecture | NetArchTest | Module and layer boundaries, no topology concerns in modules |
 | UI components | bUnit | Forms, validation, status display |
@@ -326,7 +326,7 @@ Work is done on the developer machine (.NET 10 SDK + Docker), where the code can
 7. **Procurement.** Purchase orders with the four-eyes rule.
 8. **Forecasting.** ML.NET models and benchmark, recommendations and UC01 events between modules.
 9. **Reporting.** Dashboards and KPIs on the marts.
-10. **Azure production.** Production environment, Entra logins per service and per-module roles (#16), Key Vault keys and rotation, alerting live, backups, cost controls (#66).
+10. **Azure production.** Production environment, Entra logins per service and per-module roles (#16), Key Vault keys and rotation, alerting live, backups, and cost monitoring against the ADR 0009 estimate.
 11. **Defence polish.** Playwright scenarios, updated diagrams and documentation.
 
 Stages 5–9 follow the same pattern: domain → use cases → endpoints → tests → screens. Each one is deployed through the stage 4 pipeline as it lands. The order can shift to match diploma submission deadlines.
@@ -352,6 +352,6 @@ Stages 5–9 follow the same pattern: domain → use cases → endpoints → tes
 
 - [x] D1 — Every module runs as its own service in production, behind a YARP gateway that is the BFF; single host for development and tests; one PostgreSQL server, schema per module, login per service; new stage 4
 - [x] D2 — RabbitMQ as the integration-event transport, on the official .NET client, without commercial messaging libraries
-- [x] D3 — OpenTelemetry → Prometheus, Loki, Tempo, Grafana with alerts to Telegram and e-mail, replacing Application Insights as the primary stack
+- [x] D3 — OpenTelemetry → Prometheus, Loki, Tempo, Grafana with alerts to Telegram and e-mail, replacing Application Insights as the primary stack; Grafana Cloud Free in production, self-hosted locally
 - [x] D4 — OpenAPI + Scalar published without sign-in in production
-- [x] Hosting on Azure Container Apps with a stateful host VM (App Service rejected: no broker, no service discovery)
+- [x] Hosting on Azure Container Apps with every app scaling to zero; CloudAMQP Little Lemur and Grafana Cloud Free instead of a self-hosted VM, which was rejected on cost against €35/month (App Service rejected: no broker, no service discovery)
