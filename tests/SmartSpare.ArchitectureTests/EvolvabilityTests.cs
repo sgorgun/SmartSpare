@@ -72,11 +72,17 @@ public sealed class EvolvabilityTests
 
         var result = Types.InAssembly(module.Implementation)
             .That().ResideInNamespaceStartingWith(module.Namespace + ".Domain")
-            .Should().OnlyHaveDependenciesOn("System", "SmartSpare.SharedKernel", module.Namespace + ".Domain")
+            .Should().OnlyHaveDependenciesOn("System", "SmartSpare.SharedKernel", module.Namespace + ".Domain", CoverageTrackerNamespace)
             .GetResult();
 
         result.IsSuccessful.ShouldBeTrue(Describe(result));
     }
+
+    /// <summary>
+    /// CI collects coverage (<c>--collect "XPlat Code Coverage"</c>); coverlet rewrites every method to call its
+    /// injected tracker type. That is instrumentation, not a dependency of the domain code.
+    /// </summary>
+    private const string CoverageTrackerNamespace = "Coverlet.Core.Instrumentation.Tracker";
 
     private static bool IsMachineLearningPackage(string package) =>
         package.Equals(MachineLearningPackagePrefix, StringComparison.Ordinal)
