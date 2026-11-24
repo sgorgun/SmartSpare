@@ -1,6 +1,6 @@
 # ADR 0014: Browser sign-in through BFF endpoints
 
-- Status: Accepted
+- Status: Accepted, amended by [ADR 0016](0016-authentication-behind-the-gateway.md) (2026-11-24)
 - Date: 2026-11-24
 
 ## Context
@@ -24,7 +24,7 @@ Alternatives considered:
 
 Option 4.
 
-1. **Endpoints.** The Identity module maps `POST /bff/login`, `POST /bff/logout`, `GET /bff/me` and `GET /bff/antiforgery`, unversioned because they are browser-session plumbing, not public API. `SignInManager<AppUser>` runs only there. The cookie `__Host-SmartSpare` is HttpOnly, Secure and SameSite=Strict, with an 8-hour sliding expiry. APIs answer 401/403 instead of redirecting.
+1. **Endpoints.** The BFF maps `POST /bff/login`, `POST /bff/logout`, `GET /bff/me` and `GET /bff/antiforgery`, unversioned because they are browser-session plumbing, not public API. Originally the BFF was the Identity module, with `SignInManager<AppUser>` running only there. Since [ADR 0016](0016-authentication-behind-the-gateway.md), the endpoints are a `SmartSpare.Bff` building block used by the single host and the gateway; they call `Identity.Contracts.ICredentialVerifier`, and `SignInManager` runs inside the Identity module. The cookie `__Host-SmartSpare` is HttpOnly, Secure and SameSite=Strict, with an 8-hour sliding expiry. APIs answer 401/403 instead of redirecting.
 2. **Auth state.** `AddAuthenticationStateSerialization` with an allow-listed `SerializationCallback` (id, name, roles, brands, warehouse). After sign-in or sign-out the client does a full reload, so the server re-renders with the new principal and a new antiforgery token.
 3. **CSRF.** Every unsafe `/bff` and `/api` request, including login, is validated with the token-based antiforgery service through an endpoint filter, with the token sent in a header. SameSite=Strict is a second layer, not the only one.
 4. **Identity over `iam`.** `AddIdentityCore<AppUser>` with custom stores (`IUserPasswordStore`, `IUserSecurityStampStore`, `IUserLockoutStore`, `IUserRoleStore`) in the module's `Infrastructure/`. `AppUser` is the domain aggregate and doesn't derive from `IdentityUser`. Seeded V3 hashes verify unchanged. The security stamp is validated every 5 minutes. Lockout is 5 attempts and 15 minutes. Deactivated or anonymised users are refused through `IUserConfirmation`. Sign-in is rate-limited per client IP.
@@ -41,3 +41,13 @@ Option 4.
 - SameSite=Strict means a first navigation from another site looks signed-out until the sign-in page checks `/bff/me` and reloads.
 - New client types (mobile, third-party) need a token issuer later. Policies are claims-based (ADR 0012), so endpoints don't change.
 - After the split into services, the `/bff` endpoints move behind the YARP gateway (ADR 0006).
+
+## Amendment (2026-11-24)
+
+[ADR 0016](0016-authentication-behind-the-gateway.md) extends this decision to the services topology:
+- The `/bff` endpoints move into a BFF building block shared by the single host and the gateway.
+- Credentials are checked by the Identity module through `ICredentialVerifier`, in-process or through the Identity service's internal endpoint.
+- The gateway forwards the user to services as a 2-minute ES256 internal token, validated with JwtBearer.
+- Module endpoints accept the cookie or the internal token through one policy scheme.
+
+Everything this ADR says about the browser still holds: cookie flags, antiforgery, full reload, `iam` custom stores, lockout and stamp validation.
