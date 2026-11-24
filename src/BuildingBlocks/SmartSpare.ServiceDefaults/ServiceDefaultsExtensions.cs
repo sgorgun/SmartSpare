@@ -13,7 +13,7 @@ namespace Microsoft.Extensions.Hosting;
 /// <summary>
 /// Cross-cutting defaults shared by every service: OpenTelemetry, health checks, service discovery
 /// and HTTP resilience. Locally the OTLP endpoint is provided by Aspire; in Azure it points to the
-/// Application Insights collector (ADR 0009).
+/// OpenTelemetry Collector in front of the Grafana stack (ADR 0018).
 /// </summary>
 public static class ServiceDefaultsExtensions
 {
@@ -79,7 +79,7 @@ public static class ServiceDefaultsExtensions
 
     /// <summary>
     /// Maps <c>/health/live</c> (process is up) and <c>/health/ready</c> (all checks, ready for traffic).
-    /// Mapped in every environment because App Service and Container Apps probe them.
+    /// Mapped in every environment because Container Apps probes them (ADR 0009).
     /// </summary>
     public static WebApplication MapDefaultEndpoints(this WebApplication app)
     {

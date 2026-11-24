@@ -1,7 +1,7 @@
 -- =============================================================================
 -- Reporting 0002 — masked audit trail for the sponsor and auditors.
 -- Copied verbatim from V014 (view) and V015 (grants). Owned by Reporting (MODULE_MAPPING 1.7): it reads
--- iam.app_user. It stays in the audit schema until stage 8 moves it to mart (#15).
+-- iam.app_user. It stays in the audit schema until stage 9 moves it to mart (#15).
 -- =============================================================================
 
 CREATE VIEW audit.v_audit_log_masked AS

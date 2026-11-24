@@ -333,7 +333,8 @@ All interactive operations are far below the NFR01 limit (p95 ≤ 2 s). The KPI-
 | `app_audit` | NOLOGIN | masked audit trail only | sponsor / auditor |
 | `app_admin` (⊃ app_write) | NOLOGIN | users, roles, reference data, warehouses, anonymisation, retention — **not superuser, not owner** | administrator |
 | `smartspare_migrator` | LOGIN | member of owner | CI/CD |
-| `smartspare_api`, `smartspare_jobs`, `smartspare_reporting` | LOGIN | members of the group roles above, connection limits, statement timeouts | application |
+| `smartspare_api`, `smartspare_jobs`, `smartspare_reporting` | LOGIN | members of the group roles above, connection limits, statement timeouts | application (single host; `smartspare_reporting` also serves the Reporting service) |
+| `smartspare_identity`, `smartspare_inventory`, `smartspare_fleet`, `smartspare_procurement`, `smartspare_forecasting` | LOGIN | one per service of the production topology ([ADR 0015](../adr/0015-deployment-topology-microservices-behind-yarp-gateway.md)); members of the group roles above until the per-module roles of stage 10 | services (from stage 4) |
 
 Rules: no application login is superuser, CREATEROLE, CREATEDB or BYPASSRLS; `CREATE` on `public` is revoked; `EXECUTE` on functions is revoked from `PUBLIC` (also for future functions via `ALTER DEFAULT PRIVILEGES`); new tables in business schemas become readable by `app_read` automatically, write grants are added explicitly in each migration.
 
@@ -373,7 +374,7 @@ The API sets `app.user_id` (and optionally `app.reason`) **transaction-locally**
 * **Drift protection:** CI runs `MigrationRunner check-model` (`HasPendingModelChanges()` for every context) and fails when a model change has no migration. Applied migrations and the SQL files they use are never edited; every change is a new migration.
 * **Equivalence with the original schema:** `db/baseline/v016_schema.sql` freezes the schema of the SQL-built database at version 16 (on PostgreSQL 17). `tools/schema_diff.sh` builds the EF database and compares both dumps statement by statement: 3,209 statements identical; the only differences are the 33 removed cross-module FKs and the EF history and outbox/inbox tables, each documented in `tools/schema_diff.allow`. The moved supplier tables are compared one by one after a documented rename (`tools/schema_diff.renames`).
 * **Rollback strategy:** forward-only (a fix is a new migration); every migration is transactional, so a failing migration leaves the database at the previous version; for data disasters Azure Flexible Server provides point-in-time restore (RPO ≤ 24 h, NFR09).
-* **Git workflow:** feature branch → PR with the migration, its SQL parts, the regenerated `db/ddl/smartspare_schema.sql` and `DATA_DICTIONARY.md` → CI builds the database on an empty `postgres:17` with the MigrationRunner, loads the test data and runs the SQL suite and the .NET integration tests → merge → the pipeline runs one EF migration bundle per context against Azure before deploying the application (stage 9).
+* **Git workflow:** feature branch → PR with the migration, its SQL parts, the regenerated `db/ddl/smartspare_schema.sql` and `DATA_DICTIONARY.md` → CI builds the database on an empty `postgres:17` with the MigrationRunner, loads the test data and runs the SQL suite and the .NET integration tests → merge → the pipeline runs one EF migration bundle per context against Azure before deploying the application (stage 10).
 
 ---
 
@@ -408,7 +409,7 @@ Seed parts of the migrations (`db/sql/platform/seed_ref.sql`, `db/sql/identity/s
 | T04_indexes_and_performance | 8 | plans of the critical queries use the intended indexes / partition pruning |
 | concurrency_test.sh | 1 | two parallel sessions: lock wait, no negative stock |
 
-Result on the **EF-built database** with the demo dataset (2,000 SKUs), run in CI on every pull request by `tools/verify_database.sh` (build with the MigrationRunner on `postgres:17`, load T001, run the suite): **97 assertions passed**, concurrency test passed (session B waits ≈ 2 s for the row lock, then SS200, no negative stock), `mart.v_data_quality` all zero, `util.v_privilege_findings` empty. The only edits the port required in the tests and the demo data were the schema name of the moved supplier tables (`catalog.supplier*` → `procurement.supplier*` in T01, T02 and T001). When a TRANSITIONAL object is replaced in stages 3–7, the assertions that exercised it move to C# integration tests of the event flow, and the total stays tracked here (MODULE_MAPPING §6, step 6).
+Result on the **EF-built database** with the demo dataset (2,000 SKUs), run in CI on every pull request by `tools/verify_database.sh` (build with the MigrationRunner on `postgres:17`, load T001, run the suite): **97 assertions passed**, concurrency test passed (session B waits ≈ 2 s for the row lock, then SS200, no negative stock), `mart.v_data_quality` all zero, `util.v_privilege_findings` empty. The only edits the port required in the tests and the demo data were the schema name of the moved supplier tables (`catalog.supplier*` → `procurement.supplier*` in T01, T02 and T001). When a TRANSITIONAL object is replaced in stages 3–8, the assertions that exercised it move to C# integration tests of the event flow, and the total stays tracked here (MODULE_MAPPING §6, step 6).
 
 ### 10.4 KPI baseline from the demo data (illustrative, synthetic)
 
@@ -440,4 +441,4 @@ tools/export_ddl.sh && python3 tools/generate_db_docs.py && python3 tools/genera
 
 Without a local server: `tools/verify_database.sh` (build + T001 + suite + concurrency test, as in CI) and `tools/schema_diff.sh` (comparison with the V016 baseline) run in throw-away Docker containers.
 
-**Azure:** allow-list the extensions `CITEXT, PG_TRGM, BTREE_GIST, PGCRYPTO` in the server parameter `azure.extensions`; run `db/bootstrap/000_bootstrap_cluster.sql` once as the server admin; the pipeline then runs one EF migration bundle per context, in catalogue order, as `smartspare_migrator` with its connection string from Key Vault (MODULE_MAPPING §5.5, stage 9).
+**Azure:** allow-list the extensions `CITEXT, PG_TRGM, BTREE_GIST, PGCRYPTO` in the server parameter `azure.extensions`; run `db/bootstrap/000_bootstrap_cluster.sql` once as the server admin; the pipeline then runs one EF migration bundle per context, in catalogue order, as `smartspare_migrator` with its connection string from Key Vault (MODULE_MAPPING §5.5). This runs from the first deployment in stage 4; in the services topology each service applies its own module's bundle.

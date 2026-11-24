@@ -1,62 +1,88 @@
 # SmartSpare — Architecture Decisions
 
-Status: **approved** (16 November 2026). This is the architecture of SmartSpare; it superseded the database-stage architecture note, which was removed (it remains in the Git history). Individual decisions are recorded as ADRs in [`docs/adr/`](../adr/README.md).
+Status: **approved** (16 November 2026). **Amended** 24 November 2026 by the topology decisions D1–D4 of the product owner (ADRs 0015–0019).
+
+This is the architecture of SmartSpare. It superseded the database-stage architecture note, which was removed (it remains in the Git history). Individual decisions are recorded as ADRs in [`docs/adr/`](../adr/README.md).
 
 ## Summary
 
-SmartSpare is built as a **microservice-ready modular monolith**: one deployment to Azure today, and any module can later be extracted into its own service without rewriting business logic.
+SmartSpare is **one codebase with two topologies**:
+- **Development and tests:** a modular monolith, with all six modules in one host.
+- **Production:** every module runs as its own independently deployable service behind a YARP gateway that is the BFF.
+
+Business code is identical in both. Only the composition roots differ.
 
 | # | Decision | In short | ADR |
 |---|---|---|---|
-| 1 | Style | Modular monolith: each module has its own projects, PostgreSQL schema and DbContext | [0002](../adr/0002-modular-monolith.md) |
-| 2 | Module boundaries | No cross-module FKs, JOINs or shared transactions; modules talk only through Contracts and events | [0003](../adr/0003-module-boundaries-and-integration-events.md) |
-| 3 | Integration | Integration events via Outbox/Inbox, eventual consistency between modules | [0003](../adr/0003-module-boundaries-and-integration-events.md) |
-| 4 | Inside a module | Vertical slices, DDD tactical patterns, CQRS-lite, Result pattern | [0002](../adr/0002-modular-monolith.md) |
-| 5 | Handlers | Own lightweight interfaces and decorators instead of MediatR | [0005](../adr/0005-own-handlers-instead-of-mediatr.md) |
-| 6 | Data | Hybrid EF Core code-first: tables in Fluent API, triggers and functions via `migrationBuilder.Sql` | [0004](../adr/0004-hybrid-ef-core-code-first.md) |
-| 7 | Frontend | Blazor Web App (global InteractiveWebAssembly) + MudBlazor 9.x, BFF with HttpOnly cookie | [0006](../adr/0006-frontend-blazor-wasm-mudblazor-bff.md) |
-| 8 | API contracts | Shared `SmartSpare.ApiContracts` project with DTOs and FluentValidation validators | [0006](../adr/0006-frontend-blazor-wasm-mudblazor-bff.md) |
-| 9 | Platform | .NET 10 LTS | [0007](../adr/0007-dotnet-10-lts.md) |
-| 10 | Machine learning | ML.NET: gradient boosting + intermittent-demand baselines | [0008](../adr/0008-mlnet-demand-forecasting.md) |
-| 11 | Azure | Container from day one, App Service now, Container Apps later; Bicep, GitHub Actions with OIDC | [0009](../adr/0009-azure-hosting-and-delivery.md) |
-| 12 | Observability | OpenTelemetry → Application Insights | [0009](../adr/0009-azure-hosting-and-delivery.md) |
-| 13 | Testing | Unit, integration with Testcontainers, architecture tests, bUnit, Playwright | — |
-| 14 | Repository language | English only | [0010](../adr/0010-english-only-repository.md) |
-| 15 | Evolvability | Abstractions only at seams to volatile technology; stable contracts (Contracts, versioned HTTP API, events); claims-based authorization | [0012](../adr/0012-evolvability-principles.md) |
-| 16 | Domain model and persistence | Aggregates in `Domain/` mapped directly by EF Core; stage 2 table mirrors removed per module stage; no generic repository | [0013](../adr/0013-domain-model-and-persistence.md) |
-| 17 | Browser sign-in | WASM sign-in page posts to Host `/bff` endpoints; ASP.NET Core Identity with custom stores over `iam`; antiforgery on every unsafe request (implemented in stage 3) | [0014](../adr/0014-browser-sign-in-through-bff-endpoints.md) |
+| 1 | Style | Modular codebase: each module has its own projects, PostgreSQL schema and DbContext | [0002](../adr/0002-modular-monolith.md) |
+| 2 | Deployment topology | Production: gateway + six services on Azure Container Apps. Development and tests: single host | [0015](../adr/0015-deployment-topology-microservices-behind-yarp-gateway.md) |
+| 3 | Module boundaries | No cross-module FKs, JOINs or shared transactions; modules talk only through Contracts and events | [0003](../adr/0003-module-boundaries-and-integration-events.md) |
+| 4 | Integration | Integration events via Outbox/Inbox; RabbitMQ between services, in-process in the single host | [0003](../adr/0003-module-boundaries-and-integration-events.md), [0017](../adr/0017-rabbitmq-integration-event-transport.md) |
+| 5 | Inside a module | Vertical slices, DDD tactical patterns, CQRS-lite, Result pattern | [0002](../adr/0002-modular-monolith.md) |
+| 6 | Handlers | Own lightweight interfaces and decorators instead of MediatR | [0005](../adr/0005-own-handlers-instead-of-mediatr.md) |
+| 7 | Data | Hybrid EF Core code-first: tables in Fluent API, triggers and functions via `migrationBuilder.Sql` | [0004](../adr/0004-hybrid-ef-core-code-first.md) |
+| 8 | Frontend | Blazor Web App (global InteractiveWebAssembly) + MudBlazor 9.x; the BFF with the HttpOnly cookie is the YARP gateway in production and the host in development | [0006](../adr/0006-frontend-blazor-wasm-mudblazor-bff.md) |
+| 9 | API contracts | Shared `SmartSpare.ApiContracts` project with DTOs and FluentValidation validators | [0006](../adr/0006-frontend-blazor-wasm-mudblazor-bff.md) |
+| 10 | Platform | .NET 10 LTS | [0007](../adr/0007-dotnet-10-lts.md) |
+| 11 | Machine learning | ML.NET: gradient boosting + intermittent-demand baselines | [0008](../adr/0008-mlnet-demand-forecasting.md) |
+| 12 | Azure | Container Apps for the gateway and services, a stateful host VM for RabbitMQ and observability; Bicep, GitHub Actions with OIDC | [0009](../adr/0009-azure-hosting-and-delivery.md) |
+| 13 | Observability | OpenTelemetry → Collector → Prometheus, Loki, Tempo, Grafana (alerts to Telegram and e-mail); Aspire dashboard locally | [0018](../adr/0018-observability-with-the-grafana-stack.md) |
+| 14 | Testing | Unit, integration with Testcontainers, architecture tests, a topology test, bUnit, Playwright | — |
+| 15 | Repository language | English only | [0010](../adr/0010-english-only-repository.md) |
+| 16 | Evolvability | Abstractions only at seams to volatile technology; stable contracts (Contracts, versioned HTTP API, events); claims-based authorization | [0012](../adr/0012-evolvability-principles.md) |
+| 17 | Domain model and persistence | Aggregates in `Domain/` mapped directly by EF Core; stage 2 table mirrors removed per module stage; no generic repository | [0013](../adr/0013-domain-model-and-persistence.md) |
+| 18 | Browser sign-in | WASM sign-in page posts to `/bff` endpoints; ASP.NET Core Identity with custom stores over `iam`; antiforgery on every unsafe request (stage 3) | [0014](../adr/0014-browser-sign-in-through-bff-endpoints.md) |
+| 19 | Authentication behind the gateway | The BFF issues the cookie after the Identity module checks credentials; services receive a 2-minute ES256 internal token; one principal in both topologies | [0016](../adr/0016-authentication-behind-the-gateway.md) |
+| 20 | API documentation | OpenAPI per service + Scalar UI, published without sign-in; endpoints still require authorization | [0019](../adr/0019-public-api-documentation.md) |
 
 ## 1. Architectural style
 
-We build a **modular monolith**, not microservices from day one. A single process and a single deployment are cheaper and simpler for the diploma, while strict module boundaries make a later move to microservices mechanical work.
+The code is a **modular monolith**:
+- six modules with strict boundaries, in one repository and one solution;
+- they run in one process during development and tests;
+- they run as **six services behind a gateway** in production ([ADR 0015](../adr/0015-deployment-topology-microservices-behind-yarp-gateway.md)).
 
-Rules that keep the monolith "splittable":
+One process keeps debugging and testing cheap. The deployed services give independent deployment and scaling, plus a real broker. The boundaries make both possible from the same code.
+
+Rules that keep the modules independent:
 
 1. **A module owns its data.** Each module has its own PostgreSQL schema, DbContext and migrations history table. Nobody reads another module's schema.
 2. **No cross-module FKs, JOINs or transactions.** A reference to another module's entity is just an identifier; integrity is enforced by code and events. All FKs inside a module stay.
 3. **The public surface is `*.Contracts` only.** It holds integration events and narrow query interfaces. Everything inside a module is `internal`.
-4. **Modules communicate asynchronously.** State in another module changes only through events; a synchronous call is allowed only for reads, through an interface from Contracts.
-5. **Boundaries are checked automatically.** Architecture tests fail if a module references another module's implementation.
+4. **Modules communicate asynchronously.** State in another module changes only through events. A synchronous call is allowed only for reads, through an interface from Contracts.
+5. **Boundaries are checked automatically.** Architecture tests fail if a module references another module's implementation, or if it references a topology concern (YARP, RabbitMQ.Client, a host project).
 
-Extracting a module into a microservice: move its projects into their own host, its schema into its own database, and swap the in-process transport behind Outbox/Inbox for Azure Service Bus. Business code does not change.
+**Two topologies.**
+
+| | Single host | Services |
+|---|---|---|
+| Processes | `SmartSpare.Host` | `SmartSpare.Gateway` + `SmartSpare.Services.<Module>` × 6 |
+| Events | In-process transport | RabbitMQ |
+| Contracts queries | In-process | HTTP to `/internal/v1/...` of the owning service |
+| User identity | Cookie | Cookie in the gateway, internal token to services |
+| Used for | Development, unit and integration tests, CI | Production; locally on demand (`--topology services`) and one CI topology test |
 
 ## 2. Modules
 
-Six business modules plus a shared platform. The schemas of the original database map onto modules almost unchanged; the supplier tables moved from `catalog` to `procurement`, and the cross-module foreign keys were removed (ADR 0011, implemented in stage 2; every object is mapped in [MODULE_MAPPING.md](../database/MODULE_MAPPING.md)).
+Six business modules plus a shared platform. The schemas of the original database map onto modules almost unchanged. The supplier tables moved from `catalog` to `procurement`, and the cross-module foreign keys were removed (ADR 0011, implemented in stage 2; every object is mapped in [MODULE_MAPPING.md](../database/MODULE_MAPPING.md)).
 
-| Module | DB schemas | Responsible for | Scenarios |
-|---|---|---|---|
-| Identity | `iam` | Users, roles, brand assignments, sign-in, GDPR anonymisation | All |
-| Inventory | `catalog`, `inventory`, `raw`, `staging` | Parts catalogue, warehouses and routes, stock ledger, reservations, transfers, data import | UC01, import |
-| Fleet | `fleet` | Customer machines, engine hours, maintenance plans, service orders | UC02 |
-| Procurement | `procurement` (incl. `supplier`, `supplier_part`, `supplier_price`) | Suppliers and prices, purchase orders, four-eyes rule | Purchasing |
-| Forecasting | `forecast` | ML models, forecasts, recommendations and decisions on them | Recommendations |
-| Reporting | `mart` | Data marts, KPIs, dashboards; read-only | Reports |
-| Platform (BuildingBlocks) | `ref`, `audit`, `util` | Reference data, audit, masking, Outbox/Inbox, shared abstractions | — |
+| Module | DB schemas | Responsible for | Scenarios | Service in production |
+|---|---|---|---|---|
+| Identity | `iam` | Users, roles, brand assignments, credential checks, GDPR anonymisation | All | `identity` |
+| Inventory | `catalog`, `inventory`, `raw`, `staging` | Parts catalogue, warehouses and routes, stock ledger, reservations, transfers, data import | UC01, import | `inventory` |
+| Fleet | `fleet` | Customer machines, engine hours, maintenance plans, service orders | UC02 | `fleet` |
+| Procurement | `procurement` (incl. `supplier`, `supplier_part`, `supplier_price`) | Suppliers and prices, purchase orders, four-eyes rule | Purchasing | `procurement` |
+| Forecasting | `forecast` | ML models, forecasts, recommendations and decisions on them | Recommendations | `forecasting` (+ training job) |
+| Reporting | `mart` | Data marts, KPIs, dashboards; read-only | Reports | `reporting` |
+| Platform (BuildingBlocks) | `ref`, `audit`, `util` | Reference data, audit, masking, Outbox/Inbox, shared abstractions | — | Shared kernel, not a service |
 
-Each module also keeps its EF migration history (`<schema>.__ef_migrations_history`) and, where it publishes or consumes integration events, its `outbox_message` / `inbox_message` in its own schema. The former `meta` schema of the SQL migration runner is retired.
+Each module also keeps:
+- its EF migration history (`<schema>.__ef_migrations_history`);
+- where it publishes or consumes integration events, its `outbox_message` / `inbox_message` in its own schema.
 
-Reporting is the one deliberate exception: it reads other modules' data through marts and materialized views, as an analytical store does in real systems. With microservices, the marts will be fed from events.
+The former `meta` schema of the SQL migration runner is retired.
+
+Reporting is the one deliberate exception: it reads other modules' data through marts and materialized views, as an analytical store does in real systems. All services share one PostgreSQL database with a schema per module, so this keeps working in production. The marts move to event-fed tables only if Reporting ever gets its own database.
 
 ## 3. Inside a module
 
@@ -74,11 +100,19 @@ Every module has the same shape and consists of two projects: the implementation
 
 ## 4. Module integration
 
-Modules change each other only through **integration events** with guaranteed delivery via Outbox/Inbox. In the monolith the transport is in-process; with microservices it becomes Azure Service Bus. Publisher and subscriber code does not change.
+Modules change each other only through **integration events** with guaranteed delivery via Outbox/Inbox. The single host delivers them in process. Between services they travel through **RabbitMQ** ([ADR 0017](../adr/0017-rabbitmq-integration-event-transport.md)). Publisher and subscriber code is the same in both.
 
-- **Outbox.** An event is written to the module's `outbox_message` table in the same transaction as the data change. A background job picks up batches with `FOR UPDATE SKIP LOCKED` and publishes them.
+- **Outbox.** An event is written to the module's `outbox_message` table in the same transaction as the data change. A background dispatcher picks up batches with `FOR UPDATE SKIP LOCKED` and publishes them. With RabbitMQ, `processed_at` is set only after the publisher confirm.
 - **Inbox.** The receiver records the id of each processed event in `inbox_message`, so redelivery is safe (idempotency).
-- **Synchronous queries** are read-only and go only through an interface in `Contracts` (for example, `IStockQueries`). After extraction its implementation becomes an HTTP client.
+- **RabbitMQ topology.**
+  - One topic exchange per publishing module, with routing key `<Event>.v<N>`.
+  - One quorum queue per consumer, using native delayed retry.
+  - Dead-lettering by policy, with an alert on dead letters.
+- **Synchronous queries** are read-only and go only through an interface in `Contracts` (for example, `IStockQueries`):
+  - in-process in the single host;
+  - between services, an HTTP client to the owning service's `/internal/v1/...` endpoint, carrying the caller's internal token.
+
+  They are used only while handling a user request. Consumers and jobs use their own data.
 - **Deliberate duplication.** A module keeps a copy of the foreign data it needs (for example, Fleet keeps part number and name for maintenance kits), updated by events.
 
 **Example: UC01 (transfer based on a recommendation).**
@@ -105,11 +139,15 @@ We move to **EF Core code-first** and port the already-tested schema into it. C#
 
 Rules:
 
-- **Migrations per module.** Each DbContext keeps its history in its own schema (`inventory.__ef_migrations_history`).
+- **Migrations per module.** Each DbContext keeps its history in its own schema (`inventory.__ef_migrations_history`). In production each service applies only its own module's migration bundle before its new revision starts.
 - **Business rules in the domain, protection in the database.** Triggers and CHECKs remain the last line of defence (stock ledger, stock row locks, audit), protecting data from both application bugs and direct database edits.
 - **Session context.** `SessionContextInterceptor` passes the user id into `app.user_id` so the audit knows who changed what.
 - **Resilience.** `EnableRetryOnFailure` for Azure, optimistic concurrency via `xmin`, `AsNoTracking` for queries.
 - **Production rollout** uses an EF migration bundle from CI under the dedicated `smartspare_migrator` login. The application never migrates on startup.
+- **Database logins.**
+  - The single host uses `smartspare_api`, `smartspare_jobs` and `smartspare_reporting`.
+  - The services topology uses one login per service (`smartspare_identity` … `smartspare_reporting`); in Azure these are Managed Identities via Entra.
+  - Per-module roles follow in stage 10 (MODULE_MAPPING §4.2, #16).
 - **Port verification.** The schema produced by EF migrations is diffed against the frozen V016 schema (`db/baseline/v016_schema.sql`, `tools/schema_diff.sh`), and all 97 existing SQL tests, the concurrency test and the demo dataset run on the EF-built database in CI (`tools/verify_database.sh`).
 
 Consequence for the existing database: cross-module FKs are removed, and the custom `SmartSpare.DbMigrator` runner and the V-scripts are replaced by EF migrations (done in stage 2).
@@ -120,11 +158,15 @@ The frontend is **Blazor WebAssembly with MudBlazor**, as stated in the topic ap
 
 - **Template** — .NET 10 Blazor Web App with global InteractiveWebAssembly render mode. The whole UI runs in the browser; global interactivity is required because MudBlazor does not support static rendering.
 - **MudBlazor 9.x** — fully supports .NET 10 and is actively maintained.
-- **BFF today** — the API host itself: ASP.NET Core Identity (same PBKDF2 hashes as in the database) issues an HttpOnly, SameSite=Strict cookie with CSRF protection.
-- **Sign-in flow** — the MudBlazor sign-in page posts JSON to `/bff/login`; Identity runs with custom stores over the `iam` tables ([ADR 0014](../adr/0014-browser-sign-in-through-bff-endpoints.md); plan in [STAGE_3_PLAN.md](../stage-3/STAGE_3_PLAN.md)).
-- **BFF with microservices** — a YARP gateway that accepts the cookie and calls services with tokens. The frontend does not change.
+- **BFF** — the host that serves the client and owns the cookie:
+  - in production, the **YARP gateway** (`SmartSpare.Gateway`), which proxies `/api/*` to the services;
+  - in development, `SmartSpare.Host`.
+
+  Both use the same `SmartSpare.Bff` building block ([ADR 0015](../adr/0015-deployment-topology-microservices-behind-yarp-gateway.md), [ADR 0016](../adr/0016-authentication-behind-the-gateway.md)). The frontend is the same in both topologies.
+- **Sign-in flow** — the MudBlazor sign-in page posts JSON to `/bff/login`. The BFF asks the Identity module (`ICredentialVerifier`, custom Identity stores over `iam`) to check the credentials, then issues the cookie ([ADR 0014](../adr/0014-browser-sign-in-through-bff-endpoints.md), [ADR 0016](../adr/0016-authentication-behind-the-gateway.md); plan in [STAGE_3_PLAN.md](../stage-3/STAGE_3_PLAN.md)).
 - **Structure per module** — `Features/Fleet`, `Features/Inventory`, `Features/Procurement`, `Features/Forecasting`, `Features/Identity`: pages, components and a typed HTTP client per module.
 - **`SmartSpare.ApiContracts`** — shared DTOs of the public HTTP API and FluentValidation validators, the same for the form and the server. The frontend never references the modules' internal `*.Contracts`.
+- **API documentation** — OpenAPI per module and a Scalar UI at `/scalar`, published without sign-in ([ADR 0019](../adr/0019-public-api-documentation.md)).
 - **Errors** — ProblemDetails with SS1xx–SS4xx codes become readable messages in MudSnackbar.
 - **State** — plain scoped services, no Fluxor or Redux.
 - **Responsiveness (NFR05)** — MudBlazor grid, mobile machine card for the engineer's tablet (WF03).
@@ -136,38 +178,49 @@ The frontend is **Blazor WebAssembly with MudBlazor**, as stated in the topic ap
 
 ## 7. Security
 
-Security is layered: browser → API → database, and each layer checks permissions on its own.
+Security is layered: browser → BFF → services → database, and each layer checks permissions on its own.
 
-- **Authentication** — HttpOnly cookie in the browser, tokens only between services (section 6).
-- **Authorisation** — ASP.NET Core policies by role and brand on every endpoint; the same rules are duplicated in the database (`iam.user_has_role`, SECURITY DEFINER functions).
-- **Database role per module** — each module runs under its own role and sees only its own schema. This is both protection and an enforcement of module boundaries at the PostgreSQL level.
-- **Secrets** — no passwords in code or configuration: in Azure, Managed Identity and Microsoft Entra authentication to PostgreSQL, everything else in Key Vault; locally, user-secrets.
-- **Personal data** — already in the database: customer pseudonymisation, masking, GDPR anonymisation, immutable audit with 180-day retention.
-- **Web protection** — HTTPS and HSTS, CSP headers, rate limiting on sign-in and import, upload size limits.
-- **Supply chain** — Dependabot, CodeQL and container image scanning in CI.
+- **Authentication** ([ADR 0016](../adr/0016-authentication-behind-the-gateway.md)):
+  - an HttpOnly, SameSite=Strict cookie between the browser and the BFF;
+  - between the gateway and the services, a 2-minute ES256 internal token. Only the gateway holds the private key; services hold only the public key.
+  - The browser never holds a token. Services are reachable only through internal ingress.
+- **Authorisation** — ASP.NET Core policies by role, plus a brand check on approval actions, on every endpoint. They are claims-based, so they are identical in both topologies. The same role rules are duplicated in the database (`util.require_role`, SECURITY DEFINER functions).
+- **Database login per service and role per module** — each service connects with its own login. The per-module roles (stage 10) then let each module see only its own schema. This is both protection and an enforcement of module boundaries at the PostgreSQL level.
+- **Secrets** — no passwords in code or configuration:
+  - in Azure, Managed Identity per service and Microsoft Entra authentication to PostgreSQL;
+  - everything else (token signing key, broker credentials, alerting tokens) in Key Vault;
+  - locally, user-secrets.
+- **Personal data** — already in the database: customer pseudonymisation, masking, GDPR anonymisation, immutable audit with 180-day retention. Telemetry is filtered so it carries no personal data (ADR 0018).
+- **Web protection** — in the BFF: HTTPS and HSTS, CSP headers, antiforgery, rate limiting on sign-in and import, forwarded headers from the platform's proxy only (#48), upload size limits.
+- **Supply chain** — Dependabot, NuGet Audit, container image scanning in CI.
 
 ## 8. Azure and delivery
 
-Today: one container on App Service and managed PostgreSQL; later the same image and new services move to Container Apps. All infrastructure is defined as code.
+Production runs on **Azure Container Apps** ([ADR 0009](../adr/0009-azure-hosting-and-delivery.md), amended; App Service was compared there and rejected). All infrastructure is defined as code.
 
-| Component | Monolith (now) | Microservices (later) |
-|---|---|---|
-| Application | App Service (Linux, container), Basic with Always On | Azure Container Apps, one service per module |
-| Database | PostgreSQL Flexible Server 17, Burstable | Same server with schemas → a database per service |
-| Events | In-process + Outbox/Inbox | Azure Service Bus (topics) |
-| Import files | Blob Storage | Blob Storage |
-| Secrets | Key Vault + Managed Identity | Key Vault + Managed Identity per service |
-| Telemetry | OpenTelemetry → Application Insights | Same + distributed tracing |
-| Entry point | Host = BFF | YARP gateway (BFF) |
-| Images | Azure Container Registry | Azure Container Registry |
+| Component | Production |
+|---|---|
+| Gateway (BFF) | Container Apps, external HTTPS ingress, at least one replica |
+| Six module services | Container Apps, internal ingress, scale to zero allowed |
+| ML training | Container Apps job (cron) from the Forecasting image |
+| Database | PostgreSQL Flexible Server 17, Burstable; one database, schema per module, login per service |
+| Events | RabbitMQ 4.4 on the stateful host (ADR 0017) |
+| Telemetry | OTLP → Collector → Prometheus, Loki, Tempo, Grafana on the stateful host; Loki and Tempo data in Blob Storage (ADR 0018) |
+| Stateful host | Small Linux VM with a managed disk in the environment's virtual network |
+| Import files, model files, gateway Data Protection keys | Blob Storage |
+| Secrets | Key Vault + Managed Identity per service |
+| Images | Azure Container Registry, one image per service |
 
 - **IaC** — Bicep modules in `infra/`, dev and prod environments via parameters.
-- **CI/CD** — GitHub Actions: build and tests → image to ACR → EF migration bundle → deploy. Azure sign-in via OIDC (federated credentials), no long-lived secrets.
-- **Database identity** — one Managed Identity with `SET ROLE` per module while it is a monolith; a separate identity per service after the split.
-- **Background jobs** — safe with several instances: Quartz in clustered mode (mart refresh, reservation expiry, audit purge), Outbox via `SKIP LOCKED`.
-- **Local development** — .NET Aspire: PostgreSQL, Blob emulator and telemetry dashboard with one command. Aspire is not used to deploy to Azure — Bicep is.
-- **Health** — `/health/live` and `/health/ready` health checks for App Service and Container Apps.
-- **ML model** — ML.NET inside the Forecasting module; training runs as a scheduled background job, and as a separate Container Apps Job after the split (section 9).
+- **CI/CD** — GitHub Actions:
+  - one shared quality gate (build, tests, analysis);
+  - then, per changed service: image to ACR → that module's EF migration bundle → new Container Apps revision.
+
+  Azure sign-in via OIDC (federated credentials), no long-lived secrets. Each service deploys independently.
+- **Background jobs** — run inside the owning service and are safe with several instances: Quartz in clustered mode (reservation expiry in Inventory; mart refresh and audit purge in Reporting), Outbox via `SKIP LOCKED`.
+- **Local development** — .NET Aspire. By default it starts PostgreSQL, the Blob emulator, the single host and the dashboard. `--topology services` additionally starts the gateway, the six services, RabbitMQ and the Grafana stack. Aspire is not used to deploy to Azure — Bicep is.
+- **Health** — `/health/live` and `/health/ready` on every service for Container Apps probes. They are not routed by the gateway.
+- **Cost** — the always-on topology exceeds NFR07 (≤ €35/month). The cost controls and the open decision are in ADR 0009 and #66.
 
 ## 9. Demand forecasting (ML.NET)
 
@@ -181,36 +234,58 @@ ML is built with **ML.NET 5.x** inside the Forecasting module: one language, one
 
 - **Model selection by demand class** — based on the existing `fn_classify_demand` and `benchmark_result`, evaluated on a chronological holdout.
 - **Model lifecycle** — model file in Blob Storage, version and metrics in `ml_model_version`, promotion via `promote_model`.
-- **Training** — scheduled background job under the `app_ml` role; inference via `PredictionEnginePool`.
+- **Training** — a background job under the `app_ml` role in the single host; a Container Apps job in production. Inference via `PredictionEnginePool` in the Forecasting service.
 - **Risk** — the time-series package depends on Intel MKL, so the image is built for linux-x64.
 
-## 10. Testing and quality
+## 10. Observability
+
+Every host emits OpenTelemetry logs, metrics and traces over OTLP ([ADR 0018](../adr/0018-observability-with-the-grafana-stack.md)).
+
+- **Locally:** the Aspire dashboard.
+- **Production:** an OpenTelemetry Collector feeds Prometheus (metrics), Loki (logs) and Tempo (traces). Grafana shows provisioned dashboards (ASP.NET Core, per-service RED metrics, outbox and queue health, business KPIs) and sends alerts to Telegram and e-mail.
+- **Correlation:** the W3C trace id is the correlation id. It is propagated through HTTP and RabbitMQ, written to every log record and returned in every ProblemDetails (#60).
+- **Retention:** Prometheus 15 days, Loki 31 days, Tempo 14 days.
+
+## 11. Testing and quality
 
 Tests follow the pyramid and run in CI on every pull request.
 
 | Level | Tooling | What it checks |
 |---|---|---|
 | Unit | xUnit + Shouldly/AwesomeAssertions | Domain: states, invariants, calculations |
-| Integration | Testcontainers (real PostgreSQL 17) + WebApplicationFactory | Endpoints, migrations, triggers, Outbox |
+| Integration | Testcontainers (real PostgreSQL 17) + WebApplicationFactory on the single host | Endpoints, migrations, triggers, Outbox, cookie and internal-token authentication |
+| Topology | Testcontainers (PostgreSQL, RabbitMQ) + gateway and two services | Routing through the gateway, internal token, an event round trip over RabbitMQ |
 | Database | Existing 97 SQL assertions + concurrency test | Stock, locking, permissions, audit |
-| Architecture | NetArchTest | Module and layer boundaries |
+| Architecture | NetArchTest | Module and layer boundaries, no topology concerns in modules |
 | UI components | bUnit | Forms, validation, status display |
 | End-to-end | Playwright | UC01, UC02 on desktop and tablet |
 
-Code quality: `Directory.Build.props` with nullable and `TreatWarningsAsErrors`, .NET analyzers, `.editorconfig`, Central Package Management (`Directory.Packages.props`), coverage collected in CI (report and gate: #63). Decisions are recorded as ADRs in `docs/adr/`. How the backend grading rubric is met, and what is still open, is tracked in [BACKEND_REQUIREMENTS.md](BACKEND_REQUIREMENTS.md). All repository content — code, comments, docs and commit messages — is in English.
+Code quality:
+- `Directory.Build.props` with nullable and `TreatWarningsAsErrors`;
+- .NET analyzers and `.editorconfig`;
+- Central Package Management (`Directory.Packages.props`);
+- coverage collected in CI (report and gate: #63).
 
-## 11. Solution structure
+Decisions are recorded as ADRs in `docs/adr/`. How the backend grading rubric is met, and what is still open, is tracked in [BACKEND_REQUIREMENTS.md](BACKEND_REQUIREMENTS.md). All repository content — code, comments, docs and commit messages — is in English.
 
-One repository, one `.slnx` solution; each module is two projects that can be moved into their own service as a whole.
+## 12. Solution structure
+
+One repository, one `.slnx` solution. Each module is two projects. One host project per topology composes them.
 
 ```
 SmartSpare/
 ├─ src/
 │  ├─ Bootstrapper/
-│  │  └─ SmartSpare.Host/              # ASP.NET Core: BFF, module registration, WASM hosting
+│  │  ├─ SmartSpare.Host/              # single host: BFF + all modules, WASM hosting (development, tests)
+│  │  ├─ SmartSpare.Gateway/           # production BFF: YARP, WASM hosting, cookie, internal tokens (stage 4)
+│  │  ├─ Services/SmartSpare.Services.<Module>/  # one host per module service (stage 4)
+│  │  ├─ SmartSpare.MigrationRunner/, SmartSpare.ModuleCatalog/
 │  ├─ BuildingBlocks/
 │  │  ├─ SmartSpare.SharedKernel/      # Entity, ValueObject, Result, domain events
-│  │  └─ SmartSpare.Infrastructure/    # Outbox/Inbox, handlers and decorators, EF interceptors
+│  │  ├─ SmartSpare.Infrastructure/    # Outbox/Inbox, handlers and decorators, EF interceptors, transport seam
+│  │  ├─ SmartSpare.Infrastructure.RabbitMq/  # RabbitMQ transport (stage 4)
+│  │  ├─ SmartSpare.Bff/               # /bff endpoints, cookie, antiforgery, internal-token issuer (stage 3/4)
+│  │  └─ SmartSpare.ServiceDefaults/   # OpenTelemetry, health, resilience
 │  ├─ Modules/
 │  │  ├─ Identity/     SmartSpare.Modules.Identity    + .Contracts
 │  │  ├─ Inventory/    SmartSpare.Modules.Inventory   + .Contracts
@@ -220,50 +295,63 @@ SmartSpare/
 │  │  └─ Reporting/    SmartSpare.Modules.Reporting   + .Contracts
 │  ├─ Web/
 │  │  ├─ SmartSpare.Web.Client/        # Blazor WASM + MudBlazor, Features/<Module>
-│  │  └─ SmartSpare.ApiContracts/      # DTOs + FluentValidation validators
-│  └─ SmartSpare.AppHost/               # Aspire, local development only
+│  │  └─ SmartSpare.ApiContracts/      # DTOs + FluentValidation validators, role/claim/policy names
+│  └─ SmartSpare.AppHost/               # Aspire, local development only (both topologies)
 ├─ tests/
 │  ├─ <Module>.UnitTests, <Module>.IntegrationTests
 │  ├─ SmartSpare.ArchitectureTests
+│  ├─ SmartSpare.Topology.Tests        # gateway + services + RabbitMQ
 │  ├─ SmartSpare.Web.Tests (bUnit)
 │  └─ SmartSpare.E2E (Playwright)
 ├─ db/            # SQL parts of migrations, seed, test data, SQL tests
-├─ infra/         # Bicep
+├─ infra/         # Bicep; observability/ (Collector, Prometheus, Loki, Tempo, Grafana provisioning)
 ├─ docs/          # architecture, database, ADRs, diagrams
 ├─ .github/workflows/
 ├─ Directory.Build.props, Directory.Packages.props
 └─ SmartSpare.slnx
 ```
 
-Folders inside a module: `Domain/`, `Features/<UseCase>/`, `Infrastructure/` (DbContext, configurations, migrations, event handlers) and `ModuleInstaller.cs`, which registers the module in the host.
+Folders inside a module: `Domain/`, `Features/<UseCase>/`, `Infrastructure/` (DbContext, configurations, migrations, event handlers) and `ModuleInstaller.cs`, which registers the module in whichever host composes it.
 
-## 12. Work plan
+## 13. Work plan
 
 Work is done on the developer machine (.NET 10 SDK + Docker), where the code can be built and tested. Each stage ends with a green build and a commit.
 
 1. **Skeleton.** Solution, `Directory.*.props`, BuildingBlocks, host, Aspire, empty modules, architecture tests, CI build.
 2. **Data layer.** DbContexts and Fluent configurations for all modules, initial migrations with SQL parts from V001–V016, Outbox/Inbox. Check: schema matches the current one, 97 SQL tests green.
-3. **Identity and BFF.** Cookie sign-in, roles, policies; Blazor client skeleton with MudBlazor and the sign-in page.
-4. **Inventory.** Stock, movements, reservations, transfers, file import + screens.
-5. **Fleet.** Machines, engine hours, service orders (UC02) + mobile card.
-6. **Procurement.** Purchase orders with the four-eyes rule.
-7. **Forecasting.** ML.NET models and benchmark, recommendations and UC01 events between modules.
-8. **Reporting.** Dashboards and KPIs on the marts.
-9. **Azure.** Bicep, GitHub Actions with OIDC, first deployment, telemetry. Forwarded headers for the real client IP behind App Service (#48) must be in place before the first deployment, because the sign-in rate limit depends on it.
-10. **Defence polish.** Playwright scenarios, updated diagrams and documentation.
+3. **Identity and BFF.** Cookie sign-in, roles, policies, internal-token validation (ADR 0016); Blazor client skeleton with MudBlazor and the sign-in page.
+4. **Topology.** Service hosts, YARP gateway, RabbitMQ transport, Grafana stack, per-service CI/CD, first deployment of the walking skeleton to a dev Container Apps environment (ADRs 0015–0019). Forwarded headers behind the platform's ingress (#48) are part of this stage, because the first deployment depends on them. Plan: #67.
+5. **Inventory.** Stock, movements, reservations, transfers, file import + screens.
+6. **Fleet.** Machines, engine hours, service orders (UC02) + mobile card.
+7. **Procurement.** Purchase orders with the four-eyes rule.
+8. **Forecasting.** ML.NET models and benchmark, recommendations and UC01 events between modules.
+9. **Reporting.** Dashboards and KPIs on the marts.
+10. **Azure production.** Production environment, Entra logins per service and per-module roles (#16), Key Vault keys and rotation, alerting live, backups, cost controls (#66).
+11. **Defence polish.** Playwright scenarios, updated diagrams and documentation.
 
-Stages 4–8 follow the same pattern: domain → use cases → endpoints → tests → screens. The order can shift to match diploma submission deadlines.
+Stages 5–9 follow the same pattern: domain → use cases → endpoints → tests → screens. Each one is deployed through the stage 4 pipeline as it lands. The order can shift to match diploma submission deadlines.
 
-## 13. Approved decisions (16 November 2026)
+*Renumbering note (24 November 2026):* stage 4 was inserted, so the former stages 4–10 are now 5–11. Documents and issues were updated; ADRs 0001–0014 keep the old numbers (see the [ADR index](../adr/README.md)).
+
+## 14. Approved decisions
+
+16 November 2026:
 
 - [x] Hybrid EF Core code-first instead of SQL migrations and `SmartSpare.DbMigrator`
-- [x] Modular monolith with six modules (section 2)
+- [x] Modular monolith with six modules (section 2) — since 24 November the code organisation and development topology; production runs services
 - [x] No cross-module FKs; eventual consistency between modules
 - [x] Own handlers instead of MediatR
 - [x] NFR04 in the BA: "cookie in the browser, tokens between services" instead of JWT in the browser
 - [x] Blazor Web App with global InteractiveWebAssembly and MudBlazor 9.x on .NET 10 LTS
 - [x] ML.NET for demand forecasting (gradient boosting + intermittent-demand baselines)
-- [x] Azure: container on App Service, Bicep, GitHub Actions with OIDC
-- [x] One Managed Identity + `SET ROLE` per module in the monolith; an identity per service after the split
+- [x] Azure with Bicep and GitHub Actions with OIDC (the original App Service hosting was replaced on 24 November, see below)
 - [x] PWA deferred as a future direction
 - [x] Repository content is English only
+
+24 November 2026 (product owner, ADRs 0015–0019):
+
+- [x] D1 — Every module runs as its own service in production, behind a YARP gateway that is the BFF; single host for development and tests; one PostgreSQL server, schema per module, login per service; new stage 4
+- [x] D2 — RabbitMQ as the integration-event transport, on the official .NET client, without commercial messaging libraries
+- [x] D3 — OpenTelemetry → Prometheus, Loki, Tempo, Grafana with alerts to Telegram and e-mail, replacing Application Insights as the primary stack
+- [x] D4 — OpenAPI + Scalar published without sign-in in production
+- [x] Hosting on Azure Container Apps with a stateful host VM (App Service rejected: no broker, no service discovery)
