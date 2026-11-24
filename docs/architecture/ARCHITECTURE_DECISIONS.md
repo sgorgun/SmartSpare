@@ -24,6 +24,7 @@ SmartSpare is built as a **microservice-ready modular monolith**: one deployment
 | 14 | Repository language | English only | [0010](../adr/0010-english-only-repository.md) |
 | 15 | Evolvability | Abstractions only at seams to volatile technology; stable contracts (Contracts, versioned HTTP API, events); claims-based authorization | [0012](../adr/0012-evolvability-principles.md) |
 | 16 | Domain model and persistence | Aggregates in `Domain/` mapped directly by EF Core; stage 2 table mirrors removed per module stage; no generic repository | [0013](../adr/0013-domain-model-and-persistence.md) |
+| 17 | Browser sign-in | WASM sign-in page posts to Host `/bff` endpoints; ASP.NET Core Identity with custom stores over `iam`; antiforgery on every unsafe request (implemented in stage 3) | [0014](../adr/0014-browser-sign-in-through-bff-endpoints.md) |
 
 ## 1. Architectural style
 
@@ -120,6 +121,7 @@ The frontend is **Blazor WebAssembly with MudBlazor**, as stated in the topic ap
 - **Template** — .NET 10 Blazor Web App with global InteractiveWebAssembly render mode. The whole UI runs in the browser; global interactivity is required because MudBlazor does not support static rendering.
 - **MudBlazor 9.x** — fully supports .NET 10 and is actively maintained.
 - **BFF today** — the API host itself: ASP.NET Core Identity (same PBKDF2 hashes as in the database) issues an HttpOnly, SameSite=Strict cookie with CSRF protection.
+- **Sign-in flow** — the MudBlazor sign-in page posts JSON to `/bff/login`; Identity runs with custom stores over the `iam` tables ([ADR 0014](../adr/0014-browser-sign-in-through-bff-endpoints.md); plan in [STAGE_3_PLAN.md](../stage-3/STAGE_3_PLAN.md)).
 - **BFF with microservices** — a YARP gateway that accepts the cookie and calls services with tokens. The frontend does not change.
 - **Structure per module** — `Features/Fleet`, `Features/Inventory`, `Features/Procurement`, `Features/Forecasting`, `Features/Identity`: pages, components and a typed HTTP client per module.
 - **`SmartSpare.ApiContracts`** — shared DTOs of the public HTTP API and FluentValidation validators, the same for the form and the server. The frontend never references the modules' internal `*.Contracts`.
@@ -247,7 +249,7 @@ Work is done on the developer machine (.NET 10 SDK + Docker), where the code can
 6. **Procurement.** Purchase orders with the four-eyes rule.
 7. **Forecasting.** ML.NET models and benchmark, recommendations and UC01 events between modules.
 8. **Reporting.** Dashboards and KPIs on the marts.
-9. **Azure.** Bicep, GitHub Actions with OIDC, first deployment, telemetry.
+9. **Azure.** Bicep, GitHub Actions with OIDC, first deployment, telemetry. Forwarded headers for the real client IP behind App Service (#48) must be in place before the first deployment, because the sign-in rate limit depends on it.
 10. **Defence polish.** Playwright scenarios, updated diagrams and documentation.
 
 Stages 4–8 follow the same pattern: domain → use cases → endpoints → tests → screens. The order can shift to match diploma submission deadlines.
