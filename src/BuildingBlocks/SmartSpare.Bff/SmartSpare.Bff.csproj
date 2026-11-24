@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Backend for frontend (ADR 0014, ADR 0016): the /bff endpoints, the auth cookie with its session check,
+    antiforgery, the sign-in rate limit and the internal-token issuer. Used by SmartSpare.Host now and by
+    SmartSpare.Gateway in stage 4. It talks to Identity only through Identity.Contracts (architecture test).
+  -->
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SmartSpare.Infrastructure\SmartSpare.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Web\SmartSpare.ApiContracts\SmartSpare.ApiContracts.csproj" />
+    <ProjectReference Include="..\..\Modules\Identity\SmartSpare.Modules.Identity.Contracts\SmartSpare.Modules.Identity.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

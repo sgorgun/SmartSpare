@@ -8,6 +8,7 @@
     <Project Path="src/Bootstrapper/SmartSpare.ModuleCatalog/SmartSpare.ModuleCatalog.csproj" />
   </Folder>
   <Folder Name="/src/BuildingBlocks/">
+    <Project Path="src/BuildingBlocks/SmartSpare.Bff/SmartSpare.Bff.csproj" />
     <Project Path="src/BuildingBlocks/SmartSpare.Infrastructure/SmartSpare.Infrastructure.csproj" />
     <Project Path="src/BuildingBlocks/SmartSpare.ServiceDefaults/SmartSpare.ServiceDefaults.csproj" />
     <Project Path="src/BuildingBlocks/SmartSpare.SharedKernel/SmartSpare.SharedKernel.csproj" />
