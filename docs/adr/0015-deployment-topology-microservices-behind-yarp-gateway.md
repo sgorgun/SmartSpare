@@ -24,7 +24,7 @@ Constraints:
 | Integration events | In-process transport behind Outbox/Inbox | RabbitMQ behind Outbox/Inbox ([ADR 0017](0017-rabbitmq-integration-event-transport.md)) |
 | Contracts queries | In-process implementation of the owning module | HTTP client to the owning service's `/internal/v1/...` endpoint |
 | Browser authentication | Cookie in the host | Cookie in the gateway; services accept an internal token ([ADR 0016](0016-authentication-behind-the-gateway.md)) |
-| Telemetry | OTLP → Aspire dashboard | OTLP → OpenTelemetry Collector → Grafana stack ([ADR 0018](0018-observability-with-the-grafana-stack.md)) |
+| Telemetry | OTLP → Aspire dashboard (the self-hosted Grafana stack under `--topology services`) | OTLP → Grafana Cloud Free ([ADR 0018](0018-observability-with-the-grafana-stack.md)) |
 
 **Module projects are identical in both topologies.** Only the composition root differs. The topology is chosen by the host project and its configuration, never by module code. The shared composition helpers in BuildingBlocks are used by every host:
 
@@ -41,15 +41,15 @@ An architecture test fails if a module references YARP, RabbitMQ.Client or a hos
 |---|---|---|---|
 | `gateway` | — (no database) | `/` (Blazor WebAssembly client), `/bff/*`, `/openapi/*`, `/scalar` | — |
 | `identity` | Identity: `iam` | `/api/v1/identity/*` | — |
-| `inventory` | Inventory: `catalog`, `inventory`, `raw`, `staging` | `/api/v1/inventory/*` | Reservation expiry, import pipeline |
+| `inventory` | Inventory: `catalog`, `inventory`, `raw`, `staging` | `/api/v1/inventory/*` | Import pipeline (in request); reservation expiry as a scheduled job |
 | `fleet` | Fleet: `fleet` | `/api/v1/fleet/*` | — |
 | `procurement` | Procurement: `procurement` | `/api/v1/procurement/*` | — |
-| `forecasting` | Forecasting: `forecast` | `/api/v1/forecasting/*` | ML training as a scheduled Container Apps job from the same image |
-| `reporting` | Reporting: `mart`, plus Platform `audit` jobs | `/api/v1/reporting/*` | Mart refresh, audit purge |
+| `forecasting` | Forecasting: `forecast` | `/api/v1/forecasting/*` | ML training as a scheduled job |
+| `reporting` | Reporting: `mart`, plus Platform `audit` jobs | `/api/v1/reporting/*` | Mart refresh, audit purge as scheduled jobs |
 
 - The Platform (`ref`, `util`, `audit`) remains a shared kernel installed by the migrations. It is not a service.
 - Each service runs its own outbox dispatcher and inbox consumers.
-- Quartz jobs stay clustered per service (`SKIP LOCKED`), so several replicas of one service are safe.
+- **Scheduled work runs as Container Apps jobs** (cron) from the owning service's image, because every app scales to zero (ADR 0009 amendment) and an in-process scheduler doesn't run at zero. In the single host the same work runs as Quartz jobs (clustered, `SKIP LOCKED`). The job code is shared; only the trigger differs.
 
 ### 3. Gateway (YARP)
 
@@ -70,7 +70,7 @@ Request transforms:
 - Remove `Cookie` and any client-supplied `Authorization` header, then add the internal bearer token (ADR 0016).
 - Rely on YARP's defaults to replace spoofable `X-Forwarded-*` headers ([YARP header guidelines](https://learn.microsoft.com/aspnet/core/fundamentals/servers/yarp/header-guidelines?view=aspnetcore-10.0)).
 
-Services use internal ingress only and aren't reachable from the internet.
+Services use internal ingress only and aren't reachable from the internet. `/internal/*` is never routed by the gateway; a route-table test asserts that no YARP route matches it ([ADR 0016](0016-authentication-behind-the-gateway.md) §2).
 
 ### 4. Synchronous Contracts queries become HTTP clients
 
@@ -93,6 +93,7 @@ The HTTP client uses the standard resilience handler of ServiceDefaults and prop
   - In Azure each service has its own Managed Identity mapped to an Entra login, so there are no passwords (#16).
   - Until the per-module roles of MODULE_MAPPING §4.2 replace them, the logins are members of the existing capability roles (`app_write`; `app_ml` for Forecasting; `app_read` and `app_audit` for Reporting). The per-module roles can only be enforced once the transitional cross-module SQL is gone (stages 6–8).
   - The gateway has no database login.
+- **Connection budget:** PostgreSQL B1ms allows 35 user connections ([limits](https://learn.microsoft.com/azure/postgresql/configure-maintain/concepts-limits)), so each service caps its pool (`Maximum Pool Size=4`) and runs `maxReplicas: 1` in the dev/demo environment.
 - The single host keeps its current logins (`smartspare_api`, `smartspare_jobs`, `smartspare_reporting`).
 - Each service applies only its own module's EF migration bundle, under `smartspare_migrator`, before its new revision starts. Migrations are already per module (`<schema>.__ef_migrations_history`).
 
@@ -108,7 +109,7 @@ The HTTP client uses the standard resilience handler of ServiceDefaults and prop
   - HTTP contracts are versioned (`/api/v1`, ADR 0012);
   - internal query endpoints and integration events change only backward-compatibly, or under a new version (ADR 0012);
   - the gateway routes by module, so adding endpoints needs no gateway change.
-- Hosting is Azure Container Apps. The comparison with App Service is in the amendment of [ADR 0009](0009-azure-hosting-and-delivery.md).
+- Hosting is Azure Container Apps. **Every app scales to zero, the gateway included**, and wakes on HTTP; consuming services also wake on their RabbitMQ queue length. The comparison with App Service, the cold-start mitigation (warm-up workflow before demos) and the cost estimate are in the amendment of [ADR 0009](0009-azure-hosting-and-delivery.md).
 
 ### 7. Local development and tests
 
@@ -128,8 +129,8 @@ The HTTP client uses the standard resilience handler of ServiceDefaults and prop
 ## Consequences
 
 - The rubric's microservice, independent-deployment and messaging items can be met. Every module scales and deploys on its own.
-- **Cost rises sharply.** One always-on Container Apps replica costs roughly $8 (idle) to $28 (active) a month after the free grant. Seven apps, the stateful host for RabbitMQ and observability, and PostgreSQL exceed NFR07 (≤ €35/month) and the Azure for Students credit ($100 for 12 months, [Azure for Students](https://azure.microsoft.com/free/students/)). Cost controls are listed in the ADR 0009 amendment, and the open question is #66.
+- **Cost stays within NFR07 by design, with limits.** Seven apps at zero replicas cost nothing when idle, and messaging and observability use the free CloudAMQP and Grafana Cloud plans. The estimate is about €22–23/month, mostly PostgreSQL and ACR (ADR 0009 amendment). The price is cold starts and the free plans' limits, which ADR 0017 §5 and ADR 0018 §5 design for. The cost question is settled in #66.
 - More failure modes: network hops, partial outages, version skew. These are mitigated by resilience handlers, the outbox (no lost events), traces across services (ADR 0018) and backward-compatible contracts.
-- One more hop per API call (gateway → service), plus cold starts for services scaled to zero.
+- One more hop per API call (gateway → service). After idle periods there are cold starts on the gateway and then on the called service, mitigated by the warm-up workflow before demos.
 - Developers keep a one-process debugging experience. The topology itself is tested in CI and can run locally on demand.
 - A new work-plan stage (stage 4: topology) is inserted before the business modules, and the following stages shift by one.
