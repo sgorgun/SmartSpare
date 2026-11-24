@@ -95,8 +95,8 @@ public sealed class ReportingMigrationTests(MigratedDatabaseFixture db) : Module
             WHERE n.nspname || '.' || c.relname IN ('mart.mv_weekly_demand', 'mart.mv_demand_profile', 'mart.v_ml_training_set',
                 'mart.v_kpi_dead_stock', 'mart.v_data_quality', 'audit.v_audit_log_masked',
                 'inventory.v_in_transit', 'inventory.v_stock_overview', 'fleet.v_machine_maintenance_status', 'fleet.v_service_kit_shortage',
-                'procurement.v_purchase_order_overview', 'forecast.v_recommendation_explained', 'iam.v_app_user_masked')
-            """)).ShouldBe(13);
+                'procurement.v_purchase_order_overview', 'forecast.v_recommendation_explained')
+            """)).ShouldBe(12);     // iam.v_app_user_masked moved to Identity in PR 3c (X18)
         await FunctionsShouldExistAsync("inventory.fn_in_transit_qty", "forecast.fn_stock_position", "mart.refresh_all");
         (await Db.ScalarAsync<long>("SELECT count(*) FROM mart.__ef_migrations_history")).ShouldBe(2);
     }

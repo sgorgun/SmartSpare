@@ -1,22 +1,38 @@
 using System.Data.Common;
+using System.Globalization;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 
 namespace SmartSpare.Infrastructure.Persistence;
 
-/// <summary>Authenticated user of the current HTTP request / job (implemented in the API layer).</summary>
+/// <summary>
+/// Authenticated user of the current HTTP request or job. In a host it is <see cref="ClaimsCurrentUser"/>, which reads the
+/// claims of whichever scheme authenticated the request (cookie or internal token, ADR 0016); without a request
+/// (background jobs, the outbox dispatcher) there is no user.
+/// </summary>
 public interface ICurrentUser
 {
     Guid? UserId { get; }
+
     /// <summary>Optional business justification for the audit trail (e.g. reason of a manual override).</summary>
     string? Reason { get; }
+
+    /// <summary>Role codes of the user (<c>role</c> claims); empty without a user.</summary>
+    IReadOnlyCollection<string> Roles { get; }
+
+    /// <summary>Home warehouse of the user (<c>ss:warehouse</c> claim), if any.</summary>
+    short? HomeWarehouseId { get; }
 }
 
-/// <summary>Default until the BFF provides the signed-in user (stage 3): no user, like a background job.</summary>
+/// <summary>No user: background jobs, and every process that serves no requests.</summary>
 internal sealed class NoCurrentUser : ICurrentUser
 {
     public Guid? UserId => null;
 
     public string? Reason => null;
+
+    public IReadOnlyCollection<string> Roles => [];
+
+    public short? HomeWarehouseId => null;
 }
 
 /// <summary>
@@ -54,19 +70,24 @@ public sealed class ActingUser
 }
 
 /// <summary>
-/// Passes the acting user to PostgreSQL at the start of every transaction of a module DbContext:
-///   SELECT set_config('app.user_id', @user, true), set_config('app.reason', @reason, true)
+/// Passes the session context to PostgreSQL at the start of every transaction of a module DbContext:
+///   SELECT set_config('app.user_id', @user, true), set_config('app.reason', @reason, true),
+///          set_config('app.user_roles', @roles, true), set_config('app.home_warehouse_id', @warehouse, true)
+/// <c>app.user_roles</c> is the comma-separated list of role codes, <c>app.home_warehouse_id</c> the warehouse id.
 /// The third argument <c>true</c> makes the values transaction-local: they vanish at commit or
 /// rollback, so a pooled connection never carries them to the next request. An empty value means
-/// "no user" (util.current_app_user() returns NULL, e.g. for background jobs).
-/// The database reads them in the audit triggers (audit.audit_log.user_id, reason) and in the role
-/// checks of business functions (util.require_role). Commands run inside a transaction opened by
-/// the transaction decorator, so every write is attributed. An <see cref="ActingUser"/> set in the scope takes
-/// precedence over <see cref="ICurrentUser"/>. Trust model: MODULE_MAPPING section 3.6.
+/// "none" (util.current_app_user() returns NULL, e.g. for background jobs).
+/// The database reads them in the audit triggers (audit.audit_log.user_id, reason), in the role checks of
+/// business functions (util.require_role reads app.user_roles) and in the warehouse checks of dispatch and receive
+/// (app.home_warehouse_id). Commands run inside a transaction opened by the transaction decorator, so every write is
+/// attributed. An <see cref="ActingUser"/> set in the scope takes precedence over <see cref="ICurrentUser"/>.
+/// Trust model: MODULE_MAPPING section 3.6.
 /// </summary>
 public sealed class SessionContextInterceptor(ICurrentUser currentUser, ActingUser actingUser) : DbTransactionInterceptor
 {
-    private const string Sql = "SELECT set_config('app.user_id', @user, true), set_config('app.reason', @reason, true)";
+    private const string Sql =
+        "SELECT set_config('app.user_id', @user, true), set_config('app.reason', @reason, true), "
+        + "set_config('app.user_roles', @roles, true), set_config('app.home_warehouse_id', @warehouse, true)";
 
     public override DbTransaction TransactionStarted(DbConnection connection, TransactionEndEventData eventData, DbTransaction result)
     {
@@ -83,14 +104,26 @@ public sealed class SessionContextInterceptor(ICurrentUser currentUser, ActingUs
         return result;
     }
 
+    /// <summary>Role codes joined with ','; a code that could break the list is left out rather than trusted.</summary>
+    internal static string RolesValue(IEnumerable<string> roles) =>
+        string.Join(',', roles
+            .Where(r => !string.IsNullOrWhiteSpace(r) && !r.Contains(',', StringComparison.Ordinal))
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal));
+
     private DbCommand CreateCommand(DbConnection connection, DbTransaction transaction)
     {
         var command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText = Sql;
-        var (userId, reason) = actingUser.IsSet ? (actingUser.UserId, actingUser.Reason) : (currentUser.UserId, currentUser.Reason);
-        AddParameter(command, "user", userId?.ToString() ?? string.Empty);
-        AddParameter(command, "reason", reason ?? string.Empty);
+
+        // A user acting during sign-in has no roles or warehouse in that transaction: sign-in calls no business function.
+        var acting = actingUser.IsSet;
+        AddParameter(command, "user", (acting ? actingUser.UserId : currentUser.UserId)?.ToString() ?? string.Empty);
+        AddParameter(command, "reason", (acting ? actingUser.Reason : currentUser.Reason) ?? string.Empty);
+        AddParameter(command, "roles", acting ? string.Empty : RolesValue(currentUser.Roles));
+        AddParameter(command, "warehouse",
+            (acting ? null : currentUser.HomeWarehouseId)?.ToString(CultureInfo.InvariantCulture) ?? string.Empty);
         return command;
     }
 

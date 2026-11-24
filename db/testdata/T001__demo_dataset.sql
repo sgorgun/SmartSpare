@@ -476,12 +476,24 @@ FROM fleet.machine WHERE vin = 'LX901PNV2026';
 -- ---------------------------------------------------------------------------
 -- 8. Live operations after go-live, executed through the business functions
 -- ---------------------------------------------------------------------------
+-- Acts as a signed-in user the way SessionContextInterceptor does (MODULE_MAPPING 3.6): app.user_id,
+-- app.user_roles and app.home_warehouse_id. The application takes roles and warehouse from the user's claims;
+-- this script reads them from iam. NULL clears the session user.
+CREATE FUNCTION pg_temp.t001_act_as(p_user uuid) RETURNS void LANGUAGE sql AS $$
+    SELECT set_config('app.user_id', coalesce(p_user::text, ''), false),
+           set_config('app.user_roles', coalesce((SELECT string_agg(r.code, ',' ORDER BY r.code)
+                                                   FROM iam.user_role ur JOIN iam.role r ON r.id = ur.role_id
+                                                   JOIN iam.app_user u ON u.id = ur.user_id
+                                                   WHERE ur.user_id = p_user AND u.is_active), ''), false),
+           set_config('app.home_warehouse_id', coalesce((SELECT home_warehouse_id::text FROM iam.app_user WHERE id = p_user), ''), false);
+$$;
+
 -- UC02: Mantas logs 512 h on the Lexion -> 500 h service drafted, kit soft-reserved at Panevėžys
-SELECT set_config('app.user_id', '00000000-0000-4000-8000-000000000004', false);
+SELECT pg_temp.t001_act_as('00000000-0000-4000-8000-000000000004');
 SELECT * FROM fleet.log_engine_hours((SELECT id FROM fleet.machine WHERE vin = 'LX901PNV2026'), 512, now() - interval '3 hours');
 
 -- Jonas logs new readings for 60 machines (some cross a service threshold)
-SELECT set_config('app.user_id', '00000000-0000-4000-8000-000000000005', false);
+SELECT pg_temp.t001_act_as('00000000-0000-4000-8000-000000000005');
 SELECT count(*) AS drafted_service_orders
 FROM (SELECT m.id, m.current_engine_hours FROM fleet.machine m
       JOIN fleet.machine_model mm ON mm.id = m.model_id
@@ -496,7 +508,7 @@ WHERE so.status = 'parts_reserved' AND m.vin <> 'LX901PNV2026'
 ORDER BY so.id LIMIT 10;
 
 -- An unplanned chopper rebuild at Panevėžys needs 8 x CP-4821 (no stock reserved yet) — UC01 maintenance demand
-SELECT set_config('app.user_id', '00000000-0000-4000-8000-000000000004', false);
+SELECT pg_temp.t001_act_as('00000000-0000-4000-8000-000000000004');
 WITH so AS (
     INSERT INTO fleet.service_order (machine_id, warehouse_id, created_by)
     SELECT m.id, w.id, '00000000-0000-4000-8000-000000000004'
@@ -506,7 +518,7 @@ INSERT INTO fleet.service_order_line (service_order_id, part_id, qty_required)
 SELECT so.id, p.id, 8 FROM so, catalog.part p WHERE p.oem_part_number = 'CP-4821';
 
 -- Exceptional demand: planner flags the strongest 3-sigma outliers (US08)
-SELECT set_config('app.user_id', '00000000-0000-4000-8000-000000000009', false);
+SELECT pg_temp.t001_act_as('00000000-0000-4000-8000-000000000009');
 SELECT inventory.flag_exceptional_demand(c.movement_id, c.occurred_at,
        format('One-off bulk order (z = %s), fleet overhaul of a farming group', c.z_score), 'auto_3sigma')
 FROM inventory.find_exceptional_demand_candidates(3, interval '24 months', 8) c
@@ -515,7 +527,7 @@ ORDER BY c.z_score DESC LIMIT 12;
 -- ---------------------------------------------------------------------------
 -- 9. Purchase orders (US13, US14): four-eyes approval, export, partial receipt
 -- ---------------------------------------------------------------------------
-SELECT set_config('app.user_id', '00000000-0000-4000-8000-000000000002', false);   -- Rasa
+SELECT pg_temp.t001_act_as('00000000-0000-4000-8000-000000000002');   -- Rasa
 INSERT INTO procurement.purchase_order (supplier_id, warehouse_id, created_by)
 SELECT s.id, w.id, '00000000-0000-4000-8000-000000000002' FROM procurement.supplier s, inventory.warehouse w
 WHERE s.code = 'JD-PD' AND w.code = 'VLN' RETURNING id AS po_big \gset
@@ -525,16 +537,16 @@ FROM catalog.part p JOIN procurement.supplier_part sp ON sp.part_id = p.id AND s
 JOIN ref.unit_of_measure u ON u.id = p.uom_id
 WHERE p.oem_part_number IN ('RE900001', 'RE900002', 'RE900003', 'RE900004');
 SELECT procurement.submit_purchase_order(:po_big);
-SELECT set_config('app.user_id', '00000000-0000-4000-8000-000000000010', false);   -- Vida (sponsor) approves > EUR 5,000
+SELECT pg_temp.t001_act_as('00000000-0000-4000-8000-000000000010');   -- Vida (sponsor) approves > EUR 5,000
 SELECT procurement.approve_purchase_order(:po_big);
-SELECT set_config('app.user_id', '00000000-0000-4000-8000-000000000002', false);
+SELECT pg_temp.t001_act_as('00000000-0000-4000-8000-000000000002');
 SELECT procurement.export_purchase_order(:po_big);
-SELECT set_config('app.user_id', '00000000-0000-4000-8000-000000000008', false);   -- Rūta receives part of it in Vilnius
+SELECT pg_temp.t001_act_as('00000000-0000-4000-8000-000000000008');   -- Rūta receives part of it in Vilnius
 SELECT procurement.receive_purchase_order_line(l.id, l.quantity / 2)
 FROM procurement.purchase_order_line l WHERE l.purchase_order_id = :po_big ORDER BY l.id LIMIT 2;
 
 -- Small PO by Darius, self-approved (allowed below EUR 5,000) and fully received in Kaunas by admin
-SELECT set_config('app.user_id', '00000000-0000-4000-8000-000000000003', false);
+SELECT pg_temp.t001_act_as('00000000-0000-4000-8000-000000000003');
 INSERT INTO procurement.purchase_order (supplier_id, warehouse_id, created_by)
 SELECT s.id, w.id, '00000000-0000-4000-8000-000000000003' FROM procurement.supplier s, inventory.warehouse w
 WHERE s.code = 'AGCO-PD' AND w.code = 'KNS' RETURNING id AS po_small \gset
@@ -543,11 +555,11 @@ SELECT :po_small, p.id, sp.moq FROM catalog.part p JOIN procurement.supplier_par
 WHERE p.oem_part_number IN ('V900000001', 'F900001.010');
 SELECT procurement.submit_purchase_order(:po_small);
 SELECT procurement.approve_purchase_order(:po_small);
-SELECT set_config('app.user_id', '00000000-0000-4000-8000-000000000011', false);
+SELECT pg_temp.t001_act_as('00000000-0000-4000-8000-000000000011');
 SELECT procurement.receive_purchase_order_line(l.id, l.quantity) FROM procurement.purchase_order_line l WHERE l.purchase_order_id = :po_small;
 
 -- Urgent harvest order (US16), left pending approval
-SELECT set_config('app.user_id', '00000000-0000-4000-8000-000000000001', false);   -- Tomas
+SELECT pg_temp.t001_act_as('00000000-0000-4000-8000-000000000001');   -- Tomas
 INSERT INTO procurement.purchase_order (supplier_id, warehouse_id, is_urgent, urgent_reason, created_by)
 SELECT s.id, w.id, true, 'Urgent Harvest Dispatch: Lexion breakdown, customer CUST-000017', '00000000-0000-4000-8000-000000000001'
 FROM procurement.supplier s, inventory.warehouse w WHERE s.code = 'CLAAS-PL' AND w.code = 'PNV' RETURNING id AS po_urgent \gset
@@ -684,12 +696,12 @@ BEGIN
                     (SELECT oem_part_number FROM catalog.part WHERE id = rc.part_id) AS oem
              FROM forecast.recommendation rc ORDER BY rc.id LOOP
         v_i := v_i + 1;
-        PERFORM set_config('app.user_id', CASE v_i % 3 WHEN 0 THEN '00000000-0000-4000-8000-000000000001'
+        PERFORM pg_temp.t001_act_as((CASE v_i % 3 WHEN 0 THEN '00000000-0000-4000-8000-000000000001'
                                                       WHEN 1 THEN '00000000-0000-4000-8000-000000000002'
-                                                      ELSE '00000000-0000-4000-8000-000000000009' END, false);
+                                                      ELSE '00000000-0000-4000-8000-000000000009' END)::uuid);
         BEGIN
             IF r.oem = 'CP-4821' THEN
-                PERFORM set_config('app.user_id', '00000000-0000-4000-8000-000000000001', false);   -- Tomas, UC01 step 10
+                PERFORM pg_temp.t001_act_as('00000000-0000-4000-8000-000000000001');   -- Tomas, UC01 step 10
                 PERFORM forecast.decide_recommendation(r.id, 'accept');
             ELSIF v_i % 10 = 7 THEN
                 CONTINUE;                                                              -- stays open
@@ -716,29 +728,29 @@ BEGIN
 END $$;
 
 -- UC01 step 11 + US11: Eglė dispatches from Klaipėda, Lukas receives in Panevėžys.
-SELECT set_config('app.user_id', '00000000-0000-4000-8000-000000000006', false);
+SELECT pg_temp.t001_act_as('00000000-0000-4000-8000-000000000006');
 SELECT inventory.dispatch_transfer(t.id) FROM inventory.transfer_order t
 JOIN inventory.warehouse w ON w.id = t.from_warehouse_id WHERE w.code = 'KLP' AND t.status = 'approved';
-SELECT set_config('app.user_id', '00000000-0000-4000-8000-000000000007', false);
+SELECT pg_temp.t001_act_as('00000000-0000-4000-8000-000000000007');
 SELECT inventory.receive_transfer(t.id) FROM inventory.transfer_order t
 JOIN inventory.warehouse w ON w.id = t.to_warehouse_id WHERE w.code = 'PNV' AND t.status = 'dispatched';
 -- Admin dispatches a few other approved transfers (they stay "in transit").
-SELECT set_config('app.user_id', '00000000-0000-4000-8000-000000000011', false);
+SELECT pg_temp.t001_act_as('00000000-0000-4000-8000-000000000011');
 SELECT inventory.dispatch_transfer(t.id) FROM inventory.transfer_order t WHERE t.status = 'approved' AND t.id % 2 = 0;
 
 -- Consolidated draft POs from purchase recommendations: submit and approve some.
-SELECT set_config('app.user_id', '00000000-0000-4000-8000-000000000009', false);
+SELECT pg_temp.t001_act_as('00000000-0000-4000-8000-000000000009');
 SELECT procurement.submit_purchase_order(po.id) FROM procurement.purchase_order po
 WHERE po.status = 'draft' AND po.id % 2 = 1 AND EXISTS (SELECT 1 FROM procurement.purchase_order_line l WHERE l.purchase_order_id = po.id);
-SELECT set_config('app.user_id', '00000000-0000-4000-8000-000000000010', false);
+SELECT pg_temp.t001_act_as('00000000-0000-4000-8000-000000000010');
 SELECT procurement.approve_purchase_order(po.id) FROM procurement.purchase_order po
 WHERE po.status = 'pending_approval' AND NOT po.is_urgent AND po.id % 3 <> 0;
 
 -- GDPR: the former employee is anonymised by the administrator.
-SELECT set_config('app.user_id', '00000000-0000-4000-8000-000000000011', false);
+SELECT pg_temp.t001_act_as('00000000-0000-4000-8000-000000000011');
 SELECT iam.anonymise_user('00000000-0000-4000-8000-000000000012');
 
-SELECT set_config('app.user_id', '', false);
+SELECT pg_temp.t001_act_as(NULL);
 CALL mart.refresh_all();
 COMMIT;
 

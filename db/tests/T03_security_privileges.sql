@@ -43,6 +43,14 @@ SELECT pg_temp.ok((SELECT count(*) = 11 AND bool_and(coalesce(pg_temp.identity_v
                   'app_write: reads the Identity V3 hashes of the demo users for login (PBKDF2-HMAC-SHA512, >= 220,000 iterations)');
 SELECT pg_temp.act_as('jonas.balciunas');
 SELECT pg_temp.expect_error($$SELECT procurement.approve_purchase_order(1)$$, 'SS301', 'DB-level RBAC: a service engineer cannot approve POs');
+-- X1 (#11): util.require_role trusts the session roles set by SessionContextInterceptor, not iam (MODULE_MAPPING 3.6).
+SELECT pg_temp.act_as('vida.mockute');                    -- SPONSOR in iam
+SELECT set_config('app.user_roles', '', false);
+SELECT pg_temp.expect_error($$SELECT util.require_role('SPONSOR')$$, 'SS301',
+                            'DB-level RBAC reads the session roles: no role in app.user_roles, no access (#11)');
+SELECT set_config('app.user_roles', 'SPONSOR', false);
+SELECT pg_temp.ok(util.require_role('SPONSOR') = util.current_app_user(),
+                  'DB-level RBAC: a role in app.user_roles passes util.require_role (#11)');
 
 -- app_ml (jobs) --------------------------------------------------------------------------
 SET LOCAL ROLE smartspare_jobs;
