@@ -342,11 +342,11 @@ Rules: no application login is superuser, CREATEROLE, CREATEDB or BYPASSRLS; `CR
 
 ### 8.2 Functions as the write API for critical data
 
-Balances, reservations and statuses are changed only by `SECURITY DEFINER` functions/triggers owned by the owner role, with `SET search_path = pg_catalog, pg_temp` (protection against search-path hijacking) and fully qualified names. Inside, they check the application role of the acting user (`util.require_role`) — a second line of defence behind the API's authorisation.
+Balances, reservations and statuses are changed only by `SECURITY DEFINER` functions/triggers owned by the owner role, with `SET search_path = pg_catalog, pg_temp` (protection against search-path hijacking) and fully qualified names. Inside, they check the application role of the acting user (`util.require_role`, which reads the session roles `app.user_roles`) and, for dispatch and receive, the keeper's home warehouse (`app.home_warehouse_id`) — a second line of defence behind the API's authorisation. The trust model of these session values is [MODULE_MAPPING §3.6](MODULE_MAPPING.md).
 
 ### 8.3 Acting user and audit
 
-The API sets `app.user_id` (and optionally `app.reason`) **transaction-locally** at the start of each transaction (EF Core `SessionContextInterceptor`; safe with connection pooling). Audit triggers write user, action, previous and new values of the changed columns, and the reason (US18). The audit table is append-only and partitioned by month; `audit.purge_expired()` drops partitions older than 180 days (BA 2.8).
+The API sets `app.user_id`, `app.user_roles`, `app.home_warehouse_id` (from the claims of the signed-in user) and optionally `app.reason` **transaction-locally** at the start of each transaction (EF Core `SessionContextInterceptor` with `ClaimsCurrentUser`; safe with connection pooling). Audit triggers write user, action, the changed record (`record_id`: the `id` column, or the `*_id` columns of a composite key joined with `|`), previous and new values of the changed columns, and the reason (US18). The audit table is append-only and partitioned by month; `audit.purge_expired()` drops partitions older than 180 days (BA 2.8).
 
 ### 8.4 Passwords and secrets
 
@@ -403,13 +403,13 @@ Seed parts of the migrations (`db/sql/platform/seed_ref.sql`, `db/sql/identity/s
 
 | File | Assertions | Covers |
 |---|---:|---|
-| T01_integrity_constraints | 29 | keys, CHECK, EXCLUDE, password formats, append-only tables, partition routing, document numbers |
-| T02_business_workflows | 38 | UC02 incl. A1, idempotency, reservation expiry, full transfer cycle with balances, donor safety, MOQ/supplier rules, four-eyes, model promotion, import dedup & quality gate, mart excludes exceptional demand, audit trail, GDPR, retention |
-| T03_security_privileges | 22 | privilege self-check, no superuser, SCRAM, masking, column privileges, read-only role, no direct writes to protected tables, DB-level RBAC |
+| T01_integrity_constraints | 30 | keys, CHECK, EXCLUDE, password formats, lower-case user names, append-only tables, partition routing, document numbers |
+| T02_business_workflows | 40 | UC02 incl. A1, idempotency, reservation expiry, full transfer cycle with balances, donor safety, MOQ/supplier rules, four-eyes, model promotion, import dedup & quality gate, mart excludes exceptional demand, audit trail, GDPR, retention |
+| T03_security_privileges | 24 | privilege self-check, no superuser, SCRAM, masking, column privileges, read-only role, no direct writes to protected tables, DB-level RBAC from the session roles |
 | T04_indexes_and_performance | 8 | plans of the critical queries use the intended indexes / partition pruning |
 | concurrency_test.sh | 1 | two parallel sessions: lock wait, no negative stock |
 
-Result on the **EF-built database** with the demo dataset (2,000 SKUs), run in CI on every pull request by `tools/verify_database.sh` (build with the MigrationRunner on `postgres:17`, load T001, run the suite): **97 assertions passed**, concurrency test passed (session B waits ≈ 2 s for the row lock, then SS200, no negative stock), `mart.v_data_quality` all zero, `util.v_privilege_findings` empty. The only edits the port required in the tests and the demo data were the schema name of the moved supplier tables (`catalog.supplier*` → `procurement.supplier*` in T01, T02 and T001). When a TRANSITIONAL object is replaced in stages 3–8, the assertions that exercised it move to C# integration tests of the event flow, and the total stays tracked here (MODULE_MAPPING §6, step 6).
+Result on the **EF-built database** with the demo dataset (2,000 SKUs), run in CI on every pull request by `tools/verify_database.sh` (build with the MigrationRunner on `postgres:17`, load T001, run the suite): **102 assertions passed**, concurrency test passed (session B waits ≈ 2 s for the row lock, then SS200, no negative stock), `mart.v_data_quality` all zero, `util.v_privilege_findings` empty. The only edits the port required in the tests and the demo data were the schema name of the moved supplier tables (`catalog.supplier*` → `procurement.supplier*` in T01, T02 and T001). When a TRANSITIONAL object is replaced in stages 3–8, the assertions that exercised it move to C# integration tests of the event flow, and the total stays tracked here (MODULE_MAPPING §6, step 6).
 
 ### 10.4 KPI baseline from the demo data (illustrative, synthetic)
 
