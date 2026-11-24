@@ -1,0 +1,131 @@
+@page "/login"
+@layout LoginLayout
+@attribute [AllowAnonymous]
+@inject IStringLocalizer<SharedResource> Text
+@inject IdentityClient Identity
+@inject NavigationManager Navigation
+@inject ProblemMessages Messages
+
+<PageTitle>@Text["Login.Title"]</PageTitle>
+
+<MudPaper Elevation="2" Class="pa-8">
+    <MudText Typo="Typo.h4" HtmlTag="h1" Class="mb-1">@Text["App.Title"]</MudText>
+    <MudText Typo="Typo.subtitle1" Class="mb-6">@Text["App.Tagline"]</MudText>
+
+    @if (_checkingSession)
+    {
+        <MudProgressLinear Indeterminate="true" Class="mb-4" aria-label="@Text["Login.CheckingSession"]" />
+    }
+
+    <MudForm @ref="_form" Model="_model" Validation="@(Validator.ValidateValue)" ValidationDelay="0" @onkeydown="SubmitOnEnterAsync">
+        <MudTextField @bind-Value="_model.UserName" For="@(() => _model.UserName)" Label="@Text["Login.UserName"]"
+                      Variant="Variant.Outlined" Immediate="true" UserAttributes="@UserNameAttributes" Class="mb-4" />
+        <MudTextField @bind-Value="_model.Password" For="@(() => _model.Password)" Label="@Text["Login.Password"]"
+                      InputType="InputType.Password" Variant="Variant.Outlined" Immediate="true"
+                      UserAttributes="@PasswordAttributes" Class="mb-2" />
+        <MudCheckBox @bind-Value="_model.RememberMe" Label="@Text["Login.RememberMe"]" Color="Color.Primary" />
+
+        @if (_error is not null)
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-4" role="alert">@_error</MudAlert>
+        }
+
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Class="mt-6" Disabled="_busy"
+                   OnClick="SubmitAsync">
+            @if (_busy)
+            {
+                <MudProgressCircular Class="mr-2" Size="Size.Small" Indeterminate="true" />
+                @Text["Login.Busy"]
+            }
+            else
+            {
+                @Text["Login.Submit"]
+            }
+        </MudButton>
+    </MudForm>
+</MudPaper>
+
+@code {
+    private static readonly Dictionary<string, object?> UserNameAttributes = new() { ["autocomplete"] = "username" };
+    private static readonly Dictionary<string, object?> PasswordAttributes = new() { ["autocomplete"] = "current-password" };
+    private static readonly LoginFormValidator Validator = new();
+
+    private readonly LoginForm _model = new();
+    private MudForm? _form;
+    private bool _busy;
+    private bool _checkingSession;
+    private string? _error;
+
+    [SupplyParameterFromQuery(Name = "returnUrl")]
+    public string? ReturnUrl { get; set; }
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationState { get; set; }
+
+    /// <summary>
+    /// SameSite=Strict: the first navigation from another site arrives without the cookie, so the prerendered page shows
+    /// the user as signed out. In the browser the page asks <c>/bff/me</c> (same-site, with the cookie) and goes back to
+    /// the return URL if the session exists (STAGE_3_PLAN 1.3).
+    /// </summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || !RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        if (AuthenticationState is not null && (await AuthenticationState).User.Identity?.IsAuthenticated == true)
+        {
+            Navigation.NavigateTo(LoginLinks.SafeReturnUrl(ReturnUrl), forceLoad: true);
+            return;
+        }
+
+        _checkingSession = true;
+        StateHasChanged();
+        var me = await Identity.MeAsync();
+        _checkingSession = false;
+        if (me is { IsSuccess: true, Value.IsAuthenticated: true })
+        {
+            Navigation.NavigateTo(LoginLinks.SafeReturnUrl(ReturnUrl), forceLoad: true);
+            return;
+        }
+
+        StateHasChanged();
+    }
+
+    internal async Task SubmitAsync()
+    {
+        if (_busy || _form is null)
+        {
+            return;
+        }
+
+        _error = null;
+        await _form.ValidateAsync();
+        if (!_form.IsValid)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var result = await Identity.LoginAsync(_model.ToRequest());
+            if (result.IsSuccess)
+            {
+                // A full reload: the server prerenders with the new principal, its claims and a new antiforgery token.
+                Navigation.NavigateTo(LoginLinks.SafeReturnUrl(ReturnUrl), forceLoad: true);
+                return;
+            }
+
+            _error = Messages.Describe(result.Problem!);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private Task SubmitOnEnterAsync(KeyboardEventArgs args) =>
+        args.Key is "Enter" or "NumpadEnter" ? SubmitAsync() : Task.CompletedTask;
+}

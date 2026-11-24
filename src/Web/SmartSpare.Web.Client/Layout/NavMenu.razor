@@ -1,0 +1,26 @@
+@inject IStringLocalizer<SharedResource> Text
+@inject IAuthorizationService Authorization
+
+<MudNavMenu aria-label="@Text["Nav.Menu"]">
+    <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Home">@Text["Nav.Home"]</MudNavLink>
+    @foreach (var area in _areas)
+    {
+        <MudNavLink Href="@area.Href" Match="NavLinkMatch.Prefix" Icon="@area.Icon">@Text[area.TitleKey]</MudNavLink>
+    }
+</MudNavMenu>
+
+@code {
+    private IReadOnlyList<NavigationArea> _areas = [];
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationState { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (AuthenticationState is not null)
+        {
+            var state = await AuthenticationState;
+            _areas = await NavigationAccess.VisibleAsync(Authorization, state.User);
+        }
+    }
+}

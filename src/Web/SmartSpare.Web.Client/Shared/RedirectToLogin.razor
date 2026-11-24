@@ -1,0 +1,9 @@
+@inject NavigationManager Navigation
+
+@code {
+    /// <summary>
+    /// Sends an anonymous user to the sign-in page and keeps the page they wanted as <c>returnUrl</c> (STAGE_3_PLAN 8.2).
+    /// A full navigation, so the server prerenders the sign-in page with a fresh antiforgery token.
+    /// </summary>
+    protected override void OnInitialized() => Navigation.NavigateTo(LoginLinks.For(Navigation), forceLoad: true);
+}
