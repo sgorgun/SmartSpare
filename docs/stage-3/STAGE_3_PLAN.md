@@ -17,7 +17,7 @@ Every technical choice below was checked against the official documentation for 
 | S3 | Auth state reaches WASM through `AddAuthenticationStateSerialization`, with a custom callback that sends only id, name, roles, brands and warehouse. After sign-in and sign-out the page does a **full reload**. | 1.4 |
 | S4 | Token-based antiforgery on **every unsafe `/bff` and `/api` request**, including login, plus SameSite=Strict as a second layer. | 1.5 |
 | S5 | **`AddIdentityCore<AppUser>` with custom stores** over the existing `iam` tables. `AppUser` is the domain aggregate from `Domain/`, not an `IdentityUser`. No schema changes for Identity itself. | 2 |
-| S6 | Seeded V3 hashes (PBKDF2-HMAC-SHA512, 100,000 iterations) verify unchanged. The demo password comes from `.env` at load time (#7). | 2.3 |
+| S6 | Seeded V3 hashes (PBKDF2-HMAC-SHA512, 100,000 iterations) verify unchanged and are rehashed with **220,000 iterations** (OWASP) on the next sign-in. The demo password comes from `.env` at load time (#7). | 2.3 |
 | S7 | Security stamp checked every 5 minutes. Lockout after 5 failures for 15 minutes. Deactivated users cannot sign in, and their cookies stop working at the next stamp check. | 2.4–2.6 |
 | S8 | Claims: `sub`, `name`, `role` (n), `ss:brand` (n), `ss:warehouse`. Policies use claims only (ADR 0012). Reads are never brand-scoped. Approvals by a `BRAND_MANAGER` require every line's brand to be in their claims, unless another role grants the action unscoped. | 3 |
 | S9 | Fixed-window rate limit on `/bff/login`, partitioned by client IP. Returns 429 with `Retry-After`. | 4 |
@@ -133,8 +133,10 @@ Sign-in writes run in a transaction where `app.user_id` is the **user who is sig
 
 ### 2.3 Password hash compatibility (#7)
 
-- The seeded hashes start with `AQAAAAIAAYag`: format marker `0x01` (V3), PRF `2` = HMAC-SHA512, iteration count `0x000186A0` = 100,000. These are the defaults of `PasswordHasher<TUser>` in .NET 10 (`CompatibilityMode = IdentityV3`, `IterationCount = 100000`; [Configure ASP.NET Core Identity, "Password Hasher options"](https://learn.microsoft.com/aspnet/core/security/authentication/identity-configuration?view=aspnetcore-10.0#password-hasher-options)). `VerifyHashedPassword` picks the algorithm from the format marker, so the seeded users sign in without any rehash. If the defaults ever change, `PasswordVerificationResult.SuccessRehashNeeded` makes `SignInManager` rehash on the next sign-in. That writes through the `password_hash` grant and rotates the stamp.
-- An integration test pins the format: a user seeded with a known V3 hash signs in. A unit test checks that `PasswordHasher<AppUser>` output still matches `^AQAAAAIAAYag`, the same pattern as the T03 SQL assertion.
+- The seeded hashes start with `AQAAAAIAAYag`: format marker `0x01` (V3), PRF `2` = HMAC-SHA512, iteration count `0x000186A0` = 100,000. These are the defaults of `PasswordHasher<TUser>` in .NET 10 (`CompatibilityMode = IdentityV3`, `IterationCount = 100000`; [Configure ASP.NET Core Identity, "Password Hasher options"](https://learn.microsoft.com/aspnet/core/security/authentication/identity-configuration?view=aspnetcore-10.0#password-hasher-options)).
+- **Work factor (PR 3a).** 100,000 is below the current OWASP recommendation for PBKDF2-HMAC-SHA512, which is **220,000 iterations** ([OWASP Password Storage Cheat Sheet, "PBKDF2"](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#pbkdf2)). PR 3a sets `Configure<PasswordHasherOptions>(o => o.IterationCount = 220_000)`, in one place shared by the host and `set-demo-passwords`. New hashes then start with `AQAAAAIAA1tg`. Existing hashes keep working: `VerifyHashedPassword` reads the algorithm and iteration count from the hash itself. When the stored count is lower than the configured one, it returns `PasswordVerificationResult.SuccessRehashNeeded`, so `UserManager` rehashes on the next successful sign-in. That write uses the `password_hash` grant and rotates the stamp. This is the OWASP approach of upgrading the work factor "when the user next authenticates".
+- The T03 SQL assertion changes from the literal prefix `AQAAAAIAAYag` to "V3, HMAC-SHA512, iteration count ≥ 220,000", decoded from the first 13 bytes of the hash. DATABASE_DESIGN §8.4 and the compliance matrix (100,000 iterations) are updated in the same PR.
+- An integration test pins compatibility: a user seeded with a 100,000-iteration hash signs in, and the stored hash is then a 220,000-iteration hash. A unit test checks that `PasswordHasher<AppUser>` output decodes to V3 / SHA512 / 220,000.
 - **#7:** T001 no longer contains literal hashes. A new `MigrationRunner set-demo-passwords` command reads `SMARTSPARE_DEMO_USER_PASSWORD`, hashes it with `PasswordHasher` and updates the demo users (by the fixed ids of T001) as `smartspare_migrator`. `db/scripts/load_testdata.sh` calls it after loading T001. `.env.example` gets a placeholder, and the README states that any password works for the demo users.
 - **#33:** the AppHost gets a resource command "Load demo data" on the database resource (`WithCommand`). It runs T001 and `set-demo-passwords` with the connection and parameters Aspire already holds, so nothing has to be copied from the dashboard.
 
@@ -386,7 +388,7 @@ All new tests follow the pyramid (ARCHITECTURE_DECISIONS section 10). Testcontai
 - `UserName` / `EmailAddress` accept and reject the same values as the SQL CHECKs (shared test cases).
 - `AppUserStore` security-stamp translation (Base32 proposal → new Guid). `ActiveUserConfirmation`.
 - `AppUserClaimsPrincipalFactory`: claim set, and no personal data.
-- `PasswordHasher<AppUser>` output starts with `AQAAAAIAAYag` (V3 / SHA512 / 100k).
+- `PasswordHasher<AppUser>` output decodes to V3 / HMAC-SHA512 / 220,000 iterations (prefix `AQAAAAIAA1tg`). A 100,000-iteration hash verifies with `SuccessRehashNeeded`.
 - `LoginRequestValidator` (ApiContracts).
 - `AppPolicies` evaluated with `DefaultAuthorizationService` for each role. Read policies never consider brands.
 - **Policy ↔ SQL role parity** (`PolicySqlRoleParityTests` in `tests/SmartSpare.ArchitectureTests`, no database). The test reads the repository like the other architecture tests:
@@ -455,7 +457,8 @@ Scope: section 7 (aggregates, configurations, delete the persistence classes). `
 
 Acceptance:
 - `check-model` reports no pending changes (no migration in this PR).
-- `verify_database.sh` green, including the T03 hash-format assertion.
+- `verify_database.sh` green, including the T03 hash-format assertion (now: V3, SHA512, ≥ 220,000 iterations).
+- `PasswordHasherOptions.IterationCount = 220_000`. Old hashes are rehashed on sign-in (2.3).
 - Unit tests 9.1 for the aggregate and the value objects.
 - `.env.example` contains no real password, and demo users get the hash of the password chosen in `.env`.
 - Demo data loads into the AppHost database without copying a port or password, and the README is updated.
