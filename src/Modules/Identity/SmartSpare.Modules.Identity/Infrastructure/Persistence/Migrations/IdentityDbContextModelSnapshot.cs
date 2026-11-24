@@ -17,11 +17,42 @@ namespace SmartSpare.Modules.Identity.Infrastructure.Persistence.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.4")
+                .HasAnnotation("ProductVersion", "10.0.15")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "citext");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
+
+            modelBuilder.Entity("Microsoft.AspNetCore.DataProtection.EntityFrameworkCore.DataProtectionKey", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id")
+                        .HasColumnOrder(0);
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("FriendlyName")
+                        .HasColumnType("text")
+                        .HasColumnName("friendly_name")
+                        .HasColumnOrder(1)
+                        .HasComment("Key id as written by the key manager (key-<guid>).");
+
+                    b.Property<string>("Xml")
+                        .HasColumnType("text")
+                        .HasColumnName("xml")
+                        .HasColumnOrder(2)
+                        .HasComment("Key descriptor XML; encrypted at rest when the host configures key protection.");
+
+                    b.HasKey("Id")
+                        .HasName("pk_data_protection_keys");
+
+                    b.ToTable("data_protection_keys", "iam", t =>
+                        {
+                            t.HasComment("ASP.NET Core Data Protection key ring of the single host (cookies, antiforgery tokens). Secret material: no app_read grant, no audit.");
+                        });
+                });
 
             modelBuilder.Entity("SmartSpare.Infrastructure.Messaging.Outbox.InboxMessage", b =>
                 {
@@ -186,7 +217,7 @@ namespace SmartSpare.Modules.Identity.Infrastructure.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("password_hash")
                         .HasColumnOrder(5)
-                        .HasComment("ASP.NET Core Identity V3 hash (PBKDF2-HMAC-SHA512, 100k iterations). Plain text is impossible by CHECK.");
+                        .HasComment("ASP.NET Core Identity V3 hash (PBKDF2-HMAC-SHA512, 220,000 iterations; older hashes are rehashed at sign-in). Plain text is impossible by CHECK.");
 
                     b.Property<string>("Phone")
                         .HasColumnType("character varying(30)")
@@ -250,7 +281,7 @@ namespace SmartSpare.Modules.Identity.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("ck_app_user_phone", "((phone IS NULL) OR ((phone)::text ~ '^\\+?[0-9 ()-]{7,20}$'::text))");
 
-                            t.HasCheckConstraint("ck_app_user_user_name", "(user_name ~ '^[a-z0-9._-]{3,50}$'::citext)");
+                            t.HasCheckConstraint("ck_app_user_user_name", "((user_name ~ '^[a-z0-9._-]{3,50}$'::citext) AND ((user_name)::text = lower((user_name)::text)))");
                         });
                 });
 

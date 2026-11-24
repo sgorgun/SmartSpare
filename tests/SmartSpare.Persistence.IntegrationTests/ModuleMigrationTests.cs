@@ -97,6 +97,58 @@ public sealed class IdentityMigrationTests(MigratedDatabaseFixture db) : ModuleM
                 """, connection, transaction);
             ((bool)(await check.ExecuteScalarAsync(TestContext.Current.CancellationToken))!).ShouldBeTrue();
         });
+
+    [Fact]
+    public async Task The_masked_user_directory_is_module_local_with_the_warehouse_id()
+    {
+        // X18 (#11): created by Identity, returns home_warehouse_id and depends on no other module's schema.
+        (await Db.ScalarAsync<bool>("""
+            SELECT EXISTS (SELECT 1 FROM information_schema.columns
+                           WHERE table_schema = 'iam' AND table_name = 'v_app_user_masked' AND column_name = 'home_warehouse_id')
+               AND NOT EXISTS (SELECT 1 FROM information_schema.columns
+                               WHERE table_schema = 'iam' AND table_name = 'v_app_user_masked' AND column_name = 'home_warehouse_code')
+            """)).ShouldBeTrue();
+        (await Db.ScalarAsync<string[]>("""
+            SELECT coalesce(array_agg(DISTINCT n.nspname::text ORDER BY n.nspname::text), '{}')
+            FROM pg_rewrite r
+            JOIN pg_depend d ON d.classid = 'pg_rewrite'::regclass AND d.objid = r.oid AND d.refclassid = 'pg_class'::regclass
+            JOIN pg_class c ON c.oid = d.refobjid
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE r.ev_class = 'iam.v_app_user_masked'::regclass AND d.refobjid <> r.ev_class
+            """)).ShouldBe(["iam"]);
+        (await Db.ScalarAsync<long>("SELECT count(*) FROM iam.__ef_migrations_history WHERE migration_id LIKE '%_ModuleLocalMaskedUserView'"))
+            .ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task The_data_protection_key_ring_is_readable_by_the_api_login_only_and_not_audited()
+    {
+        await TablesShouldExistAsync("iam.data_protection_keys");
+        (await Db.ScalarAsync<bool>("""
+            SELECT has_table_privilege('app_write', 'iam.data_protection_keys', 'SELECT')
+               AND has_table_privilege('app_write', 'iam.data_protection_keys', 'INSERT')
+               AND NOT has_table_privilege('app_write', 'iam.data_protection_keys', 'UPDATE')
+               AND NOT has_table_privilege('app_write', 'iam.data_protection_keys', 'DELETE')
+               AND has_sequence_privilege('app_write', pg_get_serial_sequence('iam.data_protection_keys', 'id'), 'USAGE')
+               AND NOT has_table_privilege('app_read', 'iam.data_protection_keys', 'SELECT')
+               AND NOT has_table_privilege('smartspare_reporting', 'iam.data_protection_keys', 'SELECT')
+            """)).ShouldBeTrue();
+        (await Db.ScalarAsync<long>("""
+            SELECT count(*) FROM pg_trigger WHERE tgrelid = 'iam.data_protection_keys'::regclass AND NOT tgisinternal
+            """)).ShouldBe(0, "key material must never reach the audit trail");
+    }
+
+    [Fact]
+    public async Task Upper_case_user_names_violate_the_check() =>
+        await Db.InRolledBackTransactionAsync(async (connection, transaction) =>
+        {
+            var error = await Should.ThrowAsync<PostgresException>(() => ExecuteAsync(connection, transaction, $"""
+                INSERT INTO iam.app_user (user_name, email, full_name, password_hash)
+                VALUES ('Upper.Case', 'upper.case@dealer.example', 'Upper Case', 'AQAAAA{new string('A', 76)}')
+                """));
+            error.SqlState.ShouldBe(PostgresErrorCodes.CheckViolation);
+            error.ConstraintName.ShouldBe("ck_app_user_user_name");
+        });
 }
 
 [Trait("Category", "Integration")]

@@ -1,5 +1,8 @@
 using System.Net;
+using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
+using Microsoft.AspNetCore.DataProtection.KeyManagement;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using SmartSpare.ApiContracts;
 using SmartSpare.ApiContracts.Authorization;
@@ -105,15 +108,14 @@ public sealed class SignInTests(IdentityDatabaseFixture database) : IAsyncLifeti
             "SELECT lockout_end BETWEEN now() + interval '14 minutes' AND now() + interval '16 minutes' AND failed_login_count = 0 FROM iam.app_user WHERE id = @id",
             ("id", id))).ShouldBeTrue();
 
-        // The lockout is written as the user who was signing in, with the reason 'sign-in' (section 2.2). The row is
-        // found by its actor: UPDATE rows don't carry the record id yet (#71).
-        (await database.ScalarAsync<long>(
+        // The lockout is written as the user who was signing in, with the reason 'sign-in' (section 2.2).
+        (await database.ScalarAsync<bool>(
             """
-            SELECT count(*) FROM audit.audit_log
-            WHERE table_name = 'iam.app_user' AND action = 'UPDATE' AND user_id = @id AND reason = 'sign-in'
-              AND 'lockout_end' = ANY(changed_columns) AND (new_values ->> 'lockout_end') IS NOT NULL
+            SELECT user_id = @id AND reason = 'sign-in' AND 'lockout_end' = ANY(changed_columns)
+            FROM audit.audit_log WHERE table_name = 'iam.app_user' AND record_id = @record AND action = 'UPDATE'
+            ORDER BY id DESC LIMIT 1
             """,
-            ("id", id))).ShouldBe(1);
+            ("id", id), ("record", id.ToString()))).ShouldBeTrue();
 
         using (var locked = await browser.LoginAsync("it.lockout", IdentityDatabaseFixture.Password, token: token))
         {
@@ -171,6 +173,37 @@ public sealed class SignInTests(IdentityDatabaseFixture database) : IAsyncLifeti
             new System.Security.Claims.ClaimsIdentity(principal))));
 
         viaToken.ShouldBeEquivalentTo(me);
+    }
+
+    [Fact]
+    public async Task Two_host_instances_on_one_database_accept_each_others_cookies()
+    {
+        // #22: the key ring lives in iam.data_protection_keys, so every instance can read the cookie of another.
+        await database.CreateUserAsync("it.shared", [AppRoles.BrandManager], []);
+        await using var second = new HostFactory { ConnectionString = database.ApiConnectionString };
+        using var first = _host.NewBrowser();
+        using var signIn = await first.LoginAsync("it.shared", IdentityDatabaseFixture.Password);
+        signIn.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        var cookie = signIn.Headers.GetValues("Set-Cookie").Single(c => c.StartsWith(BffDefaults.CookieName + "=", StringComparison.Ordinal));
+
+        using var other = second.NewBrowser();
+        other.Client.DefaultRequestHeaders.Add("Cookie", cookie.Split(';')[0]);
+        var me = await other.MeAsync();
+
+        me.IsAuthenticated.ShouldBeTrue("the second instance decrypts the first instance's cookie");
+        me.UserName.ShouldBe("it.shared");
+
+        // Both instances read the ring from the database, not from a per-user key directory that in-process test
+        // hosts would also share.
+        foreach (var host in new[] { _host, second })
+        {
+            var repository = host.Services.GetRequiredService<IOptions<KeyManagementOptions>>().Value.XmlRepository;
+            repository.ShouldNotBeNull();
+            repository.GetType().GetGenericTypeDefinition().ShouldBe(typeof(EntityFrameworkCoreXmlRepository<>),
+                "keys must be stored in iam.data_protection_keys");
+        }
+
+        (await database.ScalarAsync<long>("SELECT count(*) FROM iam.data_protection_keys")).ShouldBeGreaterThanOrEqualTo(1);
     }
 
     private static async Task LoginOrFailAsync(Browser browser, string userName)
