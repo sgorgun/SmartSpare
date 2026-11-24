@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+
+  <!--
+    The Blazor WebAssembly client (ADR 0006, STAGE_3_PLAN section 8): MudBlazor UI, rendered with global
+    InteractiveWebAssembly and prerendered by the host (the gateway in stage 4). It references only the public HTTP
+    contract SmartSpare.ApiContracts, never a module (architecture test).
+  -->
+
+  <PropertyGroup>
+    <NoDefaultLaunchSettingsFile>true</NoDefaultLaunchSettingsFile>
+    <StaticWebAssetProjectMode>Default</StaticWebAssetProjectMode>
+    <!-- All cultures' data, so adding a UI culture is a translation task (STAGE_3_PLAN 8.6, #47). -->
+    <BlazorWebAssemblyLoadAllGlobalizationData>true</BlazorWebAssemblyLoadAllGlobalizationData>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Authentication" />
+    <PackageReference Include="Microsoft.Extensions.Localization" />
+    <PackageReference Include="MudBlazor" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SmartSpare.ApiContracts\SmartSpare.ApiContracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Internals for the bUnit tests (Directory.Build.props covers *.UnitTests / *.IntegrationTests only). -->
+    <InternalsVisibleTo Include="SmartSpare.Web.Tests" />
+  </ItemGroup>
+
+</Project>

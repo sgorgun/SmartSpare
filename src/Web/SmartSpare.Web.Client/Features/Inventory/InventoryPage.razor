@@ -1,0 +1,9 @@
+@page "/inventory"
+@attribute [Authorize]
+@inject IStringLocalizer<SharedResource> Text
+
+<PageTitle>@Text["Nav.Inventory"]</PageTitle>
+
+<MudText Typo="Typo.h4" HtmlTag="h1" Class="mb-2">@Text["Nav.Inventory"]</MudText>
+<MudText Class="mb-4">@Text["Module.Inventory"]</MudText>
+<MudAlert Severity="Severity.Info">@Text["Module.ComingInStage", 5].Value</MudAlert>

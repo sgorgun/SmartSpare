@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="App.Title" xml:space="preserve">
+    <value>SmartSpare</value>
+  </data>
+  <data name="App.Tagline" xml:space="preserve">
+    <value>Spare parts and maintenance planning</value>
+  </data>
+  <data name="Nav.Home" xml:space="preserve">
+    <value>Home</value>
+  </data>
+  <data name="Nav.Inventory" xml:space="preserve">
+    <value>Inventory</value>
+  </data>
+  <data name="Nav.Fleet" xml:space="preserve">
+    <value>Fleet</value>
+  </data>
+  <data name="Nav.Procurement" xml:space="preserve">
+    <value>Procurement</value>
+  </data>
+  <data name="Nav.Forecasting" xml:space="preserve">
+    <value>Forecasting</value>
+  </data>
+  <data name="Nav.Reporting" xml:space="preserve">
+    <value>Reporting</value>
+  </data>
+  <data name="Nav.Menu" xml:space="preserve">
+    <value>Open the navigation menu</value>
+  </data>
+  <data name="Login.Title" xml:space="preserve">
+    <value>Sign in</value>
+  </data>
+  <data name="Login.UserName" xml:space="preserve">
+    <value>User name</value>
+  </data>
+  <data name="Login.Password" xml:space="preserve">
+    <value>Password</value>
+  </data>
+  <data name="Login.RememberMe" xml:space="preserve">
+    <value>Keep me signed in on this device</value>
+  </data>
+  <data name="Login.Submit" xml:space="preserve">
+    <value>Sign in</value>
+  </data>
+  <data name="Login.Busy" xml:space="preserve">
+    <value>Signing in…</value>
+  </data>
+  <data name="Login.Failed" xml:space="preserve">
+    <value>The user name or password is incorrect.</value>
+  </data>
+  <data name="Login.CheckingSession" xml:space="preserve">
+    <value>Checking your session…</value>
+  </data>
+  <data name="UserMenu.Label" xml:space="preserve">
+    <value>Account of {0}</value>
+  </data>
+  <data name="UserMenu.SignOut" xml:space="preserve">
+    <value>Sign out</value>
+  </data>
+  <data name="Home.Welcome" xml:space="preserve">
+    <value>Welcome, {0}</value>
+  </data>
+  <data name="Home.Intro" xml:space="preserve">
+    <value>Choose an area to work in.</value>
+  </data>
+  <data name="Home.Open" xml:space="preserve">
+    <value>Open</value>
+  </data>
+  <data name="Module.Inventory" xml:space="preserve">
+    <value>Stock, transfers between warehouses and data import.</value>
+  </data>
+  <data name="Module.Fleet" xml:space="preserve">
+    <value>Customer machines, engine hours and service orders.</value>
+  </data>
+  <data name="Module.Procurement" xml:space="preserve">
+    <value>Suppliers and purchase orders with approval.</value>
+  </data>
+  <data name="Module.Forecasting" xml:space="preserve">
+    <value>Demand forecasts and recommendations.</value>
+  </data>
+  <data name="Module.Reporting" xml:space="preserve">
+    <value>Dashboards and key figures.</value>
+  </data>
+  <data name="Module.ComingInStage" xml:space="preserve">
+    <value>This area arrives in stage {0} of the work plan.</value>
+  </data>
+  <data name="Page.NotAuthorized" xml:space="preserve">
+    <value>You don't have access to this page.</value>
+  </data>
+  <data name="Page.NotFound" xml:space="preserve">
+    <value>This page doesn't exist.</value>
+  </data>
+  <data name="Error.Generic" xml:space="preserve">
+    <value>Something went wrong. Please try again.</value>
+  </data>
+  <data name="Error.Forbidden" xml:space="preserve">
+    <value>You are not allowed to do this.</value>
+  </data>
+  <data name="Error.Antiforgery" xml:space="preserve">
+    <value>The form has expired. Reload the page and try again.</value>
+  </data>
+  <data name="Error.TooManyRequests" xml:space="preserve">
+    <value>Too many attempts. Wait a minute and try again.</value>
+  </data>
+  <data name="Error.Unauthenticated" xml:space="preserve">
+    <value>Your session has ended. Please sign in again.</value>
+  </data>
+  <data name="Error.Reference" xml:space="preserve">
+    <value>Reference: {0}</value>
+  </data>
+  <data name="Status.Label" xml:space="preserve">
+    <value>Status: {0}</value>
+  </data>
+</root>

@@ -40,6 +40,7 @@
   </Folder>
   <Folder Name="/src/Web/">
     <Project Path="src/Web/SmartSpare.ApiContracts/SmartSpare.ApiContracts.csproj" />
+    <Project Path="src/Web/SmartSpare.Web.Client/SmartSpare.Web.Client.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/SmartSpare.ArchitectureTests/SmartSpare.ArchitectureTests.csproj" />
@@ -49,5 +50,6 @@
     <Project Path="tests/SmartSpare.Modules.Identity.UnitTests/SmartSpare.Modules.Identity.UnitTests.csproj" />
     <Project Path="tests/SmartSpare.Persistence.IntegrationTests/SmartSpare.Persistence.IntegrationTests.csproj" />
     <Project Path="tests/SmartSpare.SharedKernel.UnitTests/SmartSpare.SharedKernel.UnitTests.csproj" />
+    <Project Path="tests/SmartSpare.Web.Tests/SmartSpare.Web.Tests.csproj" />
   </Folder>
 </Solution>

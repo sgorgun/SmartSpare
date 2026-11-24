@@ -1,0 +1,15 @@
+@inject IStringLocalizer<SharedResource> Text
+
+@* Colour-coded statuses always carry an icon and text, never colour alone (WCAG 2.1 AA, ARCHITECTURE_DECISIONS 6). *@
+<MudChip T="string" Color="Color" Icon="@Icon" Size="Size.Small" aria-label="@Text["Status.Label", Label].Value">@Label</MudChip>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Label { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string Icon { get; set; } = string.Empty;
+
+    [Parameter]
+    public Color Color { get; set; } = Color.Default;
+}

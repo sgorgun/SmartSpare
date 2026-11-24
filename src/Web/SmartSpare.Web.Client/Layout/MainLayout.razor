@@ -1,0 +1,29 @@
+@inherits LayoutComponentBase
+@inject IStringLocalizer<SharedResource> Text
+
+<MudThemeProvider Theme="SmartSpareTheme.Theme" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="1">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start"
+                       OnClick="@(() => _drawerOpen = !_drawerOpen)" aria-label="@Text["Nav.Menu"]" />
+        <MudText Typo="Typo.h6" Class="ml-2">@Text["App.Title"]</MudText>
+        <MudSpacer />
+        <SmartSpare.Web.Client.Features.Identity.UserMenu />
+    </MudAppBar>
+    <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="2">
+        <NavMenu />
+    </MudDrawer>
+    <MudMainContent>
+        <MudContainer MaxWidth="MaxWidth.Large" Class="pt-6 pb-6">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    private bool _drawerOpen = true;
+}

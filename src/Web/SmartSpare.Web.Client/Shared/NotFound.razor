@@ -1,0 +1,6 @@
+@page "/not-found"
+@layout MainLayout
+@attribute [AllowAnonymous]
+@inject IStringLocalizer<SharedResource> Text
+
+<MudText Typo="Typo.h4" HtmlTag="h1">@Text["Page.NotFound"]</MudText>

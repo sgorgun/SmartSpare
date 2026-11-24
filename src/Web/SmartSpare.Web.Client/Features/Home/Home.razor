@@ -1,0 +1,43 @@
+@page "/"
+@attribute [Authorize]
+@inject IStringLocalizer<SharedResource> Text
+@inject IAuthorizationService Authorization
+
+<PageTitle>@Text["App.Title"]</PageTitle>
+
+<MudText Typo="Typo.h4" HtmlTag="h1" Class="mb-2">@Text["Home.Welcome", _userName].Value</MudText>
+<MudText Class="mb-6">@Text["Home.Intro"]</MudText>
+
+<MudGrid>
+    @foreach (var area in _areas)
+    {
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Outlined="true">
+                <MudCardHeader>
+                    <CardHeaderAvatar><MudIcon Icon="@area.Icon" Color="Color.Primary" aria-hidden="true" /></CardHeaderAvatar>
+                    <CardHeaderContent><MudText Typo="Typo.h6" HtmlTag="h2">@Text[area.TitleKey]</MudText></CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent><MudText>@Text[area.DescriptionKey]</MudText></MudCardContent>
+                <MudCardActions><MudButton Href="@area.Href" Variant="Variant.Text" Color="Color.Primary">@Text["Home.Open"]</MudButton></MudCardActions>
+            </MudCard>
+        </MudItem>
+    }
+</MudGrid>
+
+@code {
+    private IReadOnlyList<NavigationArea> _areas = [];
+    private string _userName = string.Empty;
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationState { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (AuthenticationState is not null)
+        {
+            var state = await AuthenticationState;
+            _userName = state.User.Identity?.Name ?? string.Empty;
+            _areas = await NavigationAccess.VisibleAsync(Authorization, state.User);
+        }
+    }
+}

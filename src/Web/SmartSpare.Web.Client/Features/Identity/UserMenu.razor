@@ -1,0 +1,31 @@
+@inject IStringLocalizer<SharedResource> Text
+@inject IdentityClient Identity
+@inject NavigationManager Navigation
+@inject ProblemMessages Messages
+@inject ISnackbar Snackbar
+
+<AuthorizeView>
+    <Authorized>
+        <MudMenu Icon="@Icons.Material.Filled.AccountCircle" Color="Color.Inherit" AnchorOrigin="Origin.BottomRight"
+                 TransformOrigin="Origin.TopRight" AriaLabel="@Text["UserMenu.Label", context.User.Identity?.Name ?? string.Empty].Value">
+            <MudMenuItem Disabled="true">@context.User.Identity?.Name</MudMenuItem>
+            <MudMenuItem Icon="@Icons.Material.Filled.Logout" OnClick="SignOutAsync">@Text["UserMenu.SignOut"]</MudMenuItem>
+        </MudMenu>
+    </Authorized>
+</AuthorizeView>
+
+@code {
+    /// <summary>Signs out through the BFF, then reloads: the auth state of the app is fixed until the next load (1.4).</summary>
+    internal async Task SignOutAsync()
+    {
+        var result = await Identity.LogoutAsync();
+        if (result.IsSuccess)
+        {
+            Navigation.NavigateTo(LoginLinks.LoginPath, forceLoad: true);
+        }
+        else
+        {
+            Snackbar.Add(Messages.Describe(result.Problem!), Severity.Error);
+        }
+    }
+}

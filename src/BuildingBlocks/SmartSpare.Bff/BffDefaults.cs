@@ -13,7 +13,7 @@ public static class BffDefaults
 
     public const string AntiforgeryCookieName = "__Host-SmartSpare-AF";
 
-    public const string AntiforgeryHeaderName = "X-XSRF-TOKEN";
+    public const string AntiforgeryHeaderName = ApiContracts.HttpHeaderNames.Antiforgery;
 
     /// <summary>Name of the rate-limit policy of <c>POST /bff/login</c>.</summary>
     public const string LoginRateLimitPolicy = "login";
