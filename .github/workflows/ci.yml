@@ -18,6 +18,8 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: true
   NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
 
+# Every step runs through tools/check.sh, the script developers run locally (CONTRIBUTING.md),
+# so the local check set and CI cannot drift apart.
 jobs:
   build:
     name: Build and test
@@ -31,7 +33,7 @@ jobs:
       # are listed in tools/check_stale_terms.py; ADRs, EF migration history, marked history notes
       # and the paths in tools/stale_terms.allow are exempt.
       - name: Check for stale architecture terms
-        run: python3 tools/check_stale_terms.py
+        run: tools/check.sh stale-terms
 
       - uses: actions/setup-dotnet@v6
         with:
@@ -41,27 +43,23 @@ jobs:
 
       # Fails if a lock file is out of date with the project; run `dotnet restore` locally and commit it.
       - name: Restore
-        run: dotnet restore SmartSpare.slnx --locked-mode
+        run: tools/check.sh restore
 
       - name: Build
-        run: dotnet build SmartSpare.slnx --no-restore --configuration Release -warnaserror
+        run: tools/check.sh build
 
       - name: Check formatting
-        run: dotnet format SmartSpare.slnx --no-restore --verify-no-changes
+        run: tools/check.sh format
 
       # Fails if any DbContext's model differs from its last migration snapshot (a migration is
       # missing). Same check as `dotnet ef migrations has-pending-model-changes`, run for every
       # context of the module catalogue, so new contexts are covered automatically.
       - name: Check for pending model changes
-        run: dotnet run --project src/Bootstrapper/SmartSpare.MigrationRunner --no-build --configuration Release -- check-model
+        run: tools/check.sh check-model
 
       # Tests that need Docker (Testcontainers) are tagged Category=Integration and run separately.
       - name: Test
-        run: >
-          dotnet test SmartSpare.slnx --no-build --configuration Release
-          --filter "Category!=Integration"
-          --logger trx --results-directory TestResults
-          --collect "XPlat Code Coverage"
+        run: tools/check.sh test
 
       - name: Upload test results
         if: always()
@@ -86,25 +84,20 @@ jobs:
           cache-dependency-path: '**/packages.lock.json'
 
       - name: Restore
-        run: dotnet restore SmartSpare.slnx --locked-mode
+        run: tools/check.sh restore
 
       - name: Build
-        run: dotnet build SmartSpare.slnx --no-restore --configuration Release -warnaserror
+        run: tools/check.sh build
 
       # Testcontainers starts postgres:17 through the runner's Docker daemon.
       - name: Integration tests
-        run: >
-          dotnet test SmartSpare.slnx --no-build --configuration Release
-          --filter "Category=Integration"
-          --logger trx --results-directory TestResults
+        run: tools/check.sh integration
 
       # MODULE_MAPPING section 6, steps 2-4: build the database with the MigrationRunner on
       # postgres:17, load T001 (2,000 SKUs), run the 97 SQL assertions and the concurrency test,
       # then require mart.v_data_quality = 0 and no util.v_privilege_findings.
       - name: Verify the EF-built database with the SQL suite
-        env:
-          RUNNER_ARGS: --no-build --configuration Release
-        run: tools/verify_database.sh
+        run: tools/check.sh database
 
       - name: Upload test results
         if: always()

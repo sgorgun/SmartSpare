@@ -28,18 +28,17 @@ To run the host alone, without Aspire: `dotnet run --project src/Bootstrapper/Sm
 
 | Task | Command |
 |---|---|
-| Build | `dotnet build SmartSpare.slnx -warnaserror` |
-| Test (no Docker) | `dotnet test SmartSpare.slnx --filter "Category!=Integration"` |
-| Test (all, Docker running) | `dotnet test SmartSpare.slnx` |
-| Format check | `dotnet format SmartSpare.slnx --verify-no-changes` |
-| Stale architecture terms | `python3 tools/check_stale_terms.py` — retired designs (MediatR, V-scripts, App Service hosting, Application Insights …) must not be described as current |
-
-| Pending model changes | `dotnet run --project src/Bootstrapper/SmartSpare.MigrationRunner -- check-model` |
-| Verify the database (Docker) | `tools/verify_database.sh` — EF-built database + T001 + 97 SQL assertions + concurrency test |
+| **All checks, exactly as CI** (Docker running) | `tools/check.sh` — stale terms, locked restore, Release build with `-warnaserror`, format, check-model, tests with coverage, integration tests, database verification |
+| Checks without Docker (the CI "Build and test" job) | `tools/check.sh fast` |
+| Selected checks | `tools/check.sh <step> ...` with steps `stale-terms restore build format check-model test integration database` |
 | Schema diff (Docker) | `tools/schema_diff.sh` — EF-built schema vs. the frozen V016 baseline |
 
-CI (`.github/workflows/ci.yml`) runs the build, format check, model check and tests on every push and pull request to
-`main`; its integration job runs the Testcontainers tests and `tools/verify_database.sh`.
+Run `tools/check.sh` (Git Bash on Windows) before pushing. Stage new files first: the stale-terms check scans tracked
+files only. While iterating, plain `dotnet build` / `dotnet test --filter "Category!=Integration"` are fine, but only
+the script reproduces CI.
+
+CI (`.github/workflows/ci.yml`) runs the same script on every push and pull request to `main`: the "Build and test" job
+runs the steps of `tools/check.sh fast`, the integration job runs `integration` and `database`.
 
 ## Repository layout
 
