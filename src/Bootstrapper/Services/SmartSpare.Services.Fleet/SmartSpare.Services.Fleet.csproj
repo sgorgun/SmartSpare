@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!-- The Fleet service of the services topology (ADR 0015): exactly one module implementation. -->
+
+  <PropertyGroup>
+    <UserSecretsId>smartspare-services-fleet</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Modules\Fleet\SmartSpare.Modules.Fleet\SmartSpare.Modules.Fleet.csproj" />
+  </ItemGroup>
+
+</Project>

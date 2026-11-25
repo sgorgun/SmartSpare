@@ -993,6 +993,13 @@
           "SmartSpare.SharedKernel": "[1.0.0, )"
         }
       },
+      "smartspare.infrastructure.rabbitmq": {
+        "type": "Project",
+        "dependencies": {
+          "RabbitMQ.Client": "[7.3.0, )",
+          "SmartSpare.Infrastructure": "[1.0.0, )"
+        }
+      },
       "smartspare.migrationrunner": {
         "type": "Project",
         "dependencies": {
@@ -1103,6 +1110,60 @@
           "OpenTelemetry.Instrumentation.AspNetCore": "[1.21.0, )",
           "OpenTelemetry.Instrumentation.Http": "[1.21.0, )",
           "OpenTelemetry.Instrumentation.Runtime": "[1.21.0, )"
+        }
+      },
+      "smartspare.services.fleet": {
+        "type": "Project",
+        "dependencies": {
+          "SmartSpare.Infrastructure": "[1.0.0, )",
+          "SmartSpare.Infrastructure.RabbitMq": "[1.0.0, )",
+          "SmartSpare.Modules.Fleet": "[1.0.0, )",
+          "SmartSpare.ServiceDefaults": "[1.0.0, )"
+        }
+      },
+      "smartspare.services.forecasting": {
+        "type": "Project",
+        "dependencies": {
+          "SmartSpare.Infrastructure": "[1.0.0, )",
+          "SmartSpare.Infrastructure.RabbitMq": "[1.0.0, )",
+          "SmartSpare.Modules.Forecasting": "[1.0.0, )",
+          "SmartSpare.ServiceDefaults": "[1.0.0, )"
+        }
+      },
+      "smartspare.services.identity": {
+        "type": "Project",
+        "dependencies": {
+          "SmartSpare.Infrastructure": "[1.0.0, )",
+          "SmartSpare.Infrastructure.RabbitMq": "[1.0.0, )",
+          "SmartSpare.Modules.Identity": "[1.0.0, )",
+          "SmartSpare.ServiceDefaults": "[1.0.0, )"
+        }
+      },
+      "smartspare.services.inventory": {
+        "type": "Project",
+        "dependencies": {
+          "SmartSpare.Infrastructure": "[1.0.0, )",
+          "SmartSpare.Infrastructure.RabbitMq": "[1.0.0, )",
+          "SmartSpare.Modules.Inventory": "[1.0.0, )",
+          "SmartSpare.ServiceDefaults": "[1.0.0, )"
+        }
+      },
+      "smartspare.services.procurement": {
+        "type": "Project",
+        "dependencies": {
+          "SmartSpare.Infrastructure": "[1.0.0, )",
+          "SmartSpare.Infrastructure.RabbitMq": "[1.0.0, )",
+          "SmartSpare.Modules.Procurement": "[1.0.0, )",
+          "SmartSpare.ServiceDefaults": "[1.0.0, )"
+        }
+      },
+      "smartspare.services.reporting": {
+        "type": "Project",
+        "dependencies": {
+          "SmartSpare.Infrastructure": "[1.0.0, )",
+          "SmartSpare.Infrastructure.RabbitMq": "[1.0.0, )",
+          "SmartSpare.Modules.Reporting": "[1.0.0, )",
+          "SmartSpare.ServiceDefaults": "[1.0.0, )"
         }
       },
       "smartspare.sharedkernel": {
@@ -1361,6 +1422,15 @@
         "contentHash": "CpkfBbVIHR6Jn8QrGwt7RtOEDyKOHL2rs9HL+5ckzvlsvQiJ5lHD/qvB7NqJuFZIvXnACSYB7AD0ycXITPQFPg==",
         "dependencies": {
           "OpenTelemetry.Api": "[1.21.0, 2.0.0)"
+        }
+      },
+      "RabbitMQ.Client": {
+        "type": "CentralTransitive",
+        "requested": "[7.3.0, )",
+        "resolved": "7.3.0",
+        "contentHash": "6bAg8jxUdOw6exxmaOIpE9QiNr8+rUAaJZrAezxf3RaRJ+YnHgOh7pqqsMaTNHPL7wj8FSNAOtzGoWxSHuqsqw==",
+        "dependencies": {
+          "System.Threading.RateLimiting": "8.0.0"
         }
       },
       "Scrutor": {

@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "SmartSpare.Services.Fleet": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "https://localhost:65461;http://localhost:65465"
+    }
+  }
+}

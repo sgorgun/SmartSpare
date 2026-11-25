@@ -1,0 +1,23 @@
+<Project>
+
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <!--
+    Every SmartSpare.Services.<Module> host (ADR 0015, STAGE_4_PLAN section 3): one module, the RabbitMQ transport,
+    internal-token authentication. The composition root is one shared file, so the six hosts can't drift apart.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)ServiceHost.cs" Link="ServiceHost.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../../BuildingBlocks/SmartSpare.ServiceDefaults/SmartSpare.ServiceDefaults.csproj" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../../BuildingBlocks/SmartSpare.Infrastructure/SmartSpare.Infrastructure.csproj" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../../BuildingBlocks/SmartSpare.Infrastructure.RabbitMq/SmartSpare.Infrastructure.RabbitMq.csproj" />
+  </ItemGroup>
+
+</Project>

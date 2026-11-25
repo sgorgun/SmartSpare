@@ -36,6 +36,25 @@ public sealed class TopologyBoundaryTests
         }
     }
 
+    /// <summary>Each service host runs exactly its own module (STAGE_4_PLAN 1.3, ADR 0015).</summary>
+    [Theory]
+    [MemberData(nameof(Solution.ModuleNames), MemberType = typeof(Solution))]
+    public void Service_host_references_exactly_its_own_module(string name) =>
+        Solution.ProjectReferences($"SmartSpare.Services.{name}").ShouldBe([$"SmartSpare.Modules.{name}"]);
+
+    /// <summary>
+    /// What every service host shares comes from <c>src/Bootstrapper/Services/Directory.Build.props</c>: building blocks
+    /// only, no other module, no BFF, no catalogue of all modules and no web client.
+    /// </summary>
+    [Fact]
+    public void Service_hosts_share_only_building_blocks()
+    {
+        var props = System.Xml.Linq.XDocument.Load(Path.Combine(Solution.RootDirectory, "src", "Bootstrapper", "Services", "Directory.Build.props"));
+        props.Descendants("ProjectReference")
+            .Select(e => Path.GetFileNameWithoutExtension(e.Attribute("Include")!.Value.Replace('\\', '/')))
+            .ShouldBe(["SmartSpare.ServiceDefaults", "SmartSpare.Infrastructure", "SmartSpare.Infrastructure.RabbitMq"], ignoreOrder: true);
+    }
+
     [Fact]
     public void Infrastructure_KeepsTheBrokerAndTheGatewayOutOfModules()
     {
