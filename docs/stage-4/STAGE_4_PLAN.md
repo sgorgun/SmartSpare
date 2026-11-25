@@ -383,10 +383,10 @@ The publish happens later, in the dispatcher's own activity. That activity **lin
 
 **Coverage (#63).**
 - coverlet.collector can't enforce a threshold ("threshold validation … not provided by this integration mode", [coverlet VSTest](https://github.com/coverlet-coverage/coverlet/blob/master/Documentation/VSTestIntegration.md)).
-- Instead, `tools/check.sh coverage` runs **ReportGenerator 5.6.1** over `TestResults/**/coverage.cobertura.xml` with an assembly filter on business logic: `+SmartSpare.Modules.*;+SmartSpare.SharedKernel;-*.Contracts;-*.Migrations` and class filters for generated code. It sets `minimumCoverageThresholds:lineCoverage=70`, and ReportGenerator "will exit unsuccessfully" below that ([settings](https://github.com/danielpalme/ReportGenerator/wiki/Settings)).
+- Instead, `tools/check.sh coverage` runs **ReportGenerator 5.6.1** (a local .NET tool, `dotnet-tools.json`) over `TestResults/**/coverage.cobertura.xml`, filtered to business logic as #63 defines it: module `Domain/` and `Features/`, SharedKernel and the handler pipeline, without migrations, EF configurations, generated code or the host's `Program`. It sets `minimumCoverageThresholds:lineCoverage=70`, and ReportGenerator "will exit unsuccessfully" below that ([settings](https://github.com/danielpalme/ReportGenerator/wiki/Settings)).
 - The HTML summary is uploaded as an artefact.
 - No test-platform change is needed: the repo runs xunit.v3 in VSTest mode.
-- **Unknown until 4b:** today's coverage figure. If it is below 70 %, 4b adds the missing tests before the gate is switched on.
+- **Measured in 4b:** 89.7 % (315 of 351 lines, 25 November 2026).
 - The threshold is raised to 80 % by stage 9 (#63).
 
 **Vulnerable packages (#64).**
@@ -403,7 +403,7 @@ Both steps are part of the shared gate workflow that every service pipeline call
   - **Triggers:** `push` to `main` with `paths` for the service's host, its module, its Contracts, BuildingBlocks, `Directory.*.props` and `db/sql/<module>`. A Contracts change also lists the consuming services.
   - Workflow-level `paths` are the documented mechanism. `paths` and `paths-ignore` can't be combined for one event, and diffs above 3,000 files may be missed ([workflow syntax](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax)).
   - **Steps:**
-    1. call the reusable `gates.yml` (`workflow_call`: build, tests, coverage, vulnerabilities; [reusable workflows](https://docs.github.com/en/actions/reference/workflows-and-actions/reusing-workflow-configurations));
+    1. run the shared gates (build, tests, coverage, vulnerabilities) from a composite action, `.github/actions/gates`. A reusable workflow would rename the "Build and test" check to "gates / Build and test", and the `main` ruleset requires the check names "Build and test" and "Integration tests" ([reusable workflows](https://docs.github.com/en/actions/reference/workflows-and-actions/reusing-workflow-configurations));
     2. `azure/login@v2` with OIDC (`id-token: write`, federated credential; [OIDC](https://learn.microsoft.com/azure/developer/github/connect-from-azure-openid-connect));
     3. publish the image;
     4. run the migration job for the module (8.4) and wait for success;
@@ -585,7 +585,7 @@ Each PR passes the full `tools/check.sh`, including the new steps once they exis
 **Acceptance:** all existing tests green unchanged; new architecture tests fail when a module references YARP or RabbitMQ.Client (mutation check). **Closes #32.**
 
 ### 4b: Quality gates
-**Scope:** `tools/check.sh coverage` (ReportGenerator, 70 % on business logic) and `vulnerabilities` (JSON parse) in `ci.yml` and a reusable `gates.yml`; a weekly scheduled vulnerability run; tests added where coverage is short.
+**Scope:** `tools/check.sh coverage` (ReportGenerator, 70 % on business logic) and `vulnerabilities` (JSON parse) in `ci.yml`; a weekly scheduled vulnerability run; tests added where coverage is short. The shared composite action for the deploy workflows comes with them in 4h.
 
 **Acceptance:**
 - the gate fails at 69 % (temporarily raised threshold in a mutation check) and passes on `main`;
@@ -662,6 +662,7 @@ Each PR passes the full `tools/check.sh`, including the new steps once they exis
 **Scope:**
 - SDK container publishing (8.1);
 - `infra/` Bicep (8.8), including the KEDA rules, jobs, budget and `db-schedule.yml` for stage 10;
+- the composite action `.github/actions/gates` with the gate steps, used by the "Build and test" job and every deploy workflow (8.3);
 - `deploy-<service>.yml` × 7, `deploy-migrations.yml` and `infra.yml`, all on manual dispatch only until stage 10;
 - the path-filter coverage test (8.3);
 - ADR 0020's runner job definition.

@@ -47,8 +47,8 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 Before pushing, run the same checks as CI. CI calls `tools/check.sh` step by step, so a green local run means a green CI run (Release configuration, coverage collected exactly as in CI):
 
 ```
-tools/check.sh              # all steps, needs Docker: stale terms, locked restore, build, format,
-                            # check-model, tests with coverage, integration tests, database verification
+tools/check.sh              # all steps, needs Docker: stale terms, locked restore, vulnerable packages,
+                            # build, format, check-model, tests, coverage gate, integration tests, database
 tools/check.sh fast         # the steps without Docker (the CI "Build and test" job)
 tools/check.sh build test   # selected steps
 ```
