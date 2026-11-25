@@ -39,7 +39,7 @@ Every technology, version and limit below was **checked against official documen
 | T13 | **Container Apps sizing:** every app 0.25 vCPU / 0.5 GiB, `minReplicas: 0`, `maxReplicas: 1`, single revision mode. At most 28 of the 35 PostgreSQL user connections are in use. Scheduled work runs as cron jobs, plus a warm-up workflow; the cold start target is ≤ 30 s, measured. | 8.5–8.7 |
 | T14 | **Forwarded headers (#48):** the gateway trusts exactly one hop (`ForwardLimit = 1`) and takes the rightmost `X-Forwarded-For`, which the Container Apps ingress provides. It uses `KnownIPNetworks`; `KnownNetworks` is obsolete in .NET 10. | 2.5 |
 | T15 | **Aspire 13.6.5 → 17.0.0** (needed for `Aspire.Hosting.RabbitMQ` 17.0.0, ADR 0017). | 1.4 |
-| T16 | **Open decision for the product owner:** (A) deploy the walking skeleton to Azure in stage 4, or (B) build and test the topology locally and in CI, and deploy in stage 10. **Recommendation: (A) with cost controls.** | 9 |
+| T16 | **Open decision for the product owner:** (A) deploy the walking skeleton to Azure in stage 4, or (B) build and test the topology locally and in CI, and deploy in stage 10. The subscription is pay-as-you-go, so NFR07 (≤ €35/month) is the cost limit. **Recommendation: (A) with PostgreSQL always on (≈ €22–23/month) and a €35 budget alert.** | 9 |
 
 ---
 
@@ -504,42 +504,41 @@ ARCHITECTURE_DECISIONS §13 and #67 currently put **the first deployment of the 
 
 **Fixed baseline, always on:** 730 h × $0.0199 + 32 × $0.1369 + 30.4 × $0.1666 ≈ **$24 a month**, plus less than $1 for backup, Key Vault and Blob.
 
-**Stopping PostgreSQL:** stopping the server stops compute billing immediately; storage is still billed. The server "remains stopped for seven days unless you restart it sooner" ([overview](https://learn.microsoft.com/azure/postgresql/overview#stop-and-start-server-to-lower-tco)), so a scheduled stop is needed.
+**Stopping PostgreSQL:** stopping the server stops compute billing immediately; storage is still billed. The server "remains stopped for seven days unless you restart it sooner" ([overview](https://learn.microsoft.com/azure/postgresql/overview#stop-and-start-server-to-lower-tco)), so a scheduled stop is needed to keep it stopped.
 
-**Azure for Students:**
-- "$100 credit for 12 months". "After you exhaust your available credit or reach the end of 12 months, your Azure subscription is canceled" ([Azure for Students](https://learn.microsoft.com/azure/education-hub/azure-dev-tools-teaching/azure-students-program)).
-- Renewable yearly while a student.
-- Whether the free-account offer of 750 B1MS hours a month applies to a Students subscription isn't stated ([free account](https://learn.microsoft.com/azure/postgresql/configure-maintain/how-to-deploy-on-azure-free-account)). The estimate assumes it doesn't.
+**Subscription:** a pay-as-you-go subscription (product owner, 25 November 2026; not Azure for Students). There is no credit that can run out, so the limit is **NFR07: ≤ €35 a month**. If the subscription is still within the first 12 months of an Azure free account, 750 hours of B1MS and 32 GB of storage a month are free ([free account](https://learn.microsoft.com/azure/postgresql/configure-maintain/how-to-deploy-on-azure-free-account)), which removes most of the baseline. The table doesn't assume that.
 
-**The defence date isn't recorded in the repository.** The table assumes the environment exists from **mid-December 2026 to the end of June 2027 (6.5 months)** under (A), and from **mid-April 2027 (stage 10) to the end of June 2027 (2.5 months)** under (B). Replace the months with the real date.
+**The defence date isn't recorded in the repository.** The totals assume the environment exists from **mid-December 2026 to the end of June 2027 (6.5 months)** under (A), and from **mid-April 2027 (stage 10) to the end of June 2027 (2.5 months)** under (B). Replace the months with the real date.
 
-| Scenario | Per month | Until defence | Within the $100 credit? |
+| Scenario | Per month | Total until the defence | Within NFR07 (≤ €35/month)? |
 |---|---|---|---|
-| A1: stage 4, PostgreSQL always on | ≈ $24.5 | ≈ $160 | **No**: credit used up around April 2027, and the subscription is cancelled unless upgraded to pay-as-you-go |
-| **A2: stage 4, PostgreSQL stopped outside sessions** (≈ 40 h a month running) | ≈ $4.4 storage + $5.1 ACR + $0.8 compute + $0.5 other ≈ **$10.8** | ≈ **$70** | **Yes**, with about $30 margin |
+| **A1: stage 4, PostgreSQL always on** | ≈ $24.5 (≈ €22–23, the ADR 0009 amendment's figure) | ≈ $160 | **Yes** |
+| A2: stage 4, PostgreSQL stopped outside sessions (≈ 40 h a month running) | ≈ $4.4 storage + $5.1 ACR + $0.8 compute + $0.5 other ≈ $10.8 | ≈ $70 | Yes |
 | B1: stage 10, always on | ≈ $24.5 | ≈ $61 | Yes |
 | B2: stage 10, stopped outside sessions | ≈ $10.8 | ≈ $27 | Yes |
 
-The ≈ €22–23/month of the ADR 0009 amendment is the always-on figure (A1/B1) in EUR. NFR07 (≤ €35/month) is met in every scenario; the binding constraint is the student credit, not NFR07.
+Every scenario meets NFR07. The difference between A1 and A2 is about $90 until the defence, against the operational cost of the stop schedule (9.3).
 
 ### 9.2 Risks
 
 | | (A) Deploy in stage 4 | (B) Deploy in stage 10 |
 |---|---|---|
 | **Integration risk** | Found early, while the topology is fresh: Little Lemur features (5.4), KEDA http mode (5.6), forwarded headers (2.5), Managed Identity and Key Vault references, OIDC, cold starts (8.7). Stages 5–9 are deployed through the pipeline as they land (ARCHITECTURE_DECISIONS §13) | All of those surface in stage 10, the last stage before the defence polish. A blocker there (e.g. no management API, cold start > 30 s) leaves little time. Pipelines are written in stage 4 but untested against Azure for months |
-| **Credit and cost** | Needs the scheduled PostgreSQL stop and a budget alert, or the credit runs out around April 2027 and the subscription is cancelled (A1) | Lowest cost; the credit isn't at risk |
-| **Operational load** | Secrets, rotations and the environment must be kept alive for six months, plus the weekly warm-up and stop schedule | None until stage 10 |
+| **Cost** | ≈ $160 until the defence always on, ≈ $70 with the database stopped outside sessions; within NFR07 either way | ≈ $27–61; lowest |
+| **Operational load** | Secrets, rotations and the environment must be kept alive for six months, plus the weekly warm-up | None until stage 10 |
 | **Rubric** | "Production deployment reachable by external users", "CD" and "deploy only when green" can be shown from v0.4.0 on, and every later stage proves them again | Shown only from stage 10; until then only locally and in CI |
 | **Free plans** | CloudAMQP and Grafana Cloud run for six months: inactivity rules (2-month instance deletion, 28-day idle queues) must be handled by the weekly warm-up; 14-day telemetry retention means old traces disappear (irrelevant for the demo) | Shorter exposure to free-plan rules |
 
 ### 9.3 Recommendation
 
-**(A2): deploy the walking skeleton in stage 4, with cost controls.** The topology's risks are cloud-specific and can't be retired locally. The cost with a stopped database fits the credit with margin.
+**(A1): deploy the walking skeleton in stage 4, with PostgreSQL always on.** The topology's risks are cloud-specific and can't be retired locally, and the always-on cost (≈ €22–23 a month) is within NFR07.
+
+Keeping the database running is also simpler for the demo. A stopped server takes minutes to start, so after a stop the first request could not meet the 30-second cold-start target (8.7), and `warm-up.yml` would have to start the database first and wait.
 
 Cost controls, part of PR 4i:
-- **`db-schedule.yml`** stops the server every night at 22:00 UTC, so it never runs more than a day by accident. `warm-up.yml` starts it before waking the apps.
-- **An Azure budget** on the resource group with alerts at 50 % and 80 % of $100. Budgets for Students subscriptions are an unverified assumption, checked in 4i; the fallback is a monthly cost check in the warm-up workflow through the Cost Management API.
-- **Everything is Bicep,** so the environment can be deleted and recreated in minutes if the credit gets tight. Only the database contents are lost, and those are demo data: T001 plus `set-demo-passwords`.
+- **An Azure budget** on the resource group at **€35 a month** (NFR07), with alerts at 50 %, 80 % and 100 %.
+- **Everything is Bicep,** so the environment can be deleted and recreated in minutes. Only the database contents are lost, and those are demo data: T001 plus `set-demo-passwords`.
+- **Optional saving (A2):** `db-schedule.yml` stops the server every night at 22:00 UTC, and `warm-up.yml` starts it before waking the apps. It saves about $13.70 a month. It is written in 4i but disabled, and you can switch it on if the budget alert fires.
 
 If you choose **(B)**, PRs 4h–4j shrink to "IaC and pipelines, validated with `what-if` and a dry run, not applied". ARCHITECTURE_DECISIONS §13, #67 and BACKEND_REQUIREMENTS move the first deployment to stage 10. The exit criteria marked **[A]** in section 12 move to stage 10.
 
@@ -666,7 +665,7 @@ Each PR passes the full `tools/check.sh`, including the new steps once they exis
 - CloudAMQP and Grafana Cloud stacks with secrets in Key Vault;
 - deploy all services;
 - KEDA rules (5.6);
-- `warm-up.yml`, `db-schedule.yml`, the budget alert;
+- `warm-up.yml`, the €35 budget alert, and `db-schedule.yml` (disabled; 9.3);
 - cold-start measurement (8.7);
 - forwarded-header check (2.5).
 
@@ -716,7 +715,7 @@ Each PR passes the full `tools/check.sh`, including the new steps once they exis
 7. **[A]** All seven apps run on Azure Container Apps at zero replicas when idle; changing one service deploys only that service; migrations run through the MigrationRunner job (ADR 0020).
 8. **[A]** Forwarded headers verified behind the real ingress (#48); the cold start is measured and ≤ 30 s, or the documented fallback is in place.
 9. **[A]** A Grafana alert reaches e-mail (and Telegram where offered).
-10. **[A]** Spending stays within the student credit: the database stop schedule and the budget alert are in place.
+10. **[A]** Spending stays within NFR07 (≤ €35/month): the budget alert is in place, and the measured monthly cost is recorded.
 
 ---
 
@@ -741,7 +740,7 @@ Checked on 25 November 2026.
 **Microsoft (Azure, .NET, ASP.NET Core 10)**
 - Container Apps: [billing](https://learn.microsoft.com/azure/container-apps/billing), [scale rules](https://learn.microsoft.com/azure/container-apps/scale-app), [containers (sizes)](https://learn.microsoft.com/azure/container-apps/containers), [cold start](https://learn.microsoft.com/azure/container-apps/cold-start), [jobs](https://learn.microsoft.com/azure/container-apps/jobs), [connect apps](https://learn.microsoft.com/azure/container-apps/connect-apps), [health probes](https://learn.microsoft.com/azure/container-apps/health-probes), [log options](https://learn.microsoft.com/azure/container-apps/log-options), [ingress HTTP headers](https://learn.microsoft.com/azure/container-apps/ingress-overview#http-headers), [GitHub Actions](https://learn.microsoft.com/azure/container-apps/github-actions), [revisions](https://learn.microsoft.com/azure/container-apps/revisions-manage)
 - PostgreSQL Flexible Server: [limits](https://learn.microsoft.com/azure/postgresql/configure-maintain/concepts-limits), [compute and storage](https://learn.microsoft.com/azure/postgresql/compute-storage/concepts-compute), [stop and start](https://learn.microsoft.com/azure/postgresql/overview#stop-and-start-server-to-lower-tco), [free account](https://learn.microsoft.com/azure/postgresql/configure-maintain/how-to-deploy-on-azure-free-account), [release notes](https://learn.microsoft.com/azure/postgresql/release-notes/release-notes)
-- [Azure for Students](https://learn.microsoft.com/azure/education-hub/azure-dev-tools-teaching/azure-students-program); [Azure Retail Prices API](https://prices.azure.com/api/retail/prices); [OIDC from GitHub Actions](https://learn.microsoft.com/azure/developer/github/connect-from-azure-openid-connect)
+- [Azure Retail Prices API](https://prices.azure.com/api/retail/prices); [OIDC from GitHub Actions](https://learn.microsoft.com/azure/developer/github/connect-from-azure-openid-connect)
 - ASP.NET Core 10: [proxy servers and load balancers](https://learn.microsoft.com/aspnet/core/host-and-deploy/proxy-load-balancer?view=aspnetcore-10.0), [KnownNetworks obsolete](https://learn.microsoft.com/aspnet/core/breaking-changes/10/ipnetwork-knownnetworks-obsolete?view=aspnetcore-10.0), [OpenAPI](https://learn.microsoft.com/aspnet/core/fundamentals/openapi/aspnetcore-openapi?view=aspnetcore-10.0), [OpenAPI comments](https://learn.microsoft.com/aspnet/core/fundamentals/openapi/openapi-comments)
 - YARP: [config providers](https://learn.microsoft.com/aspnet/core/fundamentals/servers/yarp/config-providers), [extensibility transforms](https://learn.microsoft.com/aspnet/core/fundamentals/servers/yarp/extensibility-transforms), [header guidelines](https://learn.microsoft.com/aspnet/core/fundamentals/servers/yarp/header-guidelines), [IProxyStateLookup](https://learn.microsoft.com/dotnet/api/yarp.reverseproxy.iproxystatelookup?view=yarp-2.2)
 - .NET: [container publish configuration](https://learn.microsoft.com/dotnet/core/containers/publish-configuration), [.NET 10 default images](https://learn.microsoft.com/dotnet/core/compatibility/containers/10.0/default-images-use-ubuntu), [service discovery](https://learn.microsoft.com/dotnet/core/extensions/service-discovery), [dotnet package list](https://learn.microsoft.com/dotnet/core/tools/dotnet-package-list), [NuGet auditing](https://learn.microsoft.com/nuget/concepts/auditing-packages)
