@@ -1,0 +1,59 @@
+name: Quality gates
+description: >-
+  The gates every pipeline runs before anything is built for release (STAGE_4_PLAN 8.2, 8.3; #63, #64): stale
+  architecture terms, locked restore, vulnerable packages, build, formatting, pending model changes, tests and the
+  coverage gate of business logic. A composite action, not a reusable workflow, so the "Build and test" check of the
+  main ruleset keeps its name. Every step is a tools/check.sh step, as locally.
+
+runs:
+  using: composite
+  steps:
+    # Fails if a tracked file describes a retired part of the architecture as current (tools/check_stale_terms.py).
+    - name: Check for stale architecture terms
+      shell: bash
+      run: tools/check.sh stale-terms
+
+    # The deploy workflows' path filters are generated from the project references; fails if they are out of date.
+    - name: Check the deploy workflows' path filters
+      shell: bash
+      run: tools/check.sh deploy-paths
+
+    - uses: actions/setup-dotnet@v6
+      with:
+        global-json-file: global.json
+        cache: true
+        cache-dependency-path: '**/packages.lock.json'
+
+    # Fails if a lock file is out of date with the project; run `dotnet restore` locally and commit it.
+    - name: Restore
+      shell: bash
+      run: tools/check.sh restore
+
+    # Fails on any known-vulnerable package, direct or transitive (#64). NuGet Audit already fails the restore;
+    # this step names the check and lists the findings. vulnerabilities.yml repeats it weekly.
+    - name: Vulnerable packages
+      shell: bash
+      run: tools/check.sh vulnerabilities
+
+    - name: Build
+      shell: bash
+      run: tools/check.sh build
+
+    - name: Check formatting
+      shell: bash
+      run: tools/check.sh format
+
+    # Fails if any DbContext's model differs from its last migration snapshot (a migration is missing).
+    - name: Check for pending model changes
+      shell: bash
+      run: tools/check.sh check-model
+
+    # Tests that need Docker (Testcontainers) are tagged Integration, E2E or Topology and run in their own jobs.
+    - name: Test
+      shell: bash
+      run: tools/check.sh test
+
+    # Line coverage of business logic (#63: Domain, Features, SharedKernel, handler pipeline) must be at least 70 %.
+    - name: Coverage gate
+      shell: bash
+      run: tools/check.sh coverage

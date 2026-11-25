@@ -1,0 +1,20 @@
+name: Warm-up
+
+# ADR 0009 amendment, STAGE_4_PLAN 8.7: wakes every app from zero before a session (manual run) and once a week, which
+# also keeps the free CloudAMQP instance from being deleted for inactivity. Does nothing until GATEWAY_URL is set (#85).
+on:
+  schedule:
+    - cron: '0 6 * * 1'   # Mondays, 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  warm-up:
+    name: Warm up the services
+    if: vars.GATEWAY_URL != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call /warmup
+        run: curl --fail --silent --show-error --max-time 180 "${{ vars.GATEWAY_URL }}/warmup"

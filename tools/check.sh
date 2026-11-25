@@ -9,7 +9,7 @@
 #   tools/check.sh e2e             # optional: the Playwright smoke test (Docker and Chromium; CI job "End-to-end")
 #   tools/check.sh topology        # optional: gateway + services + PostgreSQL + RabbitMQ (Docker; CI job "Topology test")
 #
-# Steps: stale-terms restore vulnerabilities build format check-model test coverage integration database; optional: e2e
+# Steps: stale-terms deploy-paths restore vulnerabilities build format check-model test coverage integration database; optional: e2e
 # topology (they need a build first, e.g. tools/check.sh restore build e2e topology)
 # Everything runs in the Release configuration, like CI. Test results and coverage
 # (XPlat Code Coverage, as in CI) go to TestResults/.
@@ -56,6 +56,9 @@ run_tests() {
 }
 
 step_stale_terms() { "$PYTHON" tools/check_stale_terms.py; }
+
+# The deploy workflows' path filters are generated from the project references (STAGE_4_PLAN 8.3); fails if they are stale.
+step_deploy_paths() { "$PYTHON" tools/generate_deploy_workflows.py --check; }
 
 step_restore() { dotnet restore "$SOLUTION" --locked-mode; }
 
@@ -163,7 +166,7 @@ report_containers() {
   fi
 }
 
-FAST=(stale-terms restore vulnerabilities build format check-model test coverage)
+FAST=(stale-terms deploy-paths restore vulnerabilities build format check-model test coverage)
 ALL=("${FAST[@]}" integration database)
 OPTIONAL=(e2e topology)
 
