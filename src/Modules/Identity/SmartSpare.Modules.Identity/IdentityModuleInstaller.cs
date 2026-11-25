@@ -112,4 +112,6 @@ public sealed class IdentityModuleInstaller : IModuleInstaller
         PingEndpoint.Map(group);
         Features.Diagnostics.SendDiagnosticsProbeEndpoint.Map(group);
     }
+
+    public void MapInternalEndpoints(IEndpointRouteBuilder endpoints) => Features.InternalChecks.InternalCheckEndpoints.Map(endpoints);
 }
