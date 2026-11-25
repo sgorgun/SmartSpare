@@ -45,6 +45,11 @@ jobs:
       - name: Restore
         run: tools/check.sh restore
 
+      # Fails on any known-vulnerable package, direct or transitive (#64). NuGet Audit already fails the restore;
+      # this step names the check and lists the findings. vulnerabilities.yml repeats it weekly.
+      - name: Vulnerable packages
+        run: tools/check.sh vulnerabilities
+
       - name: Build
         run: tools/check.sh build
 
@@ -60,6 +65,19 @@ jobs:
       # Tests that need Docker (Testcontainers) are tagged Category=Integration and run separately.
       - name: Test
         run: tools/check.sh test
+
+      # Line coverage of business logic (#63: Domain, Features, SharedKernel, handler pipeline) must be at least 70 %.
+      # The summary goes to the job summary, the HTML report to the coverage-report artifact.
+      - name: Coverage gate
+        run: tools/check.sh coverage
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-report
+          path: TestResults/coverage
+          if-no-files-found: ignore
 
       - name: Upload test results
         if: always()

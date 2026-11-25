@@ -8,7 +8,7 @@
 #   tools/check.sh <step> ...      # selected steps, e.g. tools/check.sh build test
 #   tools/check.sh e2e             # optional: the Playwright smoke test (Docker and Chromium; CI job "End-to-end")
 #
-# Steps: stale-terms restore build format check-model test integration database; optional: e2e
+# Steps: stale-terms restore vulnerabilities build format check-model test coverage integration database; optional: e2e
 # (it needs a build first, e.g. tools/check.sh restore build e2e)
 # Everything runs in the Release configuration, like CI. Test results and coverage
 # (XPlat Code Coverage, as in CI) go to TestResults/.
@@ -67,9 +67,62 @@ step_check_model() {
 }
 
 step_test() {
+  # Coverage of this run only: coverlet writes one folder per project and run, so drop earlier files first.
+  if [ -d "$RESULTS" ]; then
+    find "$RESULTS" -name 'coverage.cobertura.xml' -delete
+  fi
   run_tests "Category!=Integration&Category!=E2E" \
     --logger trx --results-directory "$RESULTS" \
     --collect "XPlat Code Coverage"
+}
+
+# Line coverage of business logic, as #63 defines it (BACKEND_REQUIREMENTS): module Domain/ and Features/, SharedKernel
+# and the handler pipeline; no migrations, EF configurations, generated code or host Program. Reads the Cobertura files
+# of the test step and fails below COVERAGE_THRESHOLD (70 %, raised to 80 % by stage 9). Report in TestResults/coverage.
+step_coverage() {
+  dotnet tool restore >/dev/null
+  local report="$RESULTS/coverage"
+  rm -rf "$report"
+  dotnet tool run reportgenerator \
+    "-reports:$RESULTS/**/coverage.cobertura.xml" \
+    "-targetdir:$report" \
+    "-reporttypes:Html;TextSummary;MarkdownSummaryGithub" \
+    "-assemblyfilters:+SmartSpare.Modules.*;+SmartSpare.SharedKernel;+SmartSpare.Infrastructure;-*.Contracts" \
+    "-filefilters:+*Domain*;+*Features*;+*SmartSpare.SharedKernel*;+*Messaging*Decorators*;+*Messaging*HandlerRegistration.cs;-*Migrations*;-*obj*" \
+    "-verbosity:Error" \
+    "minimumCoverageThresholds:lineCoverage=${COVERAGE_THRESHOLD:-70}" \
+    && status=0 || status=$?
+  grep -E "Line coverage|Covered lines|Coverable lines" "$report/Summary.txt" || true
+  if [ -n "${GITHUB_STEP_SUMMARY:-}" ] && [ -f "$report/SummaryGithub.md" ]; then
+    cat "$report/SummaryGithub.md" >>"$GITHUB_STEP_SUMMARY"
+  fi
+  if [ "$status" -ne 0 ]; then
+    echo "coverage of business logic is below ${COVERAGE_THRESHOLD:-70} % (see $report/index.html)" >&2
+    return "$status"
+  fi
+}
+
+# Known-vulnerable packages, direct and transitive (#64). NuGet Audit already fails restore on them; this step names the
+# check, prints what it found, and runs weekly on its own (vulnerabilities.yml) so new advisories surface between pushes.
+# The command's exit code on findings is undocumented, so the JSON is parsed.
+step_vulnerabilities() {
+  mkdir -p "$RESULTS"
+  dotnet package list --project "$SOLUTION" --include-transitive --vulnerable --format json >"$RESULTS/vulnerable-packages.json"
+  "$PYTHON" - "$RESULTS/vulnerable-packages.json" <<'PY'
+import json, sys
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+found = sorted({(p["id"], p.get("resolvedVersion", "?"), v.get("severity", "?"), v.get("advisoryurl", ""))
+                for project in data.get("projects", []) for framework in project.get("frameworks", [])
+                for kind in ("topLevelPackages", "transitivePackages") for p in framework.get(kind, [])
+                for v in p.get("vulnerabilities", [])})
+for problem in data.get("problems", []):
+    print("problem:", problem.get("text", problem), file=sys.stderr)
+if found:
+    for package, version, severity, url in found:
+        print(f"VULNERABLE {package} {version} ({severity}) {url}")
+    sys.exit(1)
+print(f"no known vulnerable packages ({len(data.get('projects', []))} projects, direct and transitive)")
+PY
 }
 
 step_integration() {
@@ -100,7 +153,7 @@ report_containers() {
   fi
 }
 
-FAST=(stale-terms restore build format check-model test)
+FAST=(stale-terms restore vulnerabilities build format check-model test coverage)
 ALL=("${FAST[@]}" integration database)
 OPTIONAL=(e2e)
 

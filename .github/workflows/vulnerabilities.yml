@@ -1,0 +1,31 @@
+name: Vulnerable packages
+
+# The weekly run of the #64 check: NuGet advisories appear between pushes, so the default branch is checked once a
+# week as well as on every pull request (ci.yml, step "Vulnerable packages").
+on:
+  schedule:
+    - cron: '17 5 * * 1'   # Mondays 05:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  vulnerabilities:
+    name: Vulnerable packages
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Vulnerable packages (direct and transitive)
+        run: tools/check.sh vulnerabilities
