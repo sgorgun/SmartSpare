@@ -8,6 +8,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\..\BuildingBlocks\SmartSpare.Infrastructure\SmartSpare.Infrastructure.csproj" />
     <ProjectReference Include="..\SmartSpare.Modules.Inventory.Contracts\SmartSpare.Modules.Inventory.Contracts.csproj" />
+    <!-- Consumes Identity's diagnostics probe (STAGE_4_PLAN 5.3); modules may reference other modules' Contracts. -->
+    <ProjectReference Include="..\..\Identity\SmartSpare.Modules.Identity.Contracts\SmartSpare.Modules.Identity.Contracts.csproj" />
   </ItemGroup>
 
 </Project>

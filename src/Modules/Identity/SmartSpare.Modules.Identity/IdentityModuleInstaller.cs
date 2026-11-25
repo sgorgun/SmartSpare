@@ -110,5 +110,6 @@ public sealed class IdentityModuleInstaller : IModuleInstaller
     {
         var group = endpoints.MapGroup($"/api/{Name}").WithTags("Identity");
         PingEndpoint.Map(group);
+        Features.Diagnostics.SendDiagnosticsProbeEndpoint.Map(group);
     }
 }
