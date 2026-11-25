@@ -174,6 +174,9 @@ tests/
   SmartSpare.Web.Tests                  bUnit: sign-in page, menu, HTTP handlers
   SmartSpare.E2E                        Playwright smoke test in Chromium (Category=E2E, tools/check.sh e2e)
   SmartSpare.Persistence.IntegrationTests  migrations, ownership, unit of work and outbox on postgres:17 (Testcontainers)
+  SmartSpare.Topology.Tests             gateway + Identity + Inventory with postgres:17 and rabbitmq:4.4 (tools/check.sh topology)
+infra/                                  Bicep for Azure (applied from stage 10, #85) and observability/ (dashboards, alerts,
+                                        the local Grafana stack); see infra/README.md
 db/
   bootstrap/000_bootstrap_cluster.sql   roles + database (once per server; run by the MigrationRunner or the server admin)
   sql/<module>/                         SQL parts of the EF migrations: triggers, functions, views, grants, seed
@@ -193,6 +196,7 @@ docs/
   database/DATA_DICTIONARY.md           data dictionary (generated from the catalogue)
   database/diagrams/                    logical schema (colour-coded), data flow
   operations/TRACING.md                 from an error reference to its trace
+  operations/BROKER.md                  what the CloudAMQP free plan offers, and how to check a broker
   stage-3/STAGE_3_PLAN.md               plan and exit criteria of stage 3
 tools/                                  verify_database.sh, schema_diff.sh, DDL / doc / diagram generators
 ```
