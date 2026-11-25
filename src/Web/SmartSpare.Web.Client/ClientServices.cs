@@ -5,6 +5,7 @@ using MudBlazor;
 using MudBlazor.Services;
 using SmartSpare.ApiContracts.Authorization;
 using SmartSpare.Web.Client.Features.Identity;
+using SmartSpare.Web.Client.Features.Inventory;
 using SmartSpare.Web.Client.Http;
 
 namespace SmartSpare.Web.Client;
@@ -32,6 +33,7 @@ public static class ClientServices
         // the factory creates handlers in their own scope, where AntiforgeryStateProvider (which takes the persisted token
         // once) and NavigationManager would be different, uninitialised instances.
         services.AddScoped(sp => new IdentityClient(CreateHttpClient(sp)));
+        services.AddScoped(sp => new InventoryClient(CreateHttpClient(sp)));
         return services;
     }
 
