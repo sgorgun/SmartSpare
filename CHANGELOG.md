@@ -36,10 +36,10 @@ signs in through the web app, sees a menu that matches their roles and signs out
 - bUnit tests for the sign-in page, the menu and the HTTP handlers ([#76]).
 - Playwright smoke test in Chromium against the real host and PostgreSQL 17: redirect to sign-in, the generic
   failure with its trace id, sign-in, role-based menu, no credentials visible to scripts, sign-out. It runs as its own
-  CI job and as `tools/check.sh e2e` (PR 3e).
+  CI job and as `tools/check.sh e2e` ([#77]).
 - Database command spans (Npgsql) in every request's trace (ADR 0018) and a walkthrough from an error reference to its
-  trace in the Aspire dashboard, [docs/operations/TRACING.md](docs/operations/TRACING.md) (PR 3e, closes [#72]).
-- SQL assertion that only Identity and Reporting SQL reads `iam`; the suite now has 103 assertions (PR 3e).
+  trace in the Aspire dashboard, [docs/operations/TRACING.md](docs/operations/TRACING.md) ([#77], closes [#72]).
+- SQL assertion that only Identity and Reporting SQL reads `iam`; the suite now has 103 assertions ([#77]).
 - `tools/check.sh`, the check set that CI runs step by step, so local and CI checks are identical ([#73]).
 - Backend requirements compliance matrix ([#65]) and ADRs 0014–0019: browser sign-in, the services topology behind a
   YARP gateway, authentication behind the gateway, RabbitMQ, the Grafana stack and public API documentation ([#52],
@@ -181,3 +181,4 @@ Stage 1: solution skeleton.
 [#73]: https://github.com/sgorgun/SmartSpare/pull/73
 [#74]: https://github.com/sgorgun/SmartSpare/pull/74
 [#76]: https://github.com/sgorgun/SmartSpare/pull/76
+[#77]: https://github.com/sgorgun/SmartSpare/pull/77
