@@ -22,6 +22,9 @@ builder.Services.AddHttpClient<ICredentialVerifier, HttpCredentialVerifier>(Gate
     .AddHttpMessageHandler<ServiceTokenHandler>();
 
 builder.Services.AddGatewayProxy();
+
+// The /bff endpoints are the gateway's own, so it generates their document itself; module documents are proxied (ADR 0019).
+builder.Services.AddBffDocument();
 builder.Services.AddWarmup();
 
 builder.Services.AddRazorComponents()
@@ -50,7 +53,8 @@ app.UseAntiforgery();
 app.MapDefaultEndpoints();
 app.MapBff();
 app.MapWarmup();
-app.MapApiReference(GatewayRoutes.Modules);
+app.MapApiDocuments().CacheOutput(ApiDocumentation.Policy).RequireRateLimiting(ApiDocumentation.Policy);
+app.MapApiReference([BffEndpoints.DocumentName, .. GatewayRoutes.Modules]);
 app.MapGatewayProxy();
 
 app.MapRazorComponents<App>()

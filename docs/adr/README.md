@@ -20,7 +20,7 @@
 | [0016](0016-authentication-behind-the-gateway.md) | Authentication behind the gateway | Accepted; single-host part implemented in stage 3 |
 | [0017](0017-rabbitmq-integration-event-transport.md) | RabbitMQ as the integration-event transport | Accepted, amended by 0021 |
 | [0018](0018-observability-with-the-grafana-stack.md) | Observability with the Grafana stack | Accepted |
-| [0019](0019-public-api-documentation.md) | Public API documentation | Accepted |
+| [0019](0019-public-api-documentation.md) | Public API documentation | Accepted, amended 26 Nov 2026 (the `/bff` document) |
 | [0020](0020-database-migrations-through-the-migration-runner-job.md) | Database migrations in Azure through the MigrationRunner job | Accepted |
 | [0021](0021-queue-per-consumer-name.md) | One queue per consumer name | Accepted |
 | [0022](0022-azure-region-north-europe.md) | Azure region North Europe | Accepted |

@@ -30,27 +30,40 @@ public static class ApiDocumentation
         foreach (var module in modules)
         {
             var name = module.Name;
-            services.AddOpenApi(name, options =>
-            {
-                options.ShouldInclude = description => IsDocumented(description.RelativePath, name);
-                options.AddDocumentTransformer((document, _, _) =>
-                {
-                    document.Info.Title = $"SmartSpare {CultureInfo.InvariantCulture.TextInfo.ToTitleCase(name)} API";
-                    document.Info.Version = "v1";
-                    document.Info.Description = "Every operation requires a signed-in session; calls go through the gateway (ADR 0019).";
-
-                    // Only the public base URL, which is the page's own origin: no internal service addresses.
-                    document.Servers?.Clear();
-                    return Task.CompletedTask;
-                });
-            });
+            services.AddApiDocument(
+                name,
+                $"SmartSpare {CultureInfo.InvariantCulture.TextInfo.ToTitleCase(name)} API",
+                "Every operation requires a signed-in session; calls go through the gateway (ADR 0019).",
+                path => IsDocumented(path, name));
         }
 
         return services;
     }
 
-    /// <summary>Maps <c>/openapi/{module}.json</c> for every registered document, anonymous in every environment.</summary>
-    public static IEndpointConventionBuilder MapModuleDocuments(this IEndpointRouteBuilder endpoints)
+    /// <summary>
+    /// Registers one document: the endpoints whose relative path <paramref name="include"/> accepts, with the SmartSpare
+    /// conventions (<see cref="OpenApiConventions"/>), version v1 and no servers.
+    /// </summary>
+    public static IServiceCollection AddApiDocument(
+        this IServiceCollection services, string name, string title, string description, Func<string?, bool> include) =>
+        services.AddOpenApi(name, options =>
+        {
+            options.ShouldInclude = endpoint => include(endpoint.RelativePath);
+            options.AddDocumentTransformer((document, _, _) =>
+            {
+                document.Info.Title = title;
+                document.Info.Version = "v1";
+                document.Info.Description = description;
+
+                // Only the public base URL, which is the page's own origin: no internal service addresses.
+                document.Servers?.Clear();
+                return Task.CompletedTask;
+            });
+            OpenApiConventions.Apply(options);
+        });
+
+    /// <summary>Maps <c>/openapi/{name}.json</c> for every registered document, anonymous in every environment.</summary>
+    public static IEndpointConventionBuilder MapApiDocuments(this IEndpointRouteBuilder endpoints)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
         return endpoints.MapOpenApi(RoutePattern).AllowAnonymous();

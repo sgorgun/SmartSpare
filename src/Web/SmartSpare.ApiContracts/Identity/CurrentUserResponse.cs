@@ -1,13 +1,16 @@
+using System.ComponentModel;
+
 namespace SmartSpare.ApiContracts.Identity;
 
 /// <summary>Body of <c>GET /bff/me</c>, built from the claims of the session without a database call.</summary>
+[Description("The user of the current session, or an anonymous one.")]
 public sealed record CurrentUserResponse(
-    bool IsAuthenticated,
-    Guid? UserId,
-    string? UserName,
-    IReadOnlyList<string> Roles,
-    IReadOnlyList<short> BrandIds,
-    short? HomeWarehouseId)
+    [property: Description("False for an anonymous caller; the other members are then empty.")] bool IsAuthenticated,
+    [property: Description("User id.")] Guid? UserId,
+    [property: Description("User name.")] string? UserName,
+    [property: Description("Role codes, for example BRAND_MANAGER.")] IReadOnlyList<string> Roles,
+    [property: Description("Ids of the brands the user is responsible for (brand scope of approvals).")] IReadOnlyList<short> BrandIds,
+    [property: Description("Home warehouse id of a warehouse keeper, otherwise null.")] short? HomeWarehouseId)
 {
     public static CurrentUserResponse Anonymous { get; } = new(false, null, null, [], [], null);
 }
