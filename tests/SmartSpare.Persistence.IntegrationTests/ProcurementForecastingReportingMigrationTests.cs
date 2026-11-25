@@ -98,7 +98,8 @@ public sealed class ReportingMigrationTests(MigratedDatabaseFixture db) : Module
                 'procurement.v_purchase_order_overview', 'forecast.v_recommendation_explained')
             """)).ShouldBe(12);     // iam.v_app_user_masked moved to Identity in PR 3c (X18)
         await FunctionsShouldExistAsync("inventory.fn_in_transit_qty", "forecast.fn_stock_position", "mart.refresh_all");
-        (await Db.ScalarAsync<long>("SELECT count(*) FROM mart.__ef_migrations_history")).ShouldBe(2);
+        // InitialReporting, TransitionalCrossModuleObjects and DataQualityParkedOutboxEvents (#31).
+        (await Db.ScalarAsync<long>("SELECT count(*) FROM mart.__ef_migrations_history")).ShouldBe(3);
     }
 
     [Fact]
