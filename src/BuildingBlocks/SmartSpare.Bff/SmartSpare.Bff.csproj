@@ -2,8 +2,8 @@
 
   <!--
     Backend for frontend (ADR 0014, ADR 0016): the /bff endpoints, the auth cookie with its session check,
-    antiforgery, the sign-in rate limit and the internal-token issuer. Used by SmartSpare.Host now and by
-    SmartSpare.Gateway in stage 4. It talks to Identity only through Identity.Contracts (architecture test).
+    antiforgery, the sign-in rate limit, the internal-token issuer, and the hosting of the WebAssembly client
+    (CSP, principal serialization, fallback policy). Used by SmartSpare.Host and SmartSpare.Gateway. It talks to Identity only through Identity.Contracts (architecture test).
   -->
 
   <ItemGroup>
@@ -12,6 +12,8 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" />
+    <!-- Serializes the allow-listed principal to the WebAssembly client; both BFF hosts serve the client. -->
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" />
   </ItemGroup>
 
   <ItemGroup>
