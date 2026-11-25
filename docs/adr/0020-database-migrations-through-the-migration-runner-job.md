@@ -39,6 +39,7 @@ The product owner prefers the runner (25 November 2026).
    - the migration history stays per module (`<schema>.__ef_migrations_history`);
    - the single host and local development keep using the runner as today.
 6. **Unverified, decided in PR 4h:** whether `az containerapp job start` can override the arguments of one execution. If it can't, there is one manual job per module (`migrate-<module>`) with fixed arguments, which costs nothing while idle.
+   **Resolved in PR 4h (25 November 2026):** it can. "To override the job's configuration when you start an execution, use the `az containerapp job start` command and pass a YAML file containing the template to use for the execution" ([jobs](https://learn.microsoft.com/azure/container-apps/jobs#start-a-job-execution-on-demand)). So there is one job, `migrations`; `tools/run-migration-job.sh` starts it with the commit's image and `migrate --module <name>` and waits for the result.
 
 ## Consequences
 

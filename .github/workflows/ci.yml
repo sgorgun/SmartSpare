@@ -29,47 +29,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # Fails if a tracked file describes a retired part of the architecture as current. The terms
-      # are listed in tools/check_stale_terms.py; ADRs, EF migration history, marked history notes
-      # and the paths in tools/stale_terms.allow are exempt.
-      - name: Check for stale architecture terms
-        run: tools/check.sh stale-terms
-
-      - uses: actions/setup-dotnet@v6
-        with:
-          global-json-file: global.json
-          cache: true
-          cache-dependency-path: '**/packages.lock.json'
-
-      # Fails if a lock file is out of date with the project; run `dotnet restore` locally and commit it.
-      - name: Restore
-        run: tools/check.sh restore
-
-      # Fails on any known-vulnerable package, direct or transitive (#64). NuGet Audit already fails the restore;
-      # this step names the check and lists the findings. vulnerabilities.yml repeats it weekly.
-      - name: Vulnerable packages
-        run: tools/check.sh vulnerabilities
-
-      - name: Build
-        run: tools/check.sh build
-
-      - name: Check formatting
-        run: tools/check.sh format
-
-      # Fails if any DbContext's model differs from its last migration snapshot (a migration is
-      # missing). Same check as `dotnet ef migrations has-pending-model-changes`, run for every
-      # context of the module catalogue, so new contexts are covered automatically.
-      - name: Check for pending model changes
-        run: tools/check.sh check-model
-
-      # Tests that need Docker (Testcontainers) are tagged Category=Integration and run separately.
-      - name: Test
-        run: tools/check.sh test
-
-      # Line coverage of business logic (#63: Domain, Features, SharedKernel, handler pipeline) must be at least 70 %.
-      # The summary goes to the job summary, the HTML report to the coverage-report artifact.
-      - name: Coverage gate
-        run: tools/check.sh coverage
+      # Stale terms, restore, vulnerable packages, build, format, check-model, tests and the coverage gate: the same
+      # composite action every deploy workflow runs before it builds an image (STAGE_4_PLAN 8.3).
+      - uses: ./.github/actions/gates
 
       - name: Upload coverage report
         if: always()
@@ -197,3 +159,31 @@ jobs:
           name: topology-test-results
           path: TestResults
           if-no-files-found: ignore
+
+  images:
+    name: Container images
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
+
+      # STAGE_4_PLAN 8.1 and 4h: every deployable image builds (SDK container publishing, chiseled "extra" base), into the
+      # runner's Docker only. The deploy workflows push the same images to ACR from stage 10 on (#85).
+      - name: Build the images
+        run: tools/build-images.sh
+
+      # The migration job's image starts and lists the catalogue (ADR 0020); the gateway image answers its liveness probe.
+      - name: Smoke-test two images
+        run: |
+          docker run --rm smartspare/migrations:dev list
+          docker run -d --name gateway-smoke -p 8080:8080 smartspare/gateway:dev
+          for _ in $(seq 1 30); do curl -fsS http://localhost:8080/health/live && exit 0; sleep 1; done
+          docker logs gateway-smoke
+          exit 1

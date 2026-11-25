@@ -1,0 +1,37 @@
+name: Database schedule
+
+# STAGE_4_PLAN section 9: PostgreSQL B1ms stopped outside sessions costs storage only. A stopped server restarts by itself
+# after seven days, so a scheduled stop keeps it stopped. The schedule acts only once DB_SCHEDULE_ENABLED is 'true'
+# (stage 10, #85); a manual run starts or stops the server at any time.
+on:
+  schedule:
+    - cron: '0 21 * * *'   # every evening, 21:00 UTC: stop
+  workflow_dispatch:
+    inputs:
+      action:
+        description: start or stop the server
+        type: choice
+        options: [start, stop]
+        default: start
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  server:
+    name: ${{ github.event_name == 'schedule' && 'stop' || inputs.action }} PostgreSQL
+    if: github.event_name == 'workflow_dispatch' || vars.DB_SCHEDULE_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Start or stop
+        run: >-
+          az postgres flexible-server ${{ github.event_name == 'schedule' && 'stop' || inputs.action }}
+          --name "psql-smartspare-prod" --resource-group "${{ vars.RESOURCE_GROUP }}"

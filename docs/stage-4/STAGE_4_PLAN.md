@@ -437,6 +437,7 @@ Both steps are part of the shared gate workflow that every service pipeline call
 - [ADR 0020](../adr/0020-database-migrations-through-the-migration-runner-job.md) records this. It amends ADR 0009 ("EF migration bundle as a pipeline step") and ADR 0015 §5 ("its own module's EF migration bundle").
 
 **Unverified:** whether `az containerapp job start` can override the container arguments per execution (`--args`). If it can't, there is one manual job per module (`migrate-<module>`) with fixed arguments. That costs nothing while idle.
+**Resolved in 4h:** `az containerapp job start --yaml` overrides one execution's template, image and arguments included, so there is one `migrations` job (ADR 0020 §6, `tools/run-migration-job.sh`).
 
 ### 8.5 Container Apps sizing and connections
 
