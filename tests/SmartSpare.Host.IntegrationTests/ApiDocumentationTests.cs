@@ -102,7 +102,7 @@ public sealed partial class ApiDocumentationTests : IAsyncLifetime
         response.Headers.GetValues("Content-Security-Policy").Single().ShouldNotContain("nonce-");
     }
 
-    [GeneratedRegex("'nonce-(?<nonce>[A-Za-z0-9+/=]+)'")]
+    [GeneratedRegex("'nonce-(?<nonce>[A-Za-z0-9_-]+)'")]
     private static partial Regex NonceSource();
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
