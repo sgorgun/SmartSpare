@@ -1,27 +1,22 @@
-<Project Sdk="Aspire.AppHost.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- Local development orchestration only; Azure is deployed with Bicep (ADR 0009). -->
-  <!-- The SDK version is pinned in global.json (msbuild-sdks). -->
+  <!-- Local development orchestration only; Azure is deployed with Bicep (ADR 0009). Aspire 17: a plain .NET
+       project with the AppHost and Dotnet hosting packages; the dashboard and orchestrator come from the Aspire
+       bundle (aspire.dev/integrations/dotnet/migrate-dotnet-project-resource). -->
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <UserSecretsId>smartspare-apphost</UserSecretsId>
-    <!-- ASPIRE010: use the orchestrator and dashboard from NuGet packages instead of the Aspire CLI
-         bundle, so a plain `dotnet run` works without installing the Aspire CLI. -->
-    <NoWarn>$(NoWarn);ASPIRE010</NoWarn>
-    <!-- No lock file: the Aspire SDK adds orchestrator and dashboard packages for the build
-         machine's RID (win-x64 locally, linux-x64 in CI), so one lock file cannot fit both.
-         Acceptable because the AppHost is local-only and never deployed. -->
+    <!-- No lock file: the AppHost packages resolve platform-specific assets for the build machine's RID
+         (win-x64 locally, linux-x64 in CI), so one lock file cannot fit both. Acceptable because the
+         AppHost is local-only and never deployed. -->
     <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.AppHost" />
+    <PackageReference Include="Aspire.Hosting.Dotnet" />
     <PackageReference Include="Aspire.Hosting.PostgreSQL" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\Bootstrapper\SmartSpare.MigrationRunner\SmartSpare.MigrationRunner.csproj" />
-    <ProjectReference Include="..\Bootstrapper\SmartSpare.Host\SmartSpare.Host.csproj" />
   </ItemGroup>
 
 </Project>
