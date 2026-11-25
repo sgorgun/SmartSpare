@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Checks what a RabbitMQ broker offers before the transport relies on it (STAGE_4_PLAN 5.4): broker version, quorum
+    queues with the transport's arguments, delayed retry, confirmed publish and consume, the management HTTP API and
+    user policies. Written for CloudAMQP's free plan, whose features are not documented; works against any broker.
+    The AMQP(S) URL comes from user-secrets (id smartspare-brokercheck) or the environment, never from a file.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <UserSecretsId>smartspare-brokercheck</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="RabbitMQ.Client" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" />
+  </ItemGroup>
+
+</Project>

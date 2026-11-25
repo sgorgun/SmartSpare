@@ -55,4 +55,7 @@
     <Project Path="tests/SmartSpare.SharedKernel.UnitTests/SmartSpare.SharedKernel.UnitTests.csproj" />
     <Project Path="tests/SmartSpare.Web.Tests/SmartSpare.Web.Tests.csproj" />
   </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/SmartSpare.BrokerCheck/SmartSpare.BrokerCheck.csproj" />
+  </Folder>
 </Solution>
