@@ -25,6 +25,12 @@ public sealed class MigrationRunnerOptions
     public BootstrapPasswords Passwords { get; set; } = new();
 
     /// <summary>
+    /// <c>--module &lt;name&gt;</c>: migrate the Platform and this module only (a service's deployment, ADR 0020 §3).
+    /// Empty: every context in catalogue order.
+    /// </summary>
+    public string? Module { get; set; }
+
+    /// <summary>
     /// Connection used to apply migrations: the migrator login with the session role set at start-up
     /// (<c>Options=-c role=smartspare_owner</c>), so every object and history table is owned by the
     /// owner role, as if the migrator had run <c>SET ROLE smartspare_owner</c> (MODULE_MAPPING 5.5).
@@ -72,13 +78,35 @@ public sealed class BootstrapPasswords
 
     public string? Reporting { get; set; }
 
+    /// <summary>
+    /// Logins of the services topology (ADR 0015 §5); the Reporting service uses <see cref="Reporting"/>. Optional: a
+    /// login without a configured password gets a random one nobody knows, so it exists but can't sign in until the
+    /// server admin sets one. Only the services topology needs them (AppHost parameters, Key Vault in Azure).
+    /// </summary>
+    public string? Identity { get; set; }
+
+    public string? Inventory { get; set; }
+
+    public string? Fleet { get; set; }
+
+    public string? Procurement { get; set; }
+
+    public string? Forecasting { get; set; }
+
     public IReadOnlyDictionary<string, string> ToVariables() => new Dictionary<string, string>(StringComparer.Ordinal)
     {
         ["migrator_pwd"] = Migrator ?? throw Missing(nameof(Migrator)),
         ["api_pwd"] = Api ?? throw Missing(nameof(Api)),
         ["jobs_pwd"] = Jobs ?? throw Missing(nameof(Jobs)),
         ["report_pwd"] = Reporting ?? throw Missing(nameof(Reporting)),
+        ["identity_pwd"] = Identity ?? Unknown(),
+        ["inventory_pwd"] = Inventory ?? Unknown(),
+        ["fleet_pwd"] = Fleet ?? Unknown(),
+        ["procurement_pwd"] = Procurement ?? Unknown(),
+        ["forecasting_pwd"] = Forecasting ?? Unknown(),
     };
+
+    private static string Unknown() => Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
 
     private static InvalidOperationException Missing(string name) =>
         new($"Migrations:Passwords:{name} is required to bootstrap the server.");

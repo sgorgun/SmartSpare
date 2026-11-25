@@ -4,7 +4,10 @@ using SmartSpare.Infrastructure.Persistence;
 
 namespace SmartSpare.MigrationRunner;
 
-/// <summary>Bootstraps the server if needed, then applies every context's migrations in catalogue order.</summary>
+/// <summary>
+/// Bootstraps the server if needed, then applies every context's migrations in catalogue order, or only the Platform's and
+/// one module's with <see cref="MigrationRunnerOptions.Module"/> (ADR 0020).
+/// </summary>
 public sealed partial class DatabaseMigrator(
     MigrationRunnerOptions options,
     IReadOnlyList<IModuleDatabase> databases,
@@ -18,7 +21,9 @@ public sealed partial class DatabaseMigrator(
         }
 
         var connectionString = options.BuildMigratorConnectionString();
-        foreach (var database in databases)
+        var scope = await MigrationScope.SelectAsync(
+            databases, options.Module, d => d.GetPendingMigrationsAsync(connectionString, cancellationToken)).ConfigureAwait(false);
+        foreach (var database in scope)
         {
             var applied = await database.MigrateAsync(connectionString, cancellationToken).ConfigureAwait(false);
             if (applied.Count == 0)
@@ -33,7 +38,10 @@ public sealed partial class DatabaseMigrator(
         }
     }
 
-    /// <summary>Runs the cluster bootstrap unless the migrator login and the database already exist.</summary>
+    /// <summary>
+    /// Runs the cluster bootstrap unless the database and every login role already exist. The script is idempotent, so a
+    /// server bootstrapped before a login was added gets it on the next run (existing passwords stay).
+    /// </summary>
     public async Task BootstrapIfNeededAsync(CancellationToken cancellationToken)
     {
         var admin = new NpgsqlConnectionStringBuilder(options.AdminConnectionString) { Database = "postgres" };
@@ -41,11 +49,12 @@ public sealed partial class DatabaseMigrator(
         await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
         await using (var check = new NpgsqlCommand(
-            "SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'smartspare_migrator') "
+            "SELECT (SELECT count(*) FROM pg_roles WHERE rolname = ANY(@logins)) = cardinality(@logins) "
             + "AND EXISTS (SELECT 1 FROM pg_database WHERE datname = @db)",
             connection))
         {
             check.Parameters.AddWithValue("db", options.Database);
+            check.Parameters.AddWithValue("logins", LoginRoles);
             if ((bool)(await check.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false))!)
             {
                 LogBootstrapSkipped();
@@ -62,6 +71,13 @@ public sealed partial class DatabaseMigrator(
         await BootstrapScript.ExecuteAsync(connection, options.Passwords.ToVariables(), cancellationToken).ConfigureAwait(false);
         NpgsqlConnection.ClearAllPools();
     }
+
+    /// <summary>Login roles the bootstrap creates; a missing one means the bootstrap runs again.</summary>
+    public static readonly string[] LoginRoles =
+    [
+        "smartspare_migrator", "smartspare_api", "smartspare_jobs", "smartspare_reporting",
+        "smartspare_identity", "smartspare_inventory", "smartspare_fleet", "smartspare_procurement", "smartspare_forecasting",
+    ];
 
     [LoggerMessage(Level = LogLevel.Critical, Message = "Migration failed.")]
     public partial void LogFailed(Exception exception);

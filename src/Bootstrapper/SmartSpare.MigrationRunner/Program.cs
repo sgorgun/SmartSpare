@@ -6,14 +6,18 @@ using SmartSpare.Infrastructure.Persistence;
 using SmartSpare.MigrationRunner;
 using SmartSpare.ModuleCatalog;
 
-// Usage (development and CI only; Azure uses EF migration bundles):
+// Usage (locally, in CI, and as the Container Apps migration job in Azure, ADR 0020):
 //   dotnet run --project src/Bootstrapper/SmartSpare.MigrationRunner                 apply all migrations
+//   dotnet run --project src/Bootstrapper/SmartSpare.MigrationRunner -- --module inventory
+//                                apply the Platform's and one module's migrations; fails if an earlier module is behind
 //   dotnet run --project src/Bootstrapper/SmartSpare.MigrationRunner -- check-model  exit 1 if a context's model
 //                                                                                    has changes without a migration
 //   dotnet run --project src/Bootstrapper/SmartSpare.MigrationRunner -- list         print the migration order
 //   dotnet run --project src/Bootstrapper/SmartSpare.MigrationRunner -- set-demo-passwords
 //                                hash SMARTSPARE_DEMO_USER_PASSWORD for the T001 demo users (after loading T001)
-var command = args.FirstOrDefault(a => !a.StartsWith('-')) ?? "migrate";
+// The command is the first argument that is neither an option nor an option's value (--module inventory).
+var command = args.Where((a, i) => !a.StartsWith('-') && (i == 0 || !args[i - 1].StartsWith("--", StringComparison.Ordinal) || args[i - 1].Contains('=', StringComparison.Ordinal)))
+    .FirstOrDefault() ?? "migrate";
 
 var builder = Host.CreateApplicationBuilder(args);
 builder.ConfigureOpenTelemetry();
@@ -21,6 +25,7 @@ builder.ConfigureOpenTelemetry();
 var options = builder.Configuration.GetSection(MigrationRunnerOptions.SectionName).Get<MigrationRunnerOptions>()
     ?? new MigrationRunnerOptions();
 options.AdminConnectionString ??= builder.Configuration.GetConnectionString("postgres");
+options.Module ??= builder.Configuration["module"];
 
 using var host = builder.Build();
 var databases = ModuleCatalog.Databases();

@@ -6,8 +6,23 @@ BEGIN;
 
 SELECT pg_temp.ok((SELECT count(*) = 0 FROM util.v_privilege_findings), 'Privilege self-check returns no findings');
 SELECT pg_temp.ok((SELECT NOT bool_or(rolsuper OR rolcreaterole OR rolcreatedb OR rolbypassrls) FROM pg_roles
-                   WHERE rolname IN ('smartspare_api', 'smartspare_jobs', 'smartspare_reporting', 'smartspare_migrator')),
+                   WHERE rolname IN ('smartspare_api', 'smartspare_jobs', 'smartspare_reporting', 'smartspare_migrator',
+                                     'smartspare_identity', 'smartspare_inventory', 'smartspare_fleet',
+                                     'smartspare_procurement', 'smartspare_forecasting')),
                   'No application login is superuser / CREATEROLE / CREATEDB / BYPASSRLS');
+SELECT pg_temp.ok((SELECT count(*) = 5 FROM pg_roles r
+                   WHERE r.rolname IN ('smartspare_identity', 'smartspare_inventory', 'smartspare_fleet',
+                                       'smartspare_procurement', 'smartspare_forecasting')
+                     AND r.rolcanlogin AND r.rolconnlimit BETWEEN 1 AND 10
+                     AND pg_has_role(r.rolname, 'app_write', 'MEMBER')
+                     AND NOT pg_has_role(r.rolname, 'app_admin', 'MEMBER')
+                     AND NOT pg_has_role(r.rolname, 'smartspare_owner', 'MEMBER')
+                     AND has_database_privilege(r.rolname, current_database(), 'CONNECT')),
+                  'Service logins (ADR 0015) can connect, write through app_write, and are neither admin nor owner');
+SELECT pg_temp.ok(pg_has_role('smartspare_forecasting', 'app_ml', 'MEMBER')
+                  AND pg_has_role('smartspare_reporting', 'app_audit', 'MEMBER')
+                  AND NOT pg_has_role('smartspare_reporting', 'app_write', 'MEMBER'),
+                  'Forecasting service has app_ml; Reporting service reads (app_read, app_audit) and never writes');
 SELECT pg_temp.ok((SELECT count(*) = 0 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
                    WHERE p.prosecdef AND n.nspname NOT IN ('pg_catalog', 'information_schema')
                      AND NOT EXISTS (SELECT 1 FROM unnest(p.proconfig) c WHERE c LIKE 'search_path=%')),

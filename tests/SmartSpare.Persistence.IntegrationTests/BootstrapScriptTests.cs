@@ -11,6 +11,11 @@ public sealed class BootstrapScriptTests
         ["api_pwd"] = "a",
         ["jobs_pwd"] = "j",
         ["report_pwd"] = "r",
+        ["identity_pwd"] = "i",
+        ["inventory_pwd"] = "v",
+        ["fleet_pwd"] = "f",
+        ["procurement_pwd"] = "p",
+        ["forecasting_pwd"] = "c",
     };
 
     [Fact]
