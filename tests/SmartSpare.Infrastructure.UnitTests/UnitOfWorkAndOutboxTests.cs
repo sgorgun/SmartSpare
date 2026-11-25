@@ -182,6 +182,7 @@ public sealed class InProcessPublisherTests
         public static List<string> Calls { get; } = [];
     }
 
+    [IntegrationEventConsumer("tests.first")]
     internal sealed class FirstConsumer : IIntegrationEventConsumer<PartRenamed>
     {
         public Task Handle(PartRenamed integrationEvent, CancellationToken cancellationToken)
@@ -191,6 +192,7 @@ public sealed class InProcessPublisherTests
         }
     }
 
+    [IntegrationEventConsumer("tests.second")]
     internal sealed class SecondConsumer : IIntegrationEventConsumer<PartRenamed>
     {
         public Task Handle(PartRenamed integrationEvent, CancellationToken cancellationToken)

@@ -168,9 +168,9 @@ public interface IIntegrationEventPublisher
 }
 
 /// <summary>
-/// In-process transport (ADR 0003): every consumer of the event runs in its own module's unit of
-/// work, and the inbox row is written in that transaction, so a redelivered message is skipped.
-/// With microservices this class is replaced by an Azure Service Bus transport; handlers stay.
+/// In-process transport of the single host (ADR 0003): every consumer of the event runs in its own module's unit of
+/// work, and the inbox row is written in that transaction under the consumer's stable name (#32), so a redelivered
+/// message is skipped. The service hosts use the RabbitMQ transport instead (ADR 0017); consumers don't change.
 /// </summary>
 public sealed class InProcessIntegrationEventPublisher(IServiceScopeFactory scopeFactory, UnitOfWorkRegistry registry) : IIntegrationEventPublisher
 {
@@ -186,7 +186,7 @@ public sealed class InProcessIntegrationEventPublisher(IServiceScopeFactory scop
         {
             foreach (var handler in scope.ServiceProvider.GetServices(handlerType).OfType<object>())
             {
-                var consumer = handler.GetType().FullName!;
+                var consumer = IntegrationEventConsumers.NameOf(handler.GetType());
                 var unitOfWork = registry.Resolve(handler.GetType().Assembly, scope.ServiceProvider);
                 await unitOfWork.ExecuteInTransactionAsync(async ct =>
                 {
