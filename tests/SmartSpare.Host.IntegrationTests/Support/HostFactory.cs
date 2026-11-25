@@ -26,6 +26,9 @@ public class HostFactory : WebApplicationFactory<Program>
 
     public bool WithSigningKey { get; init; } = true;
 
+    /// <summary>More test services, registered last; for example an HTTP <see cref="ICredentialVerifier"/>.</summary>
+    public Action<IServiceCollection>? ExtraServices { get; init; }
+
     /// <summary>The host environment; <see langword="null"/> keeps the factory's default (Development).</summary>
     public string? EnvironmentName { get; init; }
 
@@ -56,6 +59,8 @@ public class HostFactory : WebApplicationFactory<Program>
             {
                 services.AddSingleton<ICredentialVerifier>(Verifier);
             }
+
+            ExtraServices?.Invoke(services);
         });
     }
 

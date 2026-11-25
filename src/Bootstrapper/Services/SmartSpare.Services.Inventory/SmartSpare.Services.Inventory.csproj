@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!-- The Inventory service of the services topology (ADR 0015): exactly one module implementation. -->
+
+  <PropertyGroup>
+    <UserSecretsId>smartspare-services-inventory</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Modules\Inventory\SmartSpare.Modules.Inventory\SmartSpare.Modules.Inventory.csproj" />
+  </ItemGroup>
+
+</Project>

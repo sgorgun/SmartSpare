@@ -108,10 +108,13 @@ runs `e2e` and uploads screenshots and the Playwright trace when it fails.
 ```
 src/
   Bootstrapper/SmartSpare.Host          single host (development, tests): all modules, BFF sign-in, the web app with a
-                                        strict CSP, health, OpenAPI;
-                                        the gateway and one host per module service follow in stage 4 (ADR 0015)
+                                        strict CSP, health, OpenAPI
+  Bootstrapper/Services/SmartSpare.Services.<Module>
+                                        one host per module service (ADR 0015): its module only, RabbitMQ, internal
+                                        tokens only; --job <name> runs one job; ServiceHost.cs is shared by all six
   Bootstrapper/SmartSpare.ModuleCatalog the modules and their databases in migration order (shared by host and runner)
-  Bootstrapper/SmartSpare.MigrationRunner  bootstrap + EF migrations of every context; check-model (dev and CI only)
+  Bootstrapper/SmartSpare.MigrationRunner  bootstrap + EF migrations of every context, or --module <name> for one
+                                        service (ADR 0020); check-model
   BuildingBlocks/
     SmartSpare.SharedKernel             Entity, AggregateRoot, ValueObject, Result, Error — no dependencies
     SmartSpare.Infrastructure           command/query handlers + decorators, IModuleInstaller, Result → ProblemDetails,
@@ -220,7 +223,7 @@ On Windows run the `.sh` scripts in Git Bash or WSL. Demo users (synthetic) such
 | `src/BuildingBlocks/SmartSpare.Infrastructure/Persistence/` | shared plumbing: unit of work (+ outbox), session context interceptor, `DatabaseErrorMapper`, SQL resource helper for migrations, Platform context (`ref`, `util`, `audit`) |
 | `src/Modules/<Module>/…/Infrastructure/Persistence/` | per module: `DbContext`, `Configurations/`, `Migrations/` |
 | `db/sql/<module>/` | SQL parts of that module's migrations (triggers, functions, views, grants, seed) |
-| `src/Bootstrapper/SmartSpare.MigrationRunner`, `SmartSpare.ModuleCatalog` | migration order of all module databases; bootstrap, migrations and `check-model` locally and in CI |
+| `src/Bootstrapper/SmartSpare.MigrationRunner`, `SmartSpare.ModuleCatalog` | migration order of all module databases; bootstrap, migrations (all, or `--module <name>`) and `check-model` locally, in CI and as the Azure migration job (ADR 0020) |
 
 There is no single data project on purpose: every module owns its schema, DbContext and migrations
 (ADR 0002, ADR 0011), and EF Core maps the module's domain aggregates directly, with no generic repository

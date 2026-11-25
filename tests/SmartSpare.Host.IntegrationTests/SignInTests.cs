@@ -15,35 +15,59 @@ namespace SmartSpare.Host.IntegrationTests;
 /// <summary>
 /// Sign-in through the real Identity module against PostgreSQL 17 (STAGE_3_PLAN 2 and 9.2): password check, rehash,
 /// uniform failures, lockout, the audit actor, and session revocation by the security stamp. The host connects as
-/// <c>smartspare_api</c>, so these also prove the login's privileges are sufficient.
+/// <c>smartspare_api</c>, so these also prove the login's privileges are sufficient. The single host calls the module in
+/// process here; <see cref="SignInThroughIdentityServiceTests"/> runs the same matrix over HTTP (STAGE_4_PLAN 4d).
 /// </summary>
 [Trait("Category", "Integration")]
 [Collection(IdentityDatabaseGroup.Name)]
-public sealed class SignInTests(IdentityDatabaseFixture database) : IAsyncLifetime
+public sealed class SignInTests(IdentityDatabaseFixture database) : SignInMatrix(database)
+{
+    protected override string Suffix => string.Empty;
+
+    protected override HostFactory CreateHost() => new() { ConnectionString = Database.ApiConnectionString };
+}
+
+/// <summary>
+/// The sign-in matrix of stage 3. Every user name gets <see cref="Suffix"/>, so the in-process and the HTTP run share one
+/// database without colliding.
+/// </summary>
+public abstract class SignInMatrix(IdentityDatabaseFixture database) : IAsyncLifetime
 {
     private HostFactory _host = null!;
 
-    public ValueTask InitializeAsync()
+    protected IdentityDatabaseFixture Database => database;
+
+    protected abstract string Suffix { get; }
+
+    protected abstract HostFactory CreateHost();
+
+    public virtual ValueTask InitializeAsync()
     {
-        _host = new HostFactory { ConnectionString = database.ApiConnectionString };
+        _host = CreateHost();
         return ValueTask.CompletedTask;
     }
 
-    public async ValueTask DisposeAsync() => await _host.DisposeAsync();
+    public virtual async ValueTask DisposeAsync()
+    {
+        await _host.DisposeAsync();
+        GC.SuppressFinalize(this);
+    }
+
+    private string U(string name) => name + Suffix;
 
     [Fact]
     public async Task A_seeded_user_signs_in_and_gets_roles_brands_and_last_login()
     {
-        var id = await database.CreateUserAsync("it.signin", [AppRoles.BrandManager, AppRoles.Sponsor], ["CLAAS", "LEMKEN"]);
+        var id = await database.CreateUserAsync(U("it.signin"), [AppRoles.BrandManager, AppRoles.Sponsor], ["CLAAS", "LEMKEN"]);
         using var browser = _host.NewBrowser();
 
-        using var response = await browser.LoginAsync("IT.SignIn", IdentityDatabaseFixture.Password);
+        using var response = await browser.LoginAsync(U("IT.SignIn"), IdentityDatabaseFixture.Password);
 
         response.StatusCode.ShouldBe(HttpStatusCode.NoContent, "user names are case-insensitive");
         response.Headers.GetValues("Set-Cookie").ShouldContain(c => c.StartsWith(BffDefaults.CookieName + "=", StringComparison.Ordinal));
         var me = await browser.MeAsync();
         me.UserId.ShouldBe(id);
-        me.UserName.ShouldBe("it.signin");
+        me.UserName.ShouldBe(U("it.signin"));
         me.Roles.ShouldBe([AppRoles.BrandManager, AppRoles.Sponsor]);
         me.BrandIds.ShouldBe(await database.BrandIdsAsync("CLAAS", "LEMKEN"));
         (await database.ScalarAsync<bool>("SELECT last_login_at IS NOT NULL FROM iam.app_user WHERE id = @id", ("id", id))).ShouldBeTrue();
@@ -52,10 +76,10 @@ public sealed class SignInTests(IdentityDatabaseFixture database) : IAsyncLifeti
     [Fact]
     public async Task A_100000_iteration_hash_signs_in_and_is_rehashed_with_220000()
     {
-        var id = await database.CreateUserAsync("it.rehash", [AppRoles.InventoryPlanner], [], iterations: 100_000);
+        var id = await database.CreateUserAsync(U("it.rehash"), [AppRoles.InventoryPlanner], [], iterations: 100_000);
         using var browser = _host.NewBrowser();
 
-        await LoginOrFailAsync(browser, "it.rehash");
+        await LoginOrFailAsync(browser, U("it.rehash"));
 
         var hash = await database.ScalarAsync<string>("SELECT password_hash FROM iam.app_user WHERE id = @id", ("id", id));
         Iterations(hash).ShouldBe(220_000u);
@@ -65,10 +89,10 @@ public sealed class SignInTests(IdentityDatabaseFixture database) : IAsyncLifeti
     [Fact]
     public async Task Wrong_password_unknown_user_deactivated_and_anonymised_users_get_identical_responses()
     {
-        await database.CreateUserAsync("it.uniform", [AppRoles.BrandManager], []);
-        var deactivated = await database.CreateUserAsync("it.inactive", [AppRoles.BrandManager], []);
+        await database.CreateUserAsync(U("it.uniform"), [AppRoles.BrandManager], []);
+        var deactivated = await database.CreateUserAsync(U("it.inactive"), [AppRoles.BrandManager], []);
         await database.ExecuteAsync("UPDATE iam.app_user SET is_active = false WHERE id = @id", ("id", deactivated));
-        var anonymised = await database.CreateUserAsync("it.anonymised", [AppRoles.BrandManager], []);
+        var anonymised = await database.CreateUserAsync(U("it.anonymised"), [AppRoles.BrandManager], []);
         await database.ExecuteAsync(
             "UPDATE iam.app_user SET is_active = false, password_hash = NULL, anonymised_at = now() WHERE id = @id", ("id", anonymised));
         using var browser = _host.NewBrowser();
@@ -76,10 +100,10 @@ public sealed class SignInTests(IdentityDatabaseFixture database) : IAsyncLifeti
         var problems = new List<Problem>();
         foreach (var (name, password) in new[]
                  {
-                     ("it.uniform", "wrong password"),
-                     ("it.nobody", IdentityDatabaseFixture.Password),
-                     ("it.inactive", IdentityDatabaseFixture.Password),
-                     ("it.anonymised", IdentityDatabaseFixture.Password),
+                     (U("it.uniform"), "wrong password"),
+                     (U("it.nobody"), IdentityDatabaseFixture.Password),
+                     (U("it.inactive"), IdentityDatabaseFixture.Password),
+                     (U("it.anonymised"), IdentityDatabaseFixture.Password),
                  })
         {
             using var response = await browser.LoginAsync(name, password);
@@ -93,13 +117,13 @@ public sealed class SignInTests(IdentityDatabaseFixture database) : IAsyncLifeti
     [Fact]
     public async Task Five_failures_lock_the_account_until_lockout_end_passes()
     {
-        var id = await database.CreateUserAsync("it.lockout", [AppRoles.BrandManager], []);
+        var id = await database.CreateUserAsync(U("it.lockout"), [AppRoles.BrandManager], []);
         using var browser = _host.NewBrowser();
         var token = await browser.AntiforgeryTokenAsync();
 
         for (var attempt = 0; attempt < 5; attempt++)
         {
-            using var failed = await browser.LoginAsync("it.lockout", "wrong password", token: token);
+            using var failed = await browser.LoginAsync(U("it.lockout"), "wrong password", token: token);
             failed.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         }
 
@@ -117,7 +141,7 @@ public sealed class SignInTests(IdentityDatabaseFixture database) : IAsyncLifeti
             """,
             ("id", id), ("record", id.ToString()))).ShouldBeTrue();
 
-        using (var locked = await browser.LoginAsync("it.lockout", IdentityDatabaseFixture.Password, token: token))
+        using (var locked = await browser.LoginAsync(U("it.lockout"), IdentityDatabaseFixture.Password, token: token))
         {
             locked.StatusCode.ShouldBe(HttpStatusCode.BadRequest, "the correct password is refused while locked out");
             (await Problem.ReadAsync(locked)).Code.ShouldBe(ProblemCodes.InvalidCredentials);
@@ -126,16 +150,16 @@ public sealed class SignInTests(IdentityDatabaseFixture database) : IAsyncLifeti
         // UserManager in ASP.NET Core 10 compares lockout_end with DateTimeOffset.UtcNow, not TimeProvider, so the
         // test moves lockout_end into the past: the same effect as an early unlock by an administrator (#46).
         await database.ExecuteAsync("UPDATE iam.app_user SET lockout_end = now() - interval '1 second' WHERE id = @id", ("id", id));
-        using var unlocked = await browser.LoginAsync("it.lockout", IdentityDatabaseFixture.Password, token: token);
+        using var unlocked = await browser.LoginAsync(U("it.lockout"), IdentityDatabaseFixture.Password, token: token);
         unlocked.StatusCode.ShouldBe(HttpStatusCode.NoContent);
     }
 
     [Fact]
     public async Task A_rotated_security_stamp_ends_the_session_at_the_next_check()
     {
-        var id = await database.CreateUserAsync("it.revoked", [AppRoles.BrandManager], []);
+        var id = await database.CreateUserAsync(U("it.revoked"), [AppRoles.BrandManager], []);
         using var browser = _host.NewBrowser();
-        await LoginOrFailAsync(browser, "it.revoked");
+        await LoginOrFailAsync(browser, U("it.revoked"));
 
         await database.ExecuteAsync("UPDATE iam.app_user SET security_stamp = gen_random_uuid() WHERE id = @id", ("id", id));
         _host.Time.Advance(BffDefaults.SessionCheckInterval);
@@ -148,9 +172,9 @@ public sealed class SignInTests(IdentityDatabaseFixture database) : IAsyncLifeti
     [Fact]
     public async Task A_role_change_reaches_the_cookie_at_the_next_check()
     {
-        var id = await database.CreateUserAsync("it.promoted", [AppRoles.BrandManager], []);
+        var id = await database.CreateUserAsync(U("it.promoted"), [AppRoles.BrandManager], []);
         using var browser = _host.NewBrowser();
-        await LoginOrFailAsync(browser, "it.promoted");
+        await LoginOrFailAsync(browser, U("it.promoted"));
 
         await database.ExecuteAsync(
             "INSERT INTO iam.user_role (user_id, role_id) SELECT @id, id FROM iam.role WHERE code = 'SPONSOR'", ("id", id));
@@ -162,9 +186,9 @@ public sealed class SignInTests(IdentityDatabaseFixture database) : IAsyncLifeti
     [Fact]
     public async Task The_cookie_and_an_internal_token_minted_from_it_see_the_same_user()
     {
-        await database.CreateUserAsync("it.both", [AppRoles.WarehouseKeeper], ["JD"]);
+        await database.CreateUserAsync(U("it.both"), [AppRoles.WarehouseKeeper], ["JD"]);
         using var browser = _host.NewBrowser();
-        await LoginOrFailAsync(browser, "it.both");
+        await LoginOrFailAsync(browser, U("it.both"));
         var me = await browser.MeAsync();
         var principal = TestUser.ClaimsFor(me.UserId!.Value, me.UserName!, me.Roles, me.BrandIds, me.HomeWarehouseId);
 
@@ -179,10 +203,10 @@ public sealed class SignInTests(IdentityDatabaseFixture database) : IAsyncLifeti
     public async Task Two_host_instances_on_one_database_accept_each_others_cookies()
     {
         // #22: the key ring lives in iam.data_protection_keys, so every instance can read the cookie of another.
-        await database.CreateUserAsync("it.shared", [AppRoles.BrandManager], []);
-        await using var second = new HostFactory { ConnectionString = database.ApiConnectionString };
+        await database.CreateUserAsync(U("it.shared"), [AppRoles.BrandManager], []);
+        await using var second = CreateHost();
         using var first = _host.NewBrowser();
-        using var signIn = await first.LoginAsync("it.shared", IdentityDatabaseFixture.Password);
+        using var signIn = await first.LoginAsync(U("it.shared"), IdentityDatabaseFixture.Password);
         signIn.StatusCode.ShouldBe(HttpStatusCode.NoContent);
         var cookie = signIn.Headers.GetValues("Set-Cookie").Single(c => c.StartsWith(BffDefaults.CookieName + "=", StringComparison.Ordinal));
 
@@ -191,7 +215,7 @@ public sealed class SignInTests(IdentityDatabaseFixture database) : IAsyncLifeti
         var me = await other.MeAsync();
 
         me.IsAuthenticated.ShouldBeTrue("the second instance decrypts the first instance's cookie");
-        me.UserName.ShouldBe("it.shared");
+        me.UserName.ShouldBe(U("it.shared"));
 
         // Both instances read the ring from the database, not from a per-user key directory that in-process test
         // hosts would also share.

@@ -1,9 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    Development and CI tool: bootstraps a local PostgreSQL server and applies the EF Core migrations
-    of all contexts in catalogue order. Never deployed: Azure runs one EF migration bundle per context
-    (MODULE_MAPPING section 5.5). Also the startup project for `dotnet ef`.
+    Bootstraps a PostgreSQL server and applies the EF Core migrations of all contexts in catalogue order,
+    or of the Platform and one module (the module option, for a service's deployment). Runs locally, in CI and as
+    the Container Apps migration job in Azure (ADR 0020). Also the startup project for `dotnet ef`.
   -->
 
   <PropertyGroup>

@@ -7,6 +7,14 @@
     <Project Path="src/Bootstrapper/SmartSpare.MigrationRunner/SmartSpare.MigrationRunner.csproj" />
     <Project Path="src/Bootstrapper/SmartSpare.ModuleCatalog/SmartSpare.ModuleCatalog.csproj" />
   </Folder>
+  <Folder Name="/src/Bootstrapper/Services/">
+    <Project Path="src/Bootstrapper/Services/SmartSpare.Services.Fleet/SmartSpare.Services.Fleet.csproj" />
+    <Project Path="src/Bootstrapper/Services/SmartSpare.Services.Forecasting/SmartSpare.Services.Forecasting.csproj" />
+    <Project Path="src/Bootstrapper/Services/SmartSpare.Services.Identity/SmartSpare.Services.Identity.csproj" />
+    <Project Path="src/Bootstrapper/Services/SmartSpare.Services.Inventory/SmartSpare.Services.Inventory.csproj" />
+    <Project Path="src/Bootstrapper/Services/SmartSpare.Services.Procurement/SmartSpare.Services.Procurement.csproj" />
+    <Project Path="src/Bootstrapper/Services/SmartSpare.Services.Reporting/SmartSpare.Services.Reporting.csproj" />
+  </Folder>
   <Folder Name="/src/BuildingBlocks/">
     <Project Path="src/BuildingBlocks/SmartSpare.Bff/SmartSpare.Bff.csproj" />
     <Project Path="src/BuildingBlocks/SmartSpare.Infrastructure.RabbitMq/SmartSpare.Infrastructure.RabbitMq.csproj" />
