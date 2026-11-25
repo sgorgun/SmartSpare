@@ -15,10 +15,34 @@ public sealed partial class OutboxDispatcher(
     IServiceScopeFactory scopeFactory,
     IEnumerable<IOutboxStore> stores,
     IIntegrationEventPublisher publisher,
+    OutboxMonitor monitor,
+    TimeProvider time,
     IOptions<OutboxOptions> options,
     ILogger<OutboxDispatcher> logger) : BackgroundService
 {
     private readonly IOutboxStore[] _stores = [.. stores];
+
+    /// <summary>Reads every outbox's status into the <see cref="OutboxMonitor"/> (metric and health check, #31).</summary>
+    public async Task RefreshStatusAsync(CancellationToken cancellationToken)
+    {
+        var statuses = new List<OutboxStatus>(_stores.Length);
+        foreach (var store in _stores)
+        {
+            var scope = scopeFactory.CreateAsyncScope();
+            await using (scope.ConfigureAwait(false))
+            {
+                var status = await store.GetStatusAsync(scope.ServiceProvider, cancellationToken).ConfigureAwait(false);
+                if (status.Exhausted > 0)
+                {
+                    LogParked(status.Exhausted, store.Schema);
+                }
+
+                statuses.Add(status);
+            }
+        }
+
+        monitor.Update(statuses);
+    }
 
     /// <summary>One pass over all outboxes; returns the number of messages claimed.</summary>
     public async Task<int> DispatchOnceAsync(CancellationToken cancellationToken)
@@ -45,11 +69,18 @@ public sealed partial class OutboxDispatcher(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        var nextStatus = DateTimeOffset.MinValue;
         while (!stoppingToken.IsCancellationRequested)
         {
             var claimed = 0;
             try
             {
+                if (time.GetUtcNow() >= nextStatus)
+                {
+                    await RefreshStatusAsync(stoppingToken).ConfigureAwait(false);
+                    nextStatus = time.GetUtcNow() + options.Value.StatusInterval;
+                }
+
                 claimed = await DispatchOnceAsync(stoppingToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -75,6 +106,9 @@ public sealed partial class OutboxDispatcher(
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Outbox dispatch failed; retrying after the polling interval.")]
     private partial void LogFailed(Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Outbox {Schema}: {Count} integration event(s) ran out of delivery attempts and wait for an operator (docs/operations/OUTBOX.md).")]
+    private partial void LogParked(long count, string schema);
 }
 
 public static class OutboxRegistration
@@ -84,6 +118,10 @@ public static class OutboxRegistration
     {
         services.AddOptions<OutboxOptions>().Configure(o => configure?.Invoke(o));
         services.TryAddSingleton<IIntegrationEventPublisher, InProcessIntegrationEventPublisher>();
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddMetrics();
+        services.TryAddSingleton<OutboxMonitor>();
+        services.AddHealthChecks().AddCheck<OutboxHealthCheck>("outbox");
         services.AddHostedService<OutboxDispatcher>();
         return services;
     }

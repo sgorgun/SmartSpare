@@ -75,6 +75,16 @@ namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Migrations
                         .HasColumnName("error")
                         .HasComment("Last delivery error, if any.");
 
+                    b.Property<DateTimeOffset?>("ExhaustedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("exhausted_at")
+                        .HasComment("Time the event ran out of delivery attempts and was parked for an operator; NULL = still being delivered.");
+
+                    b.Property<DateTimeOffset?>("NextAttemptAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("next_attempt_at")
+                        .HasComment("Earliest time of the next delivery attempt after a failure (exponential back-off); NULL = now.");
+
                     b.Property<DateTimeOffset>("OccurredAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("occurred_at")
@@ -101,9 +111,13 @@ namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Migrations
                     b.HasKey("Id")
                         .HasName("pk_outbox_message");
 
+                    b.HasIndex("ExhaustedAt")
+                        .HasDatabaseName("ix_outbox_message_exhausted")
+                        .HasFilter("exhausted_at IS NOT NULL AND processed_at IS NULL");
+
                     b.HasIndex("OccurredAt")
                         .HasDatabaseName("ix_outbox_message_pending")
-                        .HasFilter("processed_at IS NULL");
+                        .HasFilter("processed_at IS NULL AND exhausted_at IS NULL");
 
                     b.ToTable("outbox_message", "inventory", t =>
                         {
