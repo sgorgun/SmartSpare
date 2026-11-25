@@ -25,6 +25,9 @@ lists the `host` resource with its URL. Every module answers
 user; health probes `/health/live` and `/health/ready` and the OpenAPI document `/openapi/v1.json` (Development) need
 no sign-in.
 
+**Troubleshooting:** after a WSL or Docker restart, the AppHost may leave `migrations` and `host` waiting because the
+persistent `postgres` container stayed stopped; start it with **Start resource** on the `postgres` row in the dashboard.
+
 To run the host alone, without Aspire: `dotnet run --project src/Bootstrapper/SmartSpare.Host` (https://localhost:7080; the
 session cookies are `Secure`, so the default launch profile is HTTPS).
 
