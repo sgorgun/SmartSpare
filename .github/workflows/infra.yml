@@ -42,7 +42,7 @@ jobs:
           az bicep lint --file infra/main.bicep
 
   azure:
-    name: ${{ inputs.mode == 'deploy' && 'Deploy' || 'What-if' }}
+    name: Azure what-if or deploy
     needs: validate
     if: github.event_name == 'workflow_dispatch' || vars.AZURE_CLIENT_ID != ''
     runs-on: ubuntu-latest
