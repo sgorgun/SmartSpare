@@ -323,7 +323,7 @@ Work is done on the developer machine (.NET 10 SDK + Docker), where the code can
 2. **Data layer.** DbContexts and Fluent configurations for all modules, initial migrations with SQL parts from V001–V016, Outbox/Inbox. Check: schema matches the current one, 97 SQL tests green.
 3. **Identity and BFF.** Cookie sign-in, roles, policies, internal-token validation (ADR 0016); Blazor client skeleton with MudBlazor and the sign-in page. **Done:** v0.3.0, PRs 3a–3e ([STAGE_3_PLAN.md](../stage-3/STAGE_3_PLAN.md), section 10).
 4. **Topology** (25 Nov – 3 Dec 2026). Service hosts, YARP gateway, RabbitMQ transport, Grafana stack, per-service images, pipelines and Bicep (ADRs 0015–0020), built and tested locally and in CI; CloudAMQP and Grafana Cloud are used from the local services topology. Nothing is deployed to Azure in this stage (product owner, 25 November 2026). Forwarded headers (#48) are configured here and verified behind the real ingress in stage 10. Coverage and vulnerability gates (#63, #64) land before the first per-service pipeline. Plan: [STAGE_4_PLAN.md](../stage-4/STAGE_4_PLAN.md) (#67).
-5. **Inventory** (4–7 Dec). Stock, movements, reservations, transfers, file import + screens.
+5. **Inventory** (4–7 Dec). Stock, movements, reservations, transfers, file import + screens. The read-only parts catalogue and warehouses (API and page) were pulled forward into stage 4 for the API review.
 6. **Fleet** (8–11 Dec). Machines, engine hours, service orders (UC02) + mobile card.
 7. **Procurement** (12–14 Dec). Purchase orders with the four-eyes rule.
 8. **Forecasting** (15–20 Dec). ML.NET models and benchmark, recommendations and UC01 events between modules. The forecast metrics are needed for the thesis (3 January).

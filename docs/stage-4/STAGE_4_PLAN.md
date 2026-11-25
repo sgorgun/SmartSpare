@@ -373,6 +373,11 @@ The publish happens later, in the dispatcher's own activity. That activity **lin
   - An integration test asserts the nonce in both header and markup, and the absence of `'unsafe-inline'` in `script-src`.
   - **Implemented (PR 4f):** Scalar also has `DisableTelemetry()`, `DisableAgent()`, `DisableMcp()` and `HideDeveloperTools()`, so the public page sends nothing to Scalar's services. A Playwright test renders `/scalar` and fails on any CSP violation or any request to another origin.
 - **Content in stage 4:** every endpoint that exists is operational (pings, the diagnostics probe), which ADR 0019 §3 leaves out, so the six documents are valid but have no paths until stage 5 adds `/api/v1` endpoints. The existing endpoints have summaries and typed responses anyway.
+- **Amended 26 November 2026 (product owner, before the API review on 2 December):**
+  - the `/bff` endpoints get their own document, `/openapi/bff.json` (ADR 0019, amendment 1);
+  - a read-only slice of stage 5 is pulled forward: `GET /api/v1/inventory/parts`, `/parts/{id}` and `/warehouses` under the new read policy `ReadInventory`, and the parts catalogue page.
+
+  Stage 5 builds on it and doesn't repeat it.
 - **Tests:** a document contains no `/internal` path and no non-`/api/v1` business path (ADR 0019 §3). `/scalar` and `/openapi/*` are anonymous; every documented operation requires authorization.
 
 ---
