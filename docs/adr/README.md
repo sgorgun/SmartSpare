@@ -10,7 +10,7 @@
 | [0006](0006-frontend-blazor-wasm-mudblazor-bff.md) | Frontend: Blazor WebAssembly, MudBlazor and BFF | Accepted, amended by 0015, 0016 |
 | [0007](0007-dotnet-10-lts.md) | .NET 10 LTS as the platform | Accepted |
 | [0008](0008-mlnet-demand-forecasting.md) | ML.NET for demand forecasting | Accepted |
-| [0009](0009-azure-hosting-and-delivery.md) | Azure hosting and delivery | Accepted, amended by 0015, 0017, 0018, 0020 |
+| [0009](0009-azure-hosting-and-delivery.md) | Azure hosting and delivery | Accepted, amended by 0015, 0017, 0018, 0020, 0022 |
 | [0010](0010-english-only-repository.md) | English-only repository | Accepted |
 | [0011](0011-database-ownership-per-module.md) | Database ownership per module | Accepted |
 | [0012](0012-evolvability-principles.md) | Evolvability principles | Accepted, amended by 0019 |
@@ -23,6 +23,7 @@
 | [0019](0019-public-api-documentation.md) | Public API documentation | Accepted |
 | [0020](0020-database-migrations-through-the-migration-runner-job.md) | Database migrations in Azure through the MigrationRunner job | Accepted |
 | [0021](0021-queue-per-consumer-name.md) | One queue per consumer name | Accepted |
+| [0022](0022-azure-region-north-europe.md) | Azure region North Europe | Accepted |
 
 New ADRs use the next free number and the same Context / Decision / Consequences format.
 

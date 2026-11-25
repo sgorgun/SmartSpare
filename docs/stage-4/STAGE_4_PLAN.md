@@ -439,6 +439,8 @@ Both steps are part of the shared gate workflow that every service pipeline call
 **Unverified:** whether `az containerapp job start` can override the container arguments per execution (`--args`). If it can't, there is one manual job per module (`migrate-<module>`) with fixed arguments. That costs nothing while idle.
 **Resolved in 4h:** `az containerapp job start --yaml` overrides one execution's template, image and arguments included, so there is one `migrations` job (ADR 0020 §6, `tools/run-migration-job.sh`).
 
+**What-if (25 Nov 2026, read-only, product owner's subscription):** West Europe refused new resources ("not accepting new customers"). The environment moves to **North Europe** ([ADR 0022](../adr/0022-azure-region-north-europe.md)), where what-if succeeded: 45 resources to create, nothing changed or deleted. The West Europe prices in this plan remain an upper bound.
+
 ### 8.5 Container Apps sizing and connections
 
 | App | CPU / memory | Replicas | Scale rules | DB connections (max) |

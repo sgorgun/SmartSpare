@@ -63,11 +63,11 @@ jobs:
       - name: What-if
         if: inputs.mode != 'deploy'
         run: >-
-          az deployment sub what-if --name "smartspare-${{ github.run_id }}" --location westeurope
+          az deployment sub what-if --name "smartspare-${{ github.run_id }}" --location northeurope
           --template-file infra/main.bicep --parameters infra/main.prod.bicepparam
 
       - name: Deploy
         if: inputs.mode == 'deploy'
         run: >-
-          az deployment sub create --name "smartspare-${{ github.run_id }}" --location westeurope
+          az deployment sub create --name "smartspare-${{ github.run_id }}" --location northeurope
           --template-file infra/main.bicep --parameters infra/main.prod.bicepparam

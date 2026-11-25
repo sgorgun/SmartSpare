@@ -9,7 +9,7 @@ targetScope = 'subscription'
 param environmentName string = 'prod'
 
 @description('Azure region; ACR in the same region keeps image pulls short (cold start, STAGE_4_PLAN 8.7).')
-param location string = 'westeurope'
+param location string = 'northeurope'
 
 @description('Image tag of every app and job: the commit SHA from the pipeline.')
 param imageTag string
