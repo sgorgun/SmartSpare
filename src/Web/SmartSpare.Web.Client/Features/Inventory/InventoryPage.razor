@@ -1,9 +1,107 @@
 @page "/inventory"
-@attribute [Authorize]
+@attribute [Authorize(Policy = AppPolicies.ReadInventory)]
+@using SmartSpare.ApiContracts.Inventory
 @inject IStringLocalizer<SharedResource> Text
+@inject InventoryClient Inventory
+@inject ProblemMessages Messages
 
 <PageTitle>@Text["Nav.Inventory"]</PageTitle>
 
 <MudText Typo="Typo.h4" HtmlTag="h1" Class="mb-2">@Text["Nav.Inventory"]</MudText>
 <MudText Class="mb-4">@Text["Module.Inventory"]</MudText>
-<MudAlert Severity="Severity.Info">@Text["Module.ComingInStage", 5].Value</MudAlert>
+
+<MudText Typo="Typo.h5" HtmlTag="h2" Class="mb-2">@Text["Parts.Title"]</MudText>
+
+<MudTextField T="string" @bind-Value="_search" Label="@Text["Parts.Search"]" Variant="Variant.Outlined"
+              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Clearable="true"
+              DebounceInterval="400" OnDebounceIntervalElapsed="SearchAsync" OnClearButtonClick="ClearAsync"
+              MaxLength="PartSearch.MaxSearchLength" InputMode="InputMode.search" Class="mb-3" />
+
+@if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-3" data-testid="parts-error">@_error</MudAlert>
+}
+
+<MudDataGrid @ref="_grid" T="PartSummary" ServerData="LoadAsync" RowsPerPage="PartSearch.DefaultPageSize"
+             Hover="true" Dense="true" Outlined="true" Elevation="0" Breakpoint="Breakpoint.Sm"
+             SortMode="SortMode.None" Filterable="false" data-testid="parts-grid">
+    <Columns>
+        <PropertyColumn Property="p => p.OemPartNumber" Title="@Text["Parts.OemPartNumber"]" />
+        <PropertyColumn Property="p => p.BrandCode" Title="@Text["Parts.Brand"]" />
+        <PropertyColumn Property="p => p.Description" Title="@Text["Parts.Description"]" />
+        <PropertyColumn Property="p => p.CategoryName" Title="@Text["Parts.Category"]" />
+        <PropertyColumn Property="p => p.UnitOfMeasure" Title="@Text["Parts.Unit"]" />
+        <PropertyColumn Property="p => p.UnitCost" Title="@Text["Parts.UnitCost"]" Format="N2" />
+    </Columns>
+    <NoRecordsContent>
+        <MudText>@(_error is null ? Text["Parts.None"] : Text["Parts.Unavailable"])</MudText>
+    </NoRecordsContent>
+    <LoadingContent>
+        <MudText>@Text["Parts.Loading"]</MudText>
+    </LoadingContent>
+    <PagerContent>
+        <MudDataGridPager T="PartSummary" PageSizeOptions="PageSizes" />
+    </PagerContent>
+</MudDataGrid>
+
+<MudAlert Severity="Severity.Info" Class="mt-4">@Text["Inventory.MoreInStage", 5].Value</MudAlert>
+
+@code {
+    private static readonly int[] PageSizes = [10, PartSearch.DefaultPageSize, 50, PartSearch.MaxPageSize];
+
+    private MudDataGrid<PartSummary>? _grid;
+    private string? _search;
+    private string? _error;
+
+    /// <summary>
+    /// Server paging (MudDataGrid pages are 0-based, the API's 1-based). An error leaves the grid empty and shows the
+    /// problem with its reference; 401 and 403 are handled by the HTTP handler chain (redirect, snackbar).
+    /// </summary>
+    private async Task<GridData<PartSummary>> LoadAsync(GridState<PartSummary> state, CancellationToken cancellationToken)
+    {
+        // Prerendering has no session cookie to call the API with; the grid loads once WebAssembly runs.
+        if (!RendererInfo.IsInteractive)
+        {
+            return new GridData<PartSummary> { Items = [], TotalItems = 0 };
+        }
+
+        var result = await Inventory.SearchPartsAsync(_search, state.Page + 1, state.PageSize, cancellationToken);
+        var error = result.IsSuccess ? null : Messages.Describe(result.Problem!);
+        if (error != _error)
+        {
+            // The alert belongs to the page, which the grid's own reload doesn't re-render.
+            _error = error;
+            StateHasChanged();
+        }
+
+        return result.IsSuccess
+            ? new GridData<PartSummary> { Items = result.Value!.Items, TotalItems = result.Value.TotalCount }
+            : new GridData<PartSummary> { Items = [], TotalItems = 0 };
+    }
+
+    private Task SearchAsync(string? _) => ReloadFromFirstPageAsync();
+
+    private Task ClearAsync(MouseEventArgs _)
+    {
+        _search = null;
+        return ReloadFromFirstPageAsync();
+    }
+
+    private async Task ReloadFromFirstPageAsync()
+    {
+        if (_grid is null)
+        {
+            return;
+        }
+
+        // A new search starts at its first page; NavigateTo reloads the server data.
+        if (_grid.CurrentPage != 0)
+        {
+            _grid.NavigateTo(Page.First);
+        }
+        else
+        {
+            await _grid.ReloadServerData();
+        }
+    }
+}

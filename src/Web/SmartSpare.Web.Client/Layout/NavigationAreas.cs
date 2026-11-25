@@ -8,16 +8,17 @@ namespace SmartSpare.Web.Client.Layout;
 public sealed record NavigationArea(string Href, string TitleKey, string DescriptionKey, string Icon, int Stage, IReadOnlyList<string> Policies);
 
 /// <summary>
-/// The menu, by policy (STAGE_3_PLAN 8.2). Until the read policies of stages 5–9 exist, an area is shown to the users who
-/// may act in it, using the action policies of section 3.2; an empty list means every signed-in user. This is UX only:
-/// every endpoint checks its own policy on the server.
+/// The menu, by policy (STAGE_3_PLAN 8.2). An area with a read policy (Inventory: <see cref="AppPolicies.ReadInventory"/>)
+/// is shown to everyone who may read it. Until the read policies of stages 6–9 exist, the other areas are shown to the
+/// users who may act in them, using the action policies of section 3.2; an empty list means every signed-in user. This
+/// is UX only: every endpoint checks its own policy on the server.
 /// </summary>
 public static class NavigationAreas
 {
     public static IReadOnlyList<NavigationArea> All { get; } =
     [
         new("inventory", "Nav.Inventory", "Module.Inventory", Icons.Material.Filled.Inventory2, 5,
-            [AppPolicies.PlanInventory, AppPolicies.ApproveTransfer, AppPolicies.MoveStock]),
+            [AppPolicies.ReadInventory]),
         new("fleet", "Nav.Fleet", "Module.Fleet", Icons.Material.Filled.Agriculture, 6,
             [AppPolicies.RecordServiceWork, AppPolicies.ManageServiceOrders]),
         new("procurement", "Nav.Procurement", "Module.Procurement", Icons.Material.Filled.ShoppingCart, 7,

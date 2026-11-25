@@ -30,8 +30,8 @@ public sealed class NavigationAndHttpTests : ClientTestContext
     {
         { AppRoles.WarehouseKeeper, ["inventory", "procurement", "reporting"], ["fleet", "forecasting"] },
         { AppRoles.BrandManager, ["inventory", "fleet", "procurement", "forecasting", "reporting"], [] },
-        { AppRoles.ServiceEngineer, ["fleet", "reporting"], ["inventory", "procurement", "forecasting"] },
-        { AppRoles.Sponsor, ["procurement", "reporting"], ["inventory", "fleet", "forecasting"] },
+        { AppRoles.ServiceEngineer, ["inventory", "fleet", "reporting"], ["procurement", "forecasting"] },
+        { AppRoles.Sponsor, ["inventory", "procurement", "reporting"], ["fleet", "forecasting"] },
     };
 
     [Theory]
