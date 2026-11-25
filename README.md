@@ -12,7 +12,9 @@ Compliance with the backend grading rubric: [BACKEND_REQUIREMENTS.md](docs/archi
 
 ## Quick start (application)
 
-Prerequisites: .NET 10 SDK (version pinned in `global.json`) and Docker Desktop (running).
+Prerequisites: .NET 10 SDK (version pinned in `global.json`), Docker Desktop (running) and the Aspire 17 CLI bundle
+(`~/.aspire`): since Aspire 17 the AppHost is a plain .NET project, and `dotnet run` starts the dashboard and the
+orchestrator from that bundle ([migration guide](https://aspire.dev/integrations/dotnet/migrate-dotnet-project-resource/)).
 
 ```bash
 dotnet run --project src/SmartSpare.AppHost      # PostgreSQL 17 + migrations + host + Aspire dashboard
@@ -27,6 +29,9 @@ no sign-in.
 
 **Troubleshooting:** after a WSL or Docker restart, the AppHost may leave `migrations` and `host` waiting because the
 persistent `postgres` container stayed stopped; start it with **Start resource** on the `postgres` row in the dashboard.
+If it still doesn't start (`docker start smartspare-postgres` reports "network … not found"), stop the AppHost and remove
+only the container, `docker rm smartspare-postgres`: the data stays in the volume `smartspare-postgres17-data`, and the
+next AppHost start recreates the container on it.
 
 To run the host alone, without Aspire: `dotnet run --project src/Bootstrapper/SmartSpare.Host` (https://localhost:7080; the
 session cookies are `Secure`, so the default launch profile is HTTPS).
