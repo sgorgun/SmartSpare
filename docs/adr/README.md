@@ -18,10 +18,11 @@
 | [0014](0014-browser-sign-in-through-bff-endpoints.md) | Browser sign-in through BFF endpoints | Accepted, amended by 0016; implemented in stage 3 |
 | [0015](0015-deployment-topology-microservices-behind-yarp-gateway.md) | Deployment topology: microservices behind a YARP gateway | Accepted, amended by 0020 |
 | [0016](0016-authentication-behind-the-gateway.md) | Authentication behind the gateway | Accepted; single-host part implemented in stage 3 |
-| [0017](0017-rabbitmq-integration-event-transport.md) | RabbitMQ as the integration-event transport | Accepted |
+| [0017](0017-rabbitmq-integration-event-transport.md) | RabbitMQ as the integration-event transport | Accepted, amended by 0021 |
 | [0018](0018-observability-with-the-grafana-stack.md) | Observability with the Grafana stack | Accepted |
 | [0019](0019-public-api-documentation.md) | Public API documentation | Accepted |
 | [0020](0020-database-migrations-through-the-migration-runner-job.md) | Database migrations in Azure through the MigrationRunner job | Accepted |
+| [0021](0021-queue-per-consumer-name.md) | One queue per consumer name | Accepted |
 
 New ADRs use the next free number and the same Context / Decision / Consequences format.
 
