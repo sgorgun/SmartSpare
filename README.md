@@ -44,7 +44,7 @@ session cookies are `Secure`, so the default launch profile is HTTPS).
    inventory, procurement, reporting). The menu follows the user's roles; every endpoint checks its own policy on the
    server. Sign out from the account menu at the top right.
 
-An error message ends with "Reference: <trace id>"; [docs/operations/TRACING.md](docs/operations/TRACING.md) shows how
+An error message ends with `Reference: <trace id>`; [docs/operations/TRACING.md](docs/operations/TRACING.md) shows how
 to find that request's trace. The same flow runs in CI as a Playwright test in Chromium (`tools/check.sh e2e`).
 
 ### Sign-in endpoints (BFF)

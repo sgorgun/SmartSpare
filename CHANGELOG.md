@@ -32,7 +32,7 @@ signs in through the web app, sees a menu that matches their roles and signs out
 - Data Protection key ring shared through `iam.data_protection_keys`, so host instances accept each other's cookies;
   key protection at rest configurable per environment ([#74], closes [#22]).
 - Blazor WebAssembly client with MudBlazor 9.14: sign-in page with the shared validator, menu by policy, typed HTTP
-  clients with antiforgery, en-US resources, and error messages that end with "Reference: <trace id>" ([#76]).
+  clients with antiforgery, en-US resources, and error messages that end with `Reference: <trace id>` ([#76]).
 - bUnit tests for the sign-in page, the menu and the HTTP handlers ([#76]).
 - Playwright smoke test in Chromium against the real host and PostgreSQL 17: redirect to sign-in, the generic
   failure with its trace id, sign-in, role-based menu, no credentials visible to scripts, sign-out. It runs as its own
