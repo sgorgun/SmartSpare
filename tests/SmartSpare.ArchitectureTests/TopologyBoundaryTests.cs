@@ -45,6 +45,26 @@ public sealed class TopologyBoundaryTests
             .ShouldNotContain(r => IsTopologyPackage(r) || IsTopologyAssembly(r));
     }
 
+    /// <summary>
+    /// The free broker allows 100 queues (ADR 0017 §5): at most 45 subscriptions (one queue per consumer and event,
+    /// ADR 0021), leaving room for the six dead-letter queues and one retry queue per subscription if the fallback is needed.
+    /// </summary>
+    [Fact]
+    public void Subscriptions_stay_within_the_broker_queue_budget()
+    {
+        const int Budget = 45;
+        var subscriptions = Solution.Modules
+            .SelectMany(m => m.Implementation.GetTypes())
+            .Where(t => t is { IsClass: true, IsAbstract: false })
+            .SelectMany(t => t.GetInterfaces()
+                .Where(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IIntegrationEventConsumer<>))
+                .Select(i => (Consumer: t, Event: i.GetGenericArguments()[0])))
+            .ToList();
+
+        subscriptions.ShouldNotBeEmpty("the diagnostics probe of stage 4 is a subscription; an empty list would mean the scan is broken");
+        subscriptions.Count.ShouldBeLessThanOrEqualTo(Budget, string.Join(", ", subscriptions.Select(s => $"{s.Consumer.Name}<{s.Event.Name}>")));
+    }
+
     [Fact]
     public void Every_integration_event_consumer_has_a_unique_stable_name()
     {
@@ -54,7 +74,7 @@ public sealed class TopologyBoundaryTests
                         && t.GetInterfaces().Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IIntegrationEventConsumer<>)))
             .ToList();
 
-        // NameOf throws for a missing or malformed name; no module has a consumer yet (stage 5 adds the first ones).
+        // NameOf throws for a missing or malformed name.
         var names = consumers.Select(t => (Type: t, Name: IntegrationEventConsumers.NameOf(t))).ToList();
         names.GroupBy(n => n.Name, StringComparer.Ordinal).Where(g => g.Count() > 1).Select(g => g.Key).ShouldBeEmpty();
         names.ShouldAllBe(n => n.Name.StartsWith(Solution.ModuleOf(n.Type) + ".", StringComparison.Ordinal),
