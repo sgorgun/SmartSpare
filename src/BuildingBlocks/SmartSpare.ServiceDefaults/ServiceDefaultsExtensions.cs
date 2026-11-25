@@ -25,6 +25,8 @@ public static class ServiceDefaultsExtensions
 
     /// <summary>The meter and activity source of SmartSpare's messaging (outbox status, broker publish and process spans).</summary>
     public const string MessagingMeter = "SmartSpare.Messaging";
+
+    public const string GatewayMeter = "SmartSpare.Gateway";
     private const string LiveTag = "live";
 
     public static TBuilder AddServiceDefaults<TBuilder>(this TBuilder builder)
@@ -58,7 +60,9 @@ public static class ServiceDefaultsExtensions
                 .AddHttpClientInstrumentation()
                 .AddRuntimeInstrumentation()
                 // Outbox and broker metrics of SmartSpare.Infrastructure (OutboxMonitor.MeterName, #31).
-                .AddMeter(MessagingMeter))
+                .AddMeter(MessagingMeter)
+                // The gateway's warm-up failures (WarmupEndpoint.MeterName, ADR 0018 §4).
+                .AddMeter(GatewayMeter))
             .WithTracing(tracing => tracing
                 .AddSource(builder.Environment.ApplicationName)
                 // Npgsql emits a span per database command under this source (ADR 0018): the SQL text with its

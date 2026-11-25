@@ -1,0 +1,10 @@
+# Dashboards from infra/observability/dashboards, mounted at /var/lib/grafana/dashboards (STAGE_4_PLAN 6.4).
+apiVersion: 1
+
+providers:
+  - name: smartspare
+    folder: SmartSpare
+    type: file
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards

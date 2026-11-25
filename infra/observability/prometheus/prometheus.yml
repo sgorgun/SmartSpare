@@ -1,0 +1,20 @@
+# Prometheus of the local services topology (STAGE_4_PLAN 6.3): receives OTLP metrics from the collector
+# (--web.enable-otlp-receiver) and Tempo's span metrics (--web.enable-remote-write-receiver); scrapes only itself.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+otlp:
+  # Resource attributes that become labels; service.name and service.instance.id already become job and instance.
+  promote_resource_attributes:
+    - service.version
+    - deployment.environment.name
+
+storage:
+  tsdb:
+    out_of_order_time_window: 30m
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: [localhost:9090]

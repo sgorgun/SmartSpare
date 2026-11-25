@@ -669,6 +669,8 @@ Each PR passes the full `tools/check.sh`, including the new steps once they exis
 - **4g-1:** the outbox `trace_parent` column and the linked publish span (6.5), the topology test project `tests/SmartSpare.Topology.Tests` with `tools/check.sh topology` and the CI job "Topology test". Closes #57.
 - **4g-2:** AppHost `--topology services`, the observability stack, dashboards and alert rules. Part of #59.
 
+**Done in 4g-2 (25 Nov 2026):** `--topology services` ran locally with every resource healthy. A demo user signed in through the gateway, and the probe went from Identity over RabbitMQ to Inventory. Tempo held the delivery trace (Identity publish → Inventory consume → inbox insert), linked to the request trace (gateway server and client spans → Identity server span → outbox insert). Prometheus had request metrics from all seven apps and the outbox gauges, Loki had their logs, and Grafana loaded the five dashboards and the 8 rules in 3 groups. The collector forwards to the Aspire dashboard through the integration's `ASPIRE_ENDPOINT`/`ASPIRE_API_KEY`, which answers 6.3's open question. The run against **CloudAMQP** is configured (`ConnectionStrings:messaging` in the AppHost's user secrets) but moved to 4j: it creates durable queues on the product owner's instance, and 4j works with the CloudAMQP and Grafana Cloud accounts anyway.
+
 Found in 4g-1: RabbitMQ.Client 7 traces too. When its `RabbitMQ.Client.*` sources are listened to, its own publish span sits between SmartSpare's publish span and the consumer, and it writes the `traceparent` header. The consume span then descends from SmartSpare's publish span through it, so the topology test walks up the parents.
 
 ### 4h: Images, pipelines and infrastructure as code (validated, not applied)

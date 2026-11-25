@@ -24,6 +24,18 @@ var apiPassword = GeneratedSecret("api-password");
 var jobsPassword = GeneratedSecret("jobs-password");
 var reportingPassword = GeneratedSecret("reporting-password");
 
+// The services topology's logins (ADR 0015 §5). Always handed to the bootstrap, so the logins exist with known passwords
+// whichever topology starts first; the Reporting service uses smartspare_reporting.
+var serviceLogins = new Dictionary<string, (string Login, IResourceBuilder<ParameterResource> Password)>(StringComparer.Ordinal)
+{
+    ["identity"] = ("smartspare_identity", GeneratedSecret("identity-password")),
+    ["inventory"] = ("smartspare_inventory", GeneratedSecret("inventory-password")),
+    ["fleet"] = ("smartspare_fleet", GeneratedSecret("fleet-password")),
+    ["procurement"] = ("smartspare_procurement", GeneratedSecret("procurement-password")),
+    ["forecasting"] = ("smartspare_forecasting", GeneratedSecret("forecasting-password")),
+    ["reporting"] = ("smartspare_reporting", reportingPassword),
+};
+
 // Password of the T001 demo users (issue #33): generated once and persisted in the AppHost user secrets;
 // shown under Parameters in the dashboard, or set your own with `dotnet user-secrets set Parameters:demo-user-password`.
 var demoUserPassword = GeneratedSecret("demo-user-password");
@@ -35,21 +47,35 @@ var migrations = builder.AddDotnetProject("migrations", MigrationRunnerProject)
     .WithEnvironment("Migrations__Passwords__Api", apiPassword)
     .WithEnvironment("Migrations__Passwords__Jobs", jobsPassword)
     .WithEnvironment("Migrations__Passwords__Reporting", reportingPassword)
+    .WithEnvironment("Migrations__Passwords__Identity", serviceLogins["identity"].Password)
+    .WithEnvironment("Migrations__Passwords__Inventory", serviceLogins["inventory"].Password)
+    .WithEnvironment("Migrations__Passwords__Fleet", serviceLogins["fleet"].Password)
+    .WithEnvironment("Migrations__Passwords__Procurement", serviceLogins["procurement"].Password)
+    .WithEnvironment("Migrations__Passwords__Forecasting", serviceLogins["forecasting"].Password)
     .WaitFor(postgres);
 
 // "Load demo data" on the postgres resource: T001 + set-demo-passwords with the connection and
 // passwords Aspire already holds, so nothing has to be copied from the dashboard (issue #33).
 DemoDataCommand.Add(postgres, migratorPassword, demoUserPassword, Path.GetFullPath(Path.Combine(builder.AppHostDirectory, MigrationRunnerProject)));
 
-// The application connects as smartspare_api (role app_write): never as owner or superuser.
 var endpoint = postgres.Resource.PrimaryEndpoint;
-var database = builder.AddConnectionString("smartspare", ReferenceExpression.Create(
-    $"Host={endpoint.Property(EndpointProperty.Host)};Port={endpoint.Property(EndpointProperty.Port)};Database=smartspare;Username=smartspare_api;Password={apiPassword}"));
 
-builder.AddDotnetProject("host", HostProject)
-    .WithReference(database)
-    .WaitForCompletion(migrations)
-    .WithHttpHealthCheck("/health/ready");
+if (ServicesTopology.IsRequested(builder.Configuration))
+{
+    // `dotnet run --project src/SmartSpare.AppHost -- --topology services`: gateway, six services, broker, observability.
+    ServicesTopology.Add(builder, endpoint, serviceLogins, migrations);
+}
+else
+{
+    // The single host (default): connects as smartspare_api (role app_write), never as owner or superuser.
+    var database = builder.AddConnectionString("smartspare", ReferenceExpression.Create(
+        $"Host={endpoint.Property(EndpointProperty.Host)};Port={endpoint.Property(EndpointProperty.Port)};Database=smartspare;Username=smartspare_api;Password={apiPassword}"));
+
+    builder.AddDotnetProject("host", HostProject)
+        .WithReference(database)
+        .WaitForCompletion(migrations)
+        .WithHttpHealthCheck("/health/ready");
+}
 
 await builder.Build().RunAsync().ConfigureAwait(false);
 

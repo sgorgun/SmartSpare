@@ -18,6 +18,7 @@ orchestrator from that bundle ([migration guide](https://aspire.dev/integrations
 
 ```bash
 dotnet run --project src/SmartSpare.AppHost      # PostgreSQL 17 + migrations + host + Aspire dashboard
+# or: -- --topology services                      # gateway + six services + RabbitMQ + Grafana stack (below)
 ```
 
 The AppHost starts PostgreSQL 17, runs `SmartSpare.MigrationRunner` (cluster bootstrap and the EF Core migrations of
@@ -35,6 +36,40 @@ next AppHost start recreates the container on it.
 
 To run the host alone, without Aspire: `dotnet run --project src/Bootstrapper/SmartSpare.Host` (https://localhost:7080; the
 session cookies are `Secure`, so the default launch profile is HTTPS).
+
+### The services topology
+
+Production runs every module as its own service behind the gateway (ADR 0015). Locally:
+
+```bash
+dotnet run --project src/SmartSpare.AppHost -- --topology services
+```
+
+This starts, instead of the single host:
+- `gateway` at https://localhost:7090: sign-in, the web app, `/scalar`, `/warmup`;
+- the six services `identity` … `reporting`, each on its own database login and only reachable through the gateway;
+- `messaging`: RabbitMQ 4.4 with the management UI;
+- the observability stack of ADR 0018:
+  - `otelcollector`, which forwards everything to the services below and to the Aspire dashboard;
+  - `prometheus`, `loki` and `tempo`;
+  - `grafana`, with the SmartSpare dashboards and alert rules from `infra/observability/` (anonymous viewer; the admin
+    password is the `grafana-admin-password` parameter).
+
+To try the diagnostics probe, sign in and `POST /api/identity/diagnostics/probe` through the gateway. Its trace in Tempo
+goes gateway → Identity, and the delivery's trace (publish → Inventory) links to it ([TRACING.md](docs/operations/TRACING.md)).
+
+To use CloudAMQP instead of the local broker, give the AppHost the instance's URL:
+
+```bash
+dotnet user-secrets set ConnectionStrings:messaging "amqps://<user>:<password>@<host>/<vhost>" --project src/SmartSpare.AppHost
+```
+
+The services then declare their queues on that instance ([BROKER.md](docs/operations/BROKER.md)). Remove the secret to
+use the local broker again.
+
+If the AppHost is stopped abruptly, its containers can stay behind. Remove them with
+`docker rm -f $(docker ps -aq --filter name=otelcollector- --filter name=prometheus- --filter name=loki- --filter name=tempo- --filter name=grafana- --filter name=messaging-)`.
+The data stays in the `smartspare-*` volumes.
 
 ### Sign in as a demo user
 
