@@ -25,6 +25,12 @@ public sealed class OutboxMessage
     public int Attempts { get; set; }
 
     public string? Error { get; set; }
+
+    /// <summary>Earliest time of the next delivery attempt after a failure (exponential back-off, #31); NULL = now.</summary>
+    public DateTimeOffset? NextAttemptAt { get; set; }
+
+    /// <summary>Time the message ran out of attempts and was parked for an operator (#31); NULL = still being delivered.</summary>
+    public DateTimeOffset? ExhaustedAt { get; set; }
 }
 
 /// <summary>
@@ -69,8 +75,14 @@ public static class OutboxModelBuilderExtensions
             e.Property(x => x.ProcessedAt).HasColumnName("processed_at").HasComment("Time the event was delivered to every consumer; NULL = pending.");
             e.Property(x => x.Attempts).HasColumnName("attempts").HasDefaultValue(0).HasComment("Failed delivery attempts so far.");
             e.Property(x => x.Error).HasColumnName("error").HasMaxLength(MaxErrorLength).HasComment("Last delivery error, if any.");
-            // The dispatcher claims the oldest pending events with FOR UPDATE SKIP LOCKED.
-            e.HasIndex(x => x.OccurredAt).HasDatabaseName("ix_outbox_message_pending").HasFilter("processed_at IS NULL");
+            e.Property(x => x.NextAttemptAt).HasColumnName("next_attempt_at")
+                .HasComment("Earliest time of the next delivery attempt after a failure (exponential back-off); NULL = now.");
+            e.Property(x => x.ExhaustedAt).HasColumnName("exhausted_at")
+                .HasComment("Time the event ran out of delivery attempts and was parked for an operator; NULL = still being delivered.");
+            // The dispatcher claims the oldest deliverable events with FOR UPDATE SKIP LOCKED; parked ones stay out of the index.
+            e.HasIndex(x => x.OccurredAt).HasDatabaseName("ix_outbox_message_pending").HasFilter("processed_at IS NULL AND exhausted_at IS NULL");
+            // Parked events, for the health check, the metric and mart.v_data_quality.
+            e.HasIndex(x => x.ExhaustedAt).HasDatabaseName("ix_outbox_message_exhausted").HasFilter("exhausted_at IS NOT NULL AND processed_at IS NULL");
         });
 
         modelBuilder.Entity<InboxMessage>(e =>

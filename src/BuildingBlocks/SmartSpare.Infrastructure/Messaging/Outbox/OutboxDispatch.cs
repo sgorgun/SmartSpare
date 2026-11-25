@@ -21,10 +21,40 @@ public sealed class OutboxOptions
 {
     public int BatchSize { get; set; } = 50;
 
-    /// <summary>After this many failed attempts a message stays in the outbox for an operator.</summary>
+    /// <summary>After this many failed attempts a message is parked (<c>exhausted_at</c>) for an operator (#31).</summary>
     public int MaxAttempts { get; set; } = 10;
 
     public TimeSpan PollingInterval { get; set; } = TimeSpan.FromSeconds(2);
+
+    /// <summary>Delay after the first failure; doubled after each further one (#31).</summary>
+    public TimeSpan BackoffBase { get; set; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>Longest delay between two attempts.</summary>
+    public TimeSpan BackoffCap { get; set; } = TimeSpan.FromMinutes(10);
+
+    /// <summary>How often the dispatcher refreshes each outbox's status for the metric and the health check.</summary>
+    public TimeSpan StatusInterval { get; set; } = TimeSpan.FromSeconds(30);
+}
+
+/// <summary>
+/// Exponential back-off with jitter for failed deliveries (#31): base * 2^(failures - 1), capped, +/- 20 %. With the
+/// defaults (5 s, 10 min, 10 attempts) a message is retried for about half an hour before it is parked.
+/// </summary>
+public static class OutboxBackoff
+{
+    public const double Jitter = 0.2;
+
+    /// <param name="failures">Failed attempts so far, including the one that just happened (at least 1).</param>
+    /// <param name="options">Base and cap of the back-off.</param>
+    /// <param name="sample">A uniform random number in [0, 1), for the jitter.</param>
+    public static TimeSpan Delay(int failures, OutboxOptions options, double sample)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(failures, 1);
+        ArgumentNullException.ThrowIfNull(options);
+        var exponential = options.BackoffBase.TotalSeconds * Math.Pow(2, Math.Min(failures - 1, 30));
+        var capped = Math.Min(exponential, options.BackoffCap.TotalSeconds);
+        return TimeSpan.FromSeconds(capped * (1 + (Jitter * ((2 * sample) - 1))));
+    }
 }
 
 /// <summary>An outbox row claimed for delivery.</summary>
@@ -75,7 +105,13 @@ public interface IOutboxStore
     /// <summary>Claims, delivers and marks one batch in one transaction; returns the number of claimed messages.</summary>
     Task<int> DispatchBatchAsync(
         IServiceProvider scopedServices, Func<OutboxEnvelope, CancellationToken, Task> publish, OutboxOptions options, CancellationToken cancellationToken);
+
+    /// <summary>Parked messages and the oldest message still waiting for delivery (#31).</summary>
+    Task<OutboxStatus> GetStatusAsync(IServiceProvider scopedServices, CancellationToken cancellationToken);
 }
+
+/// <summary>Health of one module's outbox: parked messages and the oldest undelivered one.</summary>
+public sealed record OutboxStatus(string Schema, long Exhausted, DateTimeOffset? OldestPending);
 
 /// <summary>
 /// EF/Npgsql outbox store. Rows are claimed with <c>FOR UPDATE SKIP LOCKED</c>, so several host
@@ -101,18 +137,21 @@ public sealed class EfOutboxStore<TContext>(string schema) : IOutboxStore
             var dbTransaction = transaction.GetDbTransaction();
 
             var batch = new List<OutboxEnvelope>();
+            var attempts = new Dictionary<Guid, int>();
             await using (var claim = Command(connection, dbTransaction, $"""
-                SELECT id, type, payload::text FROM "{Schema}".outbox_message
-                WHERE processed_at IS NULL AND attempts < @max
+                SELECT id, type, payload::text, attempts FROM "{Schema}".outbox_message
+                WHERE processed_at IS NULL AND exhausted_at IS NULL
+                  AND (next_attempt_at IS NULL OR next_attempt_at <= now())
                 ORDER BY occurred_at
                 LIMIT @batch
                 FOR UPDATE SKIP LOCKED
-                """, ("max", options.MaxAttempts), ("batch", options.BatchSize)))
+                """, ("batch", options.BatchSize)))
             await using (var reader = await claim.ExecuteReaderAsync(ct).ConfigureAwait(false))
             {
                 while (await reader.ReadAsync(ct).ConfigureAwait(false))
                 {
                     batch.Add(new OutboxEnvelope(reader.GetGuid(0), reader.GetString(1), reader.GetString(2)));
+                    attempts[reader.GetGuid(0)] = reader.GetInt32(3);
                 }
             }
 
@@ -134,15 +173,55 @@ public sealed class EfOutboxStore<TContext>(string schema) : IOutboxStore
 
             foreach (var (id, error) in result.Failed)
             {
-                await using var fail = Command(connection, dbTransaction,
-                    $"UPDATE \"{Schema}\".outbox_message SET attempts = attempts + 1, error = @error WHERE id = @id",
-                    ("id", id), ("error", error));
+                // Back off, or park the message once it has used up its attempts (#31).
+                var failures = attempts[id] + 1;
+                await using var fail = failures >= options.MaxAttempts
+                    ? Command(connection, dbTransaction,
+                        $"UPDATE \"{Schema}\".outbox_message SET attempts = @failures, error = @error, next_attempt_at = NULL, exhausted_at = now() WHERE id = @id",
+                        ("id", id), ("error", error), ("failures", failures))
+                    : Command(connection, dbTransaction,
+                        $"UPDATE \"{Schema}\".outbox_message SET attempts = @failures, error = @error, next_attempt_at = now() + @delay WHERE id = @id",
+                        ("id", id), ("error", error), ("failures", failures),
+                        ("delay", OutboxBackoff.Delay(failures, options, Random.Shared.NextDouble())));
                 await fail.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
             }
 
             await transaction.CommitAsync(ct).ConfigureAwait(false);
             return batch.Count;
         }, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<OutboxStatus> GetStatusAsync(IServiceProvider scopedServices, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(scopedServices);
+        var context = scopedServices.GetRequiredService<TContext>();
+        var connection = context.Database.GetDbConnection();
+        var opened = connection.State != System.Data.ConnectionState.Open;
+        if (opened)
+        {
+            await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        try
+        {
+            await using var command = connection.CreateCommand();
+#pragma warning disable CA2100 // The schema comes from the module's registration, never from input.
+            command.CommandText = $"""
+                SELECT (SELECT count(*) FROM "{Schema}".outbox_message WHERE exhausted_at IS NOT NULL AND processed_at IS NULL),
+                       (SELECT min(occurred_at) FROM "{Schema}".outbox_message WHERE processed_at IS NULL AND exhausted_at IS NULL)
+                """;
+#pragma warning restore CA2100
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            await reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+            return new OutboxStatus(Schema, reader.GetInt64(0), reader.IsDBNull(1) ? null : reader.GetFieldValue<DateTimeOffset>(1));
+        }
+        finally
+        {
+            if (opened)
+            {
+                await connection.CloseAsync().ConfigureAwait(false);
+            }
+        }
     }
 
     private static DbCommand Command(DbConnection connection, DbTransaction transaction, string sql, params (string Name, object Value)[] parameters)

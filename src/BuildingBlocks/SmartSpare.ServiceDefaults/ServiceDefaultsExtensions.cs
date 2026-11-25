@@ -22,6 +22,9 @@ public static class ServiceDefaultsExtensions
 
     /// <summary>The activity source of the Npgsql driver (what <c>Npgsql.OpenTelemetry</c>'s <c>AddNpgsql()</c> adds).</summary>
     public const string NpgsqlActivitySource = "Npgsql";
+
+    /// <summary>The meter of SmartSpare's messaging (outbox status, later the broker transport).</summary>
+    public const string MessagingMeter = "SmartSpare.Messaging";
     private const string LiveTag = "live";
 
     public static TBuilder AddServiceDefaults<TBuilder>(this TBuilder builder)
@@ -53,7 +56,9 @@ public static class ServiceDefaultsExtensions
             .WithMetrics(metrics => metrics
                 .AddAspNetCoreInstrumentation()
                 .AddHttpClientInstrumentation()
-                .AddRuntimeInstrumentation())
+                .AddRuntimeInstrumentation()
+                // Outbox and broker metrics of SmartSpare.Infrastructure (OutboxMonitor.MeterName, #31).
+                .AddMeter(MessagingMeter))
             .WithTracing(tracing => tracing
                 .AddSource(builder.Environment.ApplicationName)
                 // Npgsql emits a span per database command under this source (ADR 0018): the SQL text with its
