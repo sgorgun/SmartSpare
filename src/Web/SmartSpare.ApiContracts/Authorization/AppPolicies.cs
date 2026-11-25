@@ -24,6 +24,7 @@ public static class AppPolicies
     public const string CancelPurchaseOrder = nameof(CancelPurchaseOrder);
     public const string DecideRecommendation = nameof(DecideRecommendation);
     public const string ReadAudit = nameof(ReadAudit);
+    public const string ReadInventory = nameof(ReadInventory);
 
     /// <summary>The roles each policy allows: the table of STAGE_3_PLAN section 3.2.</summary>
     public static IReadOnlyDictionary<string, IReadOnlyList<string>> Roles { get; } = new Dictionary<string, IReadOnlyList<string>>
@@ -39,6 +40,11 @@ public static class AppPolicies
         [CancelPurchaseOrder] = [AppRoles.BrandManager, AppRoles.Sponsor, AppRoles.Administrator],
         [DecideRecommendation] = [AppRoles.BrandManager, AppRoles.InventoryPlanner],
         [ReadAudit] = [AppRoles.Sponsor, AppRoles.Administrator],
+
+        // Read policies (stages 5–9) front no SQL function and are never brand-scoped (section 3.3 rule 1). Every role
+        // works with parts and stock: planners and managers plan, keepers move, engineers fit parts, sponsors approve
+        // purchases, administrators support. A user without any role is still refused.
+        [ReadInventory] = AppRoles.All,
     };
 
     /// <summary>

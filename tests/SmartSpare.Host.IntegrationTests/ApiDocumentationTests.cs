@@ -4,6 +4,7 @@ using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using SmartSpare.ApiContracts;
 using SmartSpare.Bff;
 using SmartSpare.Host.IntegrationTests.Support;
 using SmartSpare.Infrastructure.Http;
@@ -58,6 +59,90 @@ public sealed partial class ApiDocumentationTests : IAsyncLifetime
         ApiDocumentation.IsDocumented(path, module).ShouldBe(documented);
 
     [Fact]
+    public async Task The_inventory_document_describes_every_operation_with_parameters_responses_and_examples()
+    {
+        var root = await DocumentAsync("inventory");
+        var paths = root.GetProperty("paths");
+        paths.EnumerateObject().Select(p => p.Name).Order(StringComparer.Ordinal)
+            .ShouldBe(["/api/v1/inventory/parts", "/api/v1/inventory/parts/{id}", "/api/v1/inventory/warehouses"]);
+
+        foreach (var (path, statuses) in new (string, string[])[]
+        {
+            ("/api/v1/inventory/parts", ["200", "400", "401", "403"]),
+            ("/api/v1/inventory/parts/{id}", ["200", "401", "403", "404"]),
+            ("/api/v1/inventory/warehouses", ["200", "401", "403"]),
+        })
+        {
+            var operation = paths.GetProperty(path).GetProperty("get");
+            operation.GetProperty("summary").GetString().ShouldNotBeNullOrWhiteSpace(path);
+            operation.GetProperty("description").GetString().ShouldNotBeNullOrWhiteSpace(path);
+            var responses = operation.GetProperty("responses");
+            responses.EnumerateObject().Select(r => r.Name).ShouldBe(statuses, ignoreOrder: true, path);
+            ExampleOf(responses.GetProperty("200")).ValueKind.ShouldNotBe(JsonValueKind.Undefined, $"{path} has a 200 example");
+        }
+
+        var search = paths.GetProperty("/api/v1/inventory/parts").GetProperty("get");
+        search.GetProperty("parameters").EnumerateArray().Select(p => p.GetProperty("name").GetString()).ShouldBe(["search", "page", "pageSize"]);
+        search.GetProperty("parameters").EnumerateArray().ShouldAllBe(p => !string.IsNullOrWhiteSpace(p.GetProperty("description").GetString()));
+
+        var notFound = ExampleOf(paths.GetProperty("/api/v1/inventory/parts/{id}").GetProperty("get").GetProperty("responses").GetProperty("404"));
+        notFound.GetProperty("code").GetString().ShouldBe("Inventory.PartNotFound");
+
+        var part = root.GetProperty("components").GetProperty("schemas").GetProperty("PartSummary");
+        part.GetProperty("properties").EnumerateObject().Where(p => !p.Value.TryGetProperty("description", out _)).Select(p => p.Name).ShouldBeEmpty("every field is described");
+        part.GetProperty("properties").GetProperty("unitCost").GetProperty("type").GetString().ShouldBe("number", "numbers are documented as JSON numbers");
+    }
+
+    [Fact]
+    public async Task The_session_endpoints_have_their_own_public_document_with_errors_and_examples()
+    {
+        var root = await DocumentAsync(BffEndpoints.DocumentName);
+
+        root.GetProperty("info").GetProperty("title").GetString().ShouldBe("SmartSpare Session API (BFF)");
+        var paths = root.GetProperty("paths");
+        paths.EnumerateObject().Select(p => p.Name).Order(StringComparer.Ordinal)
+            .ShouldBe(["/bff/antiforgery", "/bff/login", "/bff/logout", "/bff/me"]);
+
+        var login = paths.GetProperty("/bff/login").GetProperty("post");
+        login.GetProperty("summary").GetString().ShouldNotBeNullOrWhiteSpace();
+        ExampleOf(login.GetProperty("requestBody")).GetProperty("userName").GetString().ShouldBe("tomas.radzevicius");
+        var responses = login.GetProperty("responses");
+        responses.EnumerateObject().Select(r => r.Name).ShouldBe(["204", "400", "429"], ignoreOrder: true);
+        ExampleOf(responses.GetProperty("400")).GetProperty("code").GetString().ShouldBe(ProblemCodes.InvalidCredentials);
+        var tooMany = responses.GetProperty("429");
+        tooMany.GetProperty("headers").GetProperty("Retry-After").GetProperty("schema").GetProperty("type").GetString().ShouldBe("integer");
+        ExampleOf(tooMany).GetProperty("code").GetString().ShouldBe(ProblemCodes.TooManyRequests);
+
+        var logout = paths.GetProperty("/bff/logout").GetProperty("post").GetProperty("responses");
+        ExampleOf(logout.GetProperty("401")).GetProperty("code").GetString().ShouldBe(ProblemCodes.Unauthenticated);
+        ExampleOf(logout.GetProperty("400")).GetProperty("code").GetString().ShouldBe(ProblemCodes.AntiforgeryFailed);
+    }
+
+    [Theory]
+    [InlineData("bff")]
+    [InlineData("inventory")]
+    public async Task The_problem_details_schema_documents_code_and_trace_id(string document)
+    {
+        var root = await DocumentAsync(document);
+
+        var properties = root.GetProperty("components").GetProperty("schemas").GetProperty("ProblemDetails").GetProperty("properties");
+        properties.TryGetProperty("code", out _).ShouldBeTrue();
+        properties.TryGetProperty("traceId", out _).ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Only_bff_paths_are_in_the_session_document_and_no_bff_path_is_in_a_module_document()
+    {
+        var bff = await DocumentAsync(BffEndpoints.DocumentName);
+        bff.GetProperty("paths").EnumerateObject().ShouldAllBe(p => p.Name.StartsWith("/bff/", StringComparison.Ordinal));
+
+        foreach (var module in Modules)
+        {
+            (await DocumentAsync(module)).GetProperty("paths").EnumerateObject().ShouldAllBe(p => !p.Name.StartsWith("/bff", StringComparison.Ordinal));
+        }
+    }
+
+    [Fact]
     public void Every_versioned_business_endpoint_requires_authorization()
     {
         var anonymous = _host.Services.GetServices<EndpointDataSource>().SelectMany(s => s.Endpoints).OfType<RouteEndpoint>()
@@ -86,6 +171,8 @@ public sealed partial class ApiDocumentationTests : IAsyncLifetime
         html.ShouldContain($"nonce=\"{nonce}\"");
         html.ShouldNotContain("fonts.scalar.com");
         html.ShouldNotContain("cdn.jsdelivr.net");
+        html.IndexOf("\"bff\"", StringComparison.Ordinal).ShouldBeInRange(0, html.IndexOf("\"identity\"", StringComparison.Ordinal),
+            "the session document is listed, before the module documents");
 
         using var again = await browser.GetAsync(ApiReference.Path + "/");
         again.Headers.GetValues("Content-Security-Policy").Single().ShouldNotContain(nonce, Case.Sensitive, "a fresh nonce per response");
@@ -106,4 +193,17 @@ public sealed partial class ApiDocumentationTests : IAsyncLifetime
     private static partial Regex NonceSource();
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
+
+    private async Task<JsonElement> DocumentAsync(string name)
+    {
+        using var browser = _host.NewBrowser();
+        using var response = await browser.GetAsync(ApiDocumentation.PathOf(name));
+        response.StatusCode.ShouldBe(HttpStatusCode.OK, $"{name} is anonymous");
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(Ct));
+        return document.RootElement.Clone();
+    }
+
+    /// <summary>The example of the only media type of a request body or response.</summary>
+    private static JsonElement ExampleOf(JsonElement bodyOrResponse) =>
+        bodyOrResponse.GetProperty("content").EnumerateObject().Single().Value.TryGetProperty("example", out var example) ? example : default;
 }

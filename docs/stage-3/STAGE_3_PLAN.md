@@ -225,6 +225,7 @@ Policies are claims-only (ADR 0012) and registered by one shared method, `AppPol
 | `CancelPurchaseOrder` | `BRAND_MANAGER`, `SPONSOR`, `ADMINISTRATOR` | `procurement.cancel_purchase_order` | brand scope (3.3) |
 | `DecideRecommendation` | `BRAND_MANAGER`, `INVENTORY_PLANNER` | `forecast.decide_recommendation` (and its event-based successor, MODULE_MAPPING 3.4) | brand scope (3.3) |
 | `ReadAudit` | `SPONSOR`, `ADMINISTRATOR` | — (read only) | — |
+| `ReadInventory` (added 26 Nov 2026 with the first Inventory reads) | all six roles | — (read only: parts catalogue, stock, warehouses) | — |
 
 Notes:
 

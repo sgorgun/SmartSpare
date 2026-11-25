@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Modules\Inventory\SmartSpare.Modules.Inventory\SmartSpare.Modules.Inventory.csproj" />
+  </ItemGroup>
+
+</Project>
