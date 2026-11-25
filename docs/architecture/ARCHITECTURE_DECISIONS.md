@@ -20,7 +20,7 @@ Business code is identical in both. Only the composition roots differ.
 | 4 | Integration | Integration events via Outbox/Inbox; RabbitMQ between services, in-process in the single host | [0003](../adr/0003-module-boundaries-and-integration-events.md), [0017](../adr/0017-rabbitmq-integration-event-transport.md) |
 | 5 | Inside a module | Vertical slices, DDD tactical patterns, CQRS-lite, Result pattern | [0002](../adr/0002-modular-monolith.md) |
 | 6 | Handlers | Own lightweight interfaces and decorators instead of MediatR | [0005](../adr/0005-own-handlers-instead-of-mediatr.md) |
-| 7 | Data | Hybrid EF Core code-first: tables in Fluent API, triggers and functions via `migrationBuilder.Sql` | [0004](../adr/0004-hybrid-ef-core-code-first.md) |
+| 7 | Data | Hybrid EF Core code-first: tables in Fluent API, triggers and functions via `migrationBuilder.Sql`; in Azure, migrations run as a MigrationRunner job per service | [0004](../adr/0004-hybrid-ef-core-code-first.md), [0020](../adr/0020-database-migrations-through-the-migration-runner-job.md) |
 | 8 | Frontend | Blazor Web App (global InteractiveWebAssembly) + MudBlazor 9.x; the BFF with the HttpOnly cookie is the YARP gateway in production and the host in development | [0006](../adr/0006-frontend-blazor-wasm-mudblazor-bff.md) |
 | 9 | API contracts | Shared `SmartSpare.ApiContracts` project with DTOs and FluentValidation validators | [0006](../adr/0006-frontend-blazor-wasm-mudblazor-bff.md) |
 | 10 | Platform | .NET 10 LTS | [0007](../adr/0007-dotnet-10-lts.md) |
@@ -140,11 +140,11 @@ We move to **EF Core code-first** and port the already-tested schema into it. C#
 
 Rules:
 
-- **Migrations per module.** Each DbContext keeps its history in its own schema (`inventory.__ef_migrations_history`). In production each service applies only its own module's migration bundle before its new revision starts.
+- **Migrations per module.** Each DbContext keeps its history in its own schema (`inventory.__ef_migrations_history`). In production each service applies only its own module's migrations before its new revision starts, through the MigrationRunner job (`--module`, ADR 0020).
 - **Business rules in the domain, protection in the database.** Triggers and CHECKs remain the last line of defence (stock ledger, stock row locks, audit), protecting data from both application bugs and direct database edits.
 - **Session context.** `SessionContextInterceptor` passes the signed-in user's id, roles and home warehouse into `app.user_id`, `app.user_roles` and `app.home_warehouse_id` (from the claims, whichever scheme authenticated the request), so the audit knows who changed what and the SQL role and warehouse checks need no cross-module read (MODULE_MAPPING 3.6).
 - **Resilience.** `EnableRetryOnFailure` for Azure, optimistic concurrency via `xmin`, `AsNoTracking` for queries.
-- **Production rollout** uses an EF migration bundle from CI under the dedicated `smartspare_migrator` login. The application never migrates on startup.
+- **Production rollout** runs the MigrationRunner image as a one-shot Container Apps job under the dedicated `smartspare_migrator` login ([ADR 0020](../adr/0020-database-migrations-through-the-migration-runner-job.md)). The application never migrates on startup.
 - **Database logins.**
   - The single host uses `smartspare_api`, `smartspare_jobs` and `smartspare_reporting`.
   - The services topology uses one login per service (`smartspare_identity` … `smartspare_reporting`); in Azure these are Managed Identities via Entra.
@@ -214,7 +214,7 @@ Production runs on **Azure Container Apps** ([ADR 0009](../adr/0009-azure-hostin
 - **IaC** — Bicep modules in `infra/`, dev and prod environments via parameters.
 - **CI/CD** — GitHub Actions:
   - one shared quality gate (build, tests, analysis);
-  - then, per changed service: image to ACR → that module's EF migration bundle → new Container Apps revision.
+  - then, per changed service: image to ACR → the MigrationRunner job for that module (ADR 0020) → new Container Apps revision.
 
   Azure sign-in via OIDC (federated credentials), no long-lived secrets. Each service deploys independently.
 - **Background jobs** — Quartz in the single host; in production, Container Apps jobs with cron triggers, because apps scale to zero. The job code is the same. The outbox is dispatched by the publishing service while it is awake (`SKIP LOCKED`, safe with several replicas).
@@ -320,7 +320,7 @@ Work is done on the developer machine (.NET 10 SDK + Docker), where the code can
 1. **Skeleton.** Solution, `Directory.*.props`, BuildingBlocks, host, Aspire, empty modules, architecture tests, CI build.
 2. **Data layer.** DbContexts and Fluent configurations for all modules, initial migrations with SQL parts from V001–V016, Outbox/Inbox. Check: schema matches the current one, 97 SQL tests green.
 3. **Identity and BFF.** Cookie sign-in, roles, policies, internal-token validation (ADR 0016); Blazor client skeleton with MudBlazor and the sign-in page. **Done:** v0.3.0, PRs 3a–3e ([STAGE_3_PLAN.md](../stage-3/STAGE_3_PLAN.md), section 10).
-4. **Topology.** Service hosts, YARP gateway, RabbitMQ transport, Grafana stack, per-service CI/CD, first deployment of the walking skeleton to a dev Container Apps environment (ADRs 0015–0019). Forwarded headers behind the platform's ingress (#48) are part of this stage, because the first deployment depends on them. Plan: #67.
+4. **Topology.** Service hosts, YARP gateway, RabbitMQ transport, Grafana stack, per-service CI/CD, first deployment of the walking skeleton to a dev Container Apps environment (ADRs 0015–0019). Forwarded headers behind the platform's ingress (#48) are part of this stage, because the first deployment depends on them. Coverage and vulnerability gates (#63, #64) land before the first per-service pipeline. Plan: [STAGE_4_PLAN.md](../stage-4/STAGE_4_PLAN.md) (#67); whether the deployment stays in stage 4 is decision T16 there.
 5. **Inventory.** Stock, movements, reservations, transfers, file import + screens.
 6. **Fleet.** Machines, engine hours, service orders (UC02) + mobile card.
 7. **Procurement.** Purchase orders with the four-eyes rule.
