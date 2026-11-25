@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!--
+    The production BFF (ADR 0015, ADR 0016, STAGE_4_PLAN section 2): YARP in front of the six services, the cookie,
+    antiforgery, internal tokens, and the WebAssembly client. No module implementation: Identity is reached through
+    Identity.Contracts' HTTP client (architecture test).
+  -->
+
+  <PropertyGroup>
+    <UserSecretsId>smartspare-gateway</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Yarp.ReverseProxy" />
+    <PackageReference Include="Microsoft.Extensions.ServiceDiscovery.Yarp" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" />
+    <PackageReference Include="Azure.Extensions.AspNetCore.DataProtection.Blobs" />
+    <PackageReference Include="Azure.Extensions.AspNetCore.DataProtection.Keys" />
+    <PackageReference Include="Azure.Identity" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\BuildingBlocks\SmartSpare.ServiceDefaults\SmartSpare.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\..\BuildingBlocks\SmartSpare.Bff\SmartSpare.Bff.csproj" />
+    <ProjectReference Include="..\..\Web\SmartSpare.Web.Client\SmartSpare.Web.Client.csproj" />
+  </ItemGroup>
+
+  <!-- The root component is the single host's, so both BFFs render the same page and the same CSP hash. -->
+  <ItemGroup>
+    <Content Include="..\SmartSpare.Host\Components\App.razor" Link="Components\App.razor" />
+    <Content Include="..\SmartSpare.Host\Components\_Imports.razor" Link="Components\_Imports.razor" />
+  </ItemGroup>
+
+</Project>

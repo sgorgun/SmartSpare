@@ -109,6 +109,8 @@ runs `e2e` and uploads screenshots and the Playwright trace when it fails.
 src/
   Bootstrapper/SmartSpare.Host          single host (development, tests): all modules, BFF sign-in, the web app with a
                                         strict CSP, health, OpenAPI
+  Bootstrapper/SmartSpare.Gateway       production BFF (ADR 0015, 0016): YARP routes to the services, cookie sign-in, internal
+                                        tokens per session, the web app, /warmup; references no module
   Bootstrapper/Services/SmartSpare.Services.<Module>
                                         one host per module service (ADR 0015): its module only, RabbitMQ, internal
                                         tokens only; --job <name> runs one job; ServiceHost.cs is shared by all six

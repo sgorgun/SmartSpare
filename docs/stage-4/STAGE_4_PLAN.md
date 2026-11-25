@@ -30,7 +30,7 @@ Every technology, version and limit below was **checked against official documen
 | # | Decision | Section |
 |---|---|---|
 | T1 | **One business codebase, two composition roots.** `SmartSpare.Host` (single host) stays as it is. New: `SmartSpare.Gateway` and six `SmartSpare.Services.<Module>`. Composition helpers in BuildingBlocks install a module, its transport, its authentication and its Contracts clients the same way in every host. An architecture test keeps YARP, RabbitMQ.Client and host projects out of modules. | 1 |
-| T2 | **Gateway = BFF:** YARP 2.3.0, cookie scheme only, the stage 3 `SmartSpare.Bff` endpoints, internal ES256 tokens minted per session. Requests are proxied only on `/api/v1/{module}/{**rest}` and `/openapi/{module}.json`; `/internal/*` is never routed, as a route-table test proves. | 2 |
+| T2 | **Gateway = BFF:** YARP 2.3.0, cookie scheme only, the stage 3 `SmartSpare.Bff` endpoints, internal ES256 tokens minted per session. Requests are proxied only on `/api/v1/{module}/{**rest}`, the unversioned operational `/api/{module}/{**rest}` (literal module names; product owner, 25 Nov 2026) and `/openapi/{module}.json`; `/internal/*` is never routed, as a route-table test proves. | 2 |
 | T3 | **Services:** JwtBearer only, internal ingress only, one database login per service with `Maximum Pool Size=4`, and `/internal/v1/...` endpoints for Contracts queries. | 3 |
 | T4 | **Contracts queries over HTTP:** in this stage only `ICredentialVerifier`. Its HTTP client lives in `Identity.Contracts` and calls the Identity service with the gateway's service token. | 4 |
 | T5 | **RabbitMQ transport** in `SmartSpare.Infrastructure.RabbitMq` on `RabbitMQ.Client` 7.3.0, behind the existing `IIntegrationEventPublisher` seam: publisher confirms, one connection and two channels per service, durable queues, inbox consumers with stable names (#32). | 5 |
@@ -102,17 +102,22 @@ Aspire packages move from 13.6.5 to **17.0.0** (nuget.org: `Aspire.Hosting` 17.0
 
 ### 2.1 Routes
 
-`Yarp.ReverseProxy` **2.3.0** (MIT). It is the latest release (27 Feb 2025). It ships net8.0 assets that run on .NET 10, which nuget.org lists as "compatible" ([NuGet](https://www.nuget.org/packages/Yarp.ReverseProxy)). Routes and clusters are built **in code** with `LoadFromMemory` ([config providers](https://learn.microsoft.com/aspnet/core/fundamentals/servers/yarp/config-providers)), from the module list of the ModuleCatalog, so there is no hand-written route table to drift.
+`Yarp.ReverseProxy` **2.3.0** (MIT). It is the latest release (27 Feb 2025). It ships net8.0 assets that run on .NET 10, which nuget.org lists as "compatible" ([NuGet](https://www.nuget.org/packages/Yarp.ReverseProxy)). Routes and clusters are built **in code** with `LoadFromMemory` ([config providers](https://learn.microsoft.com/aspnet/core/fundamentals/servers/yarp/config-providers)), one set per module, so there is no hand-written route table to drift. The gateway references no module, so it lists the module names itself (`GatewayRoutes.Modules`), and a test keeps that list equal to the ModuleCatalog.
 
 | Route id | Match | Cluster | Notes |
 |---|---|---|---|
-| `api-{module}` | `/api/v1/{module}/{**rest}` | `{module}` → `http://{module}` | Container Apps internal DNS by app name ([connect apps](https://learn.microsoft.com/azure/container-apps/connect-apps)); locally, Aspire service discovery |
+| `api-{module}` | `/api/v1/{module}/{**rest}` | `{module}` → `http://{module}` | the versioned business API (ADR 0012). Container Apps internal DNS by app name ([connect apps](https://learn.microsoft.com/azure/container-apps/connect-apps)); locally, Aspire service discovery |
+| `ops-{module}` | `/api/{module}/{**rest}` | `{module}` | the unversioned operational endpoints (module pings, the diagnostics probe), which ADR 0012 keeps out of versioning |
 | `openapi-{module}` | `/openapi/{module}.json`, GET only | `{module}` | path rewritten to the service's `/openapi/v1.json` |
 
 Everything else is handled by the gateway itself: `/bff/*`, `/scalar`, `/warmup`, `/health/*` and the Blazor client.
 
+**Operational routes (product owner, 25 November 2026).** The plan first proxied only `/api/v1`, but every endpoint that exists so far is operational and unversioned (ADR 0012), so the gateway could have reached none. Two conditions came with the `ops-*` routes:
+- both routes name the module **literally** (`/api/inventory/{**rest}`), never as a route parameter, so `/api/v1/...` can never match an `ops-*` route;
+- a test fails if a module endpoint outside `/api/v1/` lacks the explicit `OperationalEndpointMetadata` (`.AsOperational()`), so business endpoints can't bypass versioning.
+
 Service discovery:
-- `Microsoft.Extensions.ServiceDiscovery.Yarp` 11.0.1, `AddServiceDiscoveryDestinationResolver()` ([NuGet](https://www.nuget.org/packages/Microsoft.Extensions.ServiceDiscovery.Yarp));
+- `Microsoft.Extensions.ServiceDiscovery.Yarp` 10.11.0, the release line of the `Microsoft.Extensions.ServiceDiscovery` 10.11.0 the hosts already use (11.0.1 would move every host to the 11 line), `AddServiceDiscoveryDestinationResolver()` ([NuGet](https://www.nuget.org/packages/Microsoft.Extensions.ServiceDiscovery.Yarp));
 - in Azure, the pass-through resolver returns the name unchanged and the environment's DNS resolves it ([service discovery](https://learn.microsoft.com/dotnet/core/extensions/service-discovery)).
 
 ### 2.2 Request transforms (ADR 0015 §3, ADR 0016 §2)
@@ -129,7 +134,7 @@ Anonymous `/api` requests are refused by the gateway's fallback policy (401) bef
 ### 2.3 Route-table test
 
 YARP documents no helper for testing route matching. `IProxyStateLookup.GetRoutes()` only enumerates the current routes ([API](https://learn.microsoft.com/dotnet/api/yarp.reverseproxy.iproxystatelookup?view=yarp-2.2)). The test therefore combines two checks against the started gateway (`WebApplicationFactory`):
-1. **Configured routes:** `GetRoutes()` returns exactly the `api-*` and `openapi-*` routes, and no route's path pattern can match `/internal`. Each pattern is checked against `/internal/v1/identity/credential-checks` and a generated set of `/internal/...` paths with every module name.
+1. **Configured routes:** `GetRoutes()` returns exactly the `api-*`, `ops-*` and (from 4f) `openapi-*` routes; each names its module literally, no `ops-*` route matches `/api/v1/...`, and no route's path pattern can match `/internal`. Each pattern is checked against `/internal/v1/identity/credential-checks` and a generated set of `/internal/...` paths with every module name.
 2. **Endpoint matching:** for every HTTP method and module, a request to `/internal/v1/{module}/x` through the gateway returns 404, and a recording test destination receives nothing. The same check for `/health/ready` of a service.
 
 ### 2.4 BFF in the gateway
