@@ -110,7 +110,8 @@ public static class SecurityHeaders
             // The API reference gets a fresh nonce; Scalar writes it into its inline script (ApiReference).
             if (context.Request.Path.StartsWithSegments(ApiReference.Path, StringComparison.OrdinalIgnoreCase))
             {
-                context.Items[ApiReference.NonceItem] = Convert.ToBase64String(RandomNumberGenerator.GetBytes(18));
+                // base64url: valid in a CSP nonce and never HTML-encoded in the attribute.
+                context.Items[ApiReference.NonceItem] = System.Buffers.Text.Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(18));
             }
 
             context.Response.OnStarting(() =>
