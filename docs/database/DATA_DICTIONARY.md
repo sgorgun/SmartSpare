@@ -315,7 +315,7 @@ Rows (demo): **0**
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
 | `id` | `integer` | PK, NN, ID | `identity` |  |
-| `friendly_name` | `text` |  |  | Key id as written by the key manager (key-<guid>). |
+| `friendly_name` | `text` |  |  | Key id as written by the key manager (key-&lt;guid&gt;). |
 | `xml` | `text` |  |  | Key descriptor XML; encrypted at rest when the host configures key protection. |
 
 **Data quality expectations / integrity rules**

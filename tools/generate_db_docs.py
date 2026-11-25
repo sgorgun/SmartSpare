@@ -128,6 +128,11 @@ def md_escape(text):
     return (text or "").replace("|", "\\|").replace("\n", " ")
 
 
+def md_text(text):
+    """Escapes prose outside code spans: "<" and ">" too, so a placeholder such as key-<guid> is not hidden as HTML."""
+    return md_escape(text).replace("<", "&lt;").replace(">", "&gt;")
+
+
 KIND = {"r": "table", "p": "partitioned table", "v": "view", "m": "materialized view"}
 
 
@@ -205,7 +210,7 @@ def write_dictionary(tables, routines):
                 if c["identity"]:
                     default = "identity"
                 lines.append(f"| `{c['name']}` | `{c['type']}` | {', '.join(flags)} | "
-                             f"{('`' + md_escape(default) + '`') if default else ''} | {md_escape(c.get('comment'))} |")
+                             f"{('`' + md_escape(default) + '`') if default else ''} | {md_text(c.get('comment'))} |")
             lines.append("")
             cons = [c for c in (t.get("constraints") or []) if c["type"] in ("c", "x", "u", "f", "p")]
             checks = [c for c in cons if c["type"] in ("c", "x")]
@@ -234,7 +239,7 @@ def write_dictionary(tables, routines):
     for r in routines or []:
         kind = "procedure" if r["kind"] == "p" else ("trigger function" if r["is_trigger"] else "function")
         sec = "DEFINER" if r["secdef"] else "invoker"
-        lines.append(f"| `{md_escape(r['signature'])}` | {kind} ({r['language']}) | {sec} | `{md_escape(r['returns'])}` | {md_escape(r.get('comment'))} |")
+        lines.append(f"| `{md_escape(r['signature'])}` | {kind} ({r['language']}) | {sec} | `{md_escape(r['returns'])}` | {md_text(r.get('comment'))} |")
     lines.append("")
     with open(os.path.join(OUT_DOCS, "DATA_DICTIONARY.md"), "w", encoding="utf-8") as fh:
         fh.write("\n".join(lines))
