@@ -35,7 +35,7 @@ builder.Services.AddRazorComponents()
 builder.Services.AddSmartSpareClient();
 
 // After AppPolicies: the fallback also admits the WebAssembly resource collection, which can't be marked AllowAnonymous.
-builder.Services.AddAuthorization(AuthenticatedOrResourceCollection.UseAsFallback);
+builder.Services.AddAuthorization(AuthenticatedOrResourceCollectionRequirement.UseAsFallback);
 
 var app = builder.Build();
 

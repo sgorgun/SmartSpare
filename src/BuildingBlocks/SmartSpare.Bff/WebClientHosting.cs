@@ -1,19 +1,22 @@
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.WebAssembly.Server;
 using SmartSpare.ApiContracts.Authorization;
 
-namespace SmartSpare.Host;
+namespace SmartSpare.Bff;
 
 /// <summary>
 /// The authentication state the host serializes into the prerendered page for the WebAssembly client (STAGE_3_PLAN 1.4).
 /// Only an allow-list of claims leaves the server: id, name, roles, brands and warehouse. The security stamp and anything
 /// else (no personal data besides the user name) never reach the browser.
 /// </summary>
-internal static class ClientAuthenticationState
+public static class ClientAuthenticationState
 {
     public static IReadOnlySet<string> AllowedClaimTypes { get; } = new HashSet<string>(StringComparer.Ordinal)
     {
@@ -49,7 +52,7 @@ internal static class ClientAuthenticationState
 /// documented Blazor baseline, <c>X-Content-Type-Options</c> and <c>Referrer-Policy</c>. HSTS is added outside Development
 /// by <c>UseHsts</c>.
 /// </summary>
-internal static class SecurityHeaders
+public static class SecurityHeaders
 {
     /// <summary>
     /// <c>script-src</c> stays strict: <c>'self'</c>, <c>'wasm-unsafe-eval'</c> for the .NET WebAssembly runtime and the hash of
@@ -114,17 +117,17 @@ internal static class SecurityHeaders
 /// exception an anonymous request gets the sign-in redirect, and WebAssembly can't start on the sign-in page. It lists
 /// public asset URLs only. Every other endpoint without metadata still requires a signed-in user (AppPolicies).
 /// </summary>
-internal sealed class AuthenticatedOrResourceCollection : AuthorizationHandler<AuthenticatedOrResourceCollection>, IAuthorizationRequirement
+public sealed class AuthenticatedOrResourceCollectionRequirement : AuthorizationHandler<AuthenticatedOrResourceCollectionRequirement>, IAuthorizationRequirement
 {
     private const string ResourceCollectionRoute = "_framework/resource-collection";
 
     public static void UseAsFallback(AuthorizationOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
-        options.FallbackPolicy = new AuthorizationPolicyBuilder().AddRequirements(new AuthenticatedOrResourceCollection()).Build();
+        options.FallbackPolicy = new AuthorizationPolicyBuilder().AddRequirements(new AuthenticatedOrResourceCollectionRequirement()).Build();
     }
 
-    protected override Task HandleRequirementAsync(AuthorizationHandlerContext context, AuthenticatedOrResourceCollection requirement)
+    protected override Task HandleRequirementAsync(AuthorizationHandlerContext context, AuthenticatedOrResourceCollectionRequirement requirement)
     {
         ArgumentNullException.ThrowIfNull(context);
         if (context.User.Identity?.IsAuthenticated == true || IsResourceCollection(context.Resource as HttpContext))
