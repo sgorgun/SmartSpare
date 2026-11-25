@@ -665,6 +665,12 @@ Each PR passes the full `tools/check.sh`, including the new steps once they exis
 
 **Closes #57. Part of #59.**
 
+**Split in two PRs** (25 Nov 2026):
+- **4g-1:** the outbox `trace_parent` column and the linked publish span (6.5), the topology test project `tests/SmartSpare.Topology.Tests` with `tools/check.sh topology` and the CI job "Topology test". Closes #57.
+- **4g-2:** AppHost `--topology services`, the observability stack, dashboards and alert rules. Part of #59.
+
+Found in 4g-1: RabbitMQ.Client 7 traces too. When its `RabbitMQ.Client.*` sources are listened to, its own publish span sits between SmartSpare's publish span and the consumer, and it writes the `traceparent` header. The consume span then descends from SmartSpare's publish span through it, so the topology test walks up the parents.
+
 ### 4h: Images, pipelines and infrastructure as code (validated, not applied)
 **Scope:**
 - SDK container publishing (8.1);

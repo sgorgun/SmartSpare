@@ -7,9 +7,10 @@
 #   tools/check.sh fast            # every step that needs no Docker (the CI "Build and test" job)
 #   tools/check.sh <step> ...      # selected steps, e.g. tools/check.sh build test
 #   tools/check.sh e2e             # optional: the Playwright smoke test (Docker and Chromium; CI job "End-to-end")
+#   tools/check.sh topology        # optional: gateway + services + PostgreSQL + RabbitMQ (Docker; CI job "Topology test")
 #
 # Steps: stale-terms restore vulnerabilities build format check-model test coverage integration database; optional: e2e
-# (it needs a build first, e.g. tools/check.sh restore build e2e)
+# topology (they need a build first, e.g. tools/check.sh restore build e2e topology)
 # Everything runs in the Release configuration, like CI. Test results and coverage
 # (XPlat Code Coverage, as in CI) go to TestResults/.
 #
@@ -71,7 +72,7 @@ step_test() {
   if [ -d "$RESULTS" ]; then
     find "$RESULTS" -name 'coverage.cobertura.xml' -delete
   fi
-  run_tests "Category!=Integration&Category!=E2E" \
+  run_tests "Category!=Integration&Category!=E2E&Category!=Topology" \
     --logger trx --results-directory "$RESULTS" \
     --collect "XPlat Code Coverage"
 }
@@ -143,6 +144,15 @@ step_e2e() {
     --logger trx --results-directory "$RESULTS"
 }
 
+# Optional: the services topology in one process (STAGE_4_PLAN section 10, #57). The gateway and the Identity and
+# Inventory service hosts in memory, PostgreSQL 17 and RabbitMQ 4.4 in Testcontainers: sign-in through the gateway, the
+# diagnostics probe over the broker and its linked trace, and /internal never routed.
+step_topology() {
+  dotnet test tests/SmartSpare.Topology.Tests --no-build --configuration "$CONFIGURATION" \
+    --filter "Category=Topology" \
+    --logger trx --results-directory "$RESULTS"
+}
+
 # Containers that Testcontainers or verify_database.sh started and that are still there; Ryuk itself is listed while it
 # finishes reaping. Printed after steps that start containers.
 report_containers() {
@@ -155,7 +165,7 @@ report_containers() {
 
 FAST=(stale-terms restore vulnerabilities build format check-model test coverage)
 ALL=("${FAST[@]}" integration database)
-OPTIONAL=(e2e)
+OPTIONAL=(e2e topology)
 
 if [ $# -eq 0 ]; then
   STEPS=("${ALL[@]}")
@@ -174,6 +184,6 @@ for step in "${STEPS[@]}"; do
   fi
   echo "== $step"
   "$fn"
-  case "$step" in integration | database | e2e) report_containers ;; esac
+  case "$step" in integration | database | e2e | topology) report_containers ;; esac
 done
 echo "== OK: ${STEPS[*]}"
