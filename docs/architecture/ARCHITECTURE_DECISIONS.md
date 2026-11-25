@@ -315,21 +315,21 @@ Folders inside a module: `Domain/`, `Features/<UseCase>/`, `Infrastructure/` (Db
 
 ## 13. Work plan
 
-Work is done on the developer machine (.NET 10 SDK + Docker), where the code can be built and tested. Each stage ends with a green build and a commit.
+Work is done on the developer machine (.NET 10 SDK + Docker), where the code can be built and tested. Each stage ends with a green build and a commit. The defence is on **16 February 2027**.
 
 1. **Skeleton.** Solution, `Directory.*.props`, BuildingBlocks, host, Aspire, empty modules, architecture tests, CI build.
 2. **Data layer.** DbContexts and Fluent configurations for all modules, initial migrations with SQL parts from V001–V016, Outbox/Inbox. Check: schema matches the current one, 97 SQL tests green.
 3. **Identity and BFF.** Cookie sign-in, roles, policies, internal-token validation (ADR 0016); Blazor client skeleton with MudBlazor and the sign-in page. **Done:** v0.3.0, PRs 3a–3e ([STAGE_3_PLAN.md](../stage-3/STAGE_3_PLAN.md), section 10).
-4. **Topology.** Service hosts, YARP gateway, RabbitMQ transport, Grafana stack, per-service CI/CD, first deployment of the walking skeleton to a dev Container Apps environment (ADRs 0015–0019). Forwarded headers behind the platform's ingress (#48) are part of this stage, because the first deployment depends on them. Coverage and vulnerability gates (#63, #64) land before the first per-service pipeline. Plan: [STAGE_4_PLAN.md](../stage-4/STAGE_4_PLAN.md) (#67); whether the deployment stays in stage 4 is decision T16 there.
+4. **Topology.** Service hosts, YARP gateway, RabbitMQ transport, Grafana stack, per-service images, pipelines and Bicep (ADRs 0015–0020), built and tested locally and in CI; CloudAMQP and Grafana Cloud are used from the local services topology. Nothing is deployed to Azure in this stage (product owner, 25 November 2026). Forwarded headers (#48) are configured here and verified behind the real ingress in stage 10. Coverage and vulnerability gates (#63, #64) land before the first per-service pipeline. Plan: [STAGE_4_PLAN.md](../stage-4/STAGE_4_PLAN.md) (#67).
 5. **Inventory.** Stock, movements, reservations, transfers, file import + screens.
 6. **Fleet.** Machines, engine hours, service orders (UC02) + mobile card.
 7. **Procurement.** Purchase orders with the four-eyes rule.
 8. **Forecasting.** ML.NET models and benchmark, recommendations and UC01 events between modules.
 9. **Reporting.** Dashboards and KPIs on the marts.
-10. **Azure production.** Production environment, Entra logins per service and per-module roles (#16), Key Vault keys and rotation, alerting live, backups, and cost monitoring against the ADR 0009 estimate.
+10. **Azure production.** First deployment of the services topology (#85): infrastructure, all services through their pipelines, KEDA scaling, forwarded headers behind the ingress, measured cold start. Then Entra logins per service and per-module roles (#16), Key Vault keys and rotation, alerting live, backups, and cost monitoring against the ADR 0009 estimate.
 11. **Defence polish.** Playwright scenarios, updated diagrams and documentation.
 
-Stages 5–9 follow the same pattern: domain → use cases → endpoints → tests → screens. Each one is deployed through the stage 4 pipeline as it lands. The order can shift to match diploma submission deadlines.
+Stages 5–9 follow the same pattern: domain → use cases → endpoints → tests → screens. Until stage 10 they are verified in the single host, the local services topology and the CI topology job; from stage 10 on, every change deploys through the stage 4 pipelines. The order can shift to match diploma submission deadlines.
 
 *Renumbering note (24 November 2026):* stage 4 was inserted, so the former stages 4–10 are now 5–11. Documents and issues were updated; ADRs 0001–0014 keep the old numbers (see the [ADR index](../adr/README.md)).
 
