@@ -11,7 +11,7 @@ Release target: **v0.4.0**. Business use cases stay in stages 5–9.
 
 **Product owner's decisions, 25 November 2026:**
 - **(B):** stage 4 builds and tests the topology locally and in CI, and writes the infrastructure and pipelines, but **deploys nothing to Azure**. The first Azure deployment is in stage 10 (#85). CloudAMQP and Grafana Cloud are still used in stage 4, from the local services topology.
-- **Defence date:** 16 February 2027.
+- **Deadlines:** the thesis is due on 3 January 2027 and the defence is on 16 February 2027. Stage 4 runs **25 November – 3 December 2026** (milestone v0.4.0); if it runs late, its scope is cut, not the later stages moved (ARCHITECTURE_DECISIONS §13).
 - **#31** (outbox back-off and poison handling) moves to stage 4 (PR 4c).
 
 Inputs, as on `main` (v0.3.0):
@@ -513,14 +513,14 @@ Until this decision, ARCHITECTURE_DECISIONS §13 and #67 put **the first deploym
 
 **Subscription:** a pay-as-you-go subscription (product owner, 25 November 2026; not Azure for Students). There is no credit that can run out, so the limit is **NFR07: ≤ €35 a month**. If the subscription is still within the first 12 months of an Azure free account, 750 hours of B1MS and 32 GB of storage a month are free ([free account](https://learn.microsoft.com/azure/postgresql/configure-maintain/how-to-deploy-on-azure-free-account)), which removes most of the baseline. The table doesn't assume that.
 
-**Defence: 16 February 2027.** The totals assume the environment exists from **mid-December 2026 (two months)** under (A), and from **mid-January 2027 (stage 10; one month)** under (B). The stage 10 start is an assumption.
+**Defence: 16 February 2027.** The totals assume the environment exists from **4 December 2026 (end of stage 4; 74 days ≈ 2.4 months)** under (A), and from **4 January 2027 (start of stage 10; 43 days ≈ 1.4 months)** under (B).
 
 | Scenario | Per month | Total until the defence | Within NFR07 (≤ €35/month)? |
 |---|---|---|---|
-| A1: stage 4, PostgreSQL always on | ≈ $24.5 (≈ €22–23, the ADR 0009 amendment's figure) | ≈ $49 | Yes |
-| A2: stage 4, PostgreSQL stopped outside sessions (≈ 40 h a month running) | ≈ $4.4 storage + $5.1 ACR + $0.8 compute + $0.5 other ≈ $10.8 | ≈ $22 | Yes |
-| **B1: stage 10, always on (chosen)** | ≈ $24.5 | ≈ $25 | **Yes** |
-| B2: stage 10, stopped outside sessions | ≈ $10.8 | ≈ $11 | Yes |
+| A1: stage 4, PostgreSQL always on | ≈ $24.5 (≈ €22–23, the ADR 0009 amendment's figure) | ≈ $60 | Yes |
+| A2: stage 4, PostgreSQL stopped outside sessions (≈ 40 h a month running) | ≈ $4.4 storage + $5.1 ACR + $0.8 compute + $0.5 other ≈ $10.8 | ≈ $26 | Yes |
+| **B1: stage 10, always on (chosen)** | ≈ $24.5 | ≈ $35 | **Yes** |
+| B2: stage 10, stopped outside sessions | ≈ $10.8 | ≈ $15 | Yes |
 
 Every scenario meets NFR07.
 
@@ -529,7 +529,7 @@ Every scenario meets NFR07.
 | | (A) Deploy in stage 4 | (B) Deploy in stage 10 |
 |---|---|---|
 | **Integration risk** | Found early, while the topology is fresh: Little Lemur features (5.4), KEDA http mode (5.6), forwarded headers (2.5), Managed Identity and Key Vault references, OIDC, cold starts (8.7). Stages 5–9 are deployed through the pipeline as they land (ARCHITECTURE_DECISIONS §13) | All of those surface in stage 10, the last stage before the defence polish. A blocker there (e.g. no management API, cold start > 30 s) leaves little time. Pipelines are written in stage 4 but untested against Azure for months |
-| **Cost** | ≈ $49 until the defence always on, ≈ $22 with the database stopped outside sessions; within NFR07 either way | ≈ $11–25; lowest |
+| **Cost** | ≈ $60 until the defence always on, ≈ $26 with the database stopped outside sessions; within NFR07 either way | ≈ $15–35; lowest |
 | **Operational load** | Secrets, rotations and the environment must be kept alive for two months, plus the weekly warm-up | None until stage 10 |
 | **Rubric** | "Production deployment reachable by external users", "CD" and "deploy only when green" can be shown from v0.4.0 on, and every later stage proves them again | Shown only from stage 10; until then only locally and in CI |
 | **Free plans** | CloudAMQP and Grafana Cloud run for about three months: inactivity rules (2-month instance deletion, 28-day idle queues) must be handled by the weekly warm-up; 14-day telemetry retention means old traces disappear (irrelevant for the demo) | Shorter exposure to free-plan rules |
@@ -552,7 +552,7 @@ The plan recommended (A1): the topology's risks are cloud-specific, and the alwa
   - the cold-start measurement (8.7);
   - `warm-up.yml` and the broker-metrics cron job;
   - the €35 budget alert and the disabled `db-schedule.yml`.
-- **Accepted risk:** KEDA http mode, the real ingress and cold starts are first seen in stage 10. With the defence on 16 February 2027, stage 10 should start by mid-January 2027, so that a blocker still has a fallback: the AMQP scaler or HTTP wake-up for KEDA, `minReplicas: 1` for the gateway during demos.
+- **Accepted risk:** KEDA http mode, the real ingress and cold starts are first seen in stage 10. Stage 10 runs 4–15 January 2027, a month before the defence on 16 February, so that a blocker still has a fallback: the AMQP scaler or HTTP wake-up for KEDA, `minReplicas: 1` for the gateway during demos.
 
 ---
 
