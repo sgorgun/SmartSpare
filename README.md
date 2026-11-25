@@ -10,6 +10,61 @@ every module as its own service behind a YARP gateway (ADR 0015, from stage 4). 
 [ARCHITECTURE_DECISIONS.md](docs/architecture/ARCHITECTURE_DECISIONS.md) and the [ADRs](docs/adr/README.md).
 Compliance with the backend grading rubric: [BACKEND_REQUIREMENTS.md](docs/architecture/BACKEND_REQUIREMENTS.md).
 
+## Diploma criteria
+
+Where each criterion is implemented, as of `main` during stage 4. **done** means it exists on `main` and can be shown;
+**planned** names the stage it comes with ([ARCHITECTURE_DECISIONS §13](docs/architecture/ARCHITECTURE_DECISIONS.md#13-work-plan)).
+
+### Back-end
+
+The full matrix with evidence for every rubric row is [BACKEND_REQUIREMENTS.md](docs/architecture/BACKEND_REQUIREMENTS.md).
+The database criteria are in [DATABASE_DESIGN.md §0](docs/database/DATABASE_DESIGN.md#0-requirements-compliance-matrix).
+
+| Requirement | Where | Status |
+|---|---|---|
+| Modern framework, ORM, database | .NET 10 LTS, EF Core 10, PostgreSQL 17 ([ADR 0007](docs/adr/0007-dotnet-10-lts.md), [ADR 0004](docs/adr/0004-hybrid-ef-core-code-first.md)) | done |
+| Layered, modular architecture | `src/Modules/<Module>/` (Domain, Features, Infrastructure, Contracts); `tests/SmartSpare.ArchitectureTests` | done |
+| Microservices, independently deployable | Gateway + six services in `src/Bootstrapper`; CI job "Topology test"; `deploy-<service>.yml` ([ADR 0015](docs/adr/0015-deployment-topology-microservices-behind-yarp-gateway.md)) | done locally and in CI; deployment in stage 10 |
+| Asynchronous messaging | Outbox/Inbox + RabbitMQ transport (`SmartSpare.Infrastructure.RabbitMq`, [ADR 0017](docs/adr/0017-rabbitmq-integration-event-transport.md)); `RabbitMqTransportTests`, CI job "Topology test" | done |
+| Security | Cookie BFF, ES256 internal tokens, policies, antiforgery, rate limit, CSP ([ADR 0014](docs/adr/0014-browser-sign-in-through-bff-endpoints.md), [ADR 0016](docs/adr/0016-authentication-behind-the-gateway.md)); `tests/SmartSpare.Host.IntegrationTests` | done |
+| Error handling, logging, tracing | ProblemDetails with a trace id; OpenTelemetry → Grafana stack ([TRACING.md](docs/operations/TRACING.md), [ADR 0018](docs/adr/0018-observability-with-the-grafana-stack.md)) | done |
+| Monitoring and alerting | Dashboards and 8 alert rules in [`infra/observability`](infra/observability) (local Grafana) | done locally; Grafana Cloud and alert delivery in PR 4j (#59) |
+| Tests and coverage gate | Unit, integration (Testcontainers), architecture, topology, bUnit, Playwright; `tools/check.sh coverage` fails below 70 % of business logic | done |
+| CI/CD | `.github/workflows/ci.yml` (gates, integration, E2E, topology, images), `deploy-<service>.yml`, Bicep in [`infra/`](infra) | CI done; first deployment in stage 10 (#85) |
+| No secrets in the repository | user-secrets, Key Vault references; gitleaks scan of the whole history ([`.gitleaksignore`](.gitleaksignore)) | done |
+
+### Front-end
+
+Details in [FRONTEND.md](docs/architecture/FRONTEND.md).
+
+| Requirement | Where | Status |
+|---|---|---|
+| Modern SPA framework, justified | Blazor WebAssembly + MudBlazor 9 in [`src/Web/SmartSpare.Web.Client`](src/Web/SmartSpare.Web.Client) ([ADR 0006](docs/adr/0006-frontend-blazor-wasm-mudblazor-bff.md)) | done |
+| Component structure | `Features/<Module>` pages, `Layout/`, `Shared/` components, typed API clients ([FRONTEND.md §2](docs/architecture/FRONTEND.md#2-component-structure)) | done |
+| Routing with authentication | `AuthorizeRouteView`, `RedirectToLogin`, role-based menu (`NavigationAreas`) | done |
+| Secure sign-in | BFF with an HttpOnly cookie, no token in the browser ([ADR 0014](docs/adr/0014-browser-sign-in-through-bff-endpoints.md)); Playwright `SignInSmokeTest` checks scripts can't read it | done |
+| Forms and validation | MudForm with the shared FluentValidation validators of `SmartSpare.ApiContracts` (same rules as the server) | done |
+| Error handling | ProblemDetails → readable messages with "Reference: \<trace id\>"; 401 → sign-in, 403 → snackbar (`Http/Handlers.cs`) | done |
+| Loading states | Busy buttons, progress bars, `data-interactive` once WebAssembly runs | done |
+| Responsive layout | MudBlazor grid and responsive drawer; Playwright `MobileLayoutTest` at 390 × 844 | done |
+| Accessibility | ARIA labels, visible focus, icons next to colour (`StatusChip`), WCAG 2.1 AA target | done for the existing pages |
+| Tests | bUnit `tests/SmartSpare.Web.Tests` (22 tests); Playwright `tests/SmartSpare.E2E` (sign-in, API reference, mobile) in CI job "End-to-end smoke test" | done |
+| Business screens | Inventory, Fleet, Procurement, Forecasting, Reporting | planned (stages 5–9) |
+
+### API documentation
+
+Details in [API_DOCUMENTATION.md](docs/architecture/API_DOCUMENTATION.md).
+
+| Requirement | Where | Status |
+|---|---|---|
+| Machine-readable API description | One OpenAPI 3.1 document per module at `/openapi/{module}.json` ([`ApiDocumentation.cs`](src/BuildingBlocks/SmartSpare.Infrastructure/Http/ApiDocumentation.cs), [ADR 0019](docs/adr/0019-public-api-documentation.md)) | done |
+| Interactive documentation | Scalar at `/scalar` with every module document, nonce CSP, no CDN ([`ApiReference.cs`](src/BuildingBlocks/SmartSpare.Bff/ApiReference.cs)) | done |
+| Public, but endpoints protected | Documents anonymous in every environment; every `/api/v1` endpoint requires authorization (`ApiDocumentationTests`) | done |
+| Versioning | Business API under `/api/v1/{module}`; operational endpoints marked and unversioned ([ADR 0012](docs/adr/0012-evolvability-principles.md)) | done |
+| Errors documented | ProblemDetails (RFC 9457) with stable `code` values (`ProblemCodes`) | done |
+| Internal endpoints hidden | `/internal/*` excluded from documents and never routed by the gateway (`GatewayTests`) | done |
+| Business endpoints described | Summaries and response types with every endpoint as stages 5–9 add them | planned (stages 5–9) |
+
 ## Quick start (application)
 
 Prerequisites: .NET 10 SDK (version pinned in `global.json`), Docker Desktop (running) and the Aspire 17 CLI bundle
