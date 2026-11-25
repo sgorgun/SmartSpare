@@ -21,6 +21,32 @@ public sealed class InternalTokenIssuer(InternalTokenKeyRing keys, TimeProvider 
     /// <summary>Whether this host holds the signing key.</summary>
     public bool CanIssue => keys.SigningKey is not null;
 
+    /// <summary>
+    /// A token for a service acting as itself (ADR 0016 section 1): <c>sub</c> and <c>ss:svc</c> are the service name, no
+    /// user claims. The gateway uses it for the Identity service's credential and session checks.
+    /// </summary>
+    public string CreateServiceToken(string service)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(service);
+        var key = keys.SigningKey ?? throw new InvalidOperationException("InternalTokens:SigningKey is not configured.");
+        var now = time.GetUtcNow().UtcDateTime;
+        return _handler.CreateToken(new SecurityTokenDescriptor
+        {
+            Issuer = InternalTokenDefaults.Issuer,
+            Audience = InternalTokenDefaults.Audience,
+            Subject = new ClaimsIdentity(
+            [
+                new Claim(AppClaimTypes.Subject, service),
+                new Claim(InternalTokenDefaults.ServiceClaim, service),
+                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N")),
+            ]),
+            IssuedAt = now,
+            NotBefore = now,
+            Expires = now + InternalTokenDefaults.Lifetime,
+            SigningCredentials = new SigningCredentials(key, SecurityAlgorithms.EcdsaSha256),
+        });
+    }
+
     public string CreateToken(ClaimsPrincipal user, string sessionId)
     {
         ArgumentNullException.ThrowIfNull(user);

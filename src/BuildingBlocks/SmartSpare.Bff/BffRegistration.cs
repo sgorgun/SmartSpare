@@ -109,6 +109,7 @@ public static class BffRegistration
             .AddInternalToken();
 
         services.AddAuthorization(AppPolicies.Register);
+        services.AddAuthorization(ServiceAuthentication.AddGatewayOnlyPolicy);
         services.AddBrandScopeAuthorization();
         return services;
     }
