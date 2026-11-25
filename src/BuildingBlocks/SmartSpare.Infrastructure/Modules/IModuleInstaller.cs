@@ -19,6 +19,15 @@ public interface IModuleInstaller
     void MapEndpoints(IEndpointRouteBuilder endpoints);
 
     /// <summary>
+    /// Endpoints for other services under <c>/internal/v1/{name}</c> (ADR 0015 §4): Contracts queries over HTTP. The
+    /// gateway never routes them; each sets its own policy (<c>GatewayOnly</c> or a user policy). Mapped in both
+    /// topologies, so the HTTP clients can be tested against the single host too.
+    /// </summary>
+    void MapInternalEndpoints(IEndpointRouteBuilder endpoints)
+    {
+    }
+
+    /// <summary>
     /// The module's migrations, or <see langword="null"/> while the module has no DbContext.
     /// The migration runner applies them in catalogue order (ModuleCatalog).
     /// </summary>

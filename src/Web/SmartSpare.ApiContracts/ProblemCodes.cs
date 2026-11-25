@@ -20,4 +20,7 @@ public static class ProblemCodes
 
     /// <summary>429: too many sign-in attempts from this client; see <c>Retry-After</c>.</summary>
     public const string TooManyRequests = "SS-AUTH-005";
+
+    /// <summary>503: a service this request needs did not answer (gateway topology); retry later and quote the reference.</summary>
+    public const string ServiceUnavailable = "SS-SYS-001";
 }

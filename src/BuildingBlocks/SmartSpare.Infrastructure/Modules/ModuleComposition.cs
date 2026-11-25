@@ -80,6 +80,7 @@ public static class ModuleComposition
         foreach (var module in modules)
         {
             module.MapEndpoints(group);
+            module.MapInternalEndpoints(group);
         }
 
         return group;

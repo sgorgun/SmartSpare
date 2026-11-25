@@ -17,7 +17,7 @@ public static class ProblemDetailsRegistration
     public const string CodeKey = "code";
 
     public static IServiceCollection AddSmartSpareProblemDetails(this IServiceCollection services) =>
-        services.AddProblemDetails(options => options.CustomizeProblemDetails = context =>
+        services.AddExceptionHandler<DependencyUnavailableHandler>().AddProblemDetails(options => options.CustomizeProblemDetails = context =>
         {
             context.ProblemDetails.Extensions[TraceIdKey] = TraceId(context.HttpContext);
 
