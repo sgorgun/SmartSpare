@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The RabbitMQ transport (ADR 0017, STAGE_4_PLAN 5.2-5.3). Tests against a broker need Docker (Testcontainers,
+    rabbitmq:4.4) and are tagged Category=Integration; the naming tests need nothing and run with the unit tests.
+  -->
+
+  <ItemGroup>
+    <PackageReference Include="Testcontainers.RabbitMq" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\BuildingBlocks\SmartSpare.Infrastructure.RabbitMq\SmartSpare.Infrastructure.RabbitMq.csproj" />
+  </ItemGroup>
+
+</Project>

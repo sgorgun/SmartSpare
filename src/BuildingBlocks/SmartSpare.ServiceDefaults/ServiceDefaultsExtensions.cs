@@ -23,7 +23,7 @@ public static class ServiceDefaultsExtensions
     /// <summary>The activity source of the Npgsql driver (what <c>Npgsql.OpenTelemetry</c>'s <c>AddNpgsql()</c> adds).</summary>
     public const string NpgsqlActivitySource = "Npgsql";
 
-    /// <summary>The meter of SmartSpare's messaging (outbox status, later the broker transport).</summary>
+    /// <summary>The meter and activity source of SmartSpare's messaging (outbox status, broker publish and process spans).</summary>
     public const string MessagingMeter = "SmartSpare.Messaging";
     private const string LiveTag = "live";
 
@@ -64,6 +64,8 @@ public static class ServiceDefaultsExtensions
                 // Npgsql emits a span per database command under this source (ADR 0018): the SQL text with its
                 // parameter placeholders, never the parameter values.
                 .AddSource(NpgsqlActivitySource)
+                // Publish and process spans of the RabbitMQ transport (IntegrationEventDelivery.ActivitySourceName, ADR 0018).
+                .AddSource(MessagingMeter)
                 .AddAspNetCoreInstrumentation(options =>
                     options.Filter = context =>
                         !context.Request.Path.StartsWithSegments("/health", StringComparison.OrdinalIgnoreCase))

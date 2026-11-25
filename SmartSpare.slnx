@@ -9,6 +9,7 @@
   </Folder>
   <Folder Name="/src/BuildingBlocks/">
     <Project Path="src/BuildingBlocks/SmartSpare.Bff/SmartSpare.Bff.csproj" />
+    <Project Path="src/BuildingBlocks/SmartSpare.Infrastructure.RabbitMq/SmartSpare.Infrastructure.RabbitMq.csproj" />
     <Project Path="src/BuildingBlocks/SmartSpare.Infrastructure/SmartSpare.Infrastructure.csproj" />
     <Project Path="src/BuildingBlocks/SmartSpare.ServiceDefaults/SmartSpare.ServiceDefaults.csproj" />
     <Project Path="src/BuildingBlocks/SmartSpare.SharedKernel/SmartSpare.SharedKernel.csproj" />
@@ -46,6 +47,7 @@
     <Project Path="tests/SmartSpare.ArchitectureTests/SmartSpare.ArchitectureTests.csproj" />
     <Project Path="tests/SmartSpare.E2E/SmartSpare.E2E.csproj" />
     <Project Path="tests/SmartSpare.Host.IntegrationTests/SmartSpare.Host.IntegrationTests.csproj" />
+    <Project Path="tests/SmartSpare.Infrastructure.RabbitMq.IntegrationTests/SmartSpare.Infrastructure.RabbitMq.IntegrationTests.csproj" />
     <Project Path="tests/SmartSpare.Infrastructure.UnitTests/SmartSpare.Infrastructure.UnitTests.csproj" />
     <Project Path="tests/SmartSpare.Modules.Identity.IntegrationTests/SmartSpare.Modules.Identity.IntegrationTests.csproj" />
     <Project Path="tests/SmartSpare.Modules.Identity.UnitTests/SmartSpare.Modules.Identity.UnitTests.csproj" />
