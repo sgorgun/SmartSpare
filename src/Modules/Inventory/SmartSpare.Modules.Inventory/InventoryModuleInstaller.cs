@@ -8,7 +8,10 @@ using SmartSpare.Infrastructure.Modules;
 using SmartSpare.Infrastructure.Persistence;
 using SmartSpare.Modules.Inventory.Contracts;
 using SmartSpare.Modules.Inventory.Infrastructure.Persistence;
+using SmartSpare.Modules.Inventory.Features.GetPart;
+using SmartSpare.Modules.Inventory.Features.ListWarehouses;
 using SmartSpare.Modules.Inventory.Features.Ping;
+using SmartSpare.Modules.Inventory.Features.SearchParts;
 
 namespace SmartSpare.Modules.Inventory;
 
@@ -30,5 +33,11 @@ public sealed class InventoryModuleInstaller : IModuleInstaller
     {
         var group = endpoints.MapGroup($"/api/{Name}").WithTags("Inventory");
         PingEndpoint.Map(group);
+
+        // The versioned business API (ADR 0012), described in the module's OpenAPI document (ADR 0019).
+        var v1 = endpoints.MapGroup($"/api/v1/{Name}").WithTags("Inventory");
+        SearchPartsEndpoint.Map(v1);
+        GetPartEndpoint.Map(v1);
+        ListWarehousesEndpoint.Map(v1);
     }
 }

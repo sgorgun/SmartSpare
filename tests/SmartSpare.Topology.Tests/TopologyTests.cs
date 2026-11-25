@@ -31,6 +31,23 @@ public sealed class TopologyTests(TopologyFixture topology)
     }
 
     [Fact]
+    public async Task The_versioned_inventory_api_reads_the_database_through_the_gateway_as_the_service_login()
+    {
+        await topology.CreateUserAsync("topo.reader", [AppRoles.ServiceEngineer]);
+        using var browser = await SignInAsync("topo.reader");
+
+        // smartspare_inventory reads inventory.warehouse, catalog.part and the Platform's ref tables.
+        var warehouses = await browser.GetFromJsonAsync<List<SmartSpare.ApiContracts.Inventory.WarehouseResponse>>(
+            new Uri("/api/v1/inventory/warehouses", UriKind.Relative), Ct);
+        using var parts = await browser.GetAsync(new Uri("/api/v1/inventory/parts?pageSize=5", UriKind.Relative), Ct);
+        using var unknown = await browser.GetAsync(new Uri("/api/v1/inventory/parts/999999999", UriKind.Relative), Ct);
+
+        warehouses!.Select(w => w.Code).ShouldContain("VLN");
+        parts.StatusCode.ShouldBe(HttpStatusCode.OK);
+        unknown.StatusCode.ShouldBe(HttpStatusCode.NotFound, "the service's ProblemDetails passes through the gateway");
+    }
+
+    [Fact]
     public async Task The_probe_travels_from_identity_to_inventory_over_rabbitmq_in_one_linked_trace()
     {
         await topology.CreateUserAsync("topo.probe", [AppRoles.InventoryPlanner]);

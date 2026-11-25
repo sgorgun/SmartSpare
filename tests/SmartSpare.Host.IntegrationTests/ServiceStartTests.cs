@@ -29,6 +29,7 @@ public sealed class ServiceStartTests
 
         routes.ShouldContain($"/api/{module}/ping");
         routes.ShouldAllBe(r => r.StartsWith($"/api/{module}/", StringComparison.Ordinal)
+                                || r.StartsWith($"/api/v1/{module}/", StringComparison.Ordinal)
                                 || r.StartsWith($"/internal/v1/{module}/", StringComparison.Ordinal)
                                 || r.StartsWith("/health/", StringComparison.Ordinal)
                                 || r == SmartSpare.Infrastructure.Http.ApiDocumentation.RoutePattern);
