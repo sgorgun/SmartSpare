@@ -25,10 +25,4 @@
     <ProjectReference Include="..\..\Web\SmartSpare.Web.Client\SmartSpare.Web.Client.csproj" />
   </ItemGroup>
 
-  <!-- The root component is the single host's, so both BFFs render the same page and the same CSP hash. -->
-  <ItemGroup>
-    <Content Include="..\SmartSpare.Host\Components\App.razor" Link="Components\App.razor" />
-    <Content Include="..\SmartSpare.Host\Components\_Imports.razor" Link="Components\_Imports.razor" />
-  </ItemGroup>
-
 </Project>

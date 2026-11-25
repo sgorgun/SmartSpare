@@ -68,6 +68,21 @@ public sealed class TopologyBoundaryTests
         Solution.PackageReferences("SmartSpare.Gateway").ShouldContain("Yarp.ReverseProxy");
     }
 
+    /// <summary>
+    /// Both BFFs render the same root component, so the page and its CSP hash can't differ between topologies. The
+    /// gateway keeps a copy, because Razor files linked across projects don't build on every platform.
+    /// </summary>
+    [Theory]
+    [InlineData("App.razor")]
+    [InlineData("_Imports.razor")]
+    public void Gateway_and_single_host_render_the_same_root_component(string file)
+    {
+        string Read(string host) =>
+            File.ReadAllText(Path.Combine(Solution.RootDirectory, "src", "Bootstrapper", host, "Components", file)).ReplaceLineEndings();
+
+        Read("SmartSpare.Gateway").ShouldBe(Read("SmartSpare.Host"));
+    }
+
     [Fact]
     public void Infrastructure_KeepsTheBrokerAndTheGatewayOutOfModules()
     {
