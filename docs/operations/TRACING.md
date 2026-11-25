@@ -37,7 +37,9 @@ Select a span to see its attributes. For a database span:
 
 Typical questions this answers: did the request reach the database at all, which command was slow, and which log record explains a 4xx or 5xx response. The trace never contains a password or a cookie. Requests to `/health/*` are not traced.
 
-> **Placeholder: dashboard screenshot.** *To be added by hand: the Aspire dashboard's trace detail for `POST /bff/login`, with the request span and its six `postgresql` spans (`docs/operations/images/aspire-trace-detail.png`).*
+![Aspire dashboard, trace detail of a failed sign-in: POST /bff/login on host with six postgresql spans, seven spans in total](images/aspire-trace-detail.png)
+
+*The trace of a failed sign-in in the Aspire dashboard: the request span `POST /bff/login` and its six database commands.*
 
 ## 4. From stage 4: Grafana Tempo across services
 
