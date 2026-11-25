@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using SmartSpare.SharedKernel;
@@ -31,6 +32,12 @@ public sealed class OutboxMessage
 
     /// <summary>Time the message ran out of attempts and was parked for an operator (#31); NULL = still being delivered.</summary>
     public DateTimeOffset? ExhaustedAt { get; set; }
+
+    /// <summary>
+    /// W3C <c>traceparent</c> of the request that raised the event (STAGE_4_PLAN 6.5): the publish span links to it, so
+    /// the trace of the delivery can be followed back to the request. NULL outside a trace.
+    /// </summary>
+    public string? TraceParent { get; set; }
 }
 
 /// <summary>
@@ -50,6 +57,9 @@ public sealed class InboxMessage
 public static class OutboxModelBuilderExtensions
 {
     public const int MaxErrorLength = 2000;
+
+    /// <summary>A W3C traceparent is 55 characters (version 00); a little room for future versions.</summary>
+    public const int TraceParentLength = 64;
 
     /// <summary>Maps <c>outbox_message</c> and <c>inbox_message</c> into the module's own schema.</summary>
     public static ModelBuilder AddOutboxAndInbox(this ModelBuilder modelBuilder, string schema)
@@ -79,6 +89,8 @@ public static class OutboxModelBuilderExtensions
                 .HasComment("Earliest time of the next delivery attempt after a failure (exponential back-off); NULL = now.");
             e.Property(x => x.ExhaustedAt).HasColumnName("exhausted_at")
                 .HasComment("Time the event ran out of delivery attempts and was parked for an operator; NULL = still being delivered.");
+            e.Property(x => x.TraceParent).HasColumnName("trace_parent").HasMaxLength(TraceParentLength)
+                .HasComment("W3C traceparent of the request that raised the event; the publish span links to it. NULL outside a trace.");
             // The dispatcher claims the oldest deliverable events with FOR UPDATE SKIP LOCKED; parked ones stay out of the index.
             e.HasIndex(x => x.OccurredAt).HasDatabaseName("ix_outbox_message_pending").HasFilter("processed_at IS NULL AND exhausted_at IS NULL");
             // Parked events, for the health check, the metric and mart.v_data_quality.
@@ -121,6 +133,7 @@ public static class IntegrationEventSerializer
             OccurredAt = integrationEvent.OccurredAt,
             Type = TypeName(type),
             Payload = JsonSerializer.Serialize(integrationEvent, type, Options),
+            TraceParent = Activity.Current is { IdFormat: ActivityIdFormat.W3C, Id: { Length: <= OutboxModelBuilderExtensions.TraceParentLength } id } ? id : null,
         };
     }
 

@@ -58,7 +58,8 @@ public static class OutboxBackoff
 }
 
 /// <summary>An outbox row claimed for delivery.</summary>
-public sealed record OutboxEnvelope(Guid Id, string Type, string Payload);
+/// <param name="TraceParent">The raising request's W3C <c>traceparent</c>; the publish span links to it (STAGE_4_PLAN 6.5).</param>
+public sealed record OutboxEnvelope(Guid Id, string Type, string Payload, string? TraceParent = null);
 
 /// <summary>Outcome of one batch: delivered ids and failures with their error.</summary>
 public sealed record OutboxBatchResult(IReadOnlyList<Guid> Delivered, IReadOnlyList<(Guid Id, string Error)> Failed);
@@ -139,7 +140,7 @@ public sealed class EfOutboxStore<TContext>(string schema) : IOutboxStore
             var batch = new List<OutboxEnvelope>();
             var attempts = new Dictionary<Guid, int>();
             await using (var claim = Command(connection, dbTransaction, $"""
-                SELECT id, type, payload::text, attempts FROM "{Schema}".outbox_message
+                SELECT id, type, payload::text, attempts, trace_parent FROM "{Schema}".outbox_message
                 WHERE processed_at IS NULL AND exhausted_at IS NULL
                   AND (next_attempt_at IS NULL OR next_attempt_at <= now())
                 ORDER BY occurred_at
@@ -150,7 +151,7 @@ public sealed class EfOutboxStore<TContext>(string schema) : IOutboxStore
             {
                 while (await reader.ReadAsync(ct).ConfigureAwait(false))
                 {
-                    batch.Add(new OutboxEnvelope(reader.GetGuid(0), reader.GetString(1), reader.GetString(2)));
+                    batch.Add(new OutboxEnvelope(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.IsDBNull(4) ? null : reader.GetString(4)));
                     attempts[reader.GetGuid(0)] = reader.GetInt32(3);
                 }
             }
@@ -256,6 +257,7 @@ public sealed class InProcessIntegrationEventPublisher(IServiceScopeFactory scop
     public async Task PublishAsync(OutboxEnvelope envelope, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(envelope);
+        using var activity = IntegrationEventDelivery.StartPublishActivity("in-process publish", envelope);
         var integrationEvent = IntegrationEventSerializer.Deserialize(envelope.Type, envelope.Payload);
         var consumerType = typeof(IIntegrationEventConsumer<>).MakeGenericType(integrationEvent.GetType());
 

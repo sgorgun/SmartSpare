@@ -29,12 +29,11 @@ internal sealed class RabbitMqIntegrationEventPublisher(RabbitMqConnection conne
         var exchange = IntegrationEventTopology.Exchange(eventType);
         var routingKey = IntegrationEventTopology.RoutingKey(eventType);
 
-        using var activity = IntegrationEventDelivery.ActivitySource.StartActivity($"{exchange} publish", ActivityKind.Producer);
+        using var activity = IntegrationEventDelivery.StartPublishActivity($"{exchange} publish", envelope);
         activity?.SetTag("messaging.system", "rabbitmq");
         activity?.SetTag("messaging.operation.type", "send");
         activity?.SetTag("messaging.destination.name", exchange);
         activity?.SetTag("messaging.rabbitmq.destination.routing_key", routingKey);
-        activity?.SetTag("messaging.message.id", envelope.Id.ToString());
 
         var properties = new BasicProperties
         {
