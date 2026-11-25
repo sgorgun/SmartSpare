@@ -3,8 +3,9 @@
 The web client of SmartSpare: what it is built with and why, how it is structured, how the main user flows work, and how
 it is tested. Decisions: [ADR 0006](../adr/0006-frontend-blazor-wasm-mudblazor-bff.md) (Blazor WebAssembly, MudBlazor,
 BFF) and [ADR 0014](../adr/0014-browser-sign-in-through-bff-endpoints.md) (sign-in through BFF endpoints). Status as of
-stage 4: the shell, sign-in, role-based navigation and error handling are done; the business screens come with their
-modules in stages 5–9.
+stage 4: the shell, sign-in, role-based navigation and error handling are done, and so is the first business screen,
+the parts catalogue (a read-only slice of stage 5 pulled forward). The other business screens come with their modules
+in stages 5–9.
 
 ## 1. Stack and why
 
@@ -36,7 +37,8 @@ SmartSpare.Web.Client/
   Features/                 one folder per module, like the back-end
     Home/Home.razor         welcome and a card per visible area
     Identity/               Login.razor + LoginForm.cs (form model, shared validator), UserMenu.razor, IdentityClient.cs
-    Inventory/ Fleet/ Procurement/ Forecasting/ Reporting/   area pages (placeholders until stages 5–9)
+    Inventory/              InventoryPage.razor (parts catalogue: server-paged MudDataGrid), InventoryClient.cs
+    Fleet/ Procurement/ Forecasting/ Reporting/   area pages (placeholders until stages 6–9)
   Shared/                   reusable components
     StatusChip.razor        a status as icon + text, never colour alone
     RedirectToLogin.razor   full navigation to /login?returnUrl=...
@@ -48,13 +50,16 @@ SmartSpare.Web.Client/
   Resources/SharedResource.resx   every UI string (IStringLocalizer)
 ```
 
-**API services.** Each module gets one typed client, `<Module>Client`, which calls only relative URLs. Today that is
-`IdentityClient` for `/bff/login`, `/bff/logout` and `/bff/me`. The clients share one handler chain, built per DI scope
-in `ClientServices.CreateHttpClient`:
+**API services.** Each module gets one typed client, `<Module>Client`, which calls only relative URLs. Today there are
+two:
+- `IdentityClient` for `/bff/login`, `/bff/logout` and `/bff/me`;
+- `InventoryClient` for `/api/v1/inventory/parts`, `/parts/{id}` and `/warehouses`.
+
+The clients share one handler chain, built per DI scope in `ClientServices.CreateHttpClient`:
 
 ```mermaid
 flowchart LR
-  C["IdentityClient<br/>(and later one client per module)"] --> A["AntiforgeryHandler<br/>adds X-XSRF-TOKEN to POST/PUT/PATCH/DELETE"]
+  C["IdentityClient, InventoryClient<br/>(one client per module)"] --> A["AntiforgeryHandler<br/>adds X-XSRF-TOKEN to POST/PUT/PATCH/DELETE"]
   A --> U["UnauthorizedHandler<br/>401 → reload to sign-in<br/>403 → snackbar with reference"]
   U --> H["HttpClientHandler<br/>same origin, the cookie goes along"]
   H --> B["BFF: gateway or single host"]
@@ -117,8 +122,10 @@ flowchart TD
   R --> E["every API endpoint checks its own policy on the server:<br/>the menu is convenience, not security"]
 ```
 
-The policies come from `SmartSpare.ApiContracts` (`AppPolicies`), the same definitions the server enforces. The bUnit
-test `The_menu_shows_the_areas_the_roles_may_work_in` checks every role.
+The policies come from `SmartSpare.ApiContracts` (`AppPolicies`), the same definitions the server enforces. Inventory
+is shown by its read policy, `ReadInventory`, which every role has. The other areas are shown by their action
+policies until their read policies arrive with stages 6–9. The bUnit test
+`The_menu_shows_the_areas_the_roles_may_work_in` checks every role.
 
 ### 3.4 Session expiry and 401
 
@@ -152,6 +159,28 @@ sequenceDiagram
   Note over B: the prerendered page is anonymous again;<br/>GET /bff/me answers isAuthenticated: false
 ```
 
+### 3.6 Browsing the parts catalogue
+
+```mermaid
+sequenceDiagram
+  participant U as User
+  participant P as InventoryPage (MudDataGrid)
+  participant C as InventoryClient
+  participant F as BFF
+  participant S as Inventory API
+  U->>P: opens Inventory
+  P->>C: ServerData(page 0, 25 rows)
+  C->>F: GET /api/v1/inventory/parts?page=1&pageSize=25 (cookie)
+  F->>S: same request, internal token (policy ReadInventory)
+  S-->>P: { items, page, pageSize, totalCount }
+  P-->>U: 25 rows and "1-25 of N"
+  U->>P: types "cp-4821" (debounced 400 ms)
+  P->>C: back to the first page, search=cp-4821
+  C->>F: GET ...?page=1&pageSize=25&search=cp-4821
+  F-->>P: 1 match
+  Note over P: An error leaves the grid empty with "The parts could not be loaded."<br/>and an alert with the message and Reference: trace id.<br/>401 and 403 go through the handler chain as everywhere.
+```
+
 ## 4. Forms and validation
 
 - Form models (`LoginForm`) convert to the API request (`LoginRequest`) and are validated with the **same
@@ -183,8 +212,10 @@ and the trace.
 - **Sign-in page:** a progress bar while it checks for an existing session (`/bff/me`), and a busy, disabled button
   with a spinner while signing in (bUnit `While_signing_in_the_button_is_busy_and_disabled`), so there is no double
   submit.
-- **Business pages** (convention for stages 5–9, not built yet): `MudProgressLinear` or skeletons while loading, and an
-  empty state when there is no data.
+- **Business pages:** the grid's loading row ("Loading parts…") while the server answers, and an empty state when
+  nothing matches ("No parts match the search.") or the call failed (bUnit
+  `While_the_server_answers_the_grid_shows_that_parts_are_loading`). Prerendering doesn't call the API; the grid loads
+  once WebAssembly runs and the session cookie can be used. Later pages follow the same convention.
 - **Cold start** (production scales to zero): the gateway's `/warmup` wakes the services before a session (STAGE_4_PLAN
   8.7).
 
@@ -194,7 +225,8 @@ and the trace.
   *responsive*: docked beside the content on wide screens, an overlay opened from the app bar's menu button on phones.
 - The sign-in page uses a narrow centred layout (`LoginLayout`) that fits a phone.
 - **Checked on a phone viewport:** Playwright `MobileLayoutTest` at 390 × 844 (touch, 3× scale). The sign-in page,
-  the home page and an area page have no horizontal scroll, and the menu opens from the app bar and leads to an area.
+  the home page and the Inventory page with the parts grid loaded have no horizontal scroll, and the menu opens from
+  the app bar and leads to an area. On a phone the grid shows each part as a stacked card (`Breakpoint.Sm`).
   Screenshots are in `TestResults/e2e/mobile-*.png`.
 - The engineer's tablet view of a machine card (WF03) comes with Fleet in stage 6.
 
@@ -206,8 +238,8 @@ icon + text, not colour alone (`StatusChip`, bUnit-tested).
 
 | Level | Project | What it covers |
 |---|---|---|
-| Components (bUnit) | [`tests/SmartSpare.Web.Tests`](../../tests/SmartSpare.Web.Tests) | Sign-in form: shared validator messages, busy state, the generic failure with its reference, return URL and open-redirect protection; menu per role; redirect to sign-in; 401 and 403 handling; antiforgery header on unsafe methods; problem messages; status chip |
-| End-to-end (Playwright, Chromium) | [`tests/SmartSpare.E2E`](../../tests/SmartSpare.E2E) | `SignInSmokeTest`: redirect, wrong password with reference, sign-in, role menu, no credential readable by scripts, sign-out. `MobileLayoutTest`: phone viewport. `ApiReferenceTest`: `/scalar` under its CSP |
+| Components (bUnit) | [`tests/SmartSpare.Web.Tests`](../../tests/SmartSpare.Web.Tests) | Sign-in form: shared validator messages, busy state, the generic failure with its reference, return URL and open-redirect protection; menu per role; redirect to sign-in; 401 and 403 handling; antiforgery header on unsafe methods; problem messages; status chip; parts grid: first page from the server, loading row, search back to page 1, error with its reference, empty state |
+| End-to-end (Playwright, Chromium) | [`tests/SmartSpare.E2E`](../../tests/SmartSpare.E2E) | `SignInSmokeTest`: redirect, wrong password with reference, sign-in, role menu, no credential readable by scripts, sign-out. `PartsCatalogueTest`: the demo catalogue page by page and a search. `MobileLayoutTest`: phone viewport with the parts grid. `ApiReferenceTest`: `/scalar` under its CSP |
 | Server side of the client | [`tests/SmartSpare.Host.IntegrationTests`](../../tests/SmartSpare.Host.IntegrationTests) | Cookie flags, antiforgery, CSP and the import-map hash, the principal handed to the client, rate limiting |
 
 The bUnit tests run in the "Build and test" CI job and the Playwright tests in the "End-to-end smoke test" job (`tools/check.sh e2e`, real host on Kestrel, PostgreSQL in Testcontainers, demo data, headless Chromium).

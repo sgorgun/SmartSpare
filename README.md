@@ -41,15 +41,16 @@ Details in [FRONTEND.md](docs/architecture/FRONTEND.md).
 |---|---|---|
 | Modern SPA framework, justified | Blazor WebAssembly + MudBlazor 9 in [`src/Web/SmartSpare.Web.Client`](src/Web/SmartSpare.Web.Client) ([ADR 0006](docs/adr/0006-frontend-blazor-wasm-mudblazor-bff.md)) | done |
 | Component structure | `Features/<Module>` pages, `Layout/`, `Shared/` components, typed API clients ([FRONTEND.md §2](docs/architecture/FRONTEND.md#2-component-structure)) | done |
-| Routing with authentication | `AuthorizeRouteView`, `RedirectToLogin`, role-based menu (`NavigationAreas`) | done |
+| Routing with authentication | `AuthorizeRouteView`, `RedirectToLogin`, role-based menu (`NavigationAreas`), pages guarded by policy (`[Authorize(Policy = ReadInventory)]`) | done |
 | Secure sign-in | BFF with an HttpOnly cookie, no token in the browser ([ADR 0014](docs/adr/0014-browser-sign-in-through-bff-endpoints.md)); Playwright `SignInSmokeTest` checks scripts can't read it | done |
 | Forms and validation | MudForm with the shared FluentValidation validators of `SmartSpare.ApiContracts` (same rules as the server) | done |
 | Error handling | ProblemDetails → readable messages with "Reference: \<trace id\>"; 401 → sign-in, 403 → snackbar (`Http/Handlers.cs`) | done |
-| Loading states | Busy buttons, progress bars, `data-interactive` once WebAssembly runs | done |
-| Responsive layout | MudBlazor grid and responsive drawer; Playwright `MobileLayoutTest` at 390 × 844 | done |
+| Loading states | Busy buttons, progress bars, the parts grid's loading row, `data-interactive` once WebAssembly runs | done |
+| Responsive layout | MudBlazor grid and responsive drawer; the parts grid becomes stacked cards on a phone; Playwright `MobileLayoutTest` at 390 × 844 | done |
 | Accessibility | ARIA labels, visible focus, icons next to colour (`StatusChip`), WCAG 2.1 AA target | done for the existing pages |
-| Tests | bUnit `tests/SmartSpare.Web.Tests` (22 tests); Playwright `tests/SmartSpare.E2E` (sign-in, API reference, mobile) in CI job "End-to-end smoke test" | done |
-| Business screens | Inventory, Fleet, Procurement, Forecasting, Reporting | planned (stages 5–9) |
+| Tests | bUnit `tests/SmartSpare.Web.Tests` (27 tests); Playwright `tests/SmartSpare.E2E` (sign-in, API reference, mobile, parts catalogue) in CI job "End-to-end smoke test" | done |
+| Server-side data grid | Inventory → Parts catalogue: `MudDataGrid` with server paging and search, loading and error states with the reference ([`InventoryPage.razor`](src/Web/SmartSpare.Web.Client/Features/Inventory/InventoryPage.razor), `InventoryClient`); bUnit `InventoryPageTests`, Playwright `PartsCatalogueTest` | done |
+| Business screens | Inventory (rest), Fleet, Procurement, Forecasting, Reporting | planned (stages 5–9) |
 
 ### API documentation
 
@@ -57,13 +58,14 @@ Details in [API_DOCUMENTATION.md](docs/architecture/API_DOCUMENTATION.md).
 
 | Requirement | Where | Status |
 |---|---|---|
-| Machine-readable API description | One OpenAPI 3.1 document per module at `/openapi/{module}.json` ([`ApiDocumentation.cs`](src/BuildingBlocks/SmartSpare.Infrastructure/Http/ApiDocumentation.cs), [ADR 0019](docs/adr/0019-public-api-documentation.md)) | done |
-| Interactive documentation | Scalar at `/scalar` with every module document, nonce CSP, no CDN ([`ApiReference.cs`](src/BuildingBlocks/SmartSpare.Bff/ApiReference.cs)) | done |
+| Machine-readable API description | One OpenAPI 3.1 document per module at `/openapi/{module}.json`, and `/openapi/bff.json` for the session endpoints ([`ApiDocumentation.cs`](src/BuildingBlocks/SmartSpare.Infrastructure/Http/ApiDocumentation.cs), [ADR 0019](docs/adr/0019-public-api-documentation.md) and its amendment 1) | done |
+| Interactive documentation | Scalar at `/scalar` with the session and every module document, nonce CSP, no CDN ([`ApiReference.cs`](src/BuildingBlocks/SmartSpare.Bff/ApiReference.cs)) | done |
+| Sign-in documented | `/bff/login`, `/bff/logout`, `/bff/me`, `/bff/antiforgery` with request and response examples, 400 `SS-AUTH-001`/`002`, 401, 429 with `Retry-After` ([`BffEndpoints.cs`](src/BuildingBlocks/SmartSpare.Bff/BffEndpoints.cs)) | done |
 | Public, but endpoints protected | Documents anonymous in every environment; every `/api/v1` endpoint requires authorization (`ApiDocumentationTests`) | done |
 | Versioning | Business API under `/api/v1/{module}`; operational endpoints marked and unversioned ([ADR 0012](docs/adr/0012-evolvability-principles.md)) | done |
-| Errors documented | ProblemDetails (RFC 9457) with stable `code` values (`ProblemCodes`) | done |
+| Errors documented | ProblemDetails (RFC 9457) with stable `code` values (`ProblemCodes`); the schema documents `code` and `traceId`, and every error response has an example ([`OpenApiConventions.cs`](src/BuildingBlocks/SmartSpare.Infrastructure/Http/OpenApiConventions.cs)) | done |
 | Internal endpoints hidden | `/internal/*` excluded from documents and never routed by the gateway (`GatewayTests`) | done |
-| Business endpoints described | Summaries and response types with every endpoint as stages 5–9 add them | planned (stages 5–9) |
+| Business endpoints described | Inventory: `GET /api/v1/inventory/parts` (search, paging), `/parts/{id}` (404 ProblemDetails), `/warehouses`, each with summary, parameters, typed responses, field descriptions and examples; `InventoryApiTests`, `ApiDocumentationTests` | done for Inventory reads; the rest with stages 5–9 |
 
 ## Quick start (application)
 
@@ -149,6 +151,8 @@ The browser signs in through the BFF endpoints of the host ([ADR 0014](docs/adr/
 `POST /bff/login` with `{ "userName", "password", "rememberMe" }` and the token in the `X-XSRF-TOKEN` header sets the
 HttpOnly cookie `__Host-SmartSpare`, `GET /bff/me` shows the session, and `POST /bff/logout` ends it. The cookie and
 antiforgery cookies are `Secure`, so use the HTTPS URL. Demo users and their password: see the database quick start.
+The OpenAPI document `/openapi/bff.json` describes these endpoints with examples and every error; `/scalar` shows it
+first.
 
 Module endpoints also accept an **internal token** (`Authorization: Bearer`), the 2-minute ES256 token the gateway
 will mint in stage 4. The single host validates it with a key that never lives in a file of the repository. Without a
