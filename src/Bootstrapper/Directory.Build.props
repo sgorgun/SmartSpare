@@ -1,0 +1,30 @@
+<Project>
+
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <!--
+    Container images of the deployable hosts (STAGE_4_PLAN 8.1), built by the SDK: `dotnet publish -t:PublishContainer`.
+    Ubuntu 24.04 chiseled "extra" images: no shell or package manager, non-root `app` user, but with ICU and tzdata, which
+    localization, prerendering and time zones need. The repository is smartspare/<name>; the tag is the commit SHA
+    (ContainerImageTags from the pipeline), "dev" otherwise.
+  -->
+  <PropertyGroup>
+    <ContainerFamily>noble-chiseled-extra</ContainerFamily>
+    <ContainerImageTags Condition="'$(ContainerImageTags)' == ''">dev</ContainerImageTags>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'SmartSpare.Gateway'">
+    <ContainerRepository>smartspare/gateway</ContainerRepository>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="$(MSBuildProjectName.StartsWith('SmartSpare.Services.'))">
+    <ContainerRepository>smartspare/$(MSBuildProjectName.Substring(20).ToLowerInvariant())</ContainerRepository>
+  </PropertyGroup>
+
+  <!-- The migration job of ADR 0020: a console app, so container support is opted into. -->
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'SmartSpare.MigrationRunner'">
+    <EnableSdkContainerSupport>true</EnableSdkContainerSupport>
+    <ContainerRepository>smartspare/migrations</ContainerRepository>
+  </PropertyGroup>
+
+</Project>
