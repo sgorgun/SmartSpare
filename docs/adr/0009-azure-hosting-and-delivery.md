@@ -1,6 +1,6 @@
 # ADR 0009: Azure hosting and delivery
 
-- Status: Accepted, amended by [ADR 0015](0015-deployment-topology-microservices-behind-yarp-gateway.md), [ADR 0017](0017-rabbitmq-integration-event-transport.md) and [ADR 0018](0018-observability-with-the-grafana-stack.md) (2026-11-24), and by [ADR 0020](0020-database-migrations-through-the-migration-runner-job.md) (2026-11-25)
+- Status: Accepted, amended by [ADR 0015](0015-deployment-topology-microservices-behind-yarp-gateway.md), [ADR 0017](0017-rabbitmq-integration-event-transport.md) and [ADR 0018](0018-observability-with-the-grafana-stack.md) (2026-11-24), by [ADR 0020](0020-database-migrations-through-the-migration-runner-job.md) (2026-11-25), and by [ADR 0022](0022-azure-region-north-europe.md) (region North Europe, 2026-11-25)
 - Date: 2026-11-16
 
 ## Context
@@ -59,7 +59,7 @@ Locally, Aspire runs RabbitMQ and Prometheus, Loki, Tempo and Grafana as contain
 - **warm-up before demos and the defence:** a GitHub Actions workflow `warm-up.yml` (manual `workflow_dispatch`, plus a weekly cron) calls the gateway's anonymous, rate-limited `GET /warmup`. The gateway calls `/health/ready` on each service over internal ingress, which wakes every app. It is run manually 15 minutes before the defence. The weekly run also keeps the CloudAMQP instance and its queues from being removed as idle (ADR 0017 §4).
 - The UI shows a loading state instead of an error while a cold start is in progress.
 
-**Monthly cost estimate (dev/demo environment, West Europe, EUR).** Unit prices are from the [Azure Retail Prices API](https://prices.azure.com/api/retail/prices), retrieved 24 November 2026; 730 h per month.
+**Monthly cost estimate (dev/demo environment, West Europe, EUR; the environment is in North Europe since [ADR 0022](0022-azure-region-north-europe.md), whose prices are lower, so this is an upper bound).** Unit prices are from the [Azure Retail Prices API](https://prices.azure.com/api/retail/prices), retrieved 24 November 2026; 730 h per month.
 
 | Item | Size | Unit price | Monthly | Pricing page |
 |---|---|---|---|---|

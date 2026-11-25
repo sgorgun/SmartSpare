@@ -3,7 +3,7 @@
 using 'main.bicep'
 
 param environmentName = 'prod'
-param location = 'westeurope'
+param location = 'northeurope'
 param imageTag = readEnvironmentVariable('IMAGE_TAG', 'bootstrap')
 param postgresAdminPassword = readEnvironmentVariable('POSTGRES_ADMIN_PASSWORD', '')
 param budgetContactEmails = [readEnvironmentVariable('BUDGET_EMAIL', '')]
