@@ -1,6 +1,6 @@
 # ADR 0015: Deployment topology: microservices behind a YARP gateway
 
-- Status: Accepted
+- Status: Accepted, amended by [ADR 0020](0020-database-migrations-through-the-migration-runner-job.md) (2026-11-25)
 - Date: 2026-11-24
 - Amends: [ADR 0002](0002-modular-monolith.md), [ADR 0006](0006-frontend-blazor-wasm-mudblazor-bff.md), [ADR 0009](0009-azure-hosting-and-delivery.md)
 
@@ -95,7 +95,7 @@ The HTTP client uses the standard resilience handler of ServiceDefaults and prop
   - The gateway has no database login.
 - **Connection budget:** PostgreSQL B1ms allows 35 user connections ([limits](https://learn.microsoft.com/azure/postgresql/configure-maintain/concepts-limits)), so each service caps its pool (`Maximum Pool Size=4`) and runs `maxReplicas: 1` in the dev/demo environment.
 - The single host keeps its current logins (`smartspare_api`, `smartspare_jobs`, `smartspare_reporting`).
-- Each service applies only its own module's EF migration bundle, under `smartspare_migrator`, before its new revision starts. Migrations are already per module (`<schema>.__ef_migrations_history`).
+- Each service applies only its own module's migrations, under `smartspare_migrator`, before its new revision starts: the MigrationRunner job with `--module <name>` (ADR 0020). Migrations are already per module (`<schema>.__ef_migrations_history`).
 
 ### 6. Independent deployment
 
@@ -134,3 +134,7 @@ The HTTP client uses the standard resilience handler of ServiceDefaults and prop
 - One more hop per API call (gateway → service). After idle periods there are cold starts on the gateway and then on the called service, mitigated by the warm-up workflow before demos.
 - Developers keep a one-process debugging experience. The topology itself is tested in CI and can run locally on demand.
 - A new work-plan stage (stage 4: topology) is inserted before the business modules, and the following stages shift by one.
+
+## Amendment (2026-11-25)
+
+[ADR 0020](0020-database-migrations-through-the-migration-runner-job.md): §5 said each service applies "its own module's EF migration bundle". Each service still applies only its own module's migrations before its revision starts, but through the MigrationRunner image as a Container Apps job (`migrate --module <name>`), not an EF bundle.

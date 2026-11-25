@@ -5,22 +5,23 @@
 | [0001](0001-record-architecture-decisions.md) | Record architecture decisions | Accepted |
 | [0002](0002-modular-monolith.md) | Microservice-ready modular monolith | Accepted, amended by 0015 |
 | [0003](0003-module-boundaries-and-integration-events.md) | Module boundaries and integration events | Accepted, amended by 0017 |
-| [0004](0004-hybrid-ef-core-code-first.md) | Hybrid EF Core code-first | Accepted |
+| [0004](0004-hybrid-ef-core-code-first.md) | Hybrid EF Core code-first | Accepted, amended by 0020 |
 | [0005](0005-own-handlers-instead-of-mediatr.md) | Own handlers instead of MediatR | Accepted |
 | [0006](0006-frontend-blazor-wasm-mudblazor-bff.md) | Frontend: Blazor WebAssembly, MudBlazor and BFF | Accepted, amended by 0015, 0016 |
 | [0007](0007-dotnet-10-lts.md) | .NET 10 LTS as the platform | Accepted |
 | [0008](0008-mlnet-demand-forecasting.md) | ML.NET for demand forecasting | Accepted |
-| [0009](0009-azure-hosting-and-delivery.md) | Azure hosting and delivery | Accepted, amended by 0015, 0017, 0018 |
+| [0009](0009-azure-hosting-and-delivery.md) | Azure hosting and delivery | Accepted, amended by 0015, 0017, 0018, 0020 |
 | [0010](0010-english-only-repository.md) | English-only repository | Accepted |
 | [0011](0011-database-ownership-per-module.md) | Database ownership per module | Accepted |
 | [0012](0012-evolvability-principles.md) | Evolvability principles | Accepted, amended by 0019 |
 | [0013](0013-domain-model-and-persistence.md) | Domain model and persistence | Accepted |
 | [0014](0014-browser-sign-in-through-bff-endpoints.md) | Browser sign-in through BFF endpoints | Accepted, amended by 0016; implemented in stage 3 |
-| [0015](0015-deployment-topology-microservices-behind-yarp-gateway.md) | Deployment topology: microservices behind a YARP gateway | Accepted |
+| [0015](0015-deployment-topology-microservices-behind-yarp-gateway.md) | Deployment topology: microservices behind a YARP gateway | Accepted, amended by 0020 |
 | [0016](0016-authentication-behind-the-gateway.md) | Authentication behind the gateway | Accepted; single-host part implemented in stage 3 |
 | [0017](0017-rabbitmq-integration-event-transport.md) | RabbitMQ as the integration-event transport | Accepted |
 | [0018](0018-observability-with-the-grafana-stack.md) | Observability with the Grafana stack | Accepted |
 | [0019](0019-public-api-documentation.md) | Public API documentation | Accepted |
+| [0020](0020-database-migrations-through-the-migration-runner-job.md) | Database migrations in Azure through the MigrationRunner job | Accepted |
 
 New ADRs use the next free number and the same Context / Decision / Consequences format.
 

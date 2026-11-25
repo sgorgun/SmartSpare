@@ -1,6 +1,6 @@
 # ADR 0004: Hybrid EF Core code-first
 
-- Status: Accepted
+- Status: Accepted, amended by [ADR 0020](0020-database-migrations-through-the-migration-runner-job.md) (2026-11-25)
 - Date: 2026-11-16
 
 ## Context
@@ -9,10 +9,14 @@ The database was designed and tested as SQL migrations (V001–V016) with trigge
 
 ## Decision
 
-Use EF Core code-first per module: tables, keys, intra-module FKs, indexes, CHECKs and enums in Fluent API; triggers, functions, views, roles, grants and EXCLUDE constraints as embedded SQL via `migrationBuilder.Sql`; partitioned tables created in SQL and marked `ExcludeFromMigrations()`. snake_case via `EFCore.NamingConventions`. Deploy with an EF migration bundle under the `smartspare_migrator` login; never migrate on application startup. Verify the port by diffing against `db/ddl/smartspare_schema.sql` and running the 97 SQL tests.
+Use EF Core code-first per module: tables, keys, intra-module FKs, indexes, CHECKs and enums in Fluent API; triggers, functions, views, roles, grants and EXCLUDE constraints as embedded SQL via `migrationBuilder.Sql`; partitioned tables created in SQL and marked `ExcludeFromMigrations()`. snake_case via `EFCore.NamingConventions`. Deploy with the MigrationRunner as a one-shot Container Apps job under the `smartspare_migrator` login (ADR 0020); never migrate on application startup. Verify the port by diffing against `db/ddl/smartspare_schema.sql` and running the 97 SQL tests.
 
 ## Consequences
 
 - Keeps every database-rubric point and the database as the last line of defence.
 - `SmartSpare.DbMigrator` is retired.
 - Part of the schema remains SQL that EF does not track, so those scripts need their own review.
+
+## Amendment (2026-11-25)
+
+[ADR 0020](0020-database-migrations-through-the-migration-runner-job.md): schema changes reach Azure through the `SmartSpare.MigrationRunner` image, run as a manual Container Apps job (`migrate --module <name>` per service), instead of an EF migration bundle. The original decision named "an EF migration bundle under the `smartspare_migrator` login"; the login and "never migrate on application startup" are unchanged.

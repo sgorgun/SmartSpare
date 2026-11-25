@@ -1,6 +1,6 @@
 # ADR 0009: Azure hosting and delivery
 
-- Status: Accepted, amended by [ADR 0015](0015-deployment-topology-microservices-behind-yarp-gateway.md), [ADR 0017](0017-rabbitmq-integration-event-transport.md) and [ADR 0018](0018-observability-with-the-grafana-stack.md) (2026-11-24)
+- Status: Accepted, amended by [ADR 0015](0015-deployment-topology-microservices-behind-yarp-gateway.md), [ADR 0017](0017-rabbitmq-integration-event-transport.md) and [ADR 0018](0018-observability-with-the-grafana-stack.md) (2026-11-24), and by [ADR 0020](0020-database-migrations-through-the-migration-runner-job.md) (2026-11-25)
 - Date: 2026-11-16
 
 ## Context
@@ -15,7 +15,7 @@ Ship container images from day one. Production, since the amendment below:
 - CloudAMQP (free shared RabbitMQ) and Grafana Cloud Free for messaging and observability; every app scales to zero;
 - one Managed Identity and database login per service.
 
-The original plan (App Service with one container, and Application Insights) is superseded; see the amendment. Infrastructure in Bicep (`infra/`), CI/CD with GitHub Actions signing in via OIDC, EF migration bundle as a pipeline step. Background jobs are multi-instance safe (Quartz clustered, `SKIP LOCKED`). .NET Aspire is used for local development only.
+The original plan (App Service with one container, and Application Insights) is superseded; see the amendment. Infrastructure in Bicep (`infra/`), CI/CD with GitHub Actions signing in via OIDC, database migrations as a MigrationRunner Container Apps job started by the pipeline (ADR 0020). Background jobs are multi-instance safe (Quartz clustered, `SKIP LOCKED`). .NET Aspire is used for local development only.
 
 ## Consequences
 
@@ -86,3 +86,7 @@ Above the grant, an active 0.25 vCPU / 0.5 GiB replica costs about $0.03 per hou
 **Rejected: a self-hosted "stateful host" VM** for RabbitMQ and the Grafana stack. It would give local-disk semantics, which RabbitMQ and Prometheus prefer and Container Apps' Azure Files mounts lack. The VM is rejected on **cost against the €35/month target**: a B2s Linux VM alone costs €0.0431/hour, about €31.46/month before its managed disk. That is almost the whole budget, and it would run whether or not anyone uses the system. It would also add patching and backups. A B1ms VM (€0.0215/hour) is too small (2 GiB) for RabbitMQ plus four observability components.
 
 **Telemetry:** OpenTelemetry → Grafana Cloud ([ADR 0018](0018-observability-with-the-grafana-stack.md)) replaces Application Insights as the primary target.
+
+## Amendment (2026-11-25): migrations
+
+[ADR 0020](0020-database-migrations-through-the-migration-runner-job.md) replaces "EF migration bundle as a pipeline step" with the MigrationRunner image run as a manual Container Apps job before each service's new revision: one tested program for bootstrap, catalogue order and migrations, a `--module` filter for per-service deployments, and no database access from GitHub runners. The comparison is in [STAGE_4_PLAN.md](../stage-4/STAGE_4_PLAN.md), section 8.4.
