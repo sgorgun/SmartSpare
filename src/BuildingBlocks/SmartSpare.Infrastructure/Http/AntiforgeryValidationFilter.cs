@@ -24,16 +24,26 @@ public sealed class AntiforgeryValidationFilter : IEndpointFilter
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(next);
 
-        var http = context.HttpContext;
+        return await CheckAsync(context.HttpContext).ConfigureAwait(false) ?? await next(context).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// The check itself, also used by the gateway in front of its proxy: <see langword="null"/> when the request may
+    /// continue, otherwise the 400 to answer.
+    /// </summary>
+    public static async Task<IResult?> CheckAsync(HttpContext http)
+    {
+        ArgumentNullException.ThrowIfNull(http);
         if (!IsUnsafe(http.Request.Method) || IsInternalTokenRequest(http))
         {
-            return await next(context).ConfigureAwait(false);
+            return null;
         }
 
         var antiforgery = http.RequestServices.GetRequiredService<IAntiforgery>();
         try
         {
             await antiforgery.ValidateRequestAsync(http).ConfigureAwait(false);
+            return null;
         }
         catch (AntiforgeryValidationException)
         {
@@ -43,8 +53,6 @@ public sealed class AntiforgeryValidationFilter : IEndpointFilter
                 detail: "The request is missing a valid antiforgery token. Reload the page and try again.",
                 extensions: new Dictionary<string, object?> { [ProblemDetailsRegistration.CodeKey] = ProblemCodes.AntiforgeryFailed });
         }
-
-        return await next(context).ConfigureAwait(false);
     }
 
     private static bool IsUnsafe(string method) =>

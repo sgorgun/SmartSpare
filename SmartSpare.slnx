@@ -3,6 +3,7 @@
     <Project Path="src/SmartSpare.AppHost/SmartSpare.AppHost.csproj" />
   </Folder>
   <Folder Name="/src/Bootstrapper/">
+    <Project Path="src/Bootstrapper/SmartSpare.Gateway/SmartSpare.Gateway.csproj" />
     <Project Path="src/Bootstrapper/SmartSpare.Host/SmartSpare.Host.csproj" />
     <Project Path="src/Bootstrapper/SmartSpare.MigrationRunner/SmartSpare.MigrationRunner.csproj" />
     <Project Path="src/Bootstrapper/SmartSpare.ModuleCatalog/SmartSpare.ModuleCatalog.csproj" />

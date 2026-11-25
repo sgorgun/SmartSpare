@@ -55,6 +55,19 @@ public sealed class TopologyBoundaryTests
             .ShouldBe(["SmartSpare.ServiceDefaults", "SmartSpare.Infrastructure", "SmartSpare.Infrastructure.RabbitMq"], ignoreOrder: true);
     }
 
+    /// <summary>
+    /// The gateway hosts no module (STAGE_4_PLAN 1.3, ADR 0016 §1): no module implementation, no catalogue of all modules,
+    /// no other host; Identity is reached through Identity.Contracts, which the Bff brings.
+    /// </summary>
+    [Fact]
+    public void Gateway_references_no_module_implementation_and_no_host()
+    {
+        var references = Solution.ProjectReferences("SmartSpare.Gateway").ToList();
+
+        references.ShouldBe(["SmartSpare.ServiceDefaults", "SmartSpare.Bff", "SmartSpare.Web.Client"], ignoreOrder: true);
+        Solution.PackageReferences("SmartSpare.Gateway").ShouldContain("Yarp.ReverseProxy");
+    }
+
     [Fact]
     public void Infrastructure_KeepsTheBrokerAndTheGatewayOutOfModules()
     {

@@ -970,6 +970,7 @@
       "smartspare.bff": {
         "type": "Project",
         "dependencies": {
+          "Microsoft.AspNetCore.Components.WebAssembly.Server": "[10.0.15, )",
           "Microsoft.IdentityModel.JsonWebTokens": "[8.23.0, )",
           "SmartSpare.ApiContracts": "[1.0.0, )",
           "SmartSpare.Infrastructure": "[1.0.0, )",

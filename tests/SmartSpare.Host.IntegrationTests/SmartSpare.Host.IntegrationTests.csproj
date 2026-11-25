@@ -8,6 +8,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Bootstrapper\SmartSpare.Host\SmartSpare.Host.csproj" />
+    <!-- The gateway (STAGE_4_PLAN 4e) in front of the Identity service host. -->
+    <ProjectReference Include="..\..\src\Bootstrapper\SmartSpare.Gateway\SmartSpare.Gateway.csproj" Aliases="gateway" />
     <!-- The service hosts (STAGE_4_PLAN 4d): each starts with its own module; the sign-in matrix runs against Identity. -->
     <ProjectReference Include="..\..\src\Bootstrapper\Services\SmartSpare.Services.Identity\SmartSpare.Services.Identity.csproj" />
     <ProjectReference Include="..\..\src\Bootstrapper\Services\SmartSpare.Services.Inventory\SmartSpare.Services.Inventory.csproj" />

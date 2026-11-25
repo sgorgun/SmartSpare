@@ -118,6 +118,18 @@ public static class BffRegistration
     /// The security part of the pipeline in the order of STAGE_3_PLAN section 8.1: routing, the rate limiter (after
     /// routing, for the endpoint policy of <c>/bff/login</c>), authentication, authorization.
     /// </summary>
+    /// <summary>
+    /// The gateway's authentication (ADR 0016 section 4): the cookie is the only scheme. It never accepts an internal
+    /// token; it mints them. Policies are the same as everywhere.
+    /// </summary>
+    public static IServiceCollection AddGatewayAuthentication(this IServiceCollection services)
+    {
+        services.AddAuthentication(BffDefaults.CookieScheme).AddBffCookie();
+        services.AddAuthorization(AppPolicies.Register);
+        services.AddBrandScopeAuthorization();
+        return services;
+    }
+
     public static IApplicationBuilder UseBff(this IApplicationBuilder app)
     {
         ArgumentNullException.ThrowIfNull(app);

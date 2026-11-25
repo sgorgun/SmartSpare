@@ -564,6 +564,7 @@
       "smartspare.bff": {
         "type": "Project",
         "dependencies": {
+          "Microsoft.AspNetCore.Components.WebAssembly.Server": "[10.0.15, )",
           "Microsoft.IdentityModel.JsonWebTokens": "[8.23.0, )",
           "SmartSpare.ApiContracts": "[1.0.0, )",
           "SmartSpare.Infrastructure": "[1.0.0, )",
@@ -759,6 +760,15 @@
         "dependencies": {
           "Microsoft.AspNetCore.Components.Authorization": "10.0.15",
           "Microsoft.AspNetCore.Components.Web": "10.0.15"
+        }
+      },
+      "Microsoft.AspNetCore.Components.WebAssembly.Server": {
+        "type": "CentralTransitive",
+        "requested": "[10.0.15, )",
+        "resolved": "10.0.15",
+        "contentHash": "0fLVpTv9PMxOihGgSCxwTFQ8MOk0He2lqD5Hh97WKhXyZPiOj3N7c3SEBNYwUlk7J4Bv6Qe49G58SldIoJq1EA==",
+        "dependencies": {
+          "Microsoft.AspNetCore.Components.WebAssembly": "10.0.15"
         }
       },
       "Microsoft.AspNetCore.DataProtection.EntityFrameworkCore": {
