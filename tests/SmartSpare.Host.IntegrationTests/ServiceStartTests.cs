@@ -30,7 +30,23 @@ public sealed class ServiceStartTests
         routes.ShouldContain($"/api/{module}/ping");
         routes.ShouldAllBe(r => r.StartsWith($"/api/{module}/", StringComparison.Ordinal)
                                 || r.StartsWith($"/internal/v1/{module}/", StringComparison.Ordinal)
-                                || r.StartsWith("/health/", StringComparison.Ordinal));
+                                || r.StartsWith("/health/", StringComparison.Ordinal)
+                                || r == SmartSpare.Infrastructure.Http.ApiDocumentation.RoutePattern);
+    }
+
+    [Theory]
+    [MemberData(nameof(Services))]
+    public async Task A_service_publishes_only_its_own_document(string module)
+    {
+        using var factory = Create(module);
+        var other = module == "identity" ? "inventory" : "identity";
+        using var client = factory.CreateClient();
+
+        using var own = await client.GetAsync(new Uri($"/openapi/{module}.json", UriKind.Relative), TestContext.Current.CancellationToken);
+        using var foreign = await client.GetAsync(new Uri($"/openapi/{other}.json", UriKind.Relative), TestContext.Current.CancellationToken);
+
+        own.StatusCode.ShouldBe(System.Net.HttpStatusCode.OK, "anonymous, like everywhere (ADR 0019)");
+        foreign.StatusCode.ShouldBe(System.Net.HttpStatusCode.NotFound);
     }
 
     [Theory]
@@ -68,6 +84,8 @@ public sealed class ServiceStartTests
     private interface IServiceFactory : IDisposable
     {
         IServiceProvider Services { get; }
+
+        HttpClient CreateClient();
     }
 
     /// <summary>
