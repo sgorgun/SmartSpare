@@ -96,7 +96,8 @@ The gateway (stage 4) keeps its key ring in Blob Storage, protected with Key Vau
 
 Run `tools/check.sh` (Git Bash on Windows) before pushing. Stage new files first: the stale-terms check scans tracked
 files only. While iterating, plain `dotnet build` / `dotnet test --filter "Category!=Integration"` are fine, but only
-the script reproduces CI.
+the script reproduces CI. Locally it runs the test projects one at a time to save memory (`CHECK_SEQUENTIAL=1`, at
+most one Testcontainers PostgreSQL at once; see CONTRIBUTING); CI runs them in parallel.
 
 CI (`.github/workflows/ci.yml`) runs the same script on every push and pull request to `main`: the "Build and test" job
 runs the steps of `tools/check.sh fast`, the integration job runs `integration` and `database`, and the end-to-end job

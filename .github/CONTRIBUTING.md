@@ -55,6 +55,12 @@ tools/check.sh build test   # selected steps
 
 Stage new files (`git add`) first: the stale-terms check scans tracked files only. On Windows, run the script in Git Bash.
 
+**Memory.** Locally the script runs the test projects one at a time, with each project's test collections in series, so
+at most one Testcontainers PostgreSQL runs at once (`CHECK_SEQUENTIAL=1`, the default unless `CI=true`). The same tests
+run, just more slowly. CI keeps the parallel run; `CHECK_SEQUENTIAL=0 tools/check.sh` reproduces it locally if the
+machine has the memory. After the `integration`, `database` and `e2e` steps the script lists any container the tests
+left behind (normally only Testcontainers' Ryuk reaper, which removes itself).
+
 ## Releases
 
 - Versions follow [Semantic Versioning](https://semver.org/). Until the defence the project stays in `0.x`; each completed stage of the work plan is a minor release (`v0.1.0` = skeleton, `v0.2.0` = data layer, …).
