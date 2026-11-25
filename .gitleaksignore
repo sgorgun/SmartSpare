@@ -1,0 +1,4 @@
+# gitleaks false positives (gitleaks git ...): fingerprint per line, with the reason.
+# A W3C trace id (32 hex digits) in a bUnit test's expected error reference, not a credential.
+4609b90eee525a320ca3576d2a9baefe96eb22dd:tests/SmartSpare.Web.Tests/LoginTests.cs:generic-api-key:57
+tests/SmartSpare.Web.Tests/LoginTests.cs:generic-api-key:57
