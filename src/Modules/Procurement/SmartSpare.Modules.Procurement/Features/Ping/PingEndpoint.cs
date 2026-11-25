@@ -16,5 +16,6 @@ internal static class PingEndpoint
                 return result.ToHttpResult();
             })
             .WithName("ProcurementPing")
-            .Produces<PingResponse>();
+            .Produces<PingResponse>()
+            .AsOperational();
 }

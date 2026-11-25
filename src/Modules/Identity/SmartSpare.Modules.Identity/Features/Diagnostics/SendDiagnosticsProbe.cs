@@ -37,7 +37,8 @@ internal static class SendDiagnosticsProbeEndpoint
                 return result.ToHttpResult();
             })
             .WithName("IdentitySendDiagnosticsProbe")
-            .Produces<DiagnosticsProbeResponse>();
+            .Produces<DiagnosticsProbeResponse>()
+            .AsOperational();
 }
 
 internal sealed record DiagnosticsProbeResponse(Guid ProbeId);
