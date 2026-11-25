@@ -75,7 +75,7 @@ public sealed class UnitOfWorkTests(MigratedDatabaseFixture db) : IAsyncLifetime
                 $"SELECT count(*) FROM iam.outbox_message WHERE payload ->> 'code' = '{code}' AND processed_at IS NOT NULL")).ShouldBe(1);
             (await db.ScalarAsync<long>($"""
                 SELECT count(*) FROM iam.inbox_message i JOIN iam.outbox_message o ON o.id = i.message_id
-                WHERE o.payload ->> 'code' = '{code}' AND i.consumer = '{typeof(ProbeRoleCreatedConsumer).FullName}'
+                WHERE o.payload ->> 'code' = '{code}' AND i.consumer = '{ProbeRoleCreatedConsumer.Name}'
                 """)).ShouldBe(1);
         }
         finally
@@ -129,8 +129,12 @@ internal sealed class CreateProbeRoleHandler(ProbeDbContext context, IUnitOfWork
     }
 }
 
+[IntegrationEventConsumer(ProbeRoleCreatedConsumer.Name)]
 internal sealed class ProbeRoleCreatedConsumer : IIntegrationEventConsumer<ProbeRoleCreated>
 {
+    /// <summary>The stable consumer name, stored in <c>inbox_message.consumer</c> (#32).</summary>
+    public const string Name = "identity.probe-role-created";
+
     public static List<string> Received { get; } = [];
 
     public Task Handle(ProbeRoleCreated integrationEvent, CancellationToken cancellationToken)
