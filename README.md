@@ -88,9 +88,9 @@ The gateway (stage 4) keeps its key ring in Blob Storage, protected with Key Vau
 
 | Task | Command |
 |---|---|
-| **All checks, exactly as CI** (Docker running) | `tools/check.sh` — stale terms, locked restore, Release build with `-warnaserror`, format, check-model, tests with coverage, integration tests, database verification |
+| **All checks, exactly as CI** (Docker running) | `tools/check.sh` — stale terms, locked restore, Release build with `-warnaserror`, format, check-model, vulnerable packages, tests with the coverage gate (≥ 70 % of business logic), integration tests, database verification |
 | Checks without Docker (the CI "Build and test" job) | `tools/check.sh fast` |
-| Selected checks | `tools/check.sh <step> ...` with steps `stale-terms restore build format check-model test integration database` |
+| Selected checks | `tools/check.sh <step> ...` with steps `stale-terms restore vulnerabilities build format check-model test coverage integration database` |
 | End-to-end smoke test (Docker; installs Chromium) | `tools/check.sh restore build e2e` — Playwright signs in and out in Chromium; screenshots in `TestResults/e2e` |
 | Schema diff (Docker) | `tools/schema_diff.sh` — EF-built schema vs. the frozen V016 baseline |
 
