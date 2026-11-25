@@ -11,13 +11,15 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
 builder.Services.AddSmartSpareProblemDetails();
-builder.Services.AddOpenApi();
 
 // The ordered module list is shared with the migration runner (ModuleCatalog). The single host runs all of them and
 // delivers integration events in process (ADR 0015 §1); the shared composition decorates handlers, checks consumer
 // names, drains the outboxes and resolves the current user from the request's claims.
 var modules = ModuleCatalog.CreateInstallers();
 builder.Services.AddModules(builder.Configuration, modules, Topology.SingleHost);
+
+// One OpenAPI document per module, public in every environment (ADR 0019); the gateway publishes the same paths.
+builder.Services.AddModuleDocuments(modules);
 
 // One key ring for every instance of the host (#22): cookies and antiforgery tokens work across instances.
 builder.AddSmartSpareDataProtection();
@@ -42,12 +44,7 @@ var app = builder.Build();
 // Pipeline order of STAGE_3_PLAN 8.1.
 app.UseSmartSpareProblemDetails();
 
-if (app.Environment.IsDevelopment())
-{
-    // API documentation is public (ADR 0019); the endpoints themselves still require authorization.
-    app.MapOpenApi().AllowAnonymous();
-}
-else
+if (!app.Environment.IsDevelopment())
 {
     app.UseHsts();
 }
@@ -64,6 +61,10 @@ app.UseAntiforgery();
 
 app.MapDefaultEndpoints();
 app.MapBff();
+
+// API documentation is public (ADR 0019); the endpoints it describes still require authorization.
+app.MapModuleDocuments().CacheOutput(ApiDocumentation.Policy).RequireRateLimiting(ApiDocumentation.Policy);
+app.MapApiReference(modules.Select(m => m.Name));
 
 // Every module endpoint validates antiforgery on unsafe requests (STAGE_3_PLAN section 1.5): the host accepts the cookie.
 app.MapModules(modules, group => group.AddEndpointFilter<AntiforgeryValidationFilter>());

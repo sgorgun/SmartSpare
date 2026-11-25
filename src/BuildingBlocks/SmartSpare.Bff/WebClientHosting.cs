@@ -60,9 +60,18 @@ public static class SecurityHeaders
     /// because MudBlazor computes style attributes at runtime (accepted risk, ADR 0014).
     /// </summary>
     public static string ContentSecurityPolicy(string? importMapHash) =>
+        Policy(importMapHash is null ? "script-src 'self' 'wasm-unsafe-eval'" : $"script-src 'self' 'wasm-unsafe-eval' '{importMapHash}'");
+
+    /// <summary>
+    /// The policy of the API reference (<see cref="ApiReference.Path"/>, STAGE_4_PLAN section 7): its one inline module
+    /// script runs by a per-request nonce, nothing else inline; no WebAssembly there. Everything else as on every page.
+    /// </summary>
+    public static string ApiReferencePolicy(string nonce) => Policy($"script-src 'self' 'nonce-{nonce}'");
+
+    private static string Policy(string scriptSource) =>
         string.Join("; ",
             "default-src 'self'",
-            importMapHash is null ? "script-src 'self' 'wasm-unsafe-eval'" : $"script-src 'self' 'wasm-unsafe-eval' '{importMapHash}'",
+            scriptSource,
             "style-src 'self' 'unsafe-inline'",
             "img-src 'self' data:",
             "connect-src 'self'",
@@ -98,10 +107,18 @@ public static class SecurityHeaders
     public static IApplicationBuilder UseSecurityHeaders(this IApplicationBuilder app) =>
         app.Use((context, next) =>
         {
+            // The API reference gets a fresh nonce; Scalar writes it into its inline script (ApiReference).
+            if (context.Request.Path.StartsWithSegments(ApiReference.Path, StringComparison.OrdinalIgnoreCase))
+            {
+                context.Items[ApiReference.NonceItem] = Convert.ToBase64String(RandomNumberGenerator.GetBytes(18));
+            }
+
             context.Response.OnStarting(() =>
             {
                 var headers = context.Response.Headers;
-                headers.ContentSecurityPolicy = ContentSecurityPolicy(ImportMapHash(context));
+                headers.ContentSecurityPolicy = context.Items[ApiReference.NonceItem] is string nonce
+                    ? ApiReferencePolicy(nonce)
+                    : ContentSecurityPolicy(ImportMapHash(context));
                 headers.XContentTypeOptions = "nosniff";
                 headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
                 return Task.CompletedTask;

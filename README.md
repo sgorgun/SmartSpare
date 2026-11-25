@@ -24,8 +24,8 @@ The AppHost starts PostgreSQL 17, runs `SmartSpare.MigrationRunner` (cluster boo
 every module) and starts the host once the migrations have finished. The Aspire dashboard opens in the browser and
 lists the `host` resource with its URL. Every module answers
 `GET /api/<module>/ping` (`identity`, `inventory`, `fleet`, `procurement`, `forecasting`, `reporting`) to a signed-in
-user; health probes `/health/live` and `/health/ready` and the OpenAPI document `/openapi/v1.json` (Development) need
-no sign-in.
+user; health probes `/health/live` and `/health/ready`, the OpenAPI documents `/openapi/<module>.json` and the API
+reference `/scalar` need no sign-in, in every environment (ADR 0019).
 
 **Troubleshooting:** after a WSL or Docker restart, the AppHost may leave `migrations` and `host` waiting because the
 persistent `postgres` container stayed stopped; start it with **Start resource** on the `postgres` row in the dashboard.

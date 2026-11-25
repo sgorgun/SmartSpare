@@ -25,6 +25,12 @@ public static class GatewayProxy
                     context.AddRequestHeaderRemove(header);
                 }
 
+                // The documents are anonymous at the service too; no user, no token.
+                if (context.Route.RouteId.StartsWith(GatewayRoutes.DocumentRoutePrefix, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
                 // The user's internal token for this session (ADR 0016 section 2). The route policy already refused
                 // anonymous requests, so the user is authenticated here.
                 context.AddRequestTransform(transform =>

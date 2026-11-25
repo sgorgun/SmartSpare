@@ -37,7 +37,11 @@ internal static class SendDiagnosticsProbeEndpoint
                 return result.ToHttpResult();
             })
             .WithName("IdentitySendDiagnosticsProbe")
+            .WithSummary("Publishes a diagnostics probe event that Inventory consumes.")
+            .WithDescription("Operational, unversioned (ADR 0012); proves the integration-event path end to end. Removed with #55.")
             .Produces<DiagnosticsProbeResponse>()
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
             .AsOperational();
 }
 

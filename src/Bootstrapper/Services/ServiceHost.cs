@@ -36,6 +36,7 @@ internal static class ServiceHost
 
         builder.Services.AddRabbitMqTransport(builder.Configuration, $"smartspare-{module.Name}");
         builder.Services.AddModules(builder.Configuration, [module], Topology.Services);
+        builder.Services.AddModuleDocuments([module]);
         builder.Services.AddServiceAuthentication();
 
         var app = builder.Build();
@@ -45,6 +46,9 @@ internal static class ServiceHost
 
         app.MapDefaultEndpoints();
         app.MapModules([module]);
+
+        // Anonymous, like everywhere (ADR 0019); the gateway proxies it as /openapi/{module}.json and caches it.
+        app.MapModuleDocuments();
         return app;
     }
 

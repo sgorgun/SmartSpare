@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using SmartSpare.ApiContracts.Authorization;
+using SmartSpare.Infrastructure.Http;
 using SmartSpare.Infrastructure.Security;
 
 namespace SmartSpare.Bff;
@@ -52,6 +53,11 @@ public static class BffRegistration
                     AutoReplenishment = true,
                 }));
 
+            // API documentation (ADR 0019 §4): public, so limited per client IP like sign-in, but generously.
+            options.AddPolicy(ApiDocumentation.Policy, http => RateLimitPartition.GetFixedWindowLimiter(
+                http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                _ => new FixedWindowRateLimiterOptions { PermitLimit = 60, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+
             // The status-code pages write the 429 ProblemDetails; here only Retry-After is added.
             options.OnRejected = (context, _) =>
             {
@@ -64,6 +70,9 @@ public static class BffRegistration
                 return ValueTask.CompletedTask;
             };
         });
+
+        // The documents change only with a deployment (ADR 0019 §4). The default policy never caches authenticated requests.
+        services.AddOutputCache(options => options.AddPolicy(ApiDocumentation.Policy, policy => policy.Expire(TimeSpan.FromMinutes(10))));
 
         return services;
     }
@@ -137,6 +146,7 @@ public static class BffRegistration
         app.UseRateLimiter();
         app.UseAuthentication();
         app.UseAuthorization();
+        app.UseOutputCache();
         return app;
     }
 

@@ -155,7 +155,7 @@ public sealed class GatewayTests(IdentityDatabaseFixture database) : IAsyncLifet
         var routes = _gateway.Services.GetRequiredService<IProxyStateLookup>().GetRoutes().Select(r => r.Config).ToList();
 
         routes.Select(r => r.RouteId).ShouldBe(
-            GatewayRoutes.Modules.SelectMany(m => new[] { $"api-{m}", $"ops-{m}" }), ignoreOrder: true);
+            GatewayRoutes.Modules.SelectMany(m => new[] { $"api-{m}", $"ops-{m}", $"openapi-{m}" }), ignoreOrder: true);
 
         var probes = GatewayRoutes.Modules
             .SelectMany(m => new[] { $"/internal/v1/{m}/x", $"/internal/{m}", $"/internal/v1/{m}/credential-checks", $"/health/ready", $"/{m}/health/live" })
@@ -164,7 +164,7 @@ public sealed class GatewayTests(IdentityDatabaseFixture database) : IAsyncLifet
         foreach (var route in routes)
         {
             var pattern = RoutePatternFactory.Parse(route.Match.Path!);
-            pattern.Parameters.Select(p => p.Name).ShouldBe(["rest"], $"{route.RouteId} names its module literally");
+            pattern.Parameters.Select(p => p.Name).ShouldBeSubsetOf(["rest"], $"{route.RouteId} names its module literally");
             var matcher = new TemplateMatcher(TemplateParser.Parse(route.Match.Path!.TrimStart('/')), new());
             probes.ShouldAllBe(p => !matcher.TryMatch(p, new()), route.RouteId);
             if (route.RouteId.StartsWith("ops-", StringComparison.Ordinal))
@@ -172,6 +172,34 @@ public sealed class GatewayTests(IdentityDatabaseFixture database) : IAsyncLifet
                 GatewayRoutes.Modules.ShouldAllBe(m => !matcher.TryMatch($"/api/v1/{m}/x", new()), $"{route.RouteId} never takes a versioned path");
             }
         }
+    }
+
+    [Fact]
+    public async Task Module_documents_are_proxied_anonymously_without_a_token()
+    {
+        using var browser = _gateway.NewBrowser();
+
+        using var identity = await browser.GetAsync("/openapi/identity.json");
+        using var inventory = await browser.GetAsync("/openapi/inventory.json");
+        using var post = await browser.PostAsync("/openapi/inventory.json", null, token: await browser.AntiforgeryTokenAsync());
+
+        identity.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await identity.Content.ReadAsStringAsync(Ct)).ShouldContain("SmartSpare Identity API", Case.Sensitive, "the Identity service's own document");
+        var received = await inventory.Content.ReadFromJsonAsync<ReceivedRequest>(Ct);
+        received!.Path.ShouldBe("/openapi/inventory.json");
+        received.Headers.ShouldNotContainKey("Authorization");
+        ((int)post.StatusCode).ShouldNotBe(200, "documents are GET only");
+    }
+
+    [Fact]
+    public async Task The_gateway_serves_the_api_reference_with_a_nonce()
+    {
+        using var browser = _gateway.NewBrowser();
+
+        using var response = await browser.GetAsync("/scalar/");
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        response.Headers.GetValues("Content-Security-Policy").Single().ShouldContain("'nonce-");
     }
 
     private async Task<Browser> SignInAsync(string userName)

@@ -14,6 +14,8 @@
     <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" />
     <!-- Serializes the allow-listed principal to the WebAssembly client; both BFF hosts serve the client. -->
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" />
+    <!-- The API reference both BFF hosts serve at /scalar (ADR 0019). -->
+    <PackageReference Include="Scalar.AspNetCore" />
   </ItemGroup>
 
   <ItemGroup>

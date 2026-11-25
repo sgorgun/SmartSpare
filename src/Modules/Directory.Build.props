@@ -1,0 +1,15 @@
+<Project>
+
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <!--
+    XML documentation comments of endpoint handlers become summaries and descriptions in the module's OpenAPI
+    document (ADR 0019, STAGE_4_PLAN section 7). Handlers must be methods, not lambdas, for their comments to be
+    captured. Only installers and Contracts are public, so a missing comment (CS1591) is not an error.
+  -->
+  <PropertyGroup>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+</Project>
