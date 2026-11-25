@@ -162,3 +162,38 @@ jobs:
             TestResults/e2e
             TestResults/*.trx
           if-no-files-found: ignore
+
+  topology:
+    name: Topology test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
+
+      - name: Restore
+        run: tools/check.sh restore
+
+      - name: Build
+        run: tools/check.sh build
+
+      # STAGE_4_PLAN section 10 (#57): the gateway and the Identity and Inventory service hosts in one process,
+      # postgres:17 and rabbitmq:4.4 through Testcontainers. Sign-in through the gateway, both services reached with
+      # minted tokens, the diagnostics probe from Identity to Inventory over RabbitMQ with its linked trace, and
+      # /internal and service health never routed.
+      - name: Topology test
+        run: tools/check.sh topology
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: topology-test-results
+          path: TestResults
+          if-no-files-found: ignore

@@ -51,6 +51,8 @@ tools/check.sh              # all steps, needs Docker: stale terms, locked resto
                             # build, format, check-model, tests, coverage gate, integration tests, database
 tools/check.sh fast         # the steps without Docker (the CI "Build and test" job)
 tools/check.sh build test   # selected steps
+tools/check.sh e2e topology # optional, after a build: the Playwright smoke test and the services topology
+                            # (gateway + services + PostgreSQL + RabbitMQ); CI runs each as its own job
 ```
 
 Stage new files (`git add`) first: the stale-terms check scans tracked files only. On Windows, run the script in Git Bash.
@@ -58,7 +60,7 @@ Stage new files (`git add`) first: the stale-terms check scans tracked files onl
 **Memory.** Locally the script runs the test projects one at a time, with each project's test collections in series, so
 at most one Testcontainers PostgreSQL runs at once (`CHECK_SEQUENTIAL=1`, the default unless `CI=true`). The same tests
 run, just more slowly. CI keeps the parallel run; `CHECK_SEQUENTIAL=0 tools/check.sh` reproduces it locally if the
-machine has the memory. After the `integration`, `database` and `e2e` steps the script lists any container the tests
+machine has the memory. After the `integration`, `database`, `e2e` and `topology` steps the script lists any container the tests
 left behind (normally only Testcontainers' Ryuk reaper, which removes itself).
 
 ## Releases

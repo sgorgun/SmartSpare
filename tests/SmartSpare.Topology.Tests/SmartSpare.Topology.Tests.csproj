@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The services topology in one process (STAGE_4_PLAN section 10, #57): the gateway and the Identity and Inventory
+    service hosts in memory, PostgreSQL 17 and RabbitMQ 4.4 in Testcontainers. Tagged Category=Topology and run by
+    `tools/check.sh topology` and its own CI job, not by the unit or integration steps.
+  -->
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
+    <PackageReference Include="Testcontainers.RabbitMq" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Aliased: the gateway and the runner each have a public top-level Program. -->
+    <ProjectReference Include="..\..\src\Bootstrapper\SmartSpare.Gateway\SmartSpare.Gateway.csproj" Aliases="gateway" />
+    <ProjectReference Include="..\..\src\Bootstrapper\SmartSpare.MigrationRunner\SmartSpare.MigrationRunner.csproj" Aliases="runner" />
+    <ProjectReference Include="..\..\src\Bootstrapper\Services\SmartSpare.Services.Identity\SmartSpare.Services.Identity.csproj" />
+    <ProjectReference Include="..\..\src\Bootstrapper\Services\SmartSpare.Services.Inventory\SmartSpare.Services.Inventory.csproj" />
+  </ItemGroup>
+
+</Project>

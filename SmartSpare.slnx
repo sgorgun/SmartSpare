@@ -62,6 +62,7 @@
     <Project Path="tests/SmartSpare.Modules.Identity.UnitTests/SmartSpare.Modules.Identity.UnitTests.csproj" />
     <Project Path="tests/SmartSpare.Persistence.IntegrationTests/SmartSpare.Persistence.IntegrationTests.csproj" />
     <Project Path="tests/SmartSpare.SharedKernel.UnitTests/SmartSpare.SharedKernel.UnitTests.csproj" />
+    <Project Path="tests/SmartSpare.Topology.Tests/SmartSpare.Topology.Tests.csproj" />
     <Project Path="tests/SmartSpare.Web.Tests/SmartSpare.Web.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">
