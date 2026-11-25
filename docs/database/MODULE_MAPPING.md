@@ -336,7 +336,7 @@ How `SET ROLE` is applied: each module's DbContext registers a `DbConnectionInte
 **Stage 10.** Reasons:
 
 1. The transitional functions of section 3.2 deliberately write across schemas; per-module roles (and per-module owners) would break them. Roles can only be enforced once stages 6–8 have replaced them.
-2. The login side (Managed Identity, Microsoft Entra authentication to PostgreSQL, `SET ROLE` membership) is Azure work that belongs with Bicep and the production environment (stage 10). The first deployment in stage 4 creates the per-service logins as members of the current capability roles (ADR 0015 §5).
+2. The login side (Managed Identity, Microsoft Entra authentication to PostgreSQL, `SET ROLE` membership) is Azure work that belongs with Bicep and the production environment (stage 10). Stage 4 adds the per-service logins to the cluster bootstrap as members of the current capability roles (ADR 0015 §5); the first Azure deployment, in stage 10 (#85), creates them there.
 3. Tests T03 assert the current role model (22 assertions); changing it together with the structural port would mix two verifications.
 
 Stage 2 therefore ports the current roles and grants 1:1 (split by object owner) and grants the new outbox/inbox tables to `app_write`/`app_ml`. Stages 5–9 keep a per-module grants file current, so stage 10 only has to create the module roles, move the grants and update `util.v_privilege_findings` and T03.

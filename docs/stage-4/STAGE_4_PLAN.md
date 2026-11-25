@@ -9,6 +9,11 @@ Status: **proposed** (25 November 2026). Stage 4 of the work plan ([ARCHITECTURE
 
 Release target: **v0.4.0**. Business use cases stay in stages 5–9.
 
+**Product owner's decisions, 25 November 2026:**
+- **(B):** stage 4 builds and tests the topology locally and in CI, and writes the infrastructure and pipelines, but **deploys nothing to Azure**. The first Azure deployment is in stage 10 (#85). CloudAMQP and Grafana Cloud are still used in stage 4, from the local services topology.
+- **Defence date:** 16 February 2027.
+- **#31** (outbox back-off and poison handling) moves to stage 4 (PR 4c).
+
 Inputs, as on `main` (v0.3.0):
 - [ADR 0009](../adr/0009-azure-hosting-and-delivery.md) with its amendment, and [ADRs 0015–0019](../adr/README.md);
 - [STAGE_3_PLAN.md](../stage-3/STAGE_3_PLAN.md) (the BFF, internal tokens and the single host built in stage 3);
@@ -39,7 +44,7 @@ Every technology, version and limit below was **checked against official documen
 | T13 | **Container Apps sizing:** every app 0.25 vCPU / 0.5 GiB, `minReplicas: 0`, `maxReplicas: 1`, single revision mode. At most 28 of the 35 PostgreSQL user connections are in use. Scheduled work runs as cron jobs, plus a warm-up workflow; the cold start target is ≤ 30 s, measured. | 8.5–8.7 |
 | T14 | **Forwarded headers (#48):** the gateway trusts exactly one hop (`ForwardLimit = 1`) and takes the rightmost `X-Forwarded-For`, which the Container Apps ingress provides. It uses `KnownIPNetworks`; `KnownNetworks` is obsolete in .NET 10. | 2.5 |
 | T15 | **Aspire 13.6.5 → 17.0.0** (needed for `Aspire.Hosting.RabbitMQ` 17.0.0, ADR 0017). | 1.4 |
-| T16 | **Open decision for the product owner:** (A) deploy the walking skeleton to Azure in stage 4, or (B) build and test the topology locally and in CI, and deploy in stage 10. The subscription is pay-as-you-go, so NFR07 (≤ €35/month) is the cost limit. **Recommendation: (A) with PostgreSQL always on (≈ €22–23/month) and a €35 budget alert.** | 9 |
+| T16 | **Decided (B):** stage 4 deploys nothing to Azure. The topology is built and tested locally and in CI; Bicep and pipelines are written and validated with what-if. CloudAMQP and Grafana Cloud are exercised from the local services topology. The first Azure deployment is in stage 10 (#85). The subscription is pay-as-you-go, so NFR07 (≤ €35/month) is the cost limit. | 9 |
 
 ---
 
@@ -153,7 +158,7 @@ Microsoft warns that clearing both lists "should be considered only when network
 
 - **Single host and local:** unchanged (loopback only).
 - **Services:** forwarded headers stay disabled. They are reachable only from the gateway, and they never rate-limit by IP.
-- **Verification in Azure (4i):** a request with a forged `X-Forwarded-For: 1.2.3.4` must still be rate-limited under the real client IP. The gateway logs the resolved remote IP at debug level for the check.
+- **Verification in Azure (stage 10, #85):** a request with a forged `X-Forwarded-For: 1.2.3.4` must still be rate-limited under the real client IP. The gateway logs the resolved remote IP at debug level for the check.
 
 ---
 
@@ -210,7 +215,7 @@ The dispatcher, `EfOutboxStore`, inbox and handler registration don't change.
   - `mandatory=true`; `message_id` = outbox id, persistent, `type`, `traceparent` header;
   - `processed_at` is set only after the broker confirms;
   - a nack, a return or a timeout (5 s) counts as a failed attempt in the outbox.
-  - Back-off and poison handling of failed attempts are #31 (proposed for stage 4, section 13).
+  - Back-off and poison handling of failed attempts are #31, in PR 4c.
 - **Consume:** handler and inbox insert in the module's transaction; ack after commit; an inbox hit is acked without effect.
 - **Declarations at start-up**, idempotent:
   - the publisher's topic exchange `smartspare.<module>.events`;
@@ -270,7 +275,7 @@ Outcomes:
   - Non-HTTP rules need `activeRevisionsMode: single` (same page).
   - The KEDA `rabbitmq` scaler supports `protocol: http`; `host` is then the management URL with the vhost ([KEDA rabbitmq scaler](https://keda.sh/docs/2.21/scalers/rabbitmq-queue/)).
 - **From the source, not the docs:** in http mode KEDA calls `GET {host}/api/queues/{vhost}/{queue}` and opens an AMQP connection only for `protocol == amqp` ([scaler source](https://github.com/kedacore/keda/blob/main/pkg/scalers/rabbitmq_scaler.go)).
-- **Unverified:** that an `https://` management host works, and which KEDA version Container Apps runs. Both are checked in 4i, by watching the connection count while a consumer scales from zero.
+- **Unverified:** that an `https://` management host works, and which KEDA version Container Apps runs. Both are checked with the first deployment (stage 10, #85), by watching the connection count while a consumer scales from zero.
 - **Rule per consuming service:**
   - `type: rabbitmq`, `protocol: http`, `mode: QueueLength`, `value: 1`, `activationValue: 0`, `useRegex: true` over the service's queue prefix;
   - the management URL is in a Key Vault secret.
@@ -460,7 +465,7 @@ Only requests from outside the environment count as billable requests.
 ### 8.7 Cold start and warm-up
 
 - **Documented factors** ([cold start](https://learn.microsoft.com/azure/container-apps/cold-start)): image pull, provisioning, app start-up. Mitigations: small images, a registry in the same region, probes that tolerate start-up, client retries, proactive wake-up.
-- **Target for stage 4:** the first sign-in after all apps are at zero completes in **≤ 30 s**: gateway start, then Identity start, then the credential check. This is a stage 4 acceptance target. NFR07 in this repository is the €35/month cost limit, so the cold-start target isn't an NFR number.
+- **Target, measured with the first deployment (stage 10, #85):** the first sign-in after all apps are at zero completes in **≤ 30 s**: gateway start, then Identity start, then the credential check. This is an acceptance target, not an NFR. NFR07 in this repository is the €35/month cost limit, so the cold-start target isn't an NFR number.
 - **Measurement:**
   - `tools/measure-cold-start.sh` runs from a GitHub workflow after one hour idle;
   - it times `GET /warmup` (per-service timings) and one scripted sign-in;
@@ -490,9 +495,9 @@ CloudAMQP and Grafana Cloud are created manually, with their secrets placed in K
 
 ---
 
-## 9. Decision for the product owner: when to deploy to Azure
+## 9. Decision: when to deploy to Azure
 
-ARCHITECTURE_DECISIONS §13 and #67 currently put **the first deployment of the walking skeleton into stage 4**, so (A) is the current plan. Stage 10 is "Azure production" (production environment, Entra logins, per-module roles). (B) moves all Azure work there.
+Until this decision, ARCHITECTURE_DECISIONS §13 and #67 put **the first deployment of the walking skeleton into stage 4**, which is (A). Stage 10 is "Azure production" (production environment, Entra logins, per-module roles); (B) moves all Azure work there. **The product owner chose (B) on 25 November 2026.** The comparison below is kept as the basis of that decision.
 
 ### 9.1 Costs
 
@@ -508,39 +513,46 @@ ARCHITECTURE_DECISIONS §13 and #67 currently put **the first deployment of the 
 
 **Subscription:** a pay-as-you-go subscription (product owner, 25 November 2026; not Azure for Students). There is no credit that can run out, so the limit is **NFR07: ≤ €35 a month**. If the subscription is still within the first 12 months of an Azure free account, 750 hours of B1MS and 32 GB of storage a month are free ([free account](https://learn.microsoft.com/azure/postgresql/configure-maintain/how-to-deploy-on-azure-free-account)), which removes most of the baseline. The table doesn't assume that.
 
-**The defence date isn't recorded in the repository.** The totals assume the environment exists from **mid-December 2026 to the end of June 2027 (6.5 months)** under (A), and from **mid-April 2027 (stage 10) to the end of June 2027 (2.5 months)** under (B). Replace the months with the real date.
+**Defence: 16 February 2027.** The totals assume the environment exists from **mid-December 2026 (two months)** under (A), and from **mid-January 2027 (stage 10; one month)** under (B). The stage 10 start is an assumption.
 
 | Scenario | Per month | Total until the defence | Within NFR07 (≤ €35/month)? |
 |---|---|---|---|
-| **A1: stage 4, PostgreSQL always on** | ≈ $24.5 (≈ €22–23, the ADR 0009 amendment's figure) | ≈ $160 | **Yes** |
-| A2: stage 4, PostgreSQL stopped outside sessions (≈ 40 h a month running) | ≈ $4.4 storage + $5.1 ACR + $0.8 compute + $0.5 other ≈ $10.8 | ≈ $70 | Yes |
-| B1: stage 10, always on | ≈ $24.5 | ≈ $61 | Yes |
-| B2: stage 10, stopped outside sessions | ≈ $10.8 | ≈ $27 | Yes |
+| A1: stage 4, PostgreSQL always on | ≈ $24.5 (≈ €22–23, the ADR 0009 amendment's figure) | ≈ $49 | Yes |
+| A2: stage 4, PostgreSQL stopped outside sessions (≈ 40 h a month running) | ≈ $4.4 storage + $5.1 ACR + $0.8 compute + $0.5 other ≈ $10.8 | ≈ $22 | Yes |
+| **B1: stage 10, always on (chosen)** | ≈ $24.5 | ≈ $25 | **Yes** |
+| B2: stage 10, stopped outside sessions | ≈ $10.8 | ≈ $11 | Yes |
 
-Every scenario meets NFR07. The difference between A1 and A2 is about $90 until the defence, against the operational cost of the stop schedule (9.3).
+Every scenario meets NFR07.
 
 ### 9.2 Risks
 
 | | (A) Deploy in stage 4 | (B) Deploy in stage 10 |
 |---|---|---|
 | **Integration risk** | Found early, while the topology is fresh: Little Lemur features (5.4), KEDA http mode (5.6), forwarded headers (2.5), Managed Identity and Key Vault references, OIDC, cold starts (8.7). Stages 5–9 are deployed through the pipeline as they land (ARCHITECTURE_DECISIONS §13) | All of those surface in stage 10, the last stage before the defence polish. A blocker there (e.g. no management API, cold start > 30 s) leaves little time. Pipelines are written in stage 4 but untested against Azure for months |
-| **Cost** | ≈ $160 until the defence always on, ≈ $70 with the database stopped outside sessions; within NFR07 either way | ≈ $27–61; lowest |
-| **Operational load** | Secrets, rotations and the environment must be kept alive for six months, plus the weekly warm-up | None until stage 10 |
+| **Cost** | ≈ $49 until the defence always on, ≈ $22 with the database stopped outside sessions; within NFR07 either way | ≈ $11–25; lowest |
+| **Operational load** | Secrets, rotations and the environment must be kept alive for two months, plus the weekly warm-up | None until stage 10 |
 | **Rubric** | "Production deployment reachable by external users", "CD" and "deploy only when green" can be shown from v0.4.0 on, and every later stage proves them again | Shown only from stage 10; until then only locally and in CI |
-| **Free plans** | CloudAMQP and Grafana Cloud run for six months: inactivity rules (2-month instance deletion, 28-day idle queues) must be handled by the weekly warm-up; 14-day telemetry retention means old traces disappear (irrelevant for the demo) | Shorter exposure to free-plan rules |
+| **Free plans** | CloudAMQP and Grafana Cloud run for about three months: inactivity rules (2-month instance deletion, 28-day idle queues) must be handled by the weekly warm-up; 14-day telemetry retention means old traces disappear (irrelevant for the demo) | Shorter exposure to free-plan rules |
 
-### 9.3 Recommendation
+### 9.3 Decision and its consequences
 
-**(A1): deploy the walking skeleton in stage 4, with PostgreSQL always on.** The topology's risks are cloud-specific and can't be retired locally, and the always-on cost (≈ €22–23 a month) is within NFR07.
+The plan recommended (A1): the topology's risks are cloud-specific, and the always-on cost (≈ €22–23 a month) is within NFR07. **The product owner chose (B).** Consequences for this plan:
 
-Keeping the database running is also simpler for the demo. A stopped server takes minutes to start, so after a stop the first request could not meet the 30-second cold-start target (8.7), and `warm-up.yml` would have to start the database first and wait.
-
-Cost controls, part of PR 4i:
-- **An Azure budget** on the resource group at **€35 a month** (NFR07), with alerts at 50 %, 80 % and 100 %.
-- **Everything is Bicep,** so the environment can be deleted and recreated in minutes. Only the database contents are lost, and those are demo data: T001 plus `set-demo-passwords`.
-- **Optional saving (A2):** `db-schedule.yml` stops the server every night at 22:00 UTC, and `warm-up.yml` starts it before waking the apps. It saves about $13.70 a month. It is written in 4i but disabled, and you can switch it on if the budget alert fires.
-
-If you choose **(B)**, PRs 4h–4j shrink to "IaC and pipelines, validated with `what-if` and a dry run, not applied". ARCHITECTURE_DECISIONS §13, #67 and BACKEND_REQUIREMENTS move the first deployment to stage 10. The exit criteria marked **[A]** in section 12 move to stage 10.
+- **Unchanged in stage 4:** sections 1–8 are built and tested locally (AppHost `--topology services`) and in the CI topology job.
+- **Cloud services without Azure:** the CloudAMQP Little Lemur checks (5.4) run in 4c against a real instance from a developer machine. Grafana Cloud dashboards, alert rules and the test alert (6.4) are provisioned in 4j and fed by the local services topology. So two of the cloud risks are retired in stage 4 without Azure.
+- **Infrastructure and pipelines are written in stage 4 and validated, not applied** (4h):
+  - Bicep with `what-if` against the pay-as-you-go subscription, which creates nothing;
+  - images built in CI;
+  - deploy workflows present, but only on manual dispatch until stage 10.
+- **Moved to stage 10, issue #85** (the former PR 4i):
+  - applying the infrastructure;
+  - the first deployment of all services and the MigrationRunner job;
+  - KEDA scale rules (5.6) and their AMQP-connection check;
+  - forwarded headers behind the real ingress (2.5);
+  - the cold-start measurement (8.7);
+  - `warm-up.yml` and the broker-metrics cron job;
+  - the €35 budget alert and the disabled `db-schedule.yml`.
+- **Accepted risk:** KEDA http mode, the real ingress and cold starts are first seen in stage 10. With the defence on 16 February 2027, stage 10 should start by mid-January 2027, so that a blocker still has a fallback: the AMQP scaler or HTTP wake-up for KEDA, `minReplicas: 1` for the gateway during demos.
 
 ---
 
@@ -554,7 +566,7 @@ If you choose **(B)**, PRs 4h–4j shrink to "IaC and pipelines, validated with 
 | Topology (new CI job, `tools/check.sh topology`) | Gateway + Identity + Reporting service hosts + PostgreSQL + RabbitMQ in Testcontainers. Sign in through the gateway; call an Identity and a Reporting endpoint; probe event Reporting → Identity over RabbitMQ; one trace with gateway, service, publish and consume spans (in-memory exporter); `/internal` and service health not reachable through the gateway |
 | Database | Bootstrap creates the six service logins with their capability roles; `verify_database.sh` unchanged otherwise |
 | E2E | The stage 3 smoke test, plus the same scenario against the services topology in the topology job |
-| Azure (4i, manual + scripted) | Smoke through the gateway after each deploy; forwarded-header check; KEDA scale-from-zero on a probe message with no extra AMQP connection; cold-start measurement; an alert fires to e-mail (and Telegram if available) |
+| Azure (stage 10, #85; manual + scripted) | Smoke through the gateway after each deploy; forwarded-header check; KEDA scale-from-zero on a probe message with no extra AMQP connection; cold-start measurement; an alert fires to e-mail (and Telegram if available) |
 
 ---
 
@@ -583,14 +595,15 @@ Each PR passes the full `tools/check.sh`, including the new steps once they exis
 **Part of #63** (the 70 % gate; #63 stays open for its 80 % step by stage 9), **closes #64.**
 
 ### 4c: RabbitMQ transport
-**Scope:** `SmartSpare.Infrastructure.RabbitMq` (5.2–5.3); the subscriber seam; the probe event; Testcontainers transport tests; the Little Lemur verification console and `docs/operations/BROKER.md` (5.4) with the chosen variant (quorum or classic); outbox back-off and poison handling if #31 moves to stage 4 (section 13).
+**Scope:** `SmartSpare.Infrastructure.RabbitMq` (5.2–5.3); the subscriber seam; the probe event; Testcontainers transport tests; the Little Lemur verification console and `docs/operations/BROKER.md` (5.4) with the chosen variant (quorum or classic); outbox back-off and poison handling (#31).
 
 **Acceptance:**
 - publish with confirms, return, redelivery and dead-letter tests green;
 - the queue budget test;
-- BROKER.md states every unverified item of 5.4 as verified or not, with the consequence.
+- BROKER.md states every unverified item of 5.4 as verified or not, with the consequence;
+- failed publishes back off and poison messages are parked with a metric (#31).
 
-**Part of #57.**
+**Closes #31. Part of #57.**
 
 ### 4d: Service hosts and Contracts HTTP client
 **Scope:**
@@ -621,7 +634,7 @@ Each PR passes the full `tools/check.sh`, including the new steps once they exis
 - `/internal` and service `/health` return 404 at the gateway with nothing forwarded;
 - forwarded-header unit tests per environment.
 
-**Part of #56, part of #48** (closed in 4i after the Azure check).
+**Part of #56, part of #48** (configuration and unit tests here; the check behind the real ingress is in stage 10, #85).
 
 ### 4f: OpenAPI and Scalar
 **Scope:** section 7.
@@ -639,55 +652,41 @@ Each PR passes the full `tools/check.sh`, including the new steps once they exis
 
 **Acceptance:**
 - `dotnet run --project src/SmartSpare.AppHost -- --topology services` shows the dashboards with data and one trace gateway → Reporting → RabbitMQ → Identity in local Tempo;
+- the same topology also runs against CloudAMQP, by configuration;
 - the topology job green;
 - the single host unchanged (`dotnet run` without the option).
 
-**Part of #59.**
+**Closes #57. Part of #59.**
 
-### 4h: Images, pipelines and infrastructure as code
+### 4h: Images, pipelines and infrastructure as code (validated, not applied)
 **Scope:**
 - SDK container publishing (8.1);
-- `infra/` Bicep (8.8);
-- `deploy-<service>.yml` × 7, `deploy-migrations.yml`, `infra.yml` with what-if;
+- `infra/` Bicep (8.8), including the KEDA rules, jobs, budget and `db-schedule.yml` for stage 10;
+- `deploy-<service>.yml` × 7, `deploy-migrations.yml` and `infra.yml`, all on manual dispatch only until stage 10;
 - the path-filter coverage test (8.3);
 - ADR 0020's runner job definition.
 
 **Acceptance:**
 - images build in CI for every service;
-- `infra.yml` what-if is clean;
-- under (B) this is the last Azure PR of the stage.
+- `infra.yml` what-if is clean against the subscription, and nothing is created;
+- the path-filter test green.
 
-**Part of #56.**
+**Part of #56** (it closes with the first deployment, #85).
 
-### 4i [A]: First deployment and cost controls
-**Scope:**
-- apply the infrastructure;
-- CloudAMQP and Grafana Cloud stacks with secrets in Key Vault;
-- deploy all services;
-- KEDA rules (5.6);
-- `warm-up.yml`, the €35 budget alert, and `db-schedule.yml` (disabled; 9.3);
-- cold-start measurement (8.7);
-- forwarded-header check (2.5).
+### Moved to stage 10: first deployment (#85)
+The former PR 4i: see section 9.3 and #85.
 
-**Acceptance:**
-- a signed-in user reaches every service through the gateway on Azure;
-- the probe event crosses CloudAMQP;
-- a consumer scales from zero on a queued message without an extra AMQP connection, or the documented fallback is in place;
-- `COLD_START.md` with 5 measured runs;
-- changing one service's file deploys only that service.
-
-**Closes #48, #56, #57.**
-
-### 4j [A]: Grafana Cloud dashboards and alerts
+### 4j: Grafana Cloud dashboards and alerts
 **Scope:**
 - Terraform provisioning of dashboards, alert rules and contact points to the Grafana Cloud stack (6.4);
-- the broker metrics job (6.2);
+- the local services topology exporting OTLP to Grafana Cloud by configuration (6.1);
+- the broker metrics job runnable on demand (`--job broker-metrics`) against CloudAMQP (6.2). Its cron schedule comes with #85;
 - one trace across services in Grafana Cloud Tempo;
 - TRACING.md stage 4 section completed.
 
 **Acceptance:**
 - a test alert reaches e-mail (and Telegram if the free stack offers it, recorded either way);
-- dashboards show live data from Azure.
+- dashboards show live data from the local services topology.
 
 **Closes #59.**
 
@@ -696,7 +695,7 @@ Each PR passes the full `tools/check.sh`, including the new steps once they exis
 - ARCHITECTURE_DECISIONS (stage 4 implemented, ADRs 0015–0020 status);
 - the solution diagram (gateway and services implemented);
 - BACKEND_REQUIREMENTS rows;
-- README (`--topology services`, deploy and warm-up);
+- README (`--topology services`, CloudAMQP and Grafana Cloud configuration);
 - STAGE_4_PLAN exit criteria with evidence;
 - CHANGELOG v0.4.0.
 
@@ -709,27 +708,30 @@ Each PR passes the full `tools/check.sh`, including the new steps once they exis
 1. The single host and every existing test are unchanged and green; module code is identical in both topologies (architecture tests).
 2. In the services topology (locally and in the topology CI job), a user signs in through the gateway and reaches module endpoints with an internal token. `/internal/*` is never routed (route-table test).
 3. An event published by one service is consumed by another through RabbitMQ, with confirms, idempotent inbox and dead-lettering tested; the queue and connection budgets are enforced by tests.
-4. One trace spans gateway → service → broker → service, locally in Tempo, and **[A]** in Grafana Cloud.
+4. One trace spans gateway → service → broker → service, in local Tempo and in Grafana Cloud (fed by the local services topology).
 5. OpenAPI documents per module and the Scalar UI are public, with no `/internal` paths and a strict CSP (#54).
 6. Every pipeline gates on coverage ≥ 70 % of business logic and on vulnerable packages (#63, #64).
-7. **[A]** All seven apps run on Azure Container Apps at zero replicas when idle; changing one service deploys only that service; migrations run through the MigrationRunner job (ADR 0020).
-8. **[A]** Forwarded headers verified behind the real ingress (#48); the cold start is measured and ≤ 30 s, or the documented fallback is in place.
-9. **[A]** A Grafana alert reaches e-mail (and Telegram where offered).
-10. **[A]** Spending stays within NFR07 (≤ €35/month): the budget alert is in place, and the measured monthly cost is recorded.
+7. A Grafana Cloud alert reaches e-mail (and Telegram where offered).
+8. The Bicep templates pass what-if, every service image builds, and the per-service deploy workflows exist with the gates and the MigrationRunner job (ADR 0020), ready for stage 10.
+
+Moved to stage 10 with the first deployment (#85):
+- the seven apps on Azure Container Apps, independent deployment;
+- forwarded headers behind the real ingress (#48);
+- the measured cold start;
+- spending within NFR07 with the budget alert.
 
 ---
 
 ## 13. Proposals and new issues
 
-**For your decision, without relabelling:**
-- **#31** (outbox back-off and poison handling, labelled `stage-5`): ADR 0017 §3 relies on it for the RabbitMQ transport's failed publishes. **Proposed: move to stage 4**, into 4c.
-- **#30** (outbox and inbox retention) and **#17, #19** stay in stage 5.
+**Decided:** **#31** (outbox back-off and poison handling) moved to stage 4, PR 4c, because ADR 0017 §3 relies on it. **#30** (outbox and inbox retention) and **#17, #19** stay in stage 5.
 
 **New issues for work deferred by this plan** (created with this PR):
 - **#80**: Production telemetry through a collector (Alloy) instead of direct SDK export (ADR 0018 §1); `future`.
 - **#81**: Per-service audiences for internal tokens (ADR 0016 consequences, hardening); `future`.
 - **#82**: Adopt `RabbitMQ.Client.OpenTelemetry` once stable, replacing the transport's own spans; `tech-debt`, `stage-5`.
 - **#83**: More than one replica per service: connection pooling (PgBouncer on Flexible Server) or a larger tier; `future`.
+- **#85**: First Azure deployment of the services topology (decision B); `stage-10`.
 
 ---
 
