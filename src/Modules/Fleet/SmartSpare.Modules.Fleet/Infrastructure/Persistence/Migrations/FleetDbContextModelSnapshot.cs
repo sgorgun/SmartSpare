@@ -100,6 +100,12 @@ namespace SmartSpare.Modules.Fleet.Infrastructure.Persistence.Migrations
                         .HasColumnName("processed_at")
                         .HasComment("Time the event was delivered to every consumer; NULL = pending.");
 
+                    b.Property<string>("TraceParent")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("trace_parent")
+                        .HasComment("W3C traceparent of the request that raised the event; the publish span links to it. NULL outside a trace.");
+
                     b.Property<string>("Type")
                         .IsRequired()
                         .HasMaxLength(300)

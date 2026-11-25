@@ -18,6 +18,22 @@ public static class IntegrationEventDelivery
 
     public static readonly ActivitySource ActivitySource = new(ActivitySourceName);
 
+    /// <summary>
+    /// The producer span of one delivery (STAGE_4_PLAN 6.5). The dispatcher publishes later, outside the request, so
+    /// the span starts its own trace and <b>links</b> to the request's <c>traceparent</c> stored in the outbox; the
+    /// consumers' spans are its children.
+    /// </summary>
+    public static Activity? StartPublishActivity(string name, OutboxEnvelope envelope)
+    {
+        ArgumentNullException.ThrowIfNull(envelope);
+        ActivityLink[]? links = envelope.TraceParent is { } traceParent && ActivityContext.TryParse(traceParent, null, out var request)
+            ? [new ActivityLink(request)]
+            : null;
+        var activity = ActivitySource.StartActivity(ActivityKind.Producer, parentContext: default, tags: null, links: links, name: name);
+        activity?.SetTag("messaging.message.id", envelope.Id.ToString());
+        return activity;
+    }
+
     /// <summary>Delivers <paramref name="integrationEvent"/> to <paramref name="consumer"/>; false if it was handled before.</summary>
     /// <param name="scopedServices">The scope of this delivery: resolves the consumer module's unit of work.</param>
     /// <param name="registry">Maps the consumer's module assembly to its unit of work.</param>
