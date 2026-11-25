@@ -52,8 +52,8 @@ SELECT set_config('app.user_roles', 'SPONSOR', false);
 SELECT pg_temp.ok(util.require_role('SPONSOR') = util.current_app_user(),
                   'DB-level RBAC: a role in app.user_roles passes util.require_role (#11)');
 -- Only Identity and Reporting SQL reads iam (MODULE_MAPPING 3.6, STAGE_3_PLAN exit criterion 4): no function outside
--- iam names it (the suite's own pg_temp helpers aside), and the only views on it are Reporting's masked audit view
--- and two TRANSITIONAL views (#13, #14).
+-- iam names it (the suite's own pg_temp helpers aside), and the only views on it are Reporting's masked audit view,
+-- Reporting's data-quality view (it counts parked events in iam.outbox_message, #31) and two TRANSITIONAL views (#13, #14).
 SELECT pg_temp.ok((SELECT array_agg(obj ORDER BY obj) FROM (
                      SELECT n.nspname || '.' || p.proname
                        FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
@@ -64,7 +64,8 @@ SELECT pg_temp.ok((SELECT array_agg(obj ORDER BY obj) FROM (
                        JOIN pg_class v ON v.oid = r.ev_class JOIN pg_namespace vn ON vn.oid = v.relnamespace
                        JOIN pg_class t ON t.oid = d.refobjid JOIN pg_namespace tn ON tn.oid = t.relnamespace
                       WHERE tn.nspname = 'iam' AND vn.nspname <> 'iam') s(obj))
-                  = ARRAY['audit.v_audit_log_masked', 'forecast.v_recommendation_explained', 'procurement.v_purchase_order_overview'],
+                  = ARRAY['audit.v_audit_log_masked', 'forecast.v_recommendation_explained', 'mart.v_data_quality',
+                          'procurement.v_purchase_order_overview'],
                   'Only Identity and Reporting SQL reads iam: no other function, Reporting''s masked audit view and two TRANSITIONAL views');
 
 -- app_ml (jobs) --------------------------------------------------------------------------
