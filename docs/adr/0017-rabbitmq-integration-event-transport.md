@@ -1,6 +1,6 @@
 # ADR 0017: RabbitMQ as the integration-event transport
 
-- Status: Accepted
+- Status: Accepted, amended by [ADR 0021](0021-queue-per-consumer-name.md) (2026-11-25)
 - Date: 2026-11-24
 - Amends: [ADR 0003](0003-module-boundaries-and-integration-events.md)
 
@@ -47,7 +47,7 @@ No messaging framework is used: MassTransit v9 is commercial, and wrapping the c
 |---|---|
 | Exchange | One durable **topic** exchange per publishing module: `smartspare.<module>.events` (e.g. `smartspare.inventory.events`) |
 | Routing key | Event name and version: `TransferApproved.v1` |
-| Queue | One durable **quorum** queue per consumer: `<consuming-module>.<EventName>.v<N>` (e.g. `forecasting.TransferApproved.v1`), bound to the publisher's exchange with the routing key. The consumer name equals the inbox `consumer` value (#32). |
+| Queue | One durable **quorum** queue per consumer: `<consumer name>.<EventName>.v<N>` (e.g. `forecasting.close-recommendation.TransferApproved.v1`; ADR 0021), bound to the publisher's exchange with the routing key. The consumer name `<module>.<purpose>` equals the inbox `consumer` value (#32). |
 | Message | JSON body as stored in `outbox_message.payload`. Properties: `message_id` = outbox id, `type`, `content_type=application/json`, `timestamp`, `persistent` delivery mode, W3C `traceparent` header. |
 | Dead-letter | One dead-letter exchange and **one dead-letter queue per consuming module** (`smartspare.<module>.dlx` → `<module>.dead-letter`), configured by a **policy** where the broker allows it (§5). The original queue is kept in the `x-death` header. |
 
@@ -104,3 +104,7 @@ Limits from the [CloudAMQP plans page](https://www.cloudamqp.com/plans.html), re
 | RabbitMQ on a self-hosted VM with a managed disk | Local-disk semantics as RabbitMQ prefers ([production checklist](https://www.rabbitmq.com/docs/production-checklist)), but rejected for **cost against the €35/month target**: a B2s VM alone is about €31.46/month ([ADR 0009](0009-azure-hosting-and-delivery.md) amendment), plus patching and backups. |
 | RabbitMQ in a Container App | Container Apps is designed for stateless workloads and persists data only on Azure Files mounts ([reliability](https://learn.microsoft.com/azure/reliability/reliability-container-apps), [storage mounts](https://learn.microsoft.com/azure/container-apps/storage-mounts)). RabbitMQ accepts network storage only with low, stable latency. |
 | Azure Service Bus | Managed, but it isn't RabbitMQ (D2), and topics need the paid Standard tier. |
+
+## Amendment (2026-11-25)
+
+[ADR 0021](0021-queue-per-consumer-name.md): §2 named the queue `<consuming-module>.<EventName>.v<N>`. With the stable consumer names of #32 (`<module>.<purpose>`), the queue is now `<consumer name>.<EventName>.v<N>`, so two consumers of one event in one module don't share a queue. It still starts with the consuming module.

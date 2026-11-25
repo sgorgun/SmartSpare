@@ -201,7 +201,7 @@ The dispatcher, `EfOutboxStore`, inbox and handler registration don't change.
 
 **Stable consumer names (#32):**
 - Today the inbox `consumer` is the handler's .NET type name.
-- Queue names (`<consuming-module>.<EventName>.v<N>`) and inbox names must be stable across refactorings, so consumers declare an explicit name.
+- Queue names (`<consumer name>.<EventName>.v<N>`, [ADR 0021](../adr/0021-queue-per-consumer-name.md)) and inbox names must be stable across refactorings, so consumers declare an explicit name.
 - An architecture test requires one per `IIntegrationEventConsumer<T>`.
 
 ### 5.2 Publisher and consumer
@@ -235,7 +235,7 @@ The dispatcher, `EfOutboxStore`, inbox and handler registration don't change.
 | Queued messages | alert > 5,000; limit 10,000 | broker metrics job |
 | Messages per month | alert at 70 %; limit 1 M, reset on the 1st | broker metrics job; CloudAMQP also mails at 70 % and 100 % ([FAQ](https://www.cloudamqp.com/docs/faq.html)) |
 
-In stage 4 no module has a real event yet. The transport is proven with a **probe event**: Reporting publishes it from a diagnostics endpoint, and a diagnostics consumer in Identity receives it (6.5). Both are removed when the first pair of business events exists, at the latest with the stub endpoints before the defence (#55). The probe uses 1 queue.
+In stage 4 no module has a real event yet. The transport is proven with a **probe event**: Identity publishes it from a diagnostics endpoint, and a diagnostics consumer in Inventory receives it (6.5). Reporting, named here first, has no outbox or inbox, so the product owner chose Identity → Inventory (25 November 2026). Both are removed when the first pair of business events exists, at the latest with the stub endpoints before the defence (#55). The probe uses 1 queue.
 
 ### 5.4 CloudAMQP Little Lemur: what is documented, and what PR 4c verifies
 
@@ -344,9 +344,9 @@ They are provisioned locally as files, and to Grafana Cloud with the Grafana Ter
 ### 6.5 One trace across gateway → service → broker → service
 
 The acceptance trace, demonstrated locally (Tempo) and in Azure (Grafana Cloud):
-1. the browser calls `POST /api/v1/reporting/diagnostics/probe`;
-2. the gateway span → the Reporting service span → outbox insert (Npgsql span);
-3. the dispatcher publish span (`traceparent` in headers) → the consume span in the **Identity service's** diagnostics consumer (a second service) → its inbox insert.
+1. the browser calls `POST /api/identity/diagnostics/probe`;
+2. the gateway span → the Identity service span → outbox insert (Npgsql span);
+3. the dispatcher publish span (`traceparent` in headers) → the consume span in the **Inventory service's** diagnostics consumer (a second service) → its inbox insert.
 
 The publish happens later, in the dispatcher's own activity. That activity **links** to the request's trace, and the consume span is a child of the publish span. So Tempo shows one trace from publish to consume, linked to the request trace. The outbox stores the request's `traceparent` for this (one new nullable column per outbox table, through each module's migration).
 
@@ -563,7 +563,7 @@ The plan recommended (A1): the topology's risks are cloud-specific, and the alwa
 | Architecture | Modules free of YARP, RabbitMQ.Client, Bff and hosts. Gateway references no module implementation. One module per service host. Every consumer declares a stable name (#32). Queue budget (≤ 45 subscriptions) |
 | Unit | Transport: message properties, confirm/nack/return → outbox outcome, consumer ack after commit, duplicate ack. Route builder: one `api-*` and `openapi-*` route per module, none matching `/internal`. Forwarded-header options per environment. Token cache expiry. MigrationRunner `--module` ordering rule |
 | Integration (Testcontainers) | RabbitMQ transport against `rabbitmq:4.4` (publish with confirms, return on unroutable, redelivery idempotence, dead-letter after the limit). `ICredentialVerifier` HTTP client against the Identity service host (uniform failures, gateway-only policy). Gateway route-table test (2.3). OpenAPI documents (no `/internal`, only `/api/v1`), Scalar CSP nonce |
-| Topology (new CI job, `tools/check.sh topology`) | Gateway + Identity + Reporting service hosts + PostgreSQL + RabbitMQ in Testcontainers. Sign in through the gateway; call an Identity and a Reporting endpoint; probe event Reporting → Identity over RabbitMQ; one trace with gateway, service, publish and consume spans (in-memory exporter); `/internal` and service health not reachable through the gateway |
+| Topology (new CI job, `tools/check.sh topology`) | Gateway + Identity + Inventory service hosts + PostgreSQL + RabbitMQ in Testcontainers. Sign in through the gateway; call an Identity and an Inventory endpoint; probe event Identity → Inventory over RabbitMQ; one trace with gateway, service, publish and consume spans (in-memory exporter); `/internal` and service health not reachable through the gateway |
 | Database | Bootstrap creates the six service logins with their capability roles; `verify_database.sh` unchanged otherwise |
 | E2E | The stage 3 smoke test, plus the same scenario against the services topology in the topology job |
 | Azure (stage 10, #85; manual + scripted) | Smoke through the gateway after each deploy; forwarded-header check; KEDA scale-from-zero on a probe message with no extra AMQP connection; cold-start measurement; an alert fires to e-mail (and Telegram if available) |
@@ -651,7 +651,7 @@ Each PR passes the full `tools/check.sh`, including the new steps once they exis
 - the topology CI job (section 10).
 
 **Acceptance:**
-- `dotnet run --project src/SmartSpare.AppHost -- --topology services` shows the dashboards with data and one trace gateway → Reporting → RabbitMQ → Identity in local Tempo;
+- `dotnet run --project src/SmartSpare.AppHost -- --topology services` shows the dashboards with data and one trace gateway → Identity → RabbitMQ → Inventory in local Tempo;
 - the same topology also runs against CloudAMQP, by configuration;
 - the topology job green;
 - the single host unchanged (`dotnet run` without the option).
