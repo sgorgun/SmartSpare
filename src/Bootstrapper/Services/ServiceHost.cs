@@ -48,7 +48,7 @@ internal static class ServiceHost
         app.MapModules([module]);
 
         // Anonymous, like everywhere (ADR 0019); the gateway proxies it as /openapi/{module}.json and caches it.
-        app.MapModuleDocuments();
+        app.MapApiDocuments();
         return app;
     }
 

@@ -20,6 +20,7 @@ builder.Services.AddModules(builder.Configuration, modules, Topology.SingleHost)
 
 // One OpenAPI document per module, public in every environment (ADR 0019); the gateway publishes the same paths.
 builder.Services.AddModuleDocuments(modules);
+builder.Services.AddBffDocument();
 
 // One key ring for every instance of the host (#22): cookies and antiforgery tokens work across instances.
 builder.AddSmartSpareDataProtection();
@@ -63,8 +64,8 @@ app.MapDefaultEndpoints();
 app.MapBff();
 
 // API documentation is public (ADR 0019); the endpoints it describes still require authorization.
-app.MapModuleDocuments().CacheOutput(ApiDocumentation.Policy).RequireRateLimiting(ApiDocumentation.Policy);
-app.MapApiReference(modules.Select(m => m.Name));
+app.MapApiDocuments().CacheOutput(ApiDocumentation.Policy).RequireRateLimiting(ApiDocumentation.Policy);
+app.MapApiReference([BffEndpoints.DocumentName, .. modules.Select(m => m.Name)]);
 
 // Every module endpoint validates antiforgery on unsafe requests (STAGE_3_PLAN section 1.5): the host accepts the cookie.
 app.MapModules(modules, group => group.AddEndpointFilter<AntiforgeryValidationFilter>());

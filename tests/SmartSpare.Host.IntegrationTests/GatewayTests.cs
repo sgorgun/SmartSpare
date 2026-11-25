@@ -192,6 +192,24 @@ public sealed class GatewayTests(IdentityDatabaseFixture database) : IAsyncLifet
     }
 
     [Fact]
+    public async Task The_gateway_generates_the_session_document_itself_and_still_proxies_module_documents()
+    {
+        using var browser = _gateway.NewBrowser();
+
+        using var bff = await browser.GetAsync("/openapi/bff.json");
+
+        bff.StatusCode.ShouldBe(HttpStatusCode.OK, "anonymous, like the module documents");
+        var document = await bff.Content.ReadAsStringAsync(Ct);
+        document.ShouldContain("SmartSpare Session API (BFF)");
+        document.ShouldContain("\"/bff/login\"");
+        _gateway.Recorder.Received.ShouldBeEmpty("the /bff endpoints are the gateway's own, so no service is asked");
+
+        // The literal openapi-{module} routes still win over the gateway's own /openapi/{documentName}.json endpoint.
+        using var inventory = await browser.GetAsync("/openapi/inventory.json");
+        (await inventory.Content.ReadFromJsonAsync<ReceivedRequest>(Ct))!.Path.ShouldBe("/openapi/inventory.json");
+    }
+
+    [Fact]
     public async Task The_gateway_serves_the_api_reference_with_a_nonce()
     {
         using var browser = _gateway.NewBrowser();
