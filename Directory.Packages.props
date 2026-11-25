@@ -36,6 +36,8 @@
 
   <ItemGroup Label="Application">
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.15" />
+    <!-- API reference UI (ADR 0019): served by the gateway and the single host at /scalar. -->
+    <PackageVersion Include="Scalar.AspNetCore" Version="3.2.0" />
     <PackageVersion Include="FluentValidation" Version="12.2.0" />
     <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="12.2.0" />
     <PackageVersion Include="Scrutor" Version="7.0.0" />

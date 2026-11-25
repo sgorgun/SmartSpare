@@ -1,3 +1,4 @@
+using SmartSpare.Infrastructure.Http;
 using Yarp.ReverseProxy.Configuration;
 
 namespace SmartSpare.Gateway;
@@ -10,7 +11,8 @@ namespace SmartSpare.Gateway;
 /// <item><c>ops-{module}</c>: <c>/api/{module}/{**rest}</c>, the unversioned operational endpoints (ping, diagnostics).
 /// With a literal name, <c>/api/v1/...</c> can't match it; an architecture rule keeps business endpoints under v1.</item>
 /// </list>
-/// Nothing else is routed: <c>/internal/*</c> and the services' <c>/health/*</c> never reach a service.
+/// Plus <c>openapi-{module}</c> for the module's document. Nothing else is routed: <c>/internal/*</c> and the services'
+/// <c>/health/*</c> never reach a service.
 /// </summary>
 public static class GatewayRoutes
 {
@@ -41,8 +43,23 @@ public static class GatewayRoutes
                 AuthorizationPolicy = Policy,
                 Match = new RouteMatch { Path = $"/api/{module}/{{**rest}}" },
             },
+            new RouteConfig
+            {
+                RouteId = $"{DocumentRoutePrefix}{module}",
+                ClusterId = module,
+                AuthorizationPolicy = "anonymous",
+                OutputCachePolicy = ApiDocumentation.Policy,
+                RateLimiterPolicy = ApiDocumentation.Policy,
+                Match = new RouteMatch { Path = ApiDocumentation.PathOf(module), Methods = ["GET"] },
+            },
         }),
     ];
+
+    /// <summary>
+    /// Route id prefix of the module documents (ADR 0019): the service's own <c>/openapi/{module}.json</c>, anonymous,
+    /// GET only, cached for 10 minutes. No token is added to these requests.
+    /// </summary>
+    public const string DocumentRoutePrefix = "openapi-";
 
     /// <summary>
     /// One cluster per module with the destination <c>http://{module}</c>: Container Apps' internal DNS by app name in

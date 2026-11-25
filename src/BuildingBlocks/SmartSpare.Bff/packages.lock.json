@@ -20,6 +20,12 @@
           "Microsoft.IdentityModel.Tokens": "8.23.0"
         }
       },
+      "Scalar.AspNetCore": {
+        "type": "Direct",
+        "requested": "[3.2.0, )",
+        "resolved": "3.2.0",
+        "contentHash": "sPxc+khxOd44lDvfuuf9+sdQiyaSYQ8cz+udZIHuO45G3psadh6JMlrv+Km6/D7EeQmd6cSMKxIEA8KhrKkvyg=="
+      },
       "Microsoft.Bcl.Cryptography": {
         "type": "Transitive",
         "resolved": "10.0.2",
@@ -93,6 +99,11 @@
         "resolved": "10.0.15",
         "contentHash": "/UTg2l5MAipHsPlCXBTfTCCLHUsyVeQM+z+QSStjfbP2b4RCrxl9NoKVZ7Ls9heBUT1/4yRjhMbqojl59A/xew=="
       },
+      "Microsoft.OpenApi": {
+        "type": "Transitive",
+        "resolved": "2.13.0",
+        "contentHash": "wavlgBYnn7uU/ZGhFHNl0UlDOlwz+6KRduKkqdCCbfxxANaQ1rmBpETVGdwXanAM6twQOxsvI3CBEGF4OScbeQ=="
+      },
       "Npgsql": {
         "type": "Transitive",
         "resolved": "10.0.3",
@@ -120,6 +131,7 @@
           "FluentValidation": "[12.2.0, )",
           "FluentValidation.DependencyInjectionExtensions": "[12.2.0, )",
           "Microsoft.AspNetCore.Authentication.JwtBearer": "[10.0.15, )",
+          "Microsoft.AspNetCore.OpenApi": "[10.0.15, )",
           "Microsoft.EntityFrameworkCore.Relational": "[10.0.15, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
           "Scrutor": "[7.0.0, )",
@@ -177,6 +189,15 @@
         "contentHash": "YWFk0tbTM25BfeJ2kFuUQ9E2HB0t6GK8jWFm2oIJeTVp3CS7CXGPU/TEpwLvtvK/uQGSX7eL4lpoRQGXgyWJZA==",
         "dependencies": {
           "Microsoft.JSInterop.WebAssembly": "10.0.15"
+        }
+      },
+      "Microsoft.AspNetCore.OpenApi": {
+        "type": "CentralTransitive",
+        "requested": "[10.0.15, )",
+        "resolved": "10.0.15",
+        "contentHash": "pptFDPMWyPDDtt68s/HsvLYeHJ0WQtntjyve6ztp/5MrLOEzdZvafYIyWSeErtexIGaB8XGYCnnUK8T/Vn4MwQ==",
+        "dependencies": {
+          "Microsoft.OpenApi": "[2.13.0, 3.0.0)"
         }
       },
       "Microsoft.EntityFrameworkCore.Relational": {

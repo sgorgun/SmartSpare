@@ -1046,6 +1046,7 @@
         "dependencies": {
           "Microsoft.AspNetCore.Components.WebAssembly.Server": "[10.0.15, )",
           "Microsoft.IdentityModel.JsonWebTokens": "[8.23.0, )",
+          "Scalar.AspNetCore": "[3.2.0, )",
           "SmartSpare.ApiContracts": "[1.0.0, )",
           "SmartSpare.Infrastructure": "[1.0.0, )",
           "SmartSpare.Modules.Identity.Contracts": "[1.0.0, )"
@@ -1084,6 +1085,7 @@
           "FluentValidation": "[12.2.0, )",
           "FluentValidation.DependencyInjectionExtensions": "[12.2.0, )",
           "Microsoft.AspNetCore.Authentication.JwtBearer": "[10.0.15, )",
+          "Microsoft.AspNetCore.OpenApi": "[10.0.15, )",
           "Microsoft.EntityFrameworkCore.Relational": "[10.0.15, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
           "Scrutor": "[7.0.0, )",
@@ -1572,6 +1574,12 @@
         "dependencies": {
           "System.Threading.RateLimiting": "8.0.0"
         }
+      },
+      "Scalar.AspNetCore": {
+        "type": "CentralTransitive",
+        "requested": "[3.2.0, )",
+        "resolved": "3.2.0",
+        "contentHash": "sPxc+khxOd44lDvfuuf9+sdQiyaSYQ8cz+udZIHuO45G3psadh6JMlrv+Km6/D7EeQmd6cSMKxIEA8KhrKkvyg=="
       },
       "Scrutor": {
         "type": "CentralTransitive",

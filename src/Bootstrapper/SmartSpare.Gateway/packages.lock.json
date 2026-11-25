@@ -261,6 +261,11 @@
         "resolved": "10.0.15",
         "contentHash": "/UTg2l5MAipHsPlCXBTfTCCLHUsyVeQM+z+QSStjfbP2b4RCrxl9NoKVZ7Ls9heBUT1/4yRjhMbqojl59A/xew=="
       },
+      "Microsoft.OpenApi": {
+        "type": "Transitive",
+        "resolved": "2.13.0",
+        "contentHash": "wavlgBYnn7uU/ZGhFHNl0UlDOlwz+6KRduKkqdCCbfxxANaQ1rmBpETVGdwXanAM6twQOxsvI3CBEGF4OScbeQ=="
+      },
       "Npgsql": {
         "type": "Transitive",
         "resolved": "10.0.3",
@@ -359,6 +364,7 @@
         "dependencies": {
           "Microsoft.AspNetCore.Components.WebAssembly.Server": "[10.0.15, )",
           "Microsoft.IdentityModel.JsonWebTokens": "[8.23.0, )",
+          "Scalar.AspNetCore": "[3.2.0, )",
           "SmartSpare.ApiContracts": "[1.0.0, )",
           "SmartSpare.Infrastructure": "[1.0.0, )",
           "SmartSpare.Modules.Identity.Contracts": "[1.0.0, )"
@@ -371,6 +377,7 @@
           "FluentValidation": "[12.2.0, )",
           "FluentValidation.DependencyInjectionExtensions": "[12.2.0, )",
           "Microsoft.AspNetCore.Authentication.JwtBearer": "[10.0.15, )",
+          "Microsoft.AspNetCore.OpenApi": "[10.0.15, )",
           "Microsoft.EntityFrameworkCore.Relational": "[10.0.15, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
           "Scrutor": "[7.0.0, )",
@@ -456,6 +463,15 @@
         "requested": "[10.0.15, )",
         "resolved": "10.0.15",
         "contentHash": "QuN6lTvKLluAIzLYA6KZ5w5ny6nI/n/Fm7Pr9ZLfeFwSgv1HfaYkGDTVWEhkga4p+1Bl/9ZMZXmgDDJZSL+mnA=="
+      },
+      "Microsoft.AspNetCore.OpenApi": {
+        "type": "CentralTransitive",
+        "requested": "[10.0.15, )",
+        "resolved": "10.0.15",
+        "contentHash": "pptFDPMWyPDDtt68s/HsvLYeHJ0WQtntjyve6ztp/5MrLOEzdZvafYIyWSeErtexIGaB8XGYCnnUK8T/Vn4MwQ==",
+        "dependencies": {
+          "Microsoft.OpenApi": "[2.13.0, 3.0.0)"
+        }
       },
       "Microsoft.EntityFrameworkCore.Relational": {
         "type": "CentralTransitive",
@@ -555,6 +571,12 @@
         "dependencies": {
           "OpenTelemetry.Api": "[1.21.0, 2.0.0)"
         }
+      },
+      "Scalar.AspNetCore": {
+        "type": "CentralTransitive",
+        "requested": "[3.2.0, )",
+        "resolved": "3.2.0",
+        "contentHash": "sPxc+khxOd44lDvfuuf9+sdQiyaSYQ8cz+udZIHuO45G3psadh6JMlrv+Km6/D7EeQmd6cSMKxIEA8KhrKkvyg=="
       },
       "Scrutor": {
         "type": "CentralTransitive",

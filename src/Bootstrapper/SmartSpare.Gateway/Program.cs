@@ -50,6 +50,7 @@ app.UseAntiforgery();
 app.MapDefaultEndpoints();
 app.MapBff();
 app.MapWarmup();
+app.MapApiReference(GatewayRoutes.Modules);
 app.MapGatewayProxy();
 
 app.MapRazorComponents<App>()

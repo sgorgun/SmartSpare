@@ -16,6 +16,9 @@ internal static class PingEndpoint
                 return result.ToHttpResult();
             })
             .WithName("ProcurementPing")
+            .WithSummary("Checks that the Procurement module answers.")
+            .WithDescription("Operational, unversioned (ADR 0012); not in the API document. Requires a signed-in user.")
             .Produces<PingResponse>()
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
             .AsOperational();
 }

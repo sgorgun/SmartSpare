@@ -108,7 +108,7 @@ Aspire packages move from 13.6.5 to **17.0.0** (nuget.org: `Aspire.Hosting` 17.0
 |---|---|---|---|
 | `api-{module}` | `/api/v1/{module}/{**rest}` | `{module}` → `http://{module}` | the versioned business API (ADR 0012). Container Apps internal DNS by app name ([connect apps](https://learn.microsoft.com/azure/container-apps/connect-apps)); locally, Aspire service discovery |
 | `ops-{module}` | `/api/{module}/{**rest}` | `{module}` | the unversioned operational endpoints (module pings, the diagnostics probe), which ADR 0012 keeps out of versioning |
-| `openapi-{module}` | `/openapi/{module}.json`, GET only | `{module}` | path rewritten to the service's `/openapi/v1.json` |
+| `openapi-{module}` | `/openapi/{module}.json`, GET only | `{module}` | the service serves the same path, so no rewrite; anonymous, no token, output cache and rate limit `api-docs` |
 
 Everything else is handled by the gateway itself: `/bff/*`, `/scalar`, `/warmup`, `/health/*` and the Blazor client.
 
@@ -359,7 +359,7 @@ The publish happens later, in the dispatcher's own activity. That activity **lin
 
 ## 7. API documentation (#54, ADR 0019)
 
-- **Per service:** `AddOpenApi("v1")` with document transformers that set the title and version, remove `/internal/*` paths (`ShouldInclude`) and keep only `/api/v1` business paths. .NET 10 produces OpenAPI **3.1** ([OpenAPI in ASP.NET Core](https://learn.microsoft.com/aspnet/core/fundamentals/openapi/aspnetcore-openapi?view=aspnetcore-10.0)).
+- **Per service:** `AddOpenApi("{module}")` (`ApiDocumentation.AddModuleDocuments`), served at `/openapi/{module}.json` as in the single host, with a document transformer that sets the title and version and clears the servers, and `ShouldInclude` that keeps only the module's `/api/v1/{module}/` business paths, so `/internal/*` and operational endpoints are left out. .NET 10 produces OpenAPI **3.1** ([OpenAPI in ASP.NET Core](https://learn.microsoft.com/aspnet/core/fundamentals/openapi/aspnetcore-openapi?view=aspnetcore-10.0)).
 - **Single host:** one document per module.
 - **XML documentation comments:** `GenerateDocumentationFile=true` in module projects. Handlers must be methods, not lambdas, for comments to be captured ([OpenAPI comments](https://learn.microsoft.com/aspnet/core/fundamentals/openapi/openapi-comments)). CS1591 (missing comment) stays off for internal types; public module types are only installers and Contracts.
 - **Gateway:**
@@ -371,6 +371,8 @@ The publish happens later, in the dispatcher's own activity. That activity **lin
   - **Decision:** `/scalar` gets `script-src 'self' 'nonce-<per request>'` and `DisableDefaultFonts()`. Every other page keeps the stage 3 policy unchanged.
   - Whether Scalar needs inline styles is undocumented. `style-src 'self' 'unsafe-inline'` already applies site-wide (ADR 0014), so nothing changes there.
   - An integration test asserts the nonce in both header and markup, and the absence of `'unsafe-inline'` in `script-src`.
+  - **Implemented (PR 4f):** Scalar also has `DisableTelemetry()`, `DisableAgent()`, `DisableMcp()` and `HideDeveloperTools()`, so the public page sends nothing to Scalar's services. A Playwright test renders `/scalar` and fails on any CSP violation or any request to another origin.
+- **Content in stage 4:** every endpoint that exists is operational (pings, the diagnostics probe), which ADR 0019 §3 leaves out, so the six documents are valid but have no paths until stage 5 adds `/api/v1` endpoints. The existing endpoints have summaries and typed responses anyway.
 - **Tests:** a document contains no `/internal` path and no non-`/api/v1` business path (ADR 0019 §3). `/scalar` and `/openapi/*` are anonymous; every documented operation requires authorization.
 
 ---
