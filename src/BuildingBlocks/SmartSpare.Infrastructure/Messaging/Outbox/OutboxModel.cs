@@ -124,15 +124,19 @@ public static class IntegrationEventSerializer
         };
     }
 
-    public static IIntegrationEvent Deserialize(string typeName, string payload)
+    /// <summary>The integration event type named by an outbox <c>type</c> value (<see cref="TypeName"/>).</summary>
+    public static Type ResolveType(string typeName)
     {
         var type = Type.GetType(typeName, throwOnError: false)
             ?? throw new InvalidOperationException($"Integration event type '{typeName}' is not loaded.");
-        if (!typeof(IIntegrationEvent).IsAssignableFrom(type))
-        {
-            throw new InvalidOperationException($"'{typeName}' is not an integration event.");
-        }
+        return typeof(IIntegrationEvent).IsAssignableFrom(type)
+            ? type
+            : throw new InvalidOperationException($"'{typeName}' is not an integration event.");
+    }
 
+    public static IIntegrationEvent Deserialize(string typeName, string payload)
+    {
+        var type = ResolveType(typeName);
         return (IIntegrationEvent)(JsonSerializer.Deserialize(payload, type, Options)
             ?? throw new InvalidOperationException($"Payload of '{typeName}' is empty."));
     }

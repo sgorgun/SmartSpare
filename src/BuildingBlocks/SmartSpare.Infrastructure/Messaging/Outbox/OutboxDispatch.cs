@@ -257,34 +257,15 @@ public sealed class InProcessIntegrationEventPublisher(IServiceScopeFactory scop
     {
         ArgumentNullException.ThrowIfNull(envelope);
         var integrationEvent = IntegrationEventSerializer.Deserialize(envelope.Type, envelope.Payload);
-        var handlerType = typeof(IIntegrationEventConsumer<>).MakeGenericType(integrationEvent.GetType());
-        var handle = handlerType.GetMethod(nameof(IIntegrationEventConsumer<IIntegrationEvent>.Handle))!;
+        var consumerType = typeof(IIntegrationEventConsumer<>).MakeGenericType(integrationEvent.GetType());
 
         var scope = scopeFactory.CreateAsyncScope();
         await using (scope.ConfigureAwait(false))
         {
-            foreach (var handler in scope.ServiceProvider.GetServices(handlerType).OfType<object>())
+            foreach (var consumer in scope.ServiceProvider.GetServices(consumerType).OfType<object>())
             {
-                var consumer = IntegrationEventConsumers.NameOf(handler.GetType());
-                var unitOfWork = registry.Resolve(handler.GetType().Assembly, scope.ServiceProvider);
-                await unitOfWork.ExecuteInTransactionAsync(async ct =>
-                {
-                    if (!await unitOfWork.TryAcceptInboxMessageAsync(envelope.Id, consumer, ct).ConfigureAwait(false))
-                    {
-                        return false;                         // handled before: idempotent receiver
-                    }
-
-                    try
-                    {
-                        await ((Task)handle.Invoke(handler, [integrationEvent, ct])!).ConfigureAwait(false);
-                    }
-                    catch (TargetInvocationException ex) when (ex.InnerException is not null)
-                    {
-                        ExceptionDispatchInfo.Capture(ex.InnerException).Throw();
-                    }
-
-                    return true;
-                }, _ => true, cancellationToken).ConfigureAwait(false);
+                await IntegrationEventDelivery.DeliverAsync(scope.ServiceProvider, registry, consumer, integrationEvent, envelope.Id, cancellationToken)
+                    .ConfigureAwait(false);
             }
         }
     }
