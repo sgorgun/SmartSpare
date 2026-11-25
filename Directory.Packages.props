@@ -15,6 +15,9 @@
     <PackageVersion Include="Aspire.Hosting.AppHost" Version="17.0.0" />
     <PackageVersion Include="Aspire.Hosting.Dotnet" Version="17.0.0" />
     <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="17.0.0" />
+    <PackageVersion Include="Aspire.Hosting.RabbitMQ" Version="17.0.0" />
+    <!-- Local observability stack (STAGE_4_PLAN 6.3): the collector in front of Prometheus, Loki and Tempo. -->
+    <PackageVersion Include="CommunityToolkit.Aspire.Hosting.OpenTelemetryCollector" Version="17.0.0" />
   </ItemGroup>
 
   <ItemGroup Label="Service defaults">

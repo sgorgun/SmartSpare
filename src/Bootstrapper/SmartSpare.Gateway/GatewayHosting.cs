@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using System.Net;
 using System.Threading.RateLimiting;
 using Azure.Identity;
@@ -103,6 +104,18 @@ public static class WarmupEndpoint
 
     public const string RateLimitPolicy = "warmup";
 
+    /// <summary>Meter of the gateway; exported by ServiceDefaults.</summary>
+    public const string MeterName = "SmartSpare.Gateway";
+
+    private static readonly Meter Meter = new(MeterName);
+
+    /// <summary>
+    /// Services that weren't ready during a warm-up call: the "Warm-up failed" alert of ADR 0018 §4 fires on any increase
+    /// (<c>smartspare_gateway_warmup_failures_total</c> in Prometheus).
+    /// </summary>
+    private static readonly Counter<long> Failures = Meter.CreateCounter<long>(
+        "smartspare.gateway.warmup.failures", unit: "{service}", description: "Services that were not ready during a warm-up call.");
+
     public static IServiceCollection AddWarmup(this IServiceCollection services)
     {
         services.AddHttpClient(HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(90));
@@ -116,6 +129,11 @@ public static class WarmupEndpoint
             {
                 using var client = clients.CreateClient(HttpClientName);
                 var results = await Task.WhenAll(GatewayRoutes.Modules.Select(m => PingAsync(client, m, cancellationToken))).ConfigureAwait(false);
+                foreach (var failed in results.Where(r => r.Status != (int)HttpStatusCode.OK))
+                {
+                    Failures.Add(1, new KeyValuePair<string, object?>("service", failed.Service));
+                }
+
                 return TypedResults.Ok(results);
             })
             .AllowAnonymous()
