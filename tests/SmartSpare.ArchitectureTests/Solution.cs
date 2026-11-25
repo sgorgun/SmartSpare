@@ -39,6 +39,10 @@ internal static class Solution
 
     public static Module Get(string name) => Modules.Single(m => m.Name == name);
 
+    /// <summary>Lower-case name of the module whose implementation assembly defines <paramref name="type"/>.</summary>
+    public static string ModuleOf(Type type) =>
+        Modules.Single(m => m.Implementation == type.Assembly).Name.ToLowerInvariant();
+
     public static string RootDirectory { get; } = FindRoot();
 
     /// <summary>Names of SmartSpare assemblies an assembly references in its compiled metadata.</summary>
