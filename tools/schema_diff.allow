@@ -73,3 +73,9 @@
 +^IF v_id IS NULL THEN .*FROM jsonb_each_text\(v_row\)
 +^BEGIN -- record id from the full row, before the values are reduced to the changed columns v_id := v_row ->> 'id';
 +^v_old\s+jsonb;$
+
+# PR 4c (#31): mart.v_data_quality also counts integration events parked in an outbox (Reporting migration
+# DataQualityParkedOutboxEvents, db/sql/reporting/0004_data_quality_outbox.sql); the earlier checks are unchanged.
+-CREATE VIEW mart\.v_data_quality AS WITH ledger AS .*'expired soft reservations still active'::text AS check_name, \( SELECT count\(\*\) AS count FROM inventory\.stock_reservation WHERE .*\) AS failed_rows;$
+-COMMENT ON VIEW mart\.v_data_quality IS 'Automated reconciliation checks \(ledger vs\. balance, reservations, PO totals, odometer, duplicates\)\. Expected: all failed_rows = 0\.';
++COMMENT ON VIEW mart\.v_data_quality IS 'Automated reconciliation checks \(ledger vs\. balance, reservations, PO totals, odometer, duplicates, parked outbox events\)\. Expected: all failed_rows = 0\.';
