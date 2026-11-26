@@ -346,6 +346,8 @@ They are provisioned locally as files, and to Grafana Cloud with the Grafana Ter
 
 **Changed on 26 November 2026 (product owner):** until the first deployment, Terraform is applied from the developer machine with `tools/grafana-cloud.sh` and a local, git-ignored state; CI only checks format, validates and plans against a mock provider (`grafana.yml`). Remote state and applying from a workflow come with #85.
 
+**Applied on 26 November 2026:** the Terraform service account needs the **Admin** role; with Editor the apply answered 403 for `folders:read` ([infra/grafana §1](../../infra/grafana/README.md#1-what-to-create-least-privilege)). The test alert reached the e-mail contact point.
+
 **Ruler limits:** 35 groups, 20 rules per group ([usage limits](https://grafana.com/docs/grafana-cloud/cost-management-and-billing/understand-your-invoice/usage-limits/)). The plan uses 7 rules in 3 groups (8 before ADR 0023).
 
 **Contact points:** e-mail and Telegram are both listed for Grafana Cloud ([contact points](https://grafana.com/docs/grafana-cloud/alerting-and-irm/alerting/configure-notifications/manage-contact-points/)); the docs say nothing about free-tier restrictions. PR 4j creates both on the free stack. If Telegram isn't offered, e-mail alone satisfies the rubric (ADR 0018 §4), and the result is recorded.
