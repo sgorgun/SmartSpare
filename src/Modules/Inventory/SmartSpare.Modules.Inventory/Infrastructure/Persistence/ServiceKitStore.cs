@@ -19,4 +19,11 @@ internal sealed class ServiceKitStore(InventoryDbContext db)
                 new NpgsqlParameter<decimal[]>("quantities", [.. lines.Select(l => l.Quantity)]),
                 new NpgsqlParameter<DateTimeOffset>("expires_at", expiresAt))
             .ToListAsync(cancellationToken).ConfigureAwait(false);
+
+    /// <summary><c>inventory.expire_soft_reservations</c>: expires the holds overdue at <paramref name="now"/>, returns their lines.</summary>
+    public async Task<IReadOnlyList<long>> ExpireAsync(DateTimeOffset now, CancellationToken cancellationToken) =>
+        await db.Database.SqlQueryRaw<long>(
+                "SELECT DISTINCT service_order_line_id AS \"Value\" FROM inventory.expire_soft_reservations(@now) WHERE service_order_line_id IS NOT NULL",
+                new NpgsqlParameter<DateTimeOffset>("now", now))
+            .ToListAsync(cancellationToken).ConfigureAwait(false);
 }

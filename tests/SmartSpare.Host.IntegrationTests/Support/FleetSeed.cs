@@ -60,4 +60,41 @@ internal sealed class FleetSeed(IdentityDatabaseFixture database, string tag)
 
         return machine;
     }
+
+    /// <summary>A model whose engine plan's kit is 30 l of oil and one filter, both catalogue parts stocked at KLP.</summary>
+    public async Task<(long Machine, long Oil, long Filter)> MachineWithStockedKitAsync(string suffix, decimal oilOnHand, decimal filterOnHand)
+    {
+        var oil = await StockedPartAsync($"{suffix}-OIL", oilOnHand);
+        var filter = await StockedPartAsync($"{suffix}-FLT", filterOnHand);
+        var model = await database.ScalarAsync<int>(
+            """
+            INSERT INTO fleet.machine_model (brand_id, machine_type_id, model_name)
+            SELECT b.id, t.id, @name FROM ref.brand b, ref.machine_type t WHERE b.code = 'JD' AND t.code = 'TRACTOR' RETURNING id
+            """, ("name", $"Kit model {tag}{suffix}"));
+        var plan = await database.ScalarAsync<int>(
+            "INSERT INTO fleet.maintenance_plan (model_id, interval_hours, name) VALUES (@model, 500, 'Engine service') RETURNING id", ("model", model));
+        await database.ExecuteAsync(
+            "INSERT INTO fleet.maintenance_plan_part (maintenance_plan_id, part_id, quantity) VALUES (@plan, @oil, 30), (@plan, @filter, 1)",
+            ("plan", plan), ("oil", oil), ("filter", filter));
+        return (await MachineAsync(model, suffix, (-20, 440)), oil, filter);
+    }
+
+    public async Task<long> StockedPartAsync(string suffix, decimal onHand)
+    {
+        var part = await database.ScalarAsync<long>(
+            """
+            INSERT INTO catalog.part (brand_id, oem_part_number, description, category_id, uom_id, unit_cost)
+            SELECT b.id, @oem, 'Kit flow test part', c.id, u.id, 4.20
+            FROM ref.brand b, ref.part_category c, ref.unit_of_measure u
+            WHERE b.code = 'JD' AND c.code = 'OIL_FILTER' AND u.code = 'PCS'
+            RETURNING id
+            """, ("oem", $"{tag}-{suffix}"));
+        await database.ExecuteAsync(
+            """
+            INSERT INTO inventory.warehouse_part (warehouse_id, part_id) SELECT w.id, @part FROM inventory.warehouse w WHERE w.code = 'KLP';
+            INSERT INTO inventory.stock_movement (occurred_at, warehouse_id, part_id, movement_type_code, quantity, unit_cost, note)
+            SELECT now() - interval '1 minute', w.id, @part, 'OPENING_BALANCE', @quantity, 4.20, 'Test stock' FROM inventory.warehouse w WHERE w.code = 'KLP';
+            """, ("part", part), ("quantity", onHand));
+        return part;
+    }
 }

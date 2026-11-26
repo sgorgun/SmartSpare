@@ -113,4 +113,29 @@ public sealed class KitReservationTests
         order.Status.ShouldBe(ServiceOrderStatus.Cancelled);
         order.Lines[0].QtyReserved.ShouldBe(0);
     }
+
+    [Fact]
+    public void Expired_holds_clear_the_copy_and_reopen_a_parts_reserved_order()
+    {
+        var order = Draft();
+        order.ApplyKitReserved(new Dictionary<long, decimal> { [71] = 30, [72] = 1 });
+
+        order.ApplyKitReservationExpired(new HashSet<long> { 71 }).ShouldBeTrue();
+
+        order.Status.ShouldBe(ServiceOrderStatus.Draft);
+        order.Lines.Select(l => l.QtyReserved).ShouldBe([0m, 1m]);
+    }
+
+    [Fact]
+    public void Expiry_of_other_lines_changes_nothing_and_a_closed_order_is_left_alone()
+    {
+        var order = Draft();
+        order.ApplyKitReserved(new Dictionary<long, decimal> { [71] = 30, [72] = 1 });
+        order.ApplyKitReservationExpired(new HashSet<long> { 999 }).ShouldBeTrue();
+        order.Status.ShouldBe(ServiceOrderStatus.PartsReserved);
+
+        order.Complete(515, 512, Now).IsSuccess.ShouldBeTrue();
+        order.ApplyKitReservationExpired(new HashSet<long> { 71, 72 }).ShouldBeFalse();
+        order.Lines.Select(l => l.QtyReserved).ShouldBe([30m, 1m]);
+    }
 }

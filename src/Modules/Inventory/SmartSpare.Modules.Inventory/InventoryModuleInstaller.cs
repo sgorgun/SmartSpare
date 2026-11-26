@@ -14,6 +14,7 @@ using SmartSpare.Modules.Inventory.Infrastructure.Queries;
 using SmartSpare.Modules.Inventory.Features.GetPart;
 using SmartSpare.Modules.Inventory.Features.Imports;
 using SmartSpare.Modules.Inventory.Features.PartCatalog;
+using SmartSpare.Modules.Inventory.Features.ServiceKits;
 using SmartSpare.Modules.Inventory.Features.ListWarehouses;
 using SmartSpare.Modules.Inventory.Features.Ping;
 using SmartSpare.Modules.Inventory.Features.SearchParts;
@@ -43,6 +44,7 @@ public sealed class InventoryModuleInstaller : IModuleInstaller
         services.AddScoped<ServiceKitStore>();
         services.AddImportRateLimit();
         services.AddJob<PartCatalogPublishJob>();
+        services.AddJob<ReservationExpiryJob>();
         InventoryDatabase.Instance.AddTo(services, assembly, configuration.GetConnectionString(PersistenceRegistration.ConnectionStringName), InventoryDbContext.HistorySchema);
     }
 

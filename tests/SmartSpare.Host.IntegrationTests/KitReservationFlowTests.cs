@@ -41,7 +41,7 @@ public sealed class KitReservationFlowTests(IdentityDatabaseFixture database) : 
     [Fact]
     public async Task A_drafted_order_gets_its_kit_reserved_by_Inventory_and_becomes_parts_reserved()
     {
-        var (machine, oil, filter) = await MachineWithKitAsync("A", oilOnHand: 50, filterOnHand: 5);
+        var (machine, oil, filter) = await _seed.MachineWithStockedKitAsync("A", oilOnHand: 50, filterOnHand: 5);
 
         var order = await DraftByReadingAsync(machine);
 
@@ -63,7 +63,7 @@ public sealed class KitReservationFlowTests(IdentityDatabaseFixture database) : 
     [Fact]
     public async Task A_short_kit_is_held_partially_and_the_order_stays_a_draft()
     {
-        var (machine, oil, filter) = await MachineWithKitAsync("B", oilOnHand: 12, filterOnHand: 5);
+        var (machine, oil, filter) = await _seed.MachineWithStockedKitAsync("B", oilOnHand: 12, filterOnHand: 5);
 
         var order = await DraftByReadingAsync(machine);
 
@@ -77,7 +77,7 @@ public sealed class KitReservationFlowTests(IdentityDatabaseFixture database) : 
     [Fact]
     public async Task A_redelivered_ServiceOrderDrafted_never_reserves_twice()
     {
-        var (machine, oil, _) = await MachineWithKitAsync("C", oilOnHand: 50, filterOnHand: 5);
+        var (machine, oil, _) = await _seed.MachineWithStockedKitAsync("C", oilOnHand: 50, filterOnHand: 5);
         var order = await DraftByReadingAsync(machine);
         await EventuallyAsync(async () => await StatusAsync(order) == "parts_reserved");
         var (id, type, payload) = await OutboxRowAsync(order);
@@ -114,43 +114,6 @@ public sealed class KitReservationFlowTests(IdentityDatabaseFixture database) : 
             $"/api/v1/fleet/machines/{machine}/readings", new RecordReadingRequest(512, DateTimeOffset.UtcNow.AddMinutes(-5)), bearer: _host.Token(Engineer.Principal()));
         response.StatusCode.ShouldBe(HttpStatusCode.Created, await response.Content.ReadAsStringAsync(Ct));
         return await database.ScalarAsync<long>("SELECT id FROM fleet.service_order WHERE machine_id = @m", ("m", machine));
-    }
-
-    /// <summary>A model whose engine plan's kit is 30 l of oil and one filter, both catalogue parts stocked at KLP.</summary>
-    private async Task<(long Machine, long Oil, long Filter)> MachineWithKitAsync(string suffix, decimal oilOnHand, decimal filterOnHand)
-    {
-        var oil = await StockedPartAsync($"{suffix}-OIL", oilOnHand);
-        var filter = await StockedPartAsync($"{suffix}-FLT", filterOnHand);
-        var model = await database.ScalarAsync<int>(
-            """
-            INSERT INTO fleet.machine_model (brand_id, machine_type_id, model_name)
-            SELECT b.id, t.id, @name FROM ref.brand b, ref.machine_type t WHERE b.code = 'JD' AND t.code = 'TRACTOR' RETURNING id
-            """, ("name", $"Kit model {_tag}{suffix}"));
-        var plan = await database.ScalarAsync<int>(
-            "INSERT INTO fleet.maintenance_plan (model_id, interval_hours, name) VALUES (@model, 500, 'Engine service') RETURNING id", ("model", model));
-        await database.ExecuteAsync(
-            "INSERT INTO fleet.maintenance_plan_part (maintenance_plan_id, part_id, quantity) VALUES (@plan, @oil, 30), (@plan, @filter, 1)",
-            ("plan", plan), ("oil", oil), ("filter", filter));
-        return (await _seed.MachineAsync(model, suffix, (-20, 440)), oil, filter);
-    }
-
-    private async Task<long> StockedPartAsync(string suffix, decimal onHand)
-    {
-        var part = await database.ScalarAsync<long>(
-            """
-            INSERT INTO catalog.part (brand_id, oem_part_number, description, category_id, uom_id, unit_cost)
-            SELECT b.id, @oem, 'Kit flow test part', c.id, u.id, 4.20
-            FROM ref.brand b, ref.part_category c, ref.unit_of_measure u
-            WHERE b.code = 'JD' AND c.code = 'OIL_FILTER' AND u.code = 'PCS'
-            RETURNING id
-            """, ("oem", $"{_tag}-{suffix}"));
-        await database.ExecuteAsync(
-            """
-            INSERT INTO inventory.warehouse_part (warehouse_id, part_id) SELECT w.id, @part FROM inventory.warehouse w WHERE w.code = 'KLP';
-            INSERT INTO inventory.stock_movement (occurred_at, warehouse_id, part_id, movement_type_code, quantity, unit_cost, note)
-            SELECT now() - interval '1 minute', w.id, @part, 'OPENING_BALANCE', @quantity, 4.20, 'Test stock' FROM inventory.warehouse w WHERE w.code = 'KLP';
-            """, ("part", part), ("quantity", onHand));
-        return part;
     }
 
     private Task<string> StatusAsync(long order) =>

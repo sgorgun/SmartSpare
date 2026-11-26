@@ -210,6 +210,32 @@ internal sealed class ServiceOrder : AggregateRoot<long>
         return true;
     }
 
+    /// <summary>
+    /// Inventory's soft holds for some of this order's lines expired (<c>ServiceKitReservationExpired</c>, STAGE_6_PLAN 5.5):
+    /// those lines hold nothing any more, and an order that was parts reserved returns to draft. Ignored for closed orders
+    /// (returns false).
+    /// </summary>
+    public bool ApplyKitReservationExpired(IReadOnlySet<long> lineIds)
+    {
+        ArgumentNullException.ThrowIfNull(lineIds);
+        if (!IsOpen)
+        {
+            return false;
+        }
+
+        foreach (var line in _lines.Where(l => lineIds.Contains(l.Id)))
+        {
+            line.ApplyReserved(0);
+        }
+
+        if (Status == ServiceOrderStatus.PartsReserved && _lines.Exists(l => l.QtyMissing > 0))
+        {
+            Status = ServiceOrderStatus.Draft;
+        }
+
+        return true;
+    }
+
     /// <summary>The engineer starts the work.</summary>
     public Result Start()
     {
