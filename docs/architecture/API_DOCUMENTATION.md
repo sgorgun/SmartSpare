@@ -55,6 +55,7 @@ flowchart LR
   - examples: `WithRequestExample`, `WithResponseExample`.
 
   The request and response records in `SmartSpare.ApiContracts` describe each field with `[Description]`.
+  XML documentation comments are not used for this: the documents are built in `SmartSpare.Infrastructure`, which references no module, so the XML-comment generator never sees module code (#97).
 - **Shared conventions** ([`OpenApiConventions`](../../src/BuildingBlocks/SmartSpare.Infrastructure/Http/OpenApiConventions.cs)), applied to every document:
   - the examples declared on the endpoint, serialized with the API's own JSON options;
   - the `code` and `traceId` members of ProblemDetails;
@@ -83,6 +84,11 @@ operations are described in full:
 | `inventory` | `GET /api/v1/inventory/parts?search=&page=&pageSize=`: search the catalogue | `ReadInventory` | 200 `PagedResponse<PartSummary>`; 400 validation; 401; 403 |
 | `inventory` | `GET /api/v1/inventory/parts/{id}`: a part with its stock per warehouse | `ReadInventory` | 200 `PartDetails`; 401; 403; 404 `Inventory.PartNotFound` |
 | `inventory` | `GET /api/v1/inventory/warehouses`: the warehouses | `ReadInventory` | 200; 401; 403 |
+| `inventory` | `GET /api/v1/inventory/stock?warehouseId=&status=&search=&page=&pageSize=`: the stock overview | `ReadInventory` | 200 `PagedResponse<StockRow>`; 400; 401; 403 |
+| `inventory` | `GET /api/v1/inventory/stock/{warehouseId}/{partId}`: a position with reservations and recent movements (ETag) | `ReadInventory` | 200 `StockPositionDetails`; 401; 403; 404 `Inventory.StockPositionNotFound` |
+| `inventory` | `PUT /api/v1/inventory/stock/{warehouseId}/{partId}/levels` with `If-Match`: safety and maximum stock | `PlanInventory` | 200 `StockRow`; 400; 401; 403; 404; 409 `Database.ConcurrencyConflict` |
+| `inventory` | `GET /api/v1/inventory/movements?warehouseId=&partId=&type=&from=&to=&page=&pageSize=`: the stock ledger | `ReadInventory` | 200 `PagedResponse<MovementRow>`; 400; 401; 403 |
+| `inventory` | `POST /api/v1/inventory/stock-adjustments`: a stock count correction | `MoveStock` | 201 `StockAdjustmentResponse`; 400; 401; 403 `SS302`; 404; 409 `SS200` |
 
 `ReadInventory` admits every role but not a user without one. Reads are never brand-scoped (STAGE_3_PLAN §3.3). The
 other five module documents fill as stages 5–9 add `/api/v1` endpoints, each with its summary, response types and

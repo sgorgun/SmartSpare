@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using SmartSpare.Infrastructure.Messaging;
 using SmartSpare.Infrastructure.Modules;
 using SmartSpare.Infrastructure.Persistence;
@@ -12,6 +13,8 @@ using SmartSpare.Modules.Inventory.Features.GetPart;
 using SmartSpare.Modules.Inventory.Features.ListWarehouses;
 using SmartSpare.Modules.Inventory.Features.Ping;
 using SmartSpare.Modules.Inventory.Features.SearchParts;
+using SmartSpare.Modules.Inventory.Features.Stock;
+using SmartSpare.Modules.Inventory.Features.Warehouses;
 
 namespace SmartSpare.Modules.Inventory;
 
@@ -26,6 +29,8 @@ public sealed class InventoryModuleInstaller : IModuleInstaller
     {
         var assembly = typeof(InventoryModuleInstaller).Assembly;
         services.AddHandlersFromAssembly(assembly);
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddScoped<IWarehouseQueries, WarehouseQueries>();
         InventoryDatabase.Instance.AddTo(services, assembly, configuration.GetConnectionString(PersistenceRegistration.ConnectionStringName), InventoryDbContext.HistorySchema);
     }
 
@@ -39,5 +44,12 @@ public sealed class InventoryModuleInstaller : IModuleInstaller
         SearchPartsEndpoint.Map(v1);
         GetPartEndpoint.Map(v1);
         ListWarehousesEndpoint.Map(v1);
+        StockOverviewEndpoint.Map(v1);
+        GetStockPositionEndpoint.Map(v1);
+        ChangeStockLevelsEndpoint.Map(v1);
+        ListMovementsEndpoint.Map(v1);
+        AdjustStockEndpoint.Map(v1);
     }
+
+    public void MapInternalEndpoints(IEndpointRouteBuilder endpoints) => WarehouseQueriesEndpoint.Map(endpoints);
 }

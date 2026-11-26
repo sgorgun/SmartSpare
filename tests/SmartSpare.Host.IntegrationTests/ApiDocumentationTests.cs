@@ -63,22 +63,48 @@ public sealed partial class ApiDocumentationTests : IAsyncLifetime
     {
         var root = await DocumentAsync("inventory");
         var paths = root.GetProperty("paths");
-        paths.EnumerateObject().Select(p => p.Name).Order(StringComparer.Ordinal)
-            .ShouldBe(["/api/v1/inventory/parts", "/api/v1/inventory/parts/{id}", "/api/v1/inventory/warehouses"]);
+        paths.EnumerateObject().Select(p => p.Name).Order(StringComparer.Ordinal).ShouldBe(
+        [
+            "/api/v1/inventory/movements", "/api/v1/inventory/parts", "/api/v1/inventory/parts/{id}", "/api/v1/inventory/stock",
+            "/api/v1/inventory/stock-adjustments", "/api/v1/inventory/stock/{warehouseId}/{partId}",
+            "/api/v1/inventory/stock/{warehouseId}/{partId}/levels", "/api/v1/inventory/warehouses",
+        ]);
 
-        foreach (var (path, statuses) in new (string, string[])[]
+        foreach (var (path, method, statuses) in new (string, string, string[])[]
         {
-            ("/api/v1/inventory/parts", ["200", "400", "401", "403"]),
-            ("/api/v1/inventory/parts/{id}", ["200", "401", "403", "404"]),
-            ("/api/v1/inventory/warehouses", ["200", "401", "403"]),
+            ("/api/v1/inventory/parts", "get", ["200", "400", "401", "403"]),
+            ("/api/v1/inventory/parts/{id}", "get", ["200", "401", "403", "404"]),
+            ("/api/v1/inventory/warehouses", "get", ["200", "401", "403"]),
+            ("/api/v1/inventory/stock", "get", ["200", "400", "401", "403"]),
+            ("/api/v1/inventory/stock/{warehouseId}/{partId}", "get", ["200", "401", "403", "404"]),
+            ("/api/v1/inventory/stock/{warehouseId}/{partId}/levels", "put", ["200", "400", "401", "403", "404", "409"]),
+            ("/api/v1/inventory/movements", "get", ["200", "400", "401", "403"]),
+            ("/api/v1/inventory/stock-adjustments", "post", ["201", "400", "401", "403", "404", "409"]),
         })
         {
-            var operation = paths.GetProperty(path).GetProperty("get");
+            var operation = paths.GetProperty(path).GetProperty(method);
             operation.GetProperty("summary").GetString().ShouldNotBeNullOrWhiteSpace(path);
             operation.GetProperty("description").GetString().ShouldNotBeNullOrWhiteSpace(path);
             var responses = operation.GetProperty("responses");
             responses.EnumerateObject().Select(r => r.Name).ShouldBe(statuses, ignoreOrder: true, path);
-            ExampleOf(responses.GetProperty("200")).ValueKind.ShouldNotBe(JsonValueKind.Undefined, $"{path} has a 200 example");
+            ExampleOf(responses.GetProperty(statuses[0])).ValueKind.ShouldNotBe(JsonValueKind.Undefined, $"{path} has a {statuses[0]} example");
+            if (operation.TryGetProperty("parameters", out var parameters))
+            {
+                parameters.EnumerateArray().ShouldAllBe(
+                    p => !string.IsNullOrWhiteSpace(p.GetProperty("description").GetString()), $"{path}: every parameter is described");
+            }
+
+            if (operation.TryGetProperty("requestBody", out var body))
+            {
+                ExampleOf(body).ValueKind.ShouldNotBe(JsonValueKind.Undefined, $"{path} has a request example");
+            }
+        }
+
+        var schemas = root.GetProperty("components").GetProperty("schemas");
+        foreach (var name in new[] { "StockRow", "StockPositionDetails", "ReservationSummary", "MovementRow", "ChangeStockLevelsRequest", "StockAdjustmentRequest", "StockAdjustmentResponse" })
+        {
+            schemas.GetProperty(name).GetProperty("properties").EnumerateObject()
+                .Where(p => !p.Value.TryGetProperty("description", out _)).Select(p => p.Name).ShouldBeEmpty($"every field of {name} is described");
         }
 
         var search = paths.GetProperty("/api/v1/inventory/parts").GetProperty("get");
