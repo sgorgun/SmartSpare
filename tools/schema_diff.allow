@@ -79,3 +79,9 @@
 -CREATE VIEW mart\.v_data_quality AS WITH ledger AS .*'expired soft reservations still active'::text AS check_name, \( SELECT count\(\*\) AS count FROM inventory\.stock_reservation WHERE .*\) AS failed_rows;$
 -COMMENT ON VIEW mart\.v_data_quality IS 'Automated reconciliation checks \(ledger vs\. balance, reservations, PO totals, odometer, duplicates\)\. Expected: all failed_rows = 0\.';
 +COMMENT ON VIEW mart\.v_data_quality IS 'Automated reconciliation checks \(ledger vs\. balance, reservations, PO totals, odometer, duplicates, parked outbox events\)\. Expected: all failed_rows = 0\.';
+
+# PR 6b (STAGE_6_PLAN F3): OEM calendar interval of a maintenance plan, due by engine hours or calendar, whichever comes
+# first (Fleet migration FleetAggregatesAndCalendarIntervals).
+-CREATE TABLE fleet\.maintenance_plan \( id integer NOT NULL, model_id integer NOT NULL, interval_hours integer NOT NULL, name character varying\(120\) NOT NULL, is_active boolean DEFAULT true NOT NULL, CONSTRAINT
++CREATE TABLE fleet\.maintenance_plan \( id integer NOT NULL, model_id integer NOT NULL, interval_hours integer NOT NULL, name character varying\(120\) NOT NULL, is_active boolean DEFAULT true NOT NULL, interval_months smallint, .*CONSTRAINT ck_maintenance_plan_interval_months CHECK
++COMMENT ON COLUMN fleet\.maintenance_plan\.interval_months IS

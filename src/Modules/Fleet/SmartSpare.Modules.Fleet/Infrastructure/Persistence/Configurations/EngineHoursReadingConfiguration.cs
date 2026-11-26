@@ -1,9 +1,10 @@
 using Microsoft.EntityFrameworkCore;
+using SmartSpare.Modules.Fleet.Domain.Machines;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace SmartSpare.Modules.Fleet.Infrastructure.Persistence.Configurations;
 
-/// <summary><c>fleet.engine_hours_reading</c> as created by V016 (names, types, constraints and comments unchanged).</summary>
+/// <summary><c>fleet.engine_hours_reading</c> mapped onto the append-only <see cref="EngineHoursReading"/> (V016 unchanged; ADR 0013).</summary>
 internal sealed class EngineHoursReadingConfiguration : IEntityTypeConfiguration<EngineHoursReading>
 {
     public void Configure(EntityTypeBuilder<EngineHoursReading> builder)

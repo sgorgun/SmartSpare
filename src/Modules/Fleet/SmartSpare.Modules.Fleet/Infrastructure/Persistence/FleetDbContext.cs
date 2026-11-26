@@ -1,3 +1,5 @@
+using SmartSpare.Modules.Fleet.Domain.Machines;
+using SmartSpare.Modules.Fleet.Domain.ServiceOrders;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Conventions;
 using SmartSpare.Infrastructure.Messaging.Outbox;
