@@ -1,0 +1,20 @@
+# Added over config.yaml by the AppHost when it has GrafanaCloud:OtlpEndpoint, GrafanaCloud:InstanceId and
+# GrafanaCloud:Token (STAGE_4_PLAN 4j, 6.1): every signal also goes to the Grafana Cloud stack, so its dashboards and
+# alert rules see the local services topology. The collector merges the files; lists are replaced, not appended, so
+# each pipeline lists all of its exporters again.
+exporters:
+  otlphttp/grafanacloud:
+    # https://otlp-gateway-<region>.grafana.net/otlp; the exporter appends /v1/traces, /v1/metrics and /v1/logs.
+    endpoint: ${env:GRAFANA_CLOUD_OTLP_ENDPOINT}
+    headers:
+      # "Basic <base64 of instance id:token>", built by the AppHost from its user secrets.
+      Authorization: ${env:GRAFANA_CLOUD_OTLP_AUTHORIZATION}
+
+service:
+  pipelines:
+    metrics:
+      exporters: [otlphttp/prometheus, otlp/aspire, otlphttp/grafanacloud]
+    logs:
+      exporters: [otlphttp/loki, otlp/aspire, otlphttp/grafanacloud]
+    traces:
+      exporters: [otlp/tempo, otlp/aspire, otlphttp/grafanacloud]
