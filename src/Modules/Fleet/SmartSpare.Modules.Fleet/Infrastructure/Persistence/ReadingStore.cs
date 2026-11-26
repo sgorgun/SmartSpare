@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using SmartSpare.Modules.Fleet.Domain.Machines;
+using SmartSpare.Modules.Fleet.Domain.ServiceOrders;
 
 namespace SmartSpare.Modules.Fleet.Infrastructure.Persistence;
 
@@ -40,6 +41,11 @@ internal sealed class ReadingStore(FleetDbContext db)
                 new NpgsqlParameter<decimal>("hours", hours),
                 new NpgsqlParameter<DateTimeOffset>("read_at", readAt),
                 new NpgsqlParameter<string>("source", SqlName(source)))
+            .ToListAsync(cancellationToken).ConfigureAwait(false);
+
+    /// <summary>The drafted orders with their kit lines, for <c>ServiceOrderDrafted</c>.</summary>
+    public async Task<IReadOnlyList<ServiceOrder>> OrdersAsync(IReadOnlyCollection<long> orderIds, CancellationToken cancellationToken) =>
+        await db.Set<ServiceOrder>().AsNoTracking().Include(o => o.Lines).Where(o => orderIds.Contains(o.Id)).OrderBy(o => o.Id)
             .ToListAsync(cancellationToken).ConfigureAwait(false);
 
     private static string SqlName(ReadingSource source) => source switch

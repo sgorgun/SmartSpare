@@ -15,7 +15,7 @@ public sealed class EventContractTests
     private static readonly Guid Planner = Guid.Parse("6f1c2a9e-3b7d-4c11-9a52-0d8e4b7f3a21");
 
     public static TheoryData<string> EventTypes =>
-        [nameof(TransferApproved), nameof(TransferCancelled), nameof(TransferRejected), nameof(PartCatalogChanged)];
+        [nameof(TransferApproved), nameof(TransferCancelled), nameof(TransferRejected), nameof(PartCatalogChanged), nameof(ServiceKitReserved)];
 
     [Fact]
     public void TransferApproved_round_trips_through_the_outbox_with_a_stable_shape()
@@ -69,6 +69,22 @@ public sealed class EventContractTests
         PropertyNames(json.GetProperty("parts")[0]).ShouldBe(
             ["partId", "brandCode", "oemPartNumber", "description", "unitOfMeasure", "isActive"], ignoreOrder: true);
         PartCatalogChanged.MaxParts.ShouldBe(500, "40 messages for a 20,000-part import (ADR 0017 §5)");
+    }
+
+    [Fact]
+    public void ServiceKitReserved_round_trips_with_its_lines_and_actor()
+    {
+        var sent = new ServiceKitReserved(9001, [new ReservedKitLine(71, 1), new ReservedKitLine(72, 12.5m)], FullyReserved: false, At.AddDays(7), Planner)
+        { OccurredAt = At };
+
+        var (received, json) = RoundTrip(sent);
+
+        var reserved = received.ShouldBeOfType<ServiceKitReserved>();
+        (reserved with { Lines = sent.Lines }).ShouldBe(sent);
+        reserved.Lines.ShouldBe(sent.Lines);
+        PropertyNames(json).ShouldBe(["id", "occurredAt", "serviceOrderId", "lines", "fullyReserved", "expiresAt", "actorId"], ignoreOrder: true);
+        json.GetProperty("lines")[1].GetProperty("reservedQty").GetDecimal().ShouldBe(12.5m);
+        reserved.ShouldBeAssignableTo<SmartSpare.SharedKernel.IActedByUser>()!.ActorId.ShouldBe(Planner);
     }
 
     [Theory]

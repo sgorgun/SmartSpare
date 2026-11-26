@@ -68,6 +68,9 @@ internal sealed class ServiceOrderLine : Entity<long>
         return Result.Success();
     }
 
+    /// <summary>Stores what Inventory holds for the line, never more than is still to be issued.</summary>
+    internal void ApplyReserved(decimal quantity) => QtyReserved = Math.Clamp(quantity, 0, QtyOpen);
+
     /// <summary>Positive, at most three decimals, within <c>numeric(12,3)</c>.</summary>
     public static bool IsValidQuantity(decimal quantity) =>
         quantity is > 0 and <= MaxQuantity && decimal.Round(quantity, 3) == quantity;

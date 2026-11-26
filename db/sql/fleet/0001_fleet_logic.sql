@@ -4,7 +4,8 @@
 -- uq_customer_erp_ref_hash is created here: it is a UNIQUE constraint on a nullable column, which
 -- EF cannot model as an alternate key. fleet.v_machine_maintenance_status is module-local since stage 6 (X10);
 -- fleet.v_service_kit_shortage too (X9), created in 0005 after its column. The transitional draft, completion and
--- cancellation keep Fleet's copy service_order_line.qty_reserved current until the event flow replaces them (6g2, 6h).
+-- cancellation keep Fleet's copy service_order_line.qty_reserved current until the event flow replaces them (6h);
+-- drafting is module-local since 6g2.
 -- =============================================================================
 
 COMMENT ON SCHEMA fleet       IS 'Core layer / Fleet & Maintenance module: machines, engine hours, maintenance plans, service orders.';
@@ -142,8 +143,9 @@ LEFT JOIN LATERAL (SELECT * FROM fleet.fn_maintenance_due(m.id, 1000000) LIMIT 1
 WHERE m.status = 'active';
 COMMENT ON VIEW fleet.v_machine_maintenance_status IS 'Machine card (WF03): current engine hours and the next not yet planned OEM service.';
 
--- TRANSITIONAL: replaced by ServiceOrderDrafted -> ServiceKitReserved in stage 6, #12 (writes inventory.stock_reservation; MODULE_MAPPING 3.1 X6)
--- US06 / UC02 steps 5-7: service order draft with kit and 7-day soft reservations.
+-- US06 / UC02 steps 5-6: service order draft with the plan's kit. Module-local since stage 6 (PR 6g2, MODULE_MAPPING
+-- X6): the caller publishes ServiceOrderDrafted, Inventory reserves the kit (inventory.reserve_service_kit) and answers
+-- with ServiceKitReserved, which sets qty_reserved and parts_reserved. The order starts as a draft without holds.
 CREATE FUNCTION fleet.create_service_order_draft(p_machine_id bigint, p_plan_id integer, p_due_engine_hours numeric)
 RETURNS bigint
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
@@ -152,11 +154,6 @@ DECLARE
     v_wh      smallint;
     v_hours   numeric;
     v_so      bigint;
-    v_line    record;
-    v_avail   numeric;
-    v_qty     numeric;
-    v_all     boolean := true;
-    v_lines   integer := 0;
 BEGIN
     SELECT home_warehouse_id, current_engine_hours INTO v_wh, v_hours
     FROM fleet.machine WHERE id = p_machine_id;
@@ -169,25 +166,6 @@ BEGIN
     SELECT v_so, k.part_id, k.quantity
     FROM fleet.maintenance_plan_part k WHERE k.maintenance_plan_id = p_plan_id;
 
-    FOR v_line IN
-        SELECT l.id, l.part_id, l.qty_required FROM fleet.service_order_line l
-        WHERE l.service_order_id = v_so ORDER BY l.part_id
-    LOOP
-        v_lines := v_lines + 1;
-        SELECT b.available_qty INTO v_avail FROM inventory.stock_balance b
-        WHERE b.warehouse_id = v_wh AND b.part_id = v_line.part_id FOR UPDATE;
-        v_qty := least(coalesce(v_avail, 0), v_line.qty_required);
-        IF v_qty > 0 THEN
-            INSERT INTO inventory.stock_reservation (warehouse_id, part_id, quantity, status, expires_at, service_order_line_id, created_by)
-            VALUES (v_wh, v_line.part_id, v_qty, 'soft', now() + interval '7 days', v_line.id, v_user);
-            UPDATE fleet.service_order_line SET qty_reserved = v_qty WHERE id = v_line.id;   -- Fleet's copy (stage 6)
-        END IF;
-        IF v_qty < v_line.qty_required THEN v_all := false; END IF;   -- shortage -> visible in fleet.v_service_kit_shortage
-    END LOOP;
-
-    IF v_lines > 0 AND v_all THEN
-        UPDATE fleet.service_order SET status = 'parts_reserved' WHERE id = v_so;
-    END IF;
     RETURN v_so;
 END $$;
 
@@ -215,7 +193,7 @@ BEGIN
             FROM fleet.service_order so WHERE so.id = v_so;
     END LOOP;
 END $$;
-COMMENT ON FUNCTION fleet.log_engine_hours(bigint, numeric, timestamptz, fleet.reading_source) IS 'UC02: validates and stores a reading, then drafts service orders with soft-reserved kits for every plan due within 50 h. Atomic.';
+COMMENT ON FUNCTION fleet.log_engine_hours(bigint, numeric, timestamptz, fleet.reading_source) IS 'UC02: validates and stores a reading, then drafts service orders with their kits for every plan due within 50 h (Inventory reserves the kits on ServiceOrderDrafted). Atomic.';
 
 CREATE FUNCTION fleet.trg_service_order_status_guard() RETURNS trigger
 LANGUAGE plpgsql AS $$

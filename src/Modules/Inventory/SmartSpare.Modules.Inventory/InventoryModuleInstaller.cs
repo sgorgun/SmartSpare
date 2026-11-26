@@ -40,6 +40,7 @@ public sealed class InventoryModuleInstaller : IModuleInstaller
         services.AddScoped<TransferDetailsReader>();
         services.AddScoped<TransferFunctions>();
         services.AddScoped<ImportStore>();
+        services.AddScoped<ServiceKitStore>();
         services.AddImportRateLimit();
         services.AddJob<PartCatalogPublishJob>();
         InventoryDatabase.Instance.AddTo(services, assembly, configuration.GetConnectionString(PersistenceRegistration.ConnectionStringName), InventoryDbContext.HistorySchema);

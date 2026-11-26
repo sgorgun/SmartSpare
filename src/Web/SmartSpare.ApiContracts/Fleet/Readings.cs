@@ -16,7 +16,7 @@ public sealed record DraftedServiceOrder(
     [property: Description("Service order id.")] long Id,
     [property: Description("Service order number, SO-YYYY-NNNNNN.")] string Number,
     [property: Description("Engine-hour threshold the planned service covers.")] decimal DueEngineHours,
-    [property: Description("Whether the whole kit could be reserved at the machine's home hub.")] bool FullyReserved);
+    [property: Description("Whether the whole kit is reserved. Always false when the order is drafted: Inventory reserves the kit right after, asynchronously (ServiceKitReserved), and the service order then shows the held quantities.")] bool FullyReserved);
 
 /// <summary>The outcome of recording a reading.</summary>
 [Description("The stored reading, the machine's engine hours and the service orders the reading drafted.")]

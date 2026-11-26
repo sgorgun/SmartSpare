@@ -56,3 +56,19 @@ public sealed record PartCatalogChanged(IReadOnlyList<PartSnapshot> Parts) : Int
 {
     public const int MaxParts = 500;
 }
+
+/// <summary>The quantity Inventory holds for one service order line.</summary>
+public sealed record ReservedKitLine(long LineId, decimal ReservedQty);
+
+/// <summary>
+/// The kit of a drafted service order was soft-reserved, partially if stock is short (STAGE_6_PLAN 5.3, 5.7; MODULE_MAPPING
+/// X6). Fleet stores the per-line quantity as its <c>qty_reserved</c> copy and moves a fully reserved order to
+/// <c>parts_reserved</c>. Published by Inventory's consumer of <c>ServiceOrderDrafted</c> from PR 6g2. Handled as
+/// <see cref="ActorId"/>, the user who drafted the order.
+/// </summary>
+public sealed record ServiceKitReserved(
+    long ServiceOrderId,
+    IReadOnlyList<ReservedKitLine> Lines,
+    bool FullyReserved,
+    DateTimeOffset ExpiresAt,
+    Guid ActorId) : IntegrationEvent, IActedByUser;

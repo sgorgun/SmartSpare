@@ -489,7 +489,7 @@ CREATE FUNCTION pg_temp.t001_act_as(p_user uuid) RETURNS void LANGUAGE sql AS $$
            set_config('app.home_warehouse_id', coalesce((SELECT home_warehouse_id::text FROM iam.app_user WHERE id = p_user), ''), false);
 $$;
 
--- UC02: Mantas logs 512 h on the Lexion -> 500 h service drafted, kit soft-reserved at Panevėžys
+-- UC02: Mantas logs 512 h on the Lexion -> 500 h service drafted (its kit is soft-reserved at Panevėžys below)
 SELECT pg_temp.t001_act_as('00000000-0000-4000-8000-000000000004');
 SELECT * FROM fleet.log_engine_hours((SELECT id FROM fleet.machine WHERE vin = 'LX901PNV2026'), 512, now() - interval '3 hours');
 
@@ -501,6 +501,29 @@ FROM (SELECT m.id, m.current_engine_hours FROM fleet.machine m
       JOIN ref.machine_type t ON t.id = mm.machine_type_id AND t.code IN ('TRACTOR', 'COMBINE')
       WHERE m.vin <> 'LX901PNV2026' ORDER BY m.id LIMIT 60) x
 CROSS JOIN LATERAL fleet.log_engine_hours(x.id, x.current_engine_hours + 30 + (x.id % 5) * 45, now() - interval '1 day') so;
+
+-- Inventory reserves the drafted kits as its consumer of ServiceOrderDrafted does (STAGE_6_PLAN 5.3, PR 6g2): soft holds
+-- for 7 days via inventory.reserve_service_kit, then Fleet stores the held quantity and moves full kits to parts_reserved,
+-- as its consumer of ServiceKitReserved does. The events themselves are not replayed by this SQL script.
+DO $$
+DECLARE
+    v_so record;
+BEGIN
+    FOR v_so IN SELECT so.id, so.warehouse_id FROM fleet.service_order so WHERE so.status = 'draft' ORDER BY so.id LOOP
+        UPDATE fleet.service_order_line l SET qty_reserved = k.reserved_qty
+        FROM inventory.reserve_service_kit(
+                 v_so.warehouse_id,
+                 (SELECT array_agg(id ORDER BY part_id) FROM fleet.service_order_line WHERE service_order_id = v_so.id),
+                 (SELECT array_agg(part_id ORDER BY part_id) FROM fleet.service_order_line WHERE service_order_id = v_so.id),
+                 (SELECT array_agg(qty_required ORDER BY part_id) FROM fleet.service_order_line WHERE service_order_id = v_so.id),
+                 now() + interval '7 days') k
+        WHERE l.id = k.service_order_line_id;
+        UPDATE fleet.service_order SET status = 'parts_reserved'
+        WHERE id = v_so.id
+          AND EXISTS (SELECT 1 FROM fleet.service_order_line WHERE service_order_id = v_so.id)
+          AND NOT EXISTS (SELECT 1 FROM fleet.service_order_line WHERE service_order_id = v_so.id AND qty_reserved < qty_required);
+    END LOOP;
+END $$;
 
 -- Complete 10 service orders (parts issued -> ISSUE_SERVICE demand)
 SELECT fleet.complete_service_order(so.id, m.current_engine_hours)

@@ -181,6 +181,35 @@ internal sealed class ServiceOrder : AggregateRoot<long>
         return Result.Success();
     }
 
+    /// <summary>
+    /// Inventory reserved the kit (<c>ServiceKitReserved</c>, STAGE_6_PLAN 5.3): stores the held quantity per line and moves
+    /// a draft whose every line is fully held to parts reserved. A reservation that arrives after the order was completed or
+    /// cancelled is ignored (returns false); Inventory's holds of such an order are released by their expiry (5.5).
+    /// </summary>
+    public bool ApplyKitReserved(IReadOnlyDictionary<long, decimal> reservedByLine)
+    {
+        ArgumentNullException.ThrowIfNull(reservedByLine);
+        if (!IsOpen)
+        {
+            return false;
+        }
+
+        foreach (var line in _lines)
+        {
+            if (reservedByLine.TryGetValue(line.Id, out var quantity))
+            {
+                line.ApplyReserved(quantity);
+            }
+        }
+
+        if (Status == ServiceOrderStatus.Draft && _lines.Count > 0 && _lines.TrueForAll(l => l.QtyMissing == 0))
+        {
+            Status = ServiceOrderStatus.PartsReserved;
+        }
+
+        return true;
+    }
+
     /// <summary>The engineer starts the work.</summary>
     public Result Start()
     {

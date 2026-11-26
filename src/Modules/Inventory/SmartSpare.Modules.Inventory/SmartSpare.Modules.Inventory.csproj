@@ -10,6 +10,8 @@
     <ProjectReference Include="..\SmartSpare.Modules.Inventory.Contracts\SmartSpare.Modules.Inventory.Contracts.csproj" />
     <!-- Consumes Identity's diagnostics probe (STAGE_4_PLAN 5.3); modules may reference other modules' Contracts. -->
     <ProjectReference Include="..\..\Identity\SmartSpare.Modules.Identity.Contracts\SmartSpare.Modules.Identity.Contracts.csproj" />
+    <!-- Reserves service kits for Fleet's drafted orders (STAGE_6_PLAN 5.3). -->
+    <ProjectReference Include="..\..\Fleet\SmartSpare.Modules.Fleet.Contracts\SmartSpare.Modules.Fleet.Contracts.csproj" />
   </ItemGroup>
 
 </Project>

@@ -41,7 +41,7 @@ public static class IntegrationEventDelivery
     /// <param name="integrationEvent">The deserialized event.</param>
     /// <param name="messageId">The outbox id of the event; the inbox key together with the consumer name.</param>
     /// <param name="cancellationToken">Cancels the delivery; the transaction rolls back.</param>
-    public static Task<bool> DeliverAsync(
+    public static async Task<bool> DeliverAsync(
         IServiceProvider scopedServices, UnitOfWorkRegistry registry, object consumer, IIntegrationEvent integrationEvent,
         Guid messageId, CancellationToken cancellationToken)
     {
@@ -56,7 +56,13 @@ public static class IntegrationEventDelivery
             .GetMethod(nameof(IIntegrationEventConsumer<IIntegrationEvent>.Handle))!;
         var unitOfWork = registry.Resolve(consumerType.Assembly, scopedServices);
 
-        return unitOfWork.ExecuteInTransactionAsync(async ct =>
+        // An event caused by a user is handled as that user (STAGE_6_PLAN 5.5): set before the transaction starts, because
+        // SessionContextInterceptor writes the session context when it does. Ended after this consumer's delivery.
+        using var actingAs = integrationEvent is IActedByUser acted && scopedServices.GetService(typeof(ActingUser)) is ActingUser acting
+            ? acting.ActAs(acted.ActorId, "event:" + integrationEvent.GetType().Name)
+            : null;
+
+        return await unitOfWork.ExecuteInTransactionAsync(async ct =>
         {
             if (!await unitOfWork.TryAcceptInboxMessageAsync(messageId, name, ct).ConfigureAwait(false))
             {
@@ -73,6 +79,6 @@ public static class IntegrationEventDelivery
             }
 
             return true;
-        }, _ => true, cancellationToken);
+        }, _ => true, cancellationToken).ConfigureAwait(false);
     }
 }
