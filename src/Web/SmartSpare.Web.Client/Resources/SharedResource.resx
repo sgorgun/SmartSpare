@@ -157,6 +157,147 @@
     <value>Loading parts…</value>
   </data>
   <data name="Inventory.MoreInStage" xml:space="preserve">
-    <value>Stock movements, transfers and data import arrive in stage {0} of the work plan.</value>
+    <value>Transfers and data import follow in stage {0} of the work plan.</value>
+  </data>
+  <data name="Inventory.Pages" xml:space="preserve">
+    <value>Inventory pages</value>
+  </data>
+  <data name="Inventory.Tab.Parts" xml:space="preserve">
+    <value>Parts</value>
+  </data>
+  <data name="Inventory.Tab.Stock" xml:space="preserve">
+    <value>Stock</value>
+  </data>
+  <data name="Stock.Title" xml:space="preserve">
+    <value>Stock overview</value>
+  </data>
+  <data name="Stock.Hub" xml:space="preserve">
+    <value>Hub</value>
+  </data>
+  <data name="Stock.AllHubs" xml:space="preserve">
+    <value>All hubs</value>
+  </data>
+  <data name="Stock.Status" xml:space="preserve">
+    <value>Status</value>
+  </data>
+  <data name="Stock.AllStatuses" xml:space="preserve">
+    <value>All statuses</value>
+  </data>
+  <data name="Stock.OnHand" xml:space="preserve">
+    <value>On hand</value>
+  </data>
+  <data name="Stock.Reserved" xml:space="preserve">
+    <value>Reserved</value>
+  </data>
+  <data name="Stock.Available" xml:space="preserve">
+    <value>Available</value>
+  </data>
+  <data name="Stock.Safety" xml:space="preserve">
+    <value>Safety stock</value>
+  </data>
+  <data name="Stock.Max" xml:space="preserve">
+    <value>Maximum stock</value>
+  </data>
+  <data name="Stock.InTransit" xml:space="preserve">
+    <value>In transit</value>
+  </data>
+  <data name="Stock.None" xml:space="preserve">
+    <value>No stock matches the filters.</value>
+  </data>
+  <data name="Stock.Unavailable" xml:space="preserve">
+    <value>The stock could not be loaded.</value>
+  </data>
+  <data name="Stock.Loading" xml:space="preserve">
+    <value>Loading stock…</value>
+  </data>
+  <data name="Stock.Open" xml:space="preserve">
+    <value>Open</value>
+  </data>
+  <data name="Stock.OpenPosition" xml:space="preserve">
+    <value>Open {0} at {1}</value>
+  </data>
+  <data name="StockStatus.out" xml:space="preserve">
+    <value>Out of stock</value>
+  </data>
+  <data name="StockStatus.belowSafety" xml:space="preserve">
+    <value>Below safety stock</value>
+  </data>
+  <data name="StockStatus.ok" xml:space="preserve">
+    <value>OK</value>
+  </data>
+  <data name="StockStatus.aboveMax" xml:space="preserve">
+    <value>Above maximum</value>
+  </data>
+  <data name="Reservation.soft" xml:space="preserve">
+    <value>Soft hold</value>
+  </data>
+  <data name="Reservation.firm" xml:space="preserve">
+    <value>Firm hold</value>
+  </data>
+  <data name="Position.Title" xml:space="preserve">
+    <value>Stock position</value>
+  </data>
+  <data name="Position.Loading" xml:space="preserve">
+    <value>Loading the stock position…</value>
+  </data>
+  <data name="Position.Bin" xml:space="preserve">
+    <value>bin</value>
+  </data>
+  <data name="Position.Levels" xml:space="preserve">
+    <value>Stock levels</value>
+  </data>
+  <data name="Position.MaxHelp" xml:space="preserve">
+    <value>Leave empty for no maximum.</value>
+  </data>
+  <data name="Position.SaveLevels" xml:space="preserve">
+    <value>Save levels</value>
+  </data>
+  <data name="Position.LevelsSaved" xml:space="preserve">
+    <value>The stock levels were saved.</value>
+  </data>
+  <data name="Position.Adjust" xml:space="preserve">
+    <value>Stock count correction</value>
+  </data>
+  <data name="Position.AdjustQuantity" xml:space="preserve">
+    <value>Correction</value>
+  </data>
+  <data name="Position.AdjustHelp" xml:space="preserve">
+    <value>Positive for a surplus, negative for a shortage or scrap.</value>
+  </data>
+  <data name="Position.AdjustNote" xml:space="preserve">
+    <value>Reason</value>
+  </data>
+  <data name="Position.Post" xml:space="preserve">
+    <value>Post correction</value>
+  </data>
+  <data name="Position.Posted" xml:space="preserve">
+    <value>The correction was posted.</value>
+  </data>
+  <data name="Position.Reservations" xml:space="preserve">
+    <value>Open reservations</value>
+  </data>
+  <data name="Position.NoReservations" xml:space="preserve">
+    <value>Nothing is reserved.</value>
+  </data>
+  <data name="Position.Movements" xml:space="preserve">
+    <value>Latest movements</value>
+  </data>
+  <data name="Position.NoMovements" xml:space="preserve">
+    <value>No movements yet.</value>
+  </data>
+  <data name="Position.Document" xml:space="preserve">
+    <value>Document</value>
+  </data>
+  <data name="Position.Quantity" xml:space="preserve">
+    <value>Quantity</value>
+  </data>
+  <data name="Position.When" xml:space="preserve">
+    <value>When</value>
+  </data>
+  <data name="Position.Type" xml:space="preserve">
+    <value>Type</value>
+  </data>
+  <data name="Position.ServiceOrderLine" xml:space="preserve">
+    <value>Service order line {0}</value>
   </data>
 </root>

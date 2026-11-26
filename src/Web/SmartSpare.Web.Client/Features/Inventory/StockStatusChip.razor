@@ -1,0 +1,26 @@
+@using SmartSpare.ApiContracts.Inventory
+@inject IStringLocalizer<SharedResource> Text
+
+@* A stock status with its icon and text, never colour alone (WCAG 2.1 AA). *@
+<StatusChip Label="@Text["StockStatus." + Status]" Icon="@Icon" Color="@Color" />
+
+@code {
+    [Parameter, EditorRequired]
+    public string Status { get; set; } = StockStatuses.Ok;
+
+    private string Icon => Status switch
+    {
+        StockStatuses.Out => Icons.Material.Filled.RemoveShoppingCart,
+        StockStatuses.BelowSafety => Icons.Material.Filled.Warning,
+        StockStatuses.AboveMax => Icons.Material.Filled.Inventory,
+        _ => Icons.Material.Filled.CheckCircle,
+    };
+
+    private Color Color => Status switch
+    {
+        StockStatuses.Out => Color.Error,
+        StockStatuses.BelowSafety => Color.Warning,
+        StockStatuses.AboveMax => Color.Info,
+        _ => Color.Success,
+    };
+}
