@@ -135,20 +135,7 @@ public sealed class TopologyTests(TopologyFixture topology)
         }
     }
 
-    private async Task<HttpClient> SignInAsync(string userName)
-    {
-        var client = new HttpClient(new CookieContainerHandler(topology.Gateway.Server.CreateHandler())) { BaseAddress = new Uri("https://localhost") };
-        var token = (await client.GetFromJsonAsync<AntiforgeryTokenResponse>(new Uri("/bff/antiforgery", UriKind.Relative), Ct))!;
-        client.DefaultRequestHeaders.Add(token.HeaderName, token.RequestToken);
-        using var login = await client.PostAsJsonAsync(new Uri("/bff/login", UriKind.Relative), new LoginRequest(userName, TopologyFixture.Password, false), Ct);
-        login.StatusCode.ShouldBe(HttpStatusCode.NoContent);
-
-        // The token is bound to the user, so a signed-in client fetches a new one, as the web client does.
-        var signedIn = (await client.GetFromJsonAsync<AntiforgeryTokenResponse>(new Uri("/bff/antiforgery", UriKind.Relative), Ct))!;
-        client.DefaultRequestHeaders.Remove(signedIn.HeaderName);
-        client.DefaultRequestHeaders.Add(signedIn.HeaderName, signedIn.RequestToken);
-        return client;
-    }
+    private Task<HttpClient> SignInAsync(string userName) => topology.SignInAsync(userName);
 
     private sealed record ProbeResponse(Guid ProbeId);
 

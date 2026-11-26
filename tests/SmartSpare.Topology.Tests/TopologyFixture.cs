@@ -4,6 +4,7 @@ extern alias runner;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
+using System.Net.Http.Json;
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
@@ -13,8 +14,11 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Npgsql;
+using SmartSpare.ApiContracts.Identity;
 using SmartSpare.Infrastructure.Security;
 using SmartSpare.Modules.Identity;
+using SmartSpare.Modules.Inventory.Contracts;
+using SmartSpare.Services.Fleet;
 using SmartSpare.Services.Identity;
 using SmartSpare.Services.Inventory;
 using Testcontainers.PostgreSql;
@@ -58,6 +62,8 @@ public sealed class TopologyFixture : IAsyncLifetime
 
     public ServiceFactory<InventoryService> Inventory { get; private set; } = null!;
 
+    public ServiceFactory<FleetService> Fleet { get; private set; } = null!;
+
     public GatewayFactory Gateway { get; private set; } = null!;
 
     public async ValueTask InitializeAsync()
@@ -73,6 +79,7 @@ public sealed class TopologyFixture : IAsyncLifetime
             Reporting = NewPassword(),
             Identity = NewPassword(),
             Inventory = NewPassword(),
+            Fleet = NewPassword(),
         };
         var options = new MigrationRunnerOptions { AdminConnectionString = _postgres.GetConnectionString(), Passwords = passwords };
         await new DatabaseMigrator(options, SmartSpare.ModuleCatalog.ModuleCatalog.Databases(), NullLogger<DatabaseMigrator>.Instance).RunAsync(Ct);
@@ -81,16 +88,22 @@ public sealed class TopologyFixture : IAsyncLifetime
         // Each service on its own login (ADR 0015 §5): the tests also prove those logins' privileges are enough.
         Identity = new ServiceFactory<IdentityService>(Login("smartspare_identity", passwords.Identity!), _rabbit.GetConnectionString());
         Inventory = new ServiceFactory<InventoryService>(Login("smartspare_inventory", passwords.Inventory!), _rabbit.GetConnectionString());
+
+        // Fleet asks Inventory for hub codes over /internal/v1 (IWarehouseQueries): here the in-memory Inventory host.
+        Fleet = new ServiceFactory<FleetService>(Login("smartspare_fleet", passwords.Fleet!), _rabbit.GetConnectionString(), services =>
+            services.AddHttpClient<IWarehouseQueries, HttpWarehouseQueries>().ConfigurePrimaryHttpMessageHandler(() => Inventory.Server.CreateHandler()));
         Gateway = new GatewayFactory(this);
 
-        // Start both services, so Inventory's queue exists before anything is published.
+        // Start every service, so each consumer's queue exists before anything is published.
         _ = Identity.Server;
         _ = Inventory.Server;
+        _ = Fleet.Server;
     }
 
     public async ValueTask DisposeAsync()
     {
         await Gateway.DisposeAsync();
+        await Fleet.DisposeAsync();
         await Inventory.DisposeAsync();
         await Identity.DisposeAsync();
         _listener.Dispose();
@@ -118,6 +131,22 @@ public sealed class TopologyFixture : IAsyncLifetime
         command.Parameters.AddWithValue("roles", roles);
         await command.ExecuteNonQueryAsync(Ct);
         return id;
+    }
+
+    /// <summary>A browser signed in through the gateway, with the antiforgery header of the signed-in user.</summary>
+    public async Task<HttpClient> SignInAsync(string userName)
+    {
+        var client = new HttpClient(new CookieContainerHandler(Gateway.Server.CreateHandler())) { BaseAddress = new Uri("https://localhost") };
+        var token = (await client.GetFromJsonAsync<AntiforgeryTokenResponse>(new Uri("/bff/antiforgery", UriKind.Relative), Ct))!;
+        client.DefaultRequestHeaders.Add(token.HeaderName, token.RequestToken);
+        using var login = await client.PostAsJsonAsync(new Uri("/bff/login", UriKind.Relative), new LoginRequest(userName, Password, false), Ct);
+        login.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+
+        // The token is bound to the user, so a signed-in client fetches a new one, as the web client does.
+        var signedIn = (await client.GetFromJsonAsync<AntiforgeryTokenResponse>(new Uri("/bff/antiforgery", UriKind.Relative), Ct))!;
+        client.DefaultRequestHeaders.Remove(signedIn.HeaderName);
+        client.DefaultRequestHeaders.Add(signedIn.HeaderName, signedIn.RequestToken);
+        return client;
     }
 
     public async Task<T?> ScalarAsync<T>(string sql, params (string Name, object Value)[] parameters)
@@ -155,7 +184,8 @@ public sealed class TopologyFixture : IAsyncLifetime
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     /// <summary>A service host with only the public JWKS, its own login and the real broker.</summary>
-    public sealed class ServiceFactory<TEntryPoint>(string connectionString, string broker) : WebApplicationFactory<TEntryPoint>
+    public sealed class ServiceFactory<TEntryPoint>(string connectionString, string broker, Action<IServiceCollection>? testServices = null)
+        : WebApplicationFactory<TEntryPoint>
         where TEntryPoint : class
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -163,10 +193,14 @@ public sealed class TopologyFixture : IAsyncLifetime
             builder.UseSetting($"{InternalTokenOptions.SectionName}:{nameof(InternalTokenOptions.Jwks)}", PublicJwks());
             builder.UseSetting("ConnectionStrings:smartspare", connectionString);
             builder.UseSetting("ConnectionStrings:messaging", broker);
+            if (testServices is not null)
+            {
+                builder.ConfigureTestServices(testServices);
+            }
         }
     }
 
-    /// <summary>The gateway; <c>identity</c> and <c>inventory</c> are the real service hosts, every other service answers 503.</summary>
+    /// <summary>The gateway; <c>identity</c>, <c>inventory</c> and <c>fleet</c> are the real service hosts, every other service answers 503.</summary>
     public sealed class GatewayFactory(TopologyFixture topology) : WebApplicationFactory<GatewayProgram>
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -204,6 +238,7 @@ public sealed class TopologyFixture : IAsyncLifetime
             {
                 "identity" => topology.Identity.Server.CreateHandler(),
                 "inventory" => topology.Inventory.Server.CreateHandler(),
+                "fleet" => topology.Fleet.Server.CreateHandler(),
                 _ => null,
             };
             return target is null
