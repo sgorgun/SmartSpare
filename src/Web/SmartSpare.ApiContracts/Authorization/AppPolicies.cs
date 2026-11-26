@@ -26,6 +26,7 @@ public static class AppPolicies
     public const string ReadAudit = nameof(ReadAudit);
     public const string ReadInventory = nameof(ReadInventory);
     public const string ImportData = nameof(ImportData);
+    public const string ReadFleet = nameof(ReadFleet);
 
     /// <summary>The roles each policy allows: the table of STAGE_3_PLAN section 3.2.</summary>
     public static IReadOnlyDictionary<string, IReadOnlyList<string>> Roles { get; } = new Dictionary<string, IReadOnlyList<string>>
@@ -50,6 +51,10 @@ public static class AppPolicies
         // works with parts and stock: planners and managers plan, keepers move, engineers fit parts, sponsors approve
         // purchases, administrators support. A user without any role is still refused.
         [ReadInventory] = AppRoles.All,
+
+        // Fleet reads (STAGE_6_PLAN 4.2): engineers service the machines, planners see the kit demand, keepers prepare
+        // kits, managers and sponsors follow the fleet, administrators support. Customers are pseudonymous codes.
+        [ReadFleet] = AppRoles.All,
     };
 
     /// <summary>

@@ -2,8 +2,8 @@
 -- Fleet 0001 — engine hours, maintenance due, service orders.
 -- Statements copied verbatim from V001 (schema comment), V006, V011, V012 and V015.
 -- uq_customer_erp_ref_hash is created here: it is a UNIQUE constraint on a nullable column, which
--- EF cannot model as an alternate key. Not here (PR 2d, last Reporting migration): the views
--- fleet.v_machine_maintenance_status and fleet.v_service_kit_shortage, which read inventory.
+-- EF cannot model as an alternate key. fleet.v_machine_maintenance_status is module-local since stage 6 (X10);
+-- fleet.v_service_kit_shortage still reads inventory and is created by the last Reporting migration until PR 6g (X9).
 -- =============================================================================
 
 COMMENT ON SCHEMA fleet       IS 'Core layer / Fleet & Maintenance module: machines, engine hours, maintenance plans, service orders.';
@@ -110,6 +110,36 @@ LANGUAGE sql STABLE AS $$
     ORDER BY d.due - p.current_engine_hours, p.interval_hours DESC
 $$;
 COMMENT ON FUNCTION fleet.fn_maintenance_due(bigint, numeric) IS 'Planned services of a machine due within the horizon (effective interval = OEM interval x condition factor).';
+
+-- Machine card (WF03), module-local since stage 6 (MODULE_MAPPING X10): the home hub as an id, its code is resolved in
+-- C# through Inventory.Contracts.IWarehouseQueries. The API computes the full due calculation in C#
+-- (MaintenanceDueCalculator); this view keeps the SQL answer for reports and ad-hoc queries.
+CREATE VIEW fleet.v_machine_maintenance_status AS
+SELECT m.id                      AS machine_id,
+       m.vin,
+       b.name                    AS brand_name,
+       mm.model_name,
+       mt.code                   AS machine_type_code,
+       c.customer_code,
+       m.home_warehouse_id,
+       oc.code                   AS operating_condition_code,
+       m.current_engine_hours,
+       m.engine_hours_read_at,
+       nd.plan_name              AS next_service,
+       nd.due_engine_hours       AS next_service_due_hours,
+       nd.remaining_hours        AS next_service_remaining_hours,
+       coalesce(nd.is_overdue, false) AS is_overdue,
+       (SELECT count(*) FROM fleet.service_order so
+        WHERE so.machine_id = m.id AND so.status IN ('draft', 'parts_reserved', 'in_progress')) AS open_service_orders
+FROM fleet.machine m
+JOIN fleet.machine_model mm      ON mm.id = m.model_id
+JOIN ref.brand b                 ON b.id = mm.brand_id
+JOIN ref.machine_type mt         ON mt.id = mm.machine_type_id
+JOIN fleet.customer c            ON c.id = m.customer_id
+JOIN ref.operating_condition oc  ON oc.id = m.operating_condition_id
+LEFT JOIN LATERAL (SELECT * FROM fleet.fn_maintenance_due(m.id, 1000000) LIMIT 1) nd ON true
+WHERE m.status = 'active';
+COMMENT ON VIEW fleet.v_machine_maintenance_status IS 'Machine card (WF03): current engine hours and the next not yet planned OEM service.';
 
 -- TRANSITIONAL: replaced by ServiceOrderDrafted -> ServiceKitReserved in stage 6, #12 (writes inventory.stock_reservation; MODULE_MAPPING 3.1 X6)
 -- US06 / UC02 steps 5-7: service order draft with kit and 7-day soft reservations.

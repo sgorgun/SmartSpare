@@ -143,7 +143,7 @@ The hub of a new order is the machine's home hub (validated through `IWarehouseQ
 
 ### 3.3 Queries
 
-`AsNoTracking` projections or raw SQL in `Infrastructure/Queries` (the stage 5 rule). The machine card reads the module-local `fleet.v_machine_maintenance_status` (X10: `home_warehouse_id` instead of the code); hub codes are resolved in C# through `IWarehouseQueries`. Partial-VIN search uses the trigram index `ix_machine_vin_trgm`. Customers are shown by their pseudonymous `customer_code` only (DATABASE_DESIGN 8.5).
+`AsNoTracking` projections or raw SQL in `Infrastructure/Queries` (the stage 5 rule). `fleet.v_machine_maintenance_status` becomes module-local (X10: `home_warehouse_id` instead of the code) and stays for reports; the machine card computes the full due calculation in C# instead. Hub codes are resolved in C# through `IWarehouseQueries`. Lists filter and page the due status in memory after the calculation, which suits the dealer fleet (hundreds of machines, NFR01); a larger fleet would persist the calculated status. Partial-VIN search uses the trigram index `ix_machine_vin_trgm`. Customers are shown by their pseudonymous `customer_code` only (DATABASE_DESIGN 8.5).
 
 ---
 
@@ -296,7 +296,8 @@ Each PR passes the full `tools/check.sh` and `tools/check.sh restore build e2e t
 
 ### 6e: Fleet read API
 **Scope:** machines list and card, readings history, maintenance plans, the due list; `ReadFleet`; module-local `v_machine_maintenance_status` (X10); OpenAPI.
-**Acceptance:** integration tests per endpoint; documentation test; the topology test reaches `/api/v1/fleet/machines` through the gateway.
+**Acceptance:** integration tests per endpoint; documentation test; the gateway route-table test covers `/api/v1/fleet/...`.
+**Moved to 6g (26 November 2026):** the topology test's check that the gateway reaches `/api/v1/fleet/machines`. The topology test starts only the Identity and Inventory services today, so the check would need a Fleet service of its own in 6e; 6g has to add that service anyway for the `ServiceOrderDrafted` → `ServiceKitReserved` round trip over RabbitMQ. Doing both in 6g starts the service once, which also keeps the topology job's memory use down (local checks were stopped twice for low memory). Until then the gateway route-table test covers the Fleet routes.
 
 ### 6f: Engine-hour readings
 **Scope:** 3.1 steps 1–3 and 5: `POST /machines/{id}/readings`; error mapping SS100–SS103. (Drafts still reserve through the transitional body until 6g.)
@@ -304,7 +305,7 @@ Each PR passes the full `tools/check.sh` and `tools/check.sh restore build e2e t
 
 ### 6g: Service-kit reservation as events
 **Scope:** 5.3, 5.5 (expiry, ordering, consumer's user), `qty_reserved`, module-local `create_service_order_draft` and `expire_soft_reservations`, `inventory.reserve_service_kit`, `v_service_kit_shortage` (X9); T02/T001 changes; topology round trip.
-**Acceptance:** draft → `ServiceKitReserved` → `parts_reserved` and partial kits in the single host and over RabbitMQ; expiry → draft; T02 kit assertions replaced by C# tests.
+**Acceptance:** draft → `ServiceKitReserved` → `parts_reserved` and partial kits in the single host and over RabbitMQ (the topology test starts the Fleet service and reaches `/api/v1/fleet/machines` through the gateway); expiry → draft; T02 kit assertions replaced by C# tests.
 
 ### 6h: Service order API
 **Scope:** list, detail with `allowedActions`, create (from plan, unplanned repair), start, complete (5.4, F7), cancel (5.5); module-local `complete_service_order` / `cancel_service_order`; `inventory.issue_service_kit`. After 6h no Fleet or Inventory object writes across modules.

@@ -50,28 +50,9 @@ internal static class InventoryExamples
         ErrorCount: 4);
 
     /// <summary>The problem body an expected error produces, as <c>ResultHttpExtensions.ToProblem</c> writes it.</summary>
-    public static IReadOnlyDictionary<string, object?> Problem(Error error)
-    {
-        ArgumentNullException.ThrowIfNull(error);
-        var status = ResultHttpExtensions.StatusCodeFor(error.Type);
-        var title = error.Type switch
-        {
-            ErrorType.Validation => "Validation failed",
-            ErrorType.NotFound => "Resource not found",
-            ErrorType.Conflict => "Conflict",
-            ErrorType.Forbidden => "Operation not permitted",
-            ErrorType.BusinessRule => "Business rule violated",
-            _ => "Error",
-        };
-        return OpenApiConventions.Problem(status, title, error.Code, error.Description);
-    }
+    public static IReadOnlyDictionary<string, object?> Problem(Error error) => OpenApiConventions.Problem(error);
 
     /// <summary>A 400 validation problem with one failed field, as <c>ResultHttpExtensions.ToProblem</c> writes it.</summary>
     public static IReadOnlyDictionary<string, object?> ValidationProblem(string field, string message) =>
-        new Dictionary<string, object?>(
-            OpenApiConventions.Problem(StatusCodes.Status400BadRequest, "Validation failed", "Validation", "One or more validation errors occurred."),
-            StringComparer.Ordinal)
-        {
-            ["errors"] = new Dictionary<string, string[]>(StringComparer.Ordinal) { [field] = [message] },
-        };
+        OpenApiConventions.ValidationProblem(field, message);
 }

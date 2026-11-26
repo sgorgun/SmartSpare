@@ -1,4 +1,7 @@
+using Microsoft.Extensions.DependencyInjection;
+using SmartSpare.Infrastructure.Http;
 using SmartSpare.Modules.Fleet;
+using SmartSpare.Modules.Inventory.Contracts;
 
 namespace SmartSpare.Services.Fleet;
 
@@ -10,5 +13,11 @@ public sealed class FleetService
     {
     }
 
-    public static Task<int> Main(string[] args) => ServiceHost.RunAsync(args, new FleetModuleInstaller());
+    // Hub codes of the machine list and card come from the Inventory service, as the calling user (STAGE_6_PLAN 3.3).
+    public static Task<int> Main(string[] args) => ServiceHost.RunAsync(args, new FleetModuleInstaller(), services =>
+    {
+        services.AddTransient<CallerTokenForwardingHandler>();
+        services.AddHttpClient<IWarehouseQueries, HttpWarehouseQueries>(client => client.BaseAddress = new Uri("http://inventory"))
+            .AddHttpMessageHandler<CallerTokenForwardingHandler>();
+    });
 }

@@ -12,7 +12,7 @@ namespace SmartSpare.Modules.Fleet.Infrastructure.Queries;
 // by the integration tests.
 
 /// <summary>One active plan on one active machine with everything the due calculation needs.</summary>
-internal sealed record MachinePlanDueInput(long MachineId, int MaintenancePlanId, MaintenanceDueInput Input);
+internal sealed record MachinePlanDueInput(long MachineId, int MaintenancePlanId, string PlanName, MaintenanceDueInput Input);
 
 /// <summary>
 /// Reads the inputs of <see cref="MaintenanceDueCalculator"/> set-based (STAGE_6_PLAN section 2.6): one query for the
@@ -23,7 +23,7 @@ internal static class MaintenanceDueInputs
 {
     private const string PlansSql =
         """
-        SELECT m.id AS machine_id, mp.id AS maintenance_plan_id, mp.interval_hours, mp.interval_months,
+        SELECT m.id AS machine_id, mp.id AS maintenance_plan_id, mp.name AS plan_name, mp.interval_hours, mp.interval_months,
                oc.interval_factor, m.current_engine_hours, m.commissioned_on,
                served.last_served, served.open_threshold, served.last_completed_on
         FROM fleet.machine m
@@ -70,7 +70,7 @@ internal static class MaintenanceDueInputs
             .. plans.Select(p =>
             {
                 var history = readings.GetValueOrDefault(p.MachineId, []);
-                return new MachinePlanDueInput(p.MachineId, p.MaintenancePlanId, new MaintenanceDueInput(
+                return new MachinePlanDueInput(p.MachineId, p.MaintenancePlanId, p.PlanName, new MaintenanceDueInput(
                     p.IntervalHours, p.IntervalMonths, p.IntervalFactor, p.CurrentEngineHours,
                     history.Count > 0 ? history[0].Hours : null,
                     p.LastServed, p.OpenThreshold, p.LastCompletedOn, p.CommissionedOn, history));
@@ -87,6 +87,7 @@ internal static class MaintenanceDueInputs
     internal sealed record PlanRow(
         long MachineId,
         int MaintenancePlanId,
+        string PlanName,
         int IntervalHours,
         short? IntervalMonths,
         decimal IntervalFactor,

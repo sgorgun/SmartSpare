@@ -68,12 +68,66 @@ public static class OpenApiConventions
         return problem;
     }
 
+    /// <summary>The example problem body an expected error produces, as <c>ResultHttpExtensions.ToProblem</c> writes it.</summary>
+    public static IReadOnlyDictionary<string, object?> Problem(SmartSpare.SharedKernel.Error error)
+    {
+        ArgumentNullException.ThrowIfNull(error);
+        var title = error.Type switch
+        {
+            SmartSpare.SharedKernel.ErrorType.Validation => "Validation failed",
+            SmartSpare.SharedKernel.ErrorType.NotFound => "Resource not found",
+            SmartSpare.SharedKernel.ErrorType.Conflict => "Conflict",
+            SmartSpare.SharedKernel.ErrorType.Forbidden => "Operation not permitted",
+            SmartSpare.SharedKernel.ErrorType.BusinessRule => "Business rule violated",
+            _ => "Error",
+        };
+        return Problem(ResultHttpExtensions.StatusCodeFor(error.Type), title, error.Code, error.Description);
+    }
+
+    /// <summary>An example 400 validation problem with one failed field, as <c>ResultHttpExtensions.ToProblem</c> writes it.</summary>
+    public static IReadOnlyDictionary<string, object?> ValidationProblem(string field, string message) =>
+        new Dictionary<string, object?>(
+            Problem(StatusCodes.Status400BadRequest, "Validation failed", "Validation", "One or more validation errors occurred."),
+            StringComparer.Ordinal)
+        {
+            ["errors"] = new Dictionary<string, string[]>(StringComparer.Ordinal) { [field] = [message] },
+        };
+
     /// <summary>Registers the transformers on one document.</summary>
     public static void Apply(OpenApiOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
         options.AddOperationTransformer(TransformOperation);
         options.AddSchemaTransformer(TransformSchema);
+        options.AddDocumentTransformer(DescribeNullableReferences);
+    }
+
+    /// <summary>
+    /// A nullable property whose type is another schema is written as <c>oneOf: [null, $ref]</c> after the schema
+    /// transformers ran, and loses its <c>[Description]</c>. Such a property gets the description of the schema it refers
+    /// to, so every field stays described (ADR 0019 §1).
+    /// </summary>
+    private static Task DescribeNullableReferences(OpenApiDocument document, OpenApiDocumentTransformerContext context, CancellationToken cancellationToken)
+    {
+        var components = document.Components?.Schemas;
+        if (components is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        foreach (var property in components.Values.OfType<OpenApiSchema>().SelectMany(s => s.Properties?.Values ?? []).OfType<OpenApiSchema>())
+        {
+            if (string.IsNullOrEmpty(property.Description)
+                && property.OneOf?.OfType<OpenApiSchemaReference>().FirstOrDefault() is { } reference
+                && reference.Reference.Id is { } id
+                && components.TryGetValue(id, out var target)
+                && !string.IsNullOrEmpty(target.Description))
+            {
+                property.Description = target.Description;
+            }
+        }
+
+        return Task.CompletedTask;
     }
 
     private static Task TransformOperation(OpenApiOperation operation, OpenApiOperationTransformerContext context, CancellationToken cancellationToken)

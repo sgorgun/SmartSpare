@@ -1,7 +1,7 @@
 -- =============================================================================
 -- Fleet 0002 — privileges on fleet objects. V015 statements restricted to fleet.
--- The transitional views fleet.v_machine_maintenance_status / v_service_kit_shortage
--- are created and granted by the last Reporting migration in PR 2d.
+-- fleet.v_machine_maintenance_status is created in 0001 (module-local since stage 6, X10) and granted below with
+-- every table; the transitional fleet.v_service_kit_shortage is created and granted by the last Reporting migration.
 -- =============================================================================
 
 REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA fleet FROM PUBLIC;
