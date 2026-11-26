@@ -63,4 +63,8 @@ The `traceparent` travels in the message headers (ADR 0017), and the outbox row 
 
 Checked on 25 November 2026 with the diagnostics probe, Identity → RabbitMQ → Inventory, in the local Tempo (PR 4g-2). The topology CI job asserts the same link (`TopologyTests`).
 
+Checked again on 26 November 2026 in Grafana Cloud Tempo (PR 4j): the local services topology with CloudAMQP sent its telemetry to the stack, and the probe request's trace shows the gateway's two spans, Identity's server span and its four database commands (2 services, 7 spans):
+
+![Grafana Cloud Tempo, trace of POST /api/identity/diagnostics/probe through the gateway: gateway server and client spans, the identity server span and four postgresql spans, seven spans in two services](images/grafana-cloud-trace.png)
+
 Telemetry is kept for 14 days in Grafana Cloud Free, so a reference older than that can no longer be traced.
