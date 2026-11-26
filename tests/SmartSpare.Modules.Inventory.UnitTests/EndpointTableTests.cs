@@ -37,6 +37,9 @@ public sealed class EndpointTableTests
             "POST /api/v1/inventory/transfers/{id:long}/cancel",
             "POST /api/v1/inventory/transfers/{id:long}/dispatch",
             "POST /api/v1/inventory/transfers/{id:long}/receive",
+            "POST /api/v1/inventory/imports",
+            "GET /api/v1/inventory/imports",
+            "GET /api/v1/inventory/imports/{id:long}",
             "GET /internal/v1/inventory/warehouses",
         ], ignoreOrder: true);
 
@@ -60,6 +63,8 @@ public sealed class EndpointTableTests
     [InlineData("POST /api/v1/inventory/stock-adjustments", AppPolicies.MoveStock)]
     [InlineData("GET /api/v1/inventory/stock", AppPolicies.ReadInventory)]
     [InlineData("POST /api/v1/inventory/transfers", AppPolicies.PlanInventory)]
+    [InlineData("POST /api/v1/inventory/imports", AppPolicies.ImportData)]
+    [InlineData("GET /api/v1/inventory/imports", AppPolicies.ImportData)]
     [InlineData("POST /api/v1/inventory/transfers/{id:long}/approve", AppPolicies.ApproveTransfer)]
     [InlineData("POST /api/v1/inventory/transfers/{id:long}/cancel", AppPolicies.CancelTransfer)]
     [InlineData("POST /api/v1/inventory/transfers/{id:long}/dispatch", AppPolicies.MoveStock)]
