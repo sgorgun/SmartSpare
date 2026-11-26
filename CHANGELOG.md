@@ -8,6 +8,54 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-27
+
+Stage 5: Inventory ([STAGE_5_PLAN.md](docs/stage-5/STAGE_5_PLAN.md)). The first business module: the Inventory domain,
+the stock, transfer and import API with full OpenAPI descriptions, and the screens for stock, transfers and import,
+plus user administration, static analysis and a coverage metric defined by layer.
+
+### Added
+
+- The Inventory domain mapped directly by EF Core (ADR 0013): `TransferOrder` with its state machine and line rules,
+  `StockReservation`, `StockMovement`, `WarehousePart`, `StockBalance`, `StockPosition` and `Quantity`; transfer
+  numbers stay database-assigned; the only migration maps `xmin` ([#106]).
+- Expected database errors (SS100–SS402, constraint and concurrency conflicts) become failed results with their code
+  in the command pipeline ([#106]).
+- The stock API: overview with status and transfers in transit, position with reservations and recent movements,
+  stock levels against the version read (`If-Match`), the ledger and stock count corrections; `IWarehouseQueries` for
+  other modules, in process and over `/internal/v1/inventory/warehouses` with the caller's token ([#107], closes [#97]).
+- The transfers API: propose, list, detail with the actions the user may take, approve, cancel, dispatch and receive;
+  the SQL functions keep locks, reservations, the ledger and the role and hub checks; brand scope on approve and
+  cancel ([#108]).
+- The integration event contracts `TransferApproved`, `TransferCancelled`, `TransferRejected` and
+  `PartCatalogChanged`, contract-tested; an event is published only once a consumer exists, so they are written from
+  stages 6 and 8 ([#108], acceptance items on [#12] and [#14]).
+- CSV import of the part catalogue and the demand history, raw → staging → core with the 5 % quality gate, duplicate
+  detection, size, row and rate limits, and the `ImportData` policy; module rate limits in the service hosts ([#109]).
+- Screens: stock overview and position, transfers list, detail and proposal, data import, Inventory tabs; statuses
+  as icon and text, cards on small screens, errors with their reference; bUnit tests and Playwright scenarios,
+  including the stage scenario (a planner proposes and approves a transfer and finds the reservation at the donor)
+  ([#110], [#111], [#112]).
+- User administration: directory, create, roles, brands and home hub, unlock, deactivate, GDPR anonymisation, and the
+  own password change, with the Users and Change password screens; administrative writes switch to `app_admin` for one
+  transaction ([#116], closes [#46]).
+- Static analysis: the SonarQube C# rules in the build and a duplication gate (jscpd, 3 %) in every pipeline
+  ([#114], closes [#61]).
+
+### Changed
+
+- Stages 5–7 moved a week earlier and stage 8 got the gain ([#102]).
+- EF Core warning 20601 is an error; every store-generated bool and enum default has a sentinel ([#113], closes [#19]).
+- The unit-test metric of business logic is defined by layer: Domain and Features count, Infrastructure does not; CI
+  reports unit business logic (gated 70 %), unit all code and unit + integration all code; data access of Inventory
+  moved to Infrastructure ([#115], [#63]).
+
+### Moved to later stages
+
+- Outbox and inbox retention ([#30]) and the Dependabot lock-file refresh ([#17]) to stage 6, with their findings;
+  `RabbitMQ.Client.OpenTelemetry` ([#82]) to stage 6 (still a release candidate).
+- Exceptional demand flagging (US08) to stage 8 ([#104]).
+
 ## [0.4.0] - 2026-11-26
 
 Stage 4: the services topology ([STAGE_4_PLAN.md](docs/stage-4/STAGE_4_PLAN.md)). The same module code now runs as a
@@ -262,3 +310,25 @@ Stage 1: solution skeleton.
 [#98]: https://github.com/sgorgun/SmartSpare/pull/98
 [#99]: https://github.com/sgorgun/SmartSpare/pull/99
 [#100]: https://github.com/sgorgun/SmartSpare/pull/100
+[#12]: https://github.com/sgorgun/SmartSpare/issues/12
+[#14]: https://github.com/sgorgun/SmartSpare/issues/14
+[#17]: https://github.com/sgorgun/SmartSpare/issues/17
+[#19]: https://github.com/sgorgun/SmartSpare/issues/19
+[#30]: https://github.com/sgorgun/SmartSpare/issues/30
+[#46]: https://github.com/sgorgun/SmartSpare/issues/46
+[#61]: https://github.com/sgorgun/SmartSpare/issues/61
+[#82]: https://github.com/sgorgun/SmartSpare/issues/82
+[#97]: https://github.com/sgorgun/SmartSpare/issues/97
+[#102]: https://github.com/sgorgun/SmartSpare/pull/102
+[#104]: https://github.com/sgorgun/SmartSpare/issues/104
+[#106]: https://github.com/sgorgun/SmartSpare/pull/106
+[#107]: https://github.com/sgorgun/SmartSpare/pull/107
+[#108]: https://github.com/sgorgun/SmartSpare/pull/108
+[#109]: https://github.com/sgorgun/SmartSpare/pull/109
+[#110]: https://github.com/sgorgun/SmartSpare/pull/110
+[#111]: https://github.com/sgorgun/SmartSpare/pull/111
+[#112]: https://github.com/sgorgun/SmartSpare/pull/112
+[#113]: https://github.com/sgorgun/SmartSpare/pull/113
+[#114]: https://github.com/sgorgun/SmartSpare/pull/114
+[#115]: https://github.com/sgorgun/SmartSpare/pull/115
+[#116]: https://github.com/sgorgun/SmartSpare/pull/116
