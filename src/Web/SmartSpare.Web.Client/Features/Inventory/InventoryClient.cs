@@ -109,4 +109,22 @@ public class InventoryClient(HttpClient http) : ApiClientBase(http)
 
         return SendAsync<TransferDetails>(message, cancellationToken);
     }
+
+    /// <summary>Uploads a CSV as multipart form data (source, file).</summary>
+    public virtual async Task<ApiResult<ImportBatchDetails>> ImportAsync(string source, string fileName, Stream content, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        using var form = new MultipartFormDataContent();
+        form.Add(new StringContent(source), "source");
+        var file = new StreamContent(content);
+        file.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/csv");
+        form.Add(file, "file", fileName);
+        return await SendAsync<ImportBatchDetails>(new HttpRequestMessage(HttpMethod.Post, "api/v1/inventory/imports") { Content = form }, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public virtual Task<ApiResult<PagedResponse<ImportBatchResponse>>> ListImportsAsync(int page, int pageSize, CancellationToken cancellationToken = default) =>
+        SendAsync<PagedResponse<ImportBatchResponse>>(
+            new HttpRequestMessage(HttpMethod.Get, string.Create(CultureInfo.InvariantCulture, $"api/v1/inventory/imports?page={page}&pageSize={pageSize}")),
+            cancellationToken);
 }

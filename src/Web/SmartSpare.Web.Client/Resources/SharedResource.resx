@@ -156,9 +156,6 @@
   <data name="Parts.Loading" xml:space="preserve">
     <value>Loading parts…</value>
   </data>
-  <data name="Inventory.MoreInStage" xml:space="preserve">
-    <value>Data import follows in stage {0} of the work plan.</value>
-  </data>
   <data name="Inventory.Pages" xml:space="preserve">
     <value>Inventory pages</value>
   </data>
@@ -452,5 +449,80 @@
   </data>
   <data name="Transfer.PickParts" xml:space="preserve">
     <value>Choose a part for every line.</value>
+  </data>
+  <data name="Inventory.Tab.Imports" xml:space="preserve">
+    <value>Import</value>
+  </data>
+  <data name="Imports.Title" xml:space="preserve">
+    <value>Data import</value>
+  </data>
+  <data name="Imports.Source" xml:space="preserve">
+    <value>Source</value>
+  </data>
+  <data name="Imports.Source.partCatalog" xml:space="preserve">
+    <value>Part catalogue</value>
+  </data>
+  <data name="Imports.Source.demandHistory" xml:space="preserve">
+    <value>Demand history</value>
+  </data>
+  <data name="Imports.Columns" xml:space="preserve">
+    <value>Header row:</value>
+  </data>
+  <data name="Imports.Rules" xml:space="preserve">
+    <value>UTF-8 CSV, comma or semicolon separated, at most 10 MB and 50,000 rows. If more than 5 % of the rows are invalid, nothing is loaded.</value>
+  </data>
+  <data name="Imports.Choose" xml:space="preserve">
+    <value>Choose CSV file</value>
+  </data>
+  <data name="Imports.Uploading" xml:space="preserve">
+    <value>Importing…</value>
+  </data>
+  <data name="Imports.TooLarge" xml:space="preserve">
+    <value>The file is larger than 10 MB.</value>
+  </data>
+  <data name="Imports.Status.uploaded" xml:space="preserve">
+    <value>Uploaded</value>
+  </data>
+  <data name="Imports.Status.validated" xml:space="preserve">
+    <value>Validated</value>
+  </data>
+  <data name="Imports.Status.loaded" xml:space="preserve">
+    <value>Loaded</value>
+  </data>
+  <data name="Imports.Status.failed" xml:space="preserve">
+    <value>Not loaded</value>
+  </data>
+  <data name="Imports.Errors" xml:space="preserve">
+    <value>Row errors ({0})</value>
+  </data>
+  <data name="Imports.Line" xml:space="preserve">
+    <value>Line</value>
+  </data>
+  <data name="Imports.Column" xml:space="preserve">
+    <value>Column</value>
+  </data>
+  <data name="Imports.Code" xml:space="preserve">
+    <value>Code</value>
+  </data>
+  <data name="Imports.Message" xml:space="preserve">
+    <value>Problem</value>
+  </data>
+  <data name="Imports.History" xml:space="preserve">
+    <value>Recent imports</value>
+  </data>
+  <data name="Imports.NoHistory" xml:space="preserve">
+    <value>Nothing has been imported yet.</value>
+  </data>
+  <data name="Imports.When" xml:space="preserve">
+    <value>When</value>
+  </data>
+  <data name="Imports.File" xml:space="preserve">
+    <value>File</value>
+  </data>
+  <data name="Imports.Rows" xml:space="preserve">
+    <value>Rows</value>
+  </data>
+  <data name="Imports.Loaded" xml:space="preserve">
+    <value>Loaded</value>
   </data>
 </root>

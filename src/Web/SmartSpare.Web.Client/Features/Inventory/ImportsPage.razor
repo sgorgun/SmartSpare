@@ -1,0 +1,167 @@
+@page "/inventory/imports"
+@attribute [Authorize(Policy = AppPolicies.ImportData)]
+@using System.Globalization
+@using SmartSpare.ApiContracts.Inventory
+@inject IStringLocalizer<SharedResource> Text
+@inject InventoryClient Inventory
+@inject ProblemMessages Messages
+
+<PageTitle>@Text["Imports.Title"]</PageTitle>
+
+<MudText Typo="Typo.h4" HtmlTag="h1" Class="mb-2">@Text["Nav.Inventory"]</MudText>
+<InventoryTabs />
+<MudText Typo="Typo.h5" HtmlTag="h2" Class="mb-2">@Text["Imports.Title"]</MudText>
+
+<MudPaper Outlined="true" Class="pa-4 mb-4" data-testid="import-form">
+    <MudRadioGroup T="string" @bind-Value="_source" Class="mb-2" data-testid="import-source">
+        <MudRadio T="string" Value="ImportSources.PartCatalog">@Text["Imports.Source.partCatalog"]</MudRadio>
+        <MudRadio T="string" Value="ImportSources.DemandHistory">@Text["Imports.Source.demandHistory"]</MudRadio>
+    </MudRadioGroup>
+    <MudText Typo="Typo.body2" Class="mb-2" data-testid="import-columns">
+        @Text["Imports.Columns"] <code>@string.Join(",", ImportSources.Columns[_source])</code>
+    </MudText>
+    <MudText Typo="Typo.caption" Class="mb-3">@Text["Imports.Rules"]</MudText>
+
+    <MudFileUpload @ref="_upload" T="IBrowserFile" FilesChanged="UploadAsync" Accept=".csv,text/csv" MaximumFileCount="1" Disabled="_busy" data-testid="import-file">
+        <CustomContent>
+            <MudButton OnClick="@context.OpenFilePickerAsync" Variant="Variant.Filled" Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.UploadFile" Disabled="_busy">
+                @Text["Imports.Choose"]
+            </MudButton>
+        </CustomContent>
+    </MudFileUpload>
+
+    @if (_busy)
+    {
+        <MudProgressLinear Indeterminate="true" Class="mt-3" aria-label="@Text["Imports.Uploading"]" />
+        <MudText Typo="Typo.body2" Class="mt-1">@Text["Imports.Uploading"]</MudText>
+    }
+
+    @if (_error is not null)
+    {
+        <MudAlert Severity="Severity.Error" Class="mt-3" data-testid="import-error">@_error</MudAlert>
+    }
+</MudPaper>
+
+@if (_report is { } report)
+{
+    var batch = report.Batch;
+    <MudAlert Severity="@(batch.Status == ImportStatuses.Loaded ? Severity.Success : Severity.Warning)" Class="mb-3" data-testid="import-report">
+        <b>@batch.FileName</b>: @Text["Imports.Status." + batch.Status] — @batch.Message
+    </MudAlert>
+    @if (report.Errors.Count > 0)
+    {
+        <MudText Typo="Typo.h6" HtmlTag="h3" Class="mb-2">@Text["Imports.Errors", report.ErrorCount]</MudText>
+        <MudSimpleTable Dense="true" Outlined="true" Elevation="0" Class="mb-4" data-testid="import-errors">
+            <thead><tr><th>@Text["Imports.Line"]</th><th>@Text["Imports.Column"]</th><th>@Text["Imports.Code"]</th><th>@Text["Imports.Message"]</th></tr></thead>
+            <tbody>
+                @foreach (var error in report.Errors)
+                {
+                    <tr><td>@error.LineNo</td><td>@error.Column</td><td>@error.Code</td><td>@error.Message</td></tr>
+                }
+            </tbody>
+        </MudSimpleTable>
+    }
+}
+
+<MudText Typo="Typo.h6" HtmlTag="h3" Class="mb-2">@Text["Imports.History"]</MudText>
+@if (_history.Count == 0)
+{
+    <MudText Typo="Typo.body2">@Text["Imports.NoHistory"]</MudText>
+}
+else
+{
+    <MudSimpleTable Dense="true" Outlined="true" Elevation="0" data-testid="import-history">
+        <thead>
+            <tr>
+                <th>@Text["Imports.When"]</th><th>@Text["Imports.File"]</th><th>@Text["Imports.Source"]</th><th>@Text["Stock.Status"]</th>
+                <th>@Text["Imports.Rows"]</th><th>@Text["Imports.Loaded"]</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var batch in _history)
+            {
+                <tr>
+                    <td>@batch.UploadedAt.ToLocalTime().ToString("g", CultureInfo.CurrentCulture)</td>
+                    <td>@batch.FileName</td>
+                    <td>@Text["Imports.Source." + batch.Source]</td>
+                    <td>@Text["Imports.Status." + batch.Status]</td>
+                    <td>@batch.TotalRows</td>
+                    <td>@batch.LoadedRows</td>
+                </tr>
+            }
+        </tbody>
+    </MudSimpleTable>
+}
+
+@code {
+    private MudFileUpload<IBrowserFile>? _upload;
+    private string _source = ImportSources.PartCatalog;
+    private bool _busy;
+    private string? _error;
+    private ImportBatchDetails? _report;
+    private IReadOnlyList<ImportBatchResponse> _history = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (RendererInfo.IsInteractive)
+        {
+            await LoadHistoryAsync();
+        }
+    }
+
+    private async Task UploadAsync(IBrowserFile? file)
+    {
+        if (file is null)
+        {
+            return;
+        }
+
+        _error = null;
+        _report = null;
+        if (file.Size > ImportLimits.MaxFileBytes)
+        {
+            _error = Text["Imports.TooLarge"];
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            await using var stream = file.OpenReadStream(ImportLimits.MaxFileBytes);
+            var result = await Inventory.ImportAsync(_source, file.Name, stream);
+            if (result.IsSuccess)
+            {
+                _report = result.Value;
+                await LoadHistoryAsync();
+            }
+            else
+            {
+                _error = Messages.Describe(result.Problem!);
+            }
+        }
+        finally
+        {
+            _busy = false;
+
+            // The report shows the file; the picker is emptied so the next file can be chosen.
+            if (_upload is not null)
+            {
+                await _upload.ClearAsync();
+            }
+        }
+    }
+
+    private async Task LoadHistoryAsync()
+    {
+        var result = await Inventory.ListImportsAsync(1, ImportLimits.DefaultPageSize);
+        if (result.IsSuccess)
+        {
+            _history = result.Value!.Items;
+        }
+        else
+        {
+            _error ??= Messages.Describe(result.Problem!);
+        }
+    }
+}
