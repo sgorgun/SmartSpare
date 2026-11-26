@@ -22,7 +22,7 @@ internal sealed class EngineHoursReadingConfiguration : IEntityTypeConfiguration
         builder.Property(x => x.MachineId).HasColumnName("machine_id").HasColumnOrder(1).HasColumnType("bigint").HasComment("Reference to fleet.machine.");
         builder.Property(x => x.ReadingHours).HasColumnName("reading_hours").HasColumnOrder(2).HasColumnType("numeric(8,1)").HasComment("Odometer value; must not decrease and must be physically plausible.");
         builder.Property(x => x.ReadAt).HasColumnName("read_at").HasColumnOrder(3).HasColumnType("timestamp with time zone").HasComment("Time the reading was taken in the field (may be earlier than created_at for offline entry).");
-        builder.Property(x => x.Source).HasColumnName("source").HasColumnOrder(4).HasDefaultValueSql("'manual'::fleet.reading_source");
+        builder.Property(x => x.Source).HasColumnName("source").HasColumnOrder(4).HasDefaultValueSql("'manual'::fleet.reading_source").ValueGeneratedNever();
         builder.Property(x => x.RecordedBy).HasColumnName("recorded_by").HasColumnOrder(5).HasColumnType("uuid").HasComment("User who performed the step (iam.app_user).");
         builder.Property(x => x.CreatedAt).HasColumnName("created_at").HasColumnOrder(6).HasColumnType("timestamp with time zone").HasDefaultValueSql("now()").HasComment("Time the record was created.");
         // fk_engine_hours_reading_user -> iam.app_user removed: cross-module FK (ADR 0011, MODULE_MAPPING section 2).

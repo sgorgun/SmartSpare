@@ -230,6 +230,8 @@ Common rules:
 | #97 | XML comments vs explicit OpenAPI declarations. | 5c |
 | #82 | `RabbitMQ.Client.OpenTelemetry`: adopted only if a stable version is out at 5i; otherwise moved to the stage 6 milestone. | 5i |
 
+**Outcome of 5i (26 November 2026, timebox, cut order item 3):** #19 is closed for every module: EF Core warning 20601 is now an error in the shared provider settings, so `check-model` and start-up fail on a new ambiguous default. #82: still only release candidates on NuGet, moved to v0.6.0. #30 and #17 moved to v0.6.0 with their findings recorded on the issues: #30 needs DELETE grants that every outbox grant withholds on purpose (a migration per module and a decision on the deleting role) and Quartz in the single host; #17 cannot re-run CI after a push with `GITHUB_TOKEN` and needs an owner decision on a GitHub App or token.
+
 ---
 
 ## 9. User administration (#46)
@@ -287,7 +289,7 @@ Each PR passes the full `tools/check.sh` and `tools/check.sh restore build e2e t
 
 ### 5i: Housekeeping
 **Scope:** #30 retention job, the remaining sentinels (#19), #17 lock-file workflow, #82 check.
-**Acceptance:** retention job integration test; no EF warning 20601 at host start-up; the lock-file workflow validated by a dry run on a branch. **Closes #19, #30, #17** (and #82 if adopted).
+**Acceptance:** no EF warning 20601 in any module (an error since 5i). **Closes #19.** #30, #17 and #82 moved to v0.6.0 (outcome in section 8).
 
 ### 5j: Static analysis gate
 **Scope:** section 10.

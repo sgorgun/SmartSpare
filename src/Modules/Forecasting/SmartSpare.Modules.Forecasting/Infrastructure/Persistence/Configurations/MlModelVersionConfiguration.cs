@@ -29,7 +29,7 @@ internal sealed class MlModelVersionConfiguration : IEntityTypeConfiguration<MlM
         builder.Property(x => x.Algorithm).HasColumnName("algorithm").HasColumnOrder(1);
         builder.Property(x => x.VersionLabel).HasColumnName("version_label").HasColumnOrder(2).HasColumnType("character varying(30)");
         builder.Property(x => x.DemandClassCode).HasColumnName("demand_class_code").HasColumnOrder(3).HasColumnType("character varying(15)").HasComment("Reference to ref.demand_class.");
-        builder.Property(x => x.Status).HasColumnName("status").HasColumnOrder(4).HasDefaultValueSql("'training'::forecast.model_status").HasComment("Workflow status (state machine guarded by trigger).");
+        builder.Property(x => x.Status).HasColumnName("status").HasColumnOrder(4).HasDefaultValueSql("'training'::forecast.model_status").HasComment("Workflow status (state machine guarded by trigger).").ValueGeneratedNever();
         builder.Property(x => x.TrainingFrom).HasColumnName("training_from").HasColumnOrder(5).HasColumnType("date");
         builder.Property(x => x.TrainingTo).HasColumnName("training_to").HasColumnOrder(6).HasColumnType("date");
         builder.Property(x => x.HoldoutFrom).HasColumnName("holdout_from").HasColumnOrder(7).HasColumnType("date");

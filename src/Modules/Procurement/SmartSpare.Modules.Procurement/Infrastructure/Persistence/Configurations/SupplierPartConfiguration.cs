@@ -27,7 +27,7 @@ internal sealed class SupplierPartConfiguration : IEntityTypeConfiguration<Suppl
         builder.Property(x => x.Moq).HasColumnName("moq").HasColumnOrder(4).HasColumnType("numeric(12,3)").HasDefaultValueSql("1").HasComment("Minimum order quantity; must be a multiple of pack_size.");
         builder.Property(x => x.PackSize).HasColumnName("pack_size").HasColumnOrder(5).HasColumnType("numeric(12,3)").HasDefaultValueSql("1").HasComment("Packaging increment; ordered quantities must be multiples of it.");
         builder.Property(x => x.LeadTimeDays).HasColumnName("lead_time_days").HasColumnOrder(6).HasColumnType("smallint").HasComment("Supplier lead time for this part (calendar days).");
-        builder.Property(x => x.IsPreferred).HasColumnName("is_preferred").HasColumnOrder(7).HasColumnType("boolean").HasDefaultValueSql("false").HasComment("Preferred supplier used for automatic PO drafts (max. one per part).");
+        builder.Property(x => x.IsPreferred).HasColumnName("is_preferred").HasColumnOrder(7).HasColumnType("boolean").HasDefaultValueSql("false").HasComment("Preferred supplier used for automatic PO drafts (max. one per part).").ValueGeneratedNever();
         builder.Property(x => x.CreatedAt).HasColumnName("created_at").HasColumnOrder(8).HasColumnType("timestamp with time zone").HasDefaultValueSql("now()").HasComment("Time the record was created.");
         builder.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasColumnOrder(9).HasColumnType("timestamp with time zone").HasDefaultValueSql("now()").HasComment("Time of the last change (maintained by trigger).");
         // fk_supplier_part_part -> catalog.part removed: cross-module FK (ADR 0011, MODULE_MAPPING section 2).

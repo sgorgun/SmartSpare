@@ -38,7 +38,7 @@ internal sealed class AppUserConfiguration : IEntityTypeConfiguration<AppUser>
         builder.Property(x => x.Phone).HasColumnName("phone").HasColumnOrder(4).HasColumnType("character varying(30)").HasComment("PERSONAL DATA (GDPR). Masked by util.mask_phone for read-only roles.");
         builder.Property(x => x.PasswordHash).HasColumnName("password_hash").HasColumnOrder(5).HasColumnType("text").HasComment("ASP.NET Core Identity V3 hash (PBKDF2-HMAC-SHA512, 220,000 iterations; older hashes are rehashed at sign-in). Plain text is impossible by CHECK.");
         builder.Property(x => x.SecurityStamp).HasColumnName("security_stamp").HasColumnOrder(6).HasColumnType("uuid").HasDefaultValueSql("gen_random_uuid()").HasComment("Changes on password/role change; invalidates issued sign-in cookies (security stamp validation).");
-        builder.Property(x => x.IsActive).HasColumnName("is_active").HasColumnOrder(7).HasColumnType("boolean").HasDefaultValueSql("true").HasComment("FALSE = deactivated, kept for history.");
+        builder.Property(x => x.IsActive).HasColumnName("is_active").HasColumnOrder(7).HasColumnType("boolean").HasDefaultValueSql("true").HasComment("FALSE = deactivated, kept for history.").HasSentinel(true);
         builder.Property(x => x.FailedLoginCount).HasColumnName("failed_login_count").HasColumnOrder(8).HasColumnType("smallint").HasDefaultValueSql("0");
         builder.Property(x => x.LockoutEnd).HasColumnName("lockout_end").HasColumnOrder(9).HasColumnType("timestamp with time zone");
         builder.Property(x => x.HomeWarehouseId).HasColumnName("home_warehouse_id").HasColumnOrder(10).HasColumnType("smallint").HasComment("Reference to inventory.warehouse.");

@@ -21,7 +21,7 @@ internal sealed class MaintenancePlanConfiguration : IEntityTypeConfiguration<Ma
         builder.Property(x => x.ModelId).HasColumnName("model_id").HasColumnOrder(1).HasColumnType("integer").HasComment("Reference to fleet.machine_model.");
         builder.Property(x => x.IntervalHours).HasColumnName("interval_hours").HasColumnOrder(2).HasColumnType("integer").HasComment("OEM interval in engine hours (e.g. 500).");
         builder.Property(x => x.Name).HasColumnName("name").HasColumnOrder(3).HasColumnType("character varying(120)").HasComment("Display name.");
-        builder.Property(x => x.IsActive).HasColumnName("is_active").HasColumnOrder(4).HasColumnType("boolean").HasDefaultValueSql("true").HasComment("FALSE = deactivated, kept for history.");
+        builder.Property(x => x.IsActive).HasColumnName("is_active").HasColumnOrder(4).HasColumnType("boolean").HasDefaultValueSql("true").HasComment("FALSE = deactivated, kept for history.").HasSentinel(true);
 
         builder.HasOne<MachineModel>().WithMany()
             .HasForeignKey(x => x.ModelId)

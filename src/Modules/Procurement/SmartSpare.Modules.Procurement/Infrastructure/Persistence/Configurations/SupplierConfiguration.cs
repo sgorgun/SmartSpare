@@ -28,7 +28,7 @@ internal sealed class SupplierConfiguration : IEntityTypeConfiguration<Supplier>
         builder.Property(x => x.OrderEmail).HasColumnName("order_email").HasColumnOrder(4).HasColumnType("citext").HasComment("Shared order mailbox of the company (e.g. orders@...), not a personal address.");
         builder.Property(x => x.DefaultLeadTimeDays).HasColumnName("default_lead_time_days").HasColumnOrder(5).HasColumnType("smallint");
         builder.Property(x => x.CurrencyCode).HasColumnName("currency_code").HasColumnOrder(6).HasColumnType("character(3)").HasDefaultValueSql("'EUR'::bpchar");
-        builder.Property(x => x.IsActive).HasColumnName("is_active").HasColumnOrder(7).HasColumnType("boolean").HasDefaultValueSql("true").HasComment("FALSE = deactivated, kept for history.");
+        builder.Property(x => x.IsActive).HasColumnName("is_active").HasColumnOrder(7).HasColumnType("boolean").HasDefaultValueSql("true").HasComment("FALSE = deactivated, kept for history.").HasSentinel(true);
         builder.Property(x => x.CreatedAt).HasColumnName("created_at").HasColumnOrder(8).HasColumnType("timestamp with time zone").HasDefaultValueSql("now()").HasComment("Time the record was created.");
         builder.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasColumnOrder(9).HasColumnType("timestamp with time zone").HasDefaultValueSql("now()").HasComment("Time of the last change (maintained by trigger).");
     }

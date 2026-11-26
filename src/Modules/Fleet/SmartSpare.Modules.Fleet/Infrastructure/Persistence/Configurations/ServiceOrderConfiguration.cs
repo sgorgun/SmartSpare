@@ -25,7 +25,7 @@ internal sealed class ServiceOrderConfiguration : IEntityTypeConfiguration<Servi
         builder.Property(x => x.MachineId).HasColumnName("machine_id").HasColumnOrder(2).HasColumnType("bigint").HasComment("Reference to fleet.machine.");
         builder.Property(x => x.MaintenancePlanId).HasColumnName("maintenance_plan_id").HasColumnOrder(3).HasColumnType("integer").HasComment("Reference to fleet.maintenance_plan.");
         builder.Property(x => x.WarehouseId).HasColumnName("warehouse_id").HasColumnOrder(4).HasColumnType("smallint").HasComment("Reference to inventory.warehouse.");
-        builder.Property(x => x.Status).HasColumnName("status").HasColumnOrder(5).HasDefaultValueSql("'draft'::fleet.service_order_status").HasComment("Workflow status (state machine guarded by trigger).");
+        builder.Property(x => x.Status).HasColumnName("status").HasColumnOrder(5).HasDefaultValueSql("'draft'::fleet.service_order_status").HasComment("Workflow status (state machine guarded by trigger).").ValueGeneratedNever();
         builder.Property(x => x.DueEngineHours).HasColumnName("due_engine_hours").HasColumnOrder(6).HasColumnType("numeric(8,1)").HasComment("Engine-hour threshold this planned service covers (e.g. 500, 1000, 1500 ...).");
         builder.Property(x => x.TriggerEngineHours).HasColumnName("trigger_engine_hours").HasColumnOrder(7).HasColumnType("numeric(8,1)").HasComment("Engine hours of the reading that triggered the draft.");
         builder.Property(x => x.CompletedEngineHours).HasColumnName("completed_engine_hours").HasColumnOrder(8).HasColumnType("numeric(8,1)");

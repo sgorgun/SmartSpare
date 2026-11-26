@@ -25,7 +25,7 @@ internal sealed class ForecastRunConfiguration : IEntityTypeConfiguration<Foreca
 
         builder.Property(x => x.Id).HasColumnName("id").HasColumnOrder(0).HasColumnType("bigint").UseIdentityByDefaultColumn().HasComment("Surrogate primary key.");
         builder.Property(x => x.ModelVersionId).HasColumnName("model_version_id").HasColumnOrder(1).HasColumnType("integer").HasComment("Reference to forecast.ml_model_version.");
-        builder.Property(x => x.Status).HasColumnName("status").HasColumnOrder(2).HasDefaultValueSql("'running'::forecast.run_status").HasComment("Workflow status (state machine guarded by trigger).");
+        builder.Property(x => x.Status).HasColumnName("status").HasColumnOrder(2).HasDefaultValueSql("'running'::forecast.run_status").HasComment("Workflow status (state machine guarded by trigger).").ValueGeneratedNever();
         builder.Property(x => x.HorizonWeeks).HasColumnName("horizon_weeks").HasColumnOrder(3).HasColumnType("smallint");
         builder.Property(x => x.FirstWeek).HasColumnName("first_week").HasColumnOrder(4).HasColumnType("date");
         builder.Property(x => x.TriggeredBy).HasColumnName("triggered_by").HasColumnOrder(5).HasColumnType("character varying(10)");

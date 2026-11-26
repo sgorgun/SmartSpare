@@ -1,5 +1,6 @@
 using System.Reflection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -107,7 +108,12 @@ public static class PersistenceRegistration
             options.UseNpgsql(connectionString, Npgsql);
         }
 
-        return options.UseSnakeCaseNamingConvention();
+        // #19: a bool or enum with a store default whose sentinel is the CLR default is ambiguous ("not set" or "set to
+        // false / the first member"), so EF Core warns (20601). Every module configures such properties explicitly
+        // (ValueGeneratedNever or HasSentinel); the warning is an error, so check-model and start-up catch a new one.
+        return options
+            .ConfigureWarnings(warnings => warnings.Throw(RelationalEventId.BoolWithDefaultWarning))
+            .UseSnakeCaseNamingConvention();
     }
 }
 
