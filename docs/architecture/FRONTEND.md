@@ -36,8 +36,12 @@ SmartSpare.Web.Client/
     SmartSpareTheme.cs      colours and typography (WCAG 2.1 AA contrast)
   Features/                 one folder per module, like the back-end
     Home/Home.razor         welcome and a card per visible area
-    Identity/               Login.razor + LoginForm.cs (form model, shared validator), UserMenu.razor, IdentityClient.cs
-    Inventory/              InventoryPage.razor (parts catalogue: server-paged MudDataGrid), InventoryClient.cs
+    Identity/               Login.razor + LoginForm.cs, UserMenu.razor (sign-out, change password), UsersPage.razor (user
+                            administration), ChangePasswordPage.razor, IdentityClient.cs
+    Inventory/              InventoryTabs.razor (Parts, Stock, Transfers, Import by policy); InventoryPage.razor (parts
+                            catalogue); StockPage.razor, StockPositionPage.razor; TransfersPage.razor,
+                            TransferDetailPage.razor, NewTransferPage.razor; ImportsPage.razor; status chips;
+                            InventoryClient.cs
     Fleet/ Procurement/ Forecasting/ Reporting/   area pages (placeholders until stages 6–9)
   Shared/                   reusable components
     StatusChip.razor        a status as icon + text, never colour alone
@@ -52,8 +56,8 @@ SmartSpare.Web.Client/
 
 **API services.** Each module gets one typed client, `<Module>Client`, which calls only relative URLs. Today there are
 two:
-- `IdentityClient` for `/bff/login`, `/bff/logout` and `/bff/me`;
-- `InventoryClient` for `/api/v1/inventory/parts`, `/parts/{id}` and `/warehouses`.
+- `IdentityClient` for `/bff/login`, `/bff/logout`, `/bff/me`, `/api/v1/identity/users/...` and `/api/v1/identity/me/password`;
+- `InventoryClient` for `/api/v1/inventory/parts`, `/warehouses`, `/stock`, `/stock-adjustments`, `/transfers` and `/imports`.
 
 The clients share one handler chain, built per DI scope in `ClientServices.CreateHttpClient`:
 
@@ -181,6 +185,28 @@ sequenceDiagram
   Note over P: An error leaves the grid empty with "The parts could not be loaded."<br/>and an alert with the message and Reference: trace id.<br/>401 and 403 go through the handler chain as everywhere.
 ```
 
+### 3.7 Approving a transfer (stage 5)
+
+```mermaid
+sequenceDiagram
+  participant P as Planner
+  participant D as TransferDetailPage
+  participant C as InventoryClient
+  participant S as Inventory API
+  P->>D: opens a proposed transfer
+  D->>C: GET /api/v1/inventory/transfers/{id}
+  S-->>D: lines, timeline, allowedActions = [approve, cancel]
+  Note over D: Only the actions the server allows are offered<br/>(policy, brand scope, state machine).
+  P->>D: Approve, then Confirm
+  D->>C: POST /transfers/{id}/approve
+  alt stock allows it
+    S-->>D: 200, status approved, firm reservations at the donor
+  else donor below safety stock
+    S-->>D: 409 SS201 with the server's message
+    Note over D: shown under the buttons with "Reference: trace id"
+  end
+```
+
 ## 4. Forms and validation
 
 - Form models (`LoginForm`) convert to the API request (`LoginRequest`) and are validated with the **same
@@ -238,8 +264,8 @@ icon + text, not colour alone (`StatusChip`, bUnit-tested).
 
 | Level | Project | What it covers |
 |---|---|---|
-| Components (bUnit) | [`tests/SmartSpare.Web.Tests`](../../tests/SmartSpare.Web.Tests) | Sign-in form: shared validator messages, busy state, the generic failure with its reference, return URL and open-redirect protection; menu per role; redirect to sign-in; 401 and 403 handling; antiforgery header on unsafe methods; problem messages; status chip; parts grid: first page from the server, loading row, search back to page 1, error with its reference, empty state |
-| End-to-end (Playwright, Chromium) | [`tests/SmartSpare.E2E`](../../tests/SmartSpare.E2E) | `SignInSmokeTest`: redirect, wrong password with reference, sign-in, role menu, no credential readable by scripts, sign-out. `PartsCatalogueTest`: the demo catalogue page by page and a search. `MobileLayoutTest`: phone viewport with the parts grid. `ApiReferenceTest`: `/scalar` under its CSP |
+| Components (bUnit) | [`tests/SmartSpare.Web.Tests`](../../tests/SmartSpare.Web.Tests) | Sign-in form: shared validator messages, busy state, the generic failure with its reference, return URL and open-redirect protection; menu per role; redirect to sign-in; 401 and 403 handling; antiforgery header on unsafe methods; problem messages; status chip; parts grid; stock overview and position (forms by role, `If-Match` version, conflict reload); transfers list, detail (exactly the allowed actions, confirmation, cancel reason, server refusals) and proposal form; import (report, row errors, refusals); user administration and own password change |
+| End-to-end (Playwright, Chromium) | [`tests/SmartSpare.E2E`](../../tests/SmartSpare.E2E) | `SignInSmokeTest`: redirect, wrong password with reference, sign-in, role menu, no credential readable by scripts, sign-out. `PartsCatalogueTest`: the demo catalogue page by page and a search. `MobileLayoutTest`: phone viewport with the parts grid. `ApiReferenceTest`: `/scalar` under its CSP. `StockScreensTest`: stock overview and position on desktop and phone. `TransferScenarioTest`: a planner proposes and approves a transfer and finds the donor's reservation; the list on a tablet. `ImportScreenTest`: a catalogue upload through the screen |
 | Server side of the client | [`tests/SmartSpare.Host.IntegrationTests`](../../tests/SmartSpare.Host.IntegrationTests) | Cookie flags, antiforgery, CSP and the import-map hash, the principal handed to the client, rate limiting |
 
 The bUnit tests run in the "Build and test" CI job and the Playwright tests in the "End-to-end smoke test" job (`tools/check.sh e2e`, real host on Kestrel, PostgreSQL in Testcontainers, demo data, headless Chromium).

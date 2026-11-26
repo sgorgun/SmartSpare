@@ -1,6 +1,6 @@
 # SmartSpare — Stage 5 Plan: Inventory (Stock, Transfers, Import)
 
-Status: **proposed** (26 November 2026). Stage 5 of the work plan ([ARCHITECTURE_DECISIONS.md, section 13](../architecture/ARCHITECTURE_DECISIONS.md#13-work-plan)), tracked in #103. It turns the Inventory module from the stage 2 table port and the read-only stage 4 catalogue into the first business module:
+Status: **done** (27 November 2026, v0.5.0; proposed 26 November 2026). Stage 5 of the work plan ([ARCHITECTURE_DECISIONS.md, section 13](../architecture/ARCHITECTURE_DECISIONS.md#13-work-plan)), tracked in #103. It turns the Inventory module from the stage 2 table port and the read-only stage 4 catalogue into the first business module:
 - the Inventory domain model of [ADR 0013](../adr/0013-domain-model-and-persistence.md) (stock, reservations, movements, the `TransferOrder` state machine);
 - the versioned stock, transfer and import API with full OpenAPI descriptions;
 - integration events through the outbox;
@@ -326,9 +326,22 @@ Each PR passes the full `tools/check.sh` and `tools/check.sh restore build e2e t
 
 The stock overview, the transfer flow with its screens and the E2E scenario are never cut: they are the demo for 2 December.
 
-### 12.1 Evidence
+### 12.1 Evidence (27 November 2026, v0.5.0)
 
-Filled in by PR 5l.
+| # | Met by |
+|---|---|
+| 1 | The Inventory aggregates of section 1 replace their table mirrors (#106); `check-model` clean in every CI run; the schema diff, the SQL suite (106 assertions), the concurrency test and T001 green on the EF-built database (CI job "Integration tests", `tools/check.sh database`). |
+| 2 | `TransferApiTests.A_transfer_goes_from_proposal_to_receipt_and_moves_the_stock` (stock and reservations at both hubs), the role × action matrix with brand scope and home hubs (`TransferApiTests`, `TransferFeatureTests`), and the screens: `TransferScenarioTest` (Playwright) proposes and approves CP-4821 KLP → PNV and finds the firm reservation at the donor; dispatch and receipt by the donor's and recipient's keepers in the API tests (#108, #111). |
+| 3 | The four contracts in `Inventory.Contracts` with `EventContractTests` (outbox type name, JSON shape, round trip). By the product owner's rule (section 4.1) none is written before its first consumer; `Transfer_steps_write_no_outbox_rows_until_a_consumer_exists` proves it, and #12 and #14 carry the publication acceptance items. |
+| 4 | `ImportApiTests` (loaded file, refused file with row errors, duplicate, demand history after its catalogue, header error, policy, rate limit) and `ImportScreenTest` (Playwright upload through the screen) (#109, #112). |
+| 5 | `ApiDocumentationTests.The_inventory_document_describes_every_operation_with_parameters_responses_and_examples` over all 19 Inventory operations and their schemas; the Identity operations by `EndpointTableTests` (#107–#109, #116). |
+| 6 | bUnit: `StockPagesTests`, `TransferPagesTests`, `ImportPageTests`, `UserPagesTests` (loading, empty, error with reference, actions from `allowedActions`, forms with the shared validators); Playwright: `StockScreensTest` (desktop and phone), `TransferScenarioTest` (desktop and tablet), `ImportScreenTest` (CI job "End-to-end smoke test"). |
+| 7 | Unit coverage of business logic, defined by layer (#115, #63): 80.9 % (gate 70 %); unit all code 61.7 %; unit + integration all code 89.3 %. Static analysis: SonarAnalyzer.CSharp under warnings-as-errors and the jscpd duplication gate (0.31 %) in every pipeline (#114). |
+| 8 | Closed: #46 (#116), #61 (#114), #19 (#113), #97 (#107). Moved by the timebox with findings on the issues: #30, #17, #82 to v0.6.0 (section 8). |
+
+**Decisions taken during the stage** (product owner): events are published only once a consumer exists (26 November,
+section 4.1); the coverage metric is defined by layer and data access lives in Infrastructure (27 November, section 7).
+**Deviation:** the Playwright scenario creates its proposal through the form, because T001 has no proposed transfers.
 
 ---
 
