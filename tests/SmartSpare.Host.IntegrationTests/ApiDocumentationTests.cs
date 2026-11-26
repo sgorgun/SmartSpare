@@ -67,7 +67,9 @@ public sealed partial class ApiDocumentationTests : IAsyncLifetime
         [
             "/api/v1/inventory/movements", "/api/v1/inventory/parts", "/api/v1/inventory/parts/{id}", "/api/v1/inventory/stock",
             "/api/v1/inventory/stock-adjustments", "/api/v1/inventory/stock/{warehouseId}/{partId}",
-            "/api/v1/inventory/stock/{warehouseId}/{partId}/levels", "/api/v1/inventory/warehouses",
+            "/api/v1/inventory/stock/{warehouseId}/{partId}/levels", "/api/v1/inventory/transfers", "/api/v1/inventory/transfers/{id}",
+            "/api/v1/inventory/transfers/{id}/approve", "/api/v1/inventory/transfers/{id}/cancel",
+            "/api/v1/inventory/transfers/{id}/dispatch", "/api/v1/inventory/transfers/{id}/receive", "/api/v1/inventory/warehouses",
         ]);
 
         foreach (var (path, method, statuses) in new (string, string, string[])[]
@@ -80,6 +82,13 @@ public sealed partial class ApiDocumentationTests : IAsyncLifetime
             ("/api/v1/inventory/stock/{warehouseId}/{partId}/levels", "put", ["200", "400", "401", "403", "404", "409"]),
             ("/api/v1/inventory/movements", "get", ["200", "400", "401", "403"]),
             ("/api/v1/inventory/stock-adjustments", "post", ["201", "400", "401", "403", "404", "409"]),
+            ("/api/v1/inventory/transfers", "get", ["200", "400", "401", "403"]),
+            ("/api/v1/inventory/transfers", "post", ["201", "400", "401", "403", "422"]),
+            ("/api/v1/inventory/transfers/{id}", "get", ["200", "401", "403", "404"]),
+            ("/api/v1/inventory/transfers/{id}/approve", "post", ["200", "401", "403", "404", "409"]),
+            ("/api/v1/inventory/transfers/{id}/cancel", "post", ["200", "400", "401", "403", "404", "409"]),
+            ("/api/v1/inventory/transfers/{id}/dispatch", "post", ["200", "401", "403", "404", "409"]),
+            ("/api/v1/inventory/transfers/{id}/receive", "post", ["200", "401", "403", "404", "409"]),
         })
         {
             var operation = paths.GetProperty(path).GetProperty(method);
@@ -101,7 +110,8 @@ public sealed partial class ApiDocumentationTests : IAsyncLifetime
         }
 
         var schemas = root.GetProperty("components").GetProperty("schemas");
-        foreach (var name in new[] { "StockRow", "StockPositionDetails", "ReservationSummary", "MovementRow", "ChangeStockLevelsRequest", "StockAdjustmentRequest", "StockAdjustmentResponse" })
+        foreach (var name in new[] { "StockRow", "StockPositionDetails", "ReservationSummary", "MovementRow", "ChangeStockLevelsRequest", "StockAdjustmentRequest", "StockAdjustmentResponse",
+                     "TransferSummary", "TransferDetails", "TransferLineResponse", "TransferStep", "CreateTransferRequest", "CreateTransferLine", "CancelTransferRequest" })
         {
             schemas.GetProperty(name).GetProperty("properties").EnumerateObject()
                 .Where(p => !p.Value.TryGetProperty("description", out _)).Select(p => p.Name).ShouldBeEmpty($"every field of {name} is described");

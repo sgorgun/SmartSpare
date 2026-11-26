@@ -14,6 +14,7 @@ using SmartSpare.Modules.Inventory.Features.ListWarehouses;
 using SmartSpare.Modules.Inventory.Features.Ping;
 using SmartSpare.Modules.Inventory.Features.SearchParts;
 using SmartSpare.Modules.Inventory.Features.Stock;
+using SmartSpare.Modules.Inventory.Features.Transfers;
 using SmartSpare.Modules.Inventory.Features.Warehouses;
 
 namespace SmartSpare.Modules.Inventory;
@@ -31,6 +32,8 @@ public sealed class InventoryModuleInstaller : IModuleInstaller
         services.AddHandlersFromAssembly(assembly);
         services.TryAddSingleton(TimeProvider.System);
         services.AddScoped<IWarehouseQueries, WarehouseQueries>();
+        services.AddScoped<TransferAccess>();
+        services.AddScoped<TransferDetailsReader>();
         InventoryDatabase.Instance.AddTo(services, assembly, configuration.GetConnectionString(PersistenceRegistration.ConnectionStringName), InventoryDbContext.HistorySchema);
     }
 
@@ -49,6 +52,8 @@ public sealed class InventoryModuleInstaller : IModuleInstaller
         ChangeStockLevelsEndpoint.Map(v1);
         ListMovementsEndpoint.Map(v1);
         AdjustStockEndpoint.Map(v1);
+        TransferQueryEndpoints.Map(v1);
+        TransferCommandEndpoints.Map(v1);
     }
 
     public void MapInternalEndpoints(IEndpointRouteBuilder endpoints) => WarehouseQueriesEndpoint.Map(endpoints);
