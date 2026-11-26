@@ -252,6 +252,7 @@ Unstructured JSON is avoided. Exactly two columns use `jsonb`, both with a CHECK
 |---|---|---|
 | SS100 / SS101 / SS103 | engine hours decreased / implausible / out of order | 422 |
 | SS102 | machine not active | 422 |
+| SS104 | engine-hour reading time in the future (stage 6; raised by the API, and mapped from the CHECK `ck_engine_hours_reading_not_future` by `DatabaseErrorMapper`) | 422 |
 | SS200 | insufficient stock | 409 |
 | SS201 | donor would fall below safety stock | 409 |
 | SS300 | invalid status transition | 409 |

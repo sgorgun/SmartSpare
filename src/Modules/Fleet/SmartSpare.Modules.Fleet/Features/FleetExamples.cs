@@ -13,6 +13,9 @@ internal static class FleetExamples
     public static IReadOnlyDictionary<string, object?> Unauthorized { get; } =
         OpenApiConventions.Problem(StatusCodes.Status401Unauthorized, "Unauthorized", ProblemCodes.Unauthenticated);
 
+    public static IReadOnlyDictionary<string, object?> Forbidden { get; } =
+        OpenApiConventions.Problem(StatusCodes.Status403Forbidden, "Forbidden", ProblemCodes.Forbidden);
+
     public static MaintenancePlanDue EngineService { get; } = new(
         MaintenancePlanId: 21, PlanName: "Engine service", IntervalHours: 500, IntervalMonths: 12, EffectiveInterval: 500,
         DueEngineHours: 1000, RemainingHours: 488, ProjectedDueDate: new DateOnly(2027, 2, 14), CalendarDueDate: new DateOnly(2026, 6, 15),
@@ -45,4 +48,8 @@ internal static class FleetExamples
     public static MaintenancePlanResponse Plan { get; } = new(
         Id: 21, ModelId: 7, ModelName: "Lexion 8700", BrandCode: "CLAAS", Name: "Engine service", IntervalHours: 500, IntervalMonths: 12,
         Kit: [new KitPart(1203, "0011534571", "Engine oil filter", "PCS", 1), new KitPart(1210, "0001970050", "Engine oil 15W-40", "L", 30)]);
+
+    /// <summary>UC02: 512 h logged on the Lexion crosses the 500 h engine service, which is drafted with its kit.</summary>
+    public static RecordReadingResponse RecordedReading { get; } = new(
+        Reading, EngineHours: 512, Replayed: false, DraftedOrders: [new DraftedServiceOrder(9001, "SO-2026-000412", 500, FullyReserved: true)]);
 }

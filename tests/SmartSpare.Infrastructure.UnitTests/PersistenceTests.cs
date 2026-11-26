@@ -16,6 +16,7 @@ public sealed class DatabaseErrorMapperTests
     [Theory]
     [InlineData("SS100", ErrorType.BusinessRule)]
     [InlineData("SS103", ErrorType.BusinessRule)]
+    [InlineData("SS104", ErrorType.BusinessRule)]
     [InlineData("SS200", ErrorType.Conflict)]
     [InlineData("SS201", ErrorType.Conflict)]
     [InlineData("SS300", ErrorType.Conflict)]
@@ -49,6 +50,20 @@ public sealed class DatabaseErrorMapperTests
         error.Code.ShouldBe(code);
         error.Type.ShouldBe(type);
         error.Description.ShouldNotContain("internal detail");
+    }
+
+    [Fact]
+    public void A_reading_in_the_future_refused_by_its_check_is_SS104()
+    {
+        var check = new PostgresException("new row violates check constraint", "ERROR", "ERROR", PostgresErrorCodes.CheckViolation,
+            constraintName: DatabaseErrorMapper.FutureReadingConstraint);
+
+        var error = DatabaseErrorMapper.ToError(check);
+
+        error.ShouldNotBeNull();
+        (error.Code, error.Type).ShouldBe(("SS104", ErrorType.BusinessRule));
+        DatabaseErrorMapper.ToError(new PostgresException("other", "ERROR", "ERROR", PostgresErrorCodes.CheckViolation, constraintName: "ck_other"))!
+            .Code.ShouldBe("Database.CheckViolation");
     }
 
     [Fact]
