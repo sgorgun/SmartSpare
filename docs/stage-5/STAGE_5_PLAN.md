@@ -35,11 +35,11 @@ No new ADR is needed: every decision below applies ADRs 0003, 0004, 0005, 0012, 
 | I3 | **`DatabaseErrorMapper` is wired into the transaction decorator.** An expected PostgreSQL error (SS200–SS302, constraint violations, serialization failures) becomes a failed `Result` and a ProblemDetails with the SS code; anything else stays an exception. | 2.3 |
 | I4 | **API under `/api/v1/inventory/...`**: stock overview and position, movement ledger, stock adjustments, transfers (create, list, detail, approve, cancel, dispatch, receive), imports (upload, list, detail). Every endpoint has a summary, a description, parameter descriptions, response types and examples (ADR 0019 §1). | 3 |
 | I5 | **Policies and brand scope from stage 3.** Approve and cancel run the `ApproveTransferScope` / `CancelTransferScope` resource check over the brands of all lines (read from `catalog.part`) before any state change. Dispatch, receive and adjustments use `MoveStock`; the database repeats the role and home-warehouse checks (SS301, SS302). One new policy, `ImportData`. | 3.2 |
-| I6 | **Integration events** in `Inventory.Contracts`: `TransferApproved`, `TransferCancelled`, `TransferRejected` and `PartCatalogChanged`, written to `inventory.outbox_message` in the same transaction as the change. `TransferRejected` is defined now and published by the `TransferRequested` consumer, which is built in stage 8 with its publisher (#14). | 4 |
+| I6 | **Integration event contracts** in `Inventory.Contracts`: `TransferApproved`, `TransferCancelled`, `TransferRejected` and `PartCatalogChanged`, pinned by contract tests. **An integration event is published only once at least one consumer exists; contracts may exist earlier** (product owner, 26 November 2026): the transfer events are written to the outbox from stage 8 (#14), `PartCatalogChanged` from stage 6 (#12). | 4 |
 | I7 | **`IWarehouseQueries`** is the first Inventory Contracts query: in process in the single host, over `/internal/v1/inventory/warehouses` between services (the stage 4 pattern of `ICredentialVerifier`). User administration (#46) validates the home warehouse with it. | 4.3 |
 | I8 | **CSV import raw → staging → core** for the part catalogue and the demand history: the upload is stored row by row in `raw`, `staging.process_batch` validates and loads with its 5 % data-quality gate, and the report (counts and per-row errors) is shown on a screen. Size limit 10 MB, rate limit, one batch per file hash. | 5 |
 | I9 | **Screens** in `Features/Inventory`: stock overview and position, transfers list and detail with the actions the user may take, a create-transfer form, import. Responsive (cards on small screens), loading and empty states, errors with the trace "Reference". bUnit tests per screen and one Playwright scenario (approve a transfer). | 6 |
-| I10 | **Unit coverage toward 80 %**: the domain is unit-tested exhaustively (every transition, every invariant); the gate stays 70 % and the figure is recorded per PR. | 7 |
+| I10 | **Unit tests where the business logic is**: domain, validators, mapping, policies and access rules, without mock-heavy tests of data access. Target for v0.5.0: the 70 % gate (71.4 % after 5d), unit + integration reported. | 7 |
 | I11 | **Static analysis (#61): `SonarAnalyzer.CSharp` in the build plus a duplication check in `tools/check.sh`** — the fallback of #61, because SonarQube Cloud needs an account the owner would create (CLAUDE.md: accounts are the owner's). The hosted service remains an option for the owner (section 10). | 10 |
 | I12 | **User administration (#46)** is the last feature PR and the first cut if the stage runs late. | 9, 12 |
 
@@ -77,11 +77,11 @@ No new ADR is needed: every decision below applies ADRs 0003, 0004, 0005, 0012, 
 
 Approve, cancel, dispatch and receive follow one pattern (I2):
 
-1. Load the `TransferOrder` with its lines (tracked, so `xmin` is checked) — 404 if missing.
+1. Load the `TransferOrder` with its lines, untracked (EF never saves it; the function's row lock replaces `xmin` here) — 404 if missing.
 2. Approve and cancel only: build `IBrandScoped` from the brands of the lines (`catalog.part.brand_id`, module-local) and run `IAuthorizationService.AuthorizeAsync` with the scope requirement → 403 ProblemDetails before any change (STAGE_3_PLAN 3.3).
 3. Call the aggregate method. A failed `Result` (wrong state, wrong hub) returns without touching the database.
-4. Detach the aggregate (`ChangeTracker.Clear()` for that entry), then `SELECT inventory.<function>(@id[, @reason])` in the same transaction. The function locks rows in part order, writes reservations, movements and the status, and repeats the role and warehouse checks.
-5. Add the integration event to the unit of work; the transaction decorator writes the outbox row and commits.
+4. `SELECT inventory.<function>(@id[, @reason])` in the same transaction. The function locks rows in part order, writes reservations, movements and the status, and repeats the role and warehouse checks.
+5. From the stage of the event's first consumer (section 4.1): add the integration event to the unit of work, so the transaction decorator writes the outbox row and commits it with the change.
 
 So the domain gives fast, unit-tested answers and the database stays the last line of defence (ARCHITECTURE_DECISIONS §5): concurrent requests that pass step 3 on stale data are stopped by the function's row locks and state checks (SS300) or by SS200/SS201 on stock.
 
@@ -150,13 +150,21 @@ In `SmartSpare.Modules.Inventory.Contracts`, routing key `<Event>.v1` (ADR 0017)
 | `TransferRejected` | a `TransferRequested` cannot be fulfilled (SS200/SS201) | recommendationId, error code, message |
 | `PartCatalogChanged` | a part-catalogue import loaded rows | chunks of at most 500 part snapshots (partId, brand, OEM number, description, unit of measure, isActive) |
 
-`TransferRequested` and its consumer belong to stage 8 (#14): the consumer approves on behalf of the planner outside an HTTP request, which needs the session context of a consumer to be designed together with its publisher. Stage 5 defines `TransferRejected` so the contract is reviewed with the others. `PartCatalogChanged` has no consumer until stage 6 (#12); it is published now because the import is where it originates (X22), and the chunking keeps a 20,000-part import at 40 messages, within the CloudAMQP budget (ADR 0017 §5).
+**Rule: an integration event is published only once at least one consumer exists; its contract may exist earlier** (product owner, 26 November 2026). The RabbitMQ publisher sends with `mandatory=true` (ADR 0017): an event without a bound queue is returned, stays unprocessed, backs off and is finally parked with an alert (#31). Writing an event nobody consumes would therefore raise that alert after every approval in the services topology. So stage 5 defines and contract-tests the four events below, and **writes none of them to the outbox**:
+
+| Event | First consumer | Written to the outbox from |
+|---|---|---|
+| `TransferApproved`, `TransferCancelled` | Forecasting (recommendation fulfilled or reopened) | stage 8, #14 |
+| `TransferRejected` | Forecasting (compensation) | stage 8, #14 (published by the `TransferRequested` consumer) |
+| `PartCatalogChanged` | Fleet part snapshot (then Procurement, Forecasting) | stage 6, #12 |
+
+#12 and #14 carry the acceptance item "Inventory writes <Event> to the outbox in the same transaction as the state change, with an integration test", so the publication cannot be forgotten. `TransferRequested` and its consumer belong to stage 8 as well: the consumer approves on behalf of the planner outside an HTTP request, which needs the session context of a consumer to be designed together with its publisher. The chunking of `PartCatalogChanged` (500 parts) keeps a 20,000-part import at 40 messages, within the CloudAMQP budget (ADR 0017 §5).
 
 `recommendationId` is a nullable column added to `inventory.transfer_order` in stage 8 with the consumer; in stage 5 the events carry `null`.
 
 ### 4.2 Tests
 
-Integration tests assert that each command writes exactly one outbox row with the expected type and payload, in the same transaction (a failed approval writes none), and that the outbox dispatcher delivers it in process.
+Contract tests pin each event's outbox type name and JSON shape and round-trip it through `IntegrationEventSerializer`. Until the first consumer exists, an integration test asserts that transfer steps write no outbox row; the stage that adds the consumer replaces it with the one-row-per-command assertion (#12, #14).
 
 ### 4.3 `IWarehouseQueries` (I7)
 
@@ -169,7 +177,7 @@ Integration tests assert that each command writes exactly one outbox row with th
 - **Formats.** UTF-8 CSV with a header row, comma or semicolon separated, the columns of `raw.part_catalog_row` and `raw.demand_history_row` (all text, as the raw layer expects). The expected header is documented in the endpoint description and offered as a template download on the screen.
 - **Flow.** One command in one transaction: reject a file whose SHA-256 is already in `raw.import_batch` (409, the unique index), insert the batch and its rows (binary `COPY` through Npgsql for speed), call `staging.process_batch(batch)` and return its report. A failed quality gate is a normal response (`status: failed`, message with the error ratio), not an error. Row errors come from `staging.import_error`.
 - **Limits.** 10 MB request limit on the endpoint (`RequestSizeLimit`), at most 50,000 rows per file, a rate limit of 5 imports per minute per user (the stage 3 limiter, ARCHITECTURE_DECISIONS §7).
-- **Events.** A loaded part-catalogue batch publishes `PartCatalogChanged` for the changed parts (4.1).
+- **Events.** None in stage 5: `PartCatalogChanged` is written from stage 6 with the Fleet part snapshot (#12, section 4.1).
 - **Tests.** Parser unit tests (separators, quoting, BOM, wrong header); integration tests for a good file, a file over the 5 % threshold, a duplicate upload, and a demand-history file with duplicates skipped.
 
 ---
@@ -202,13 +210,13 @@ Common rules:
 
 | Level | New in stage 5 |
 |---|---|
-| Unit (`SmartSpare.Modules.Inventory.UnitTests`) | Every `TransferOrder` transition (allowed and refused), line rules, `StockPosition` and `StockBalance` calculations, `Quantity`, `TransferNumber`, adjustment rules, CSV parser, `allowedActions`, validators, `DatabaseErrorMapper` in the decorator. |
-| Integration (`SmartSpare.Host.IntegrationTests`, Testcontainers) | Each endpoint: success, 400, 401, 403 (role and brand scope), 404, 409 (SS200/SS201/SS300); outbox rows; import flows; SS302 on dispatch by the wrong hub. |
+| Unit (`SmartSpare.Modules.Inventory.UnitTests`) | Every `TransferOrder` transition (allowed and refused), line rules, `StockPosition` calculations, `Quantity`, event contracts, endpoint table, adjustment rules, CSV parser, `allowedActions`, validators, `DatabaseErrorMapper` in the decorator. |
+| Integration (`SmartSpare.Host.IntegrationTests`, Testcontainers) | Each endpoint: success, 400, 401, 403 (role and brand scope), 404, 409 (SS200/SS201/SS300); no outbox rows before a consumer exists; import flows; SS302 on dispatch by the wrong hub. |
 | Architecture | Inventory `Domain` has no framework references (existing rule); the new Contracts types are public and the rest internal. |
 | Topology | The stock overview reached through the gateway; `/internal/v1/inventory/warehouses` not routed. |
 | bUnit, Playwright | Section 6. |
 
-**Coverage.** The gate stays at 70 % (#63). The target for v0.5.0 is **unit coverage ≥ 78 %**, on the way to 80 % by stage 9 (#63). Each PR states its unit coverage; a drop of more than 2 points needs a reason (CLAUDE.md).
+**Coverage** (product owner, 26 November 2026). Unit tests go where the business logic is: domain, validators, mapping, policies and access rules. Query handlers and the SQL-backed command steps are pure data access (raw SQL and the SECURITY DEFINER functions); they are covered by the integration tests on PostgreSQL, not by mock-heavy unit tests written for the number. The gate stays at 70 % (#63). Measured after each PR: 82.4 % (5b, domain only), 76.2 % (5c, stock API), 71.4 % (5d, transfer API). The stage's remaining Inventory work is mostly data access (import) and screens (outside the measured assemblies), so the honest target for v0.5.0 is **the 70 % gate itself**, with unit + integration reported next to it (`coverage-combined`). If a PR would fall below the gate, the decision goes to the product owner rather than to data-access unit tests. The 80 % goal of #63 is reached through the domain logic of stages 6–8 (service orders, purchase orders, recommendations and models), not by testing data access in isolation. Each PR states its unit coverage; a drop of more than 2 points needs a reason (CLAUDE.md).
 
 ---
 
@@ -258,11 +266,11 @@ Each PR passes the full `tools/check.sh` and `tools/check.sh restore build e2e t
 **Acceptance:** integration tests per endpoint and status; topology test reaches `/stock` through the gateway; `/internal/v1/inventory/warehouses` not routed. **Closes #97.**
 
 ### 5d: Transfers API and events
-**Scope:** create, list, detail, approve, cancel, dispatch, receive; brand scope; `allowedActions`; `TransferApproved`, `TransferCancelled`, `TransferRejected` contracts; outbox rows.
-**Acceptance:** the role × action matrix (planner, brand manager in and out of scope, keeper of donor and of another hub, administrator, sponsor) as integration tests; SS200/SS201/SS300/SS302 mapped to 409/403 with codes; one outbox row per successful command, none on failure.
+**Scope:** create, list, detail, approve, cancel, dispatch, receive; brand scope; `allowedActions`; the four event contracts of 4.1 with contract tests (not written to the outbox).
+**Acceptance:** the role × action matrix (planner, brand manager in and out of scope, keeper of donor and of another hub, administrator, sponsor) as integration tests; SS200/SS201/SS300/SS302 mapped to 409/403 with codes; no outbox row until the first consumer exists (4.1); #12 and #14 carry the publication acceptance item.
 
 ### 5e: CSV import API
-**Scope:** section 5; `ImportData` policy; `PartCatalogChanged`.
+**Scope:** section 5; `ImportData` policy.
 **Acceptance:** the four integration scenarios of section 5; parser unit tests; request limit and rate limit tested.
 
 ### 5f: Stock screens
@@ -299,11 +307,11 @@ Each PR passes the full `tools/check.sh` and `tools/check.sh restore build e2e t
 
 1. The Inventory aggregates replace their persistence classes; `check-model` clean; schema diff and the SQL suite green on the EF-built database.
 2. A planner proposes and approves a transfer, a keeper of the donor dispatches it and a keeper of the recipient receives it, through the API and the screens; stock and reservations change exactly as the SQL functions define; brand scope and warehouse checks refuse the wrong users.
-3. `TransferApproved` and `TransferCancelled` are written to the outbox in the same transaction and delivered; the contracts of section 4.1 are documented in `Inventory.Contracts`.
+3. The event contracts of section 4.1 are defined in `Inventory.Contracts` and pinned by contract tests; no event is written to the outbox before its first consumer exists, and #12 and #14 carry the publication acceptance items.
 4. A part catalogue and a demand history CSV are imported through the screen, with the quality gate and row errors shown.
 5. Every Inventory endpoint is documented with summaries, descriptions and examples in the public OpenAPI document.
 6. Screens are responsive, show loading and error states with the Reference, and are covered by bUnit; the Playwright scenario passes in CI.
-7. Unit coverage ≥ 78 % (gate 70 %); the static-analysis gate runs in CI.
+7. Unit coverage at or above the 70 % gate with unit + integration reported; the static-analysis gate runs in CI.
 8. #46, #61, #17, #19, #30 and #97 are closed or explicitly moved by the timebox.
 
 **Cut order if the stage runs late** (each cut becomes an issue in a later milestone; the later stages are not moved):
@@ -311,7 +319,6 @@ Each PR passes the full `tools/check.sh` and `tools/check.sh restore build e2e t
 2. 5j static analysis (#61) → v0.6.0.
 3. 5i housekeeping items one by one → v0.6.0.
 4. Stock levels editing and the adjustment dialog → v0.6.0.
-5. `PartCatalogChanged` → stage 6 with its first consumer (#12).
 
 The stock overview, the transfer flow with its screens and the E2E scenario are never cut: they are the demo for 2 December.
 
