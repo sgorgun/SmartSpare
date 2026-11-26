@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 using SmartSpare.Infrastructure.Messaging;
 using SmartSpare.Infrastructure.Messaging.Outbox;
 using SmartSpare.Infrastructure.Persistence;
@@ -85,6 +86,48 @@ public sealed class TransactionDecoratorTests
         scope.ServiceProvider.GetRequiredService<RecordingUnitOfWork>().Outcomes.ShouldBe(["rollback"]);
     }
 
+    [Theory]
+    [InlineData("SS201", ErrorType.Conflict)]
+    [InlineData("SS302", ErrorType.Forbidden)]
+    [InlineData("23505", ErrorType.Conflict)]
+    public async Task Expected_database_errors_roll_back_and_become_failed_results(string sqlState, ErrorType type)
+    {
+        await using var provider = Build();
+        await using var scope = provider.CreateAsyncScope();
+        var handler = scope.ServiceProvider.GetRequiredService<ICommandHandler<Probe>>();
+
+        var result = await handler.Handle(new Probe(true, Throw: false, SqlState: sqlState), TestContext.Current.CancellationToken);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Type.ShouldBe(type);
+        scope.ServiceProvider.GetRequiredService<RecordingUnitOfWork>().Outcomes.ShouldBe(["rollback"]);
+    }
+
+    [Fact]
+    public async Task Expected_database_errors_of_commands_with_a_result_keep_the_business_code()
+    {
+        await using var provider = Build();
+        await using var scope = provider.CreateAsyncScope();
+        var handler = scope.ServiceProvider.GetRequiredService<ICommandHandler<NumberedProbe, long>>();
+
+        var result = await handler.Handle(new NumberedProbe("SS200"), TestContext.Current.CancellationToken);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("SS200");
+        result.Error.Description.ShouldBe("not enough stock");
+    }
+
+    [Fact]
+    public async Task Unexpected_database_errors_stay_exceptions()
+    {
+        await using var provider = Build();
+        await using var scope = provider.CreateAsyncScope();
+        var handler = scope.ServiceProvider.GetRequiredService<ICommandHandler<NumberedProbe, long>>();
+
+        (await Should.ThrowAsync<InvalidOperationException>(() => handler.Handle(new NumberedProbe("42P01"), TestContext.Current.CancellationToken)))
+            .InnerException.ShouldBeOfType<PostgresException>();
+    }
+
     [Fact]
     public void Commands_WithoutAUnitOfWork_FailAtStartUp()
     {
@@ -96,14 +139,22 @@ public sealed class TransactionDecoratorTests
             .Message.ShouldContain("SmartSpare.Infrastructure.UnitTests");
     }
 
-    internal sealed record Probe(bool Succeed, bool Throw) : ICommand;
+    internal sealed record Probe(bool Succeed, bool Throw, string? SqlState = null) : ICommand;
 
     internal sealed class ProbeHandler : ICommandHandler<Probe>
     {
         public Task<Result> Handle(Probe command, CancellationToken cancellationToken) =>
-            command.Throw
-                ? throw new InvalidOperationException("boom")
-                : Task.FromResult(command.Succeed ? Result.Success() : Result.Failure(Error.Conflict("Probe.Failed", "failed")));
+            command.Throw ? throw new InvalidOperationException("boom")
+            : command.SqlState is { } state ? throw new PostgresException("refused by the database", "ERROR", "ERROR", state)
+            : Task.FromResult(command.Succeed ? Result.Success() : Result.Failure(Error.Conflict("Probe.Failed", "failed")));
+    }
+
+    internal sealed record NumberedProbe(string SqlState) : ICommand<long>;
+
+    internal sealed class NumberedProbeHandler : ICommandHandler<NumberedProbe, long>
+    {
+        public Task<Result<long>> Handle(NumberedProbe command, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("wrapped", new PostgresException("not enough stock", "ERROR", "ERROR", command.SqlState));
     }
 }
 
