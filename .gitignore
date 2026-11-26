@@ -19,3 +19,10 @@ node_modules/
 __pycache__/
 *.pyc
 artifacts/
+
+# Terraform (infra/grafana): provider cache, state and variable files hold credentials; never commit them.
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+.terraform.tfstate.lock.info

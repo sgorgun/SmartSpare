@@ -20,7 +20,7 @@
       "title": "Active series",
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "usage"
       },
       "gridPos": {
         "x": 0,
@@ -39,7 +39,7 @@
           "refId": "A",
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "usage"
           },
           "expr": "max(grafanacloud_instance_active_series or prometheus_tsdb_head_series)",
           "legendFormat": "active series"

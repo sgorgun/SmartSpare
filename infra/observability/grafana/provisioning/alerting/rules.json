@@ -338,7 +338,7 @@
                 "from": 900,
                 "to": 0
               },
-              "datasourceUid": "prometheus",
+              "datasourceUid": "usage",
               "model": {
                 "refId": "A",
                 "expr": "max(grafanacloud_instance_active_series or prometheus_tsdb_head_series)",

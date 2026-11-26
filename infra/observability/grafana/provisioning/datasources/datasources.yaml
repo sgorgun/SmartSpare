@@ -12,6 +12,13 @@ datasources:
       exemplarTraceIdDestinations:
         - name: trace_id
           datasourceUid: tempo
+  # Grafana Cloud keeps its usage metrics (grafanacloud_instance_active_series) in a separate data source; locally the
+  # uid "usage" is the same Prometheus, so the free-tier panel and the active-series rule work in both.
+  - name: Usage
+    uid: usage
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
   - name: Loki
     uid: loki
     type: loki
