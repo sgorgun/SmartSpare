@@ -43,7 +43,7 @@ internal sealed class RecommendationConfiguration : IEntityTypeConfiguration<Rec
         builder.Property(x => x.RecommendedQty).HasColumnName("recommended_qty").HasColumnOrder(14).HasColumnType("numeric(12,3)");
         builder.Property(x => x.EstimatedCostEur).HasColumnName("estimated_cost_eur").HasColumnOrder(15).HasColumnType("numeric(12,2)");
         builder.Property(x => x.AlternativeCostEur).HasColumnName("alternative_cost_eur").HasColumnOrder(16).HasColumnType("numeric(12,2)").HasComment("Cost of the alternative (e.g. emergency supplier order EUR 280 vs. transfer EUR 45, UC01 step 9).");
-        builder.Property(x => x.Status).HasColumnName("status").HasColumnOrder(17).HasDefaultValueSql("'open'::forecast.recommendation_status").HasComment("Workflow status (state machine guarded by trigger).");
+        builder.Property(x => x.Status).HasColumnName("status").HasColumnOrder(17).HasDefaultValueSql("'open'::forecast.recommendation_status").HasComment("Workflow status (state machine guarded by trigger).").ValueGeneratedNever();
         builder.Property(x => x.FinalQty).HasColumnName("final_qty").HasColumnOrder(18).HasColumnType("numeric(12,3)").HasComment("Quantity decided by the user (KPI-04: accepted when equal to recommended_qty).");
         builder.Property(x => x.DecidedBy).HasColumnName("decided_by").HasColumnOrder(19).HasColumnType("uuid").HasComment("User who performed the step (iam.app_user).");
         builder.Property(x => x.DecidedAt).HasColumnName("decided_at").HasColumnOrder(20).HasColumnType("timestamp with time zone").HasComment("Time of the decided event.");

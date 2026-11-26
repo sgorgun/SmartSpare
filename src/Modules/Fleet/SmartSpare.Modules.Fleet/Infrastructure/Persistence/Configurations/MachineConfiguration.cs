@@ -29,7 +29,7 @@ internal sealed class MachineConfiguration : IEntityTypeConfiguration<Machine>
         builder.Property(x => x.ManufactureYear).HasColumnName("manufacture_year").HasColumnOrder(6).HasColumnType("smallint");
         builder.Property(x => x.CurrentEngineHours).HasColumnName("current_engine_hours").HasColumnOrder(7).HasColumnType("numeric(8,1)").HasDefaultValueSql("0").HasComment("Latest odometer value; maintained by the reading trigger.");
         builder.Property(x => x.EngineHoursReadAt).HasColumnName("engine_hours_read_at").HasColumnOrder(8).HasColumnType("timestamp with time zone").HasComment("Time of the engine hours read event.");
-        builder.Property(x => x.Status).HasColumnName("status").HasColumnOrder(9).HasDefaultValueSql("'active'::fleet.machine_status").HasComment("Workflow status (state machine guarded by trigger).");
+        builder.Property(x => x.Status).HasColumnName("status").HasColumnOrder(9).HasDefaultValueSql("'active'::fleet.machine_status").HasComment("Workflow status (state machine guarded by trigger).").ValueGeneratedNever();
         builder.Property(x => x.CommissionedOn).HasColumnName("commissioned_on").HasColumnOrder(10).HasColumnType("date");
         builder.Property(x => x.CreatedAt).HasColumnName("created_at").HasColumnOrder(11).HasColumnType("timestamp with time zone").HasDefaultValueSql("now()").HasComment("Time the record was created.");
         builder.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasColumnOrder(12).HasColumnType("timestamp with time zone").HasDefaultValueSql("now()").HasComment("Time of the last change (maintained by trigger).");

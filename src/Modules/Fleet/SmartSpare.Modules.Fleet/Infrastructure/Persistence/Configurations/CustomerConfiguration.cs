@@ -25,7 +25,7 @@ internal sealed class CustomerConfiguration : IEntityTypeConfiguration<Customer>
         builder.Property(x => x.ErpRefHash).HasColumnName("erp_ref_hash").HasColumnOrder(2).HasColumnType("bytea").HasComment("HMAC-SHA256 of the ERP customer id (util.pseudonymise); allows matching re-imports without storing the id.");
         builder.Property(x => x.RegionWarehouseId).HasColumnName("region_warehouse_id").HasColumnOrder(3).HasColumnType("smallint").HasComment("Reference to inventory.warehouse.");
         builder.Property(x => x.FarmSizeHa).HasColumnName("farm_size_ha").HasColumnOrder(4).HasColumnType("numeric(8,1)");
-        builder.Property(x => x.IsActive).HasColumnName("is_active").HasColumnOrder(5).HasColumnType("boolean").HasDefaultValueSql("true").HasComment("FALSE = deactivated, kept for history.");
+        builder.Property(x => x.IsActive).HasColumnName("is_active").HasColumnOrder(5).HasColumnType("boolean").HasDefaultValueSql("true").HasComment("FALSE = deactivated, kept for history.").HasSentinel(true);
         builder.Property(x => x.CreatedAt).HasColumnName("created_at").HasColumnOrder(6).HasColumnType("timestamp with time zone").HasDefaultValueSql("now()").HasComment("Time the record was created.");
         // fk_customer_region_warehouse -> inventory.warehouse removed: cross-module FK (ADR 0011, MODULE_MAPPING section 2).
 

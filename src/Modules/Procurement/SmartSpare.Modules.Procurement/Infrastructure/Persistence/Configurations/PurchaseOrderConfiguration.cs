@@ -28,8 +28,8 @@ internal sealed class PurchaseOrderConfiguration : IEntityTypeConfiguration<Purc
         builder.Property(x => x.Number).HasColumnName("number").HasColumnOrder(1).HasColumnType("character varying(20)").HasComment("Business document number (assigned by trigger).");
         builder.Property(x => x.SupplierId).HasColumnName("supplier_id").HasColumnOrder(2).HasColumnType("integer").HasComment("Reference to procurement.supplier.");
         builder.Property(x => x.WarehouseId).HasColumnName("warehouse_id").HasColumnOrder(3).HasColumnType("smallint").HasComment("Reference to inventory.warehouse.");
-        builder.Property(x => x.Status).HasColumnName("status").HasColumnOrder(4).HasDefaultValueSql("'draft'::procurement.po_status").HasComment("Workflow status (state machine guarded by trigger).");
-        builder.Property(x => x.IsUrgent).HasColumnName("is_urgent").HasColumnOrder(5).HasColumnType("boolean").HasDefaultValueSql("false").HasComment("US16 emergency direct purchase (\"Urgent Harvest Dispatch\"), bypasses weekly batching.");
+        builder.Property(x => x.Status).HasColumnName("status").HasColumnOrder(4).HasDefaultValueSql("'draft'::procurement.po_status").HasComment("Workflow status (state machine guarded by trigger).").ValueGeneratedNever();
+        builder.Property(x => x.IsUrgent).HasColumnName("is_urgent").HasColumnOrder(5).HasColumnType("boolean").HasDefaultValueSql("false").HasComment("US16 emergency direct purchase (\"Urgent Harvest Dispatch\"), bypasses weekly batching.").ValueGeneratedNever();
         builder.Property(x => x.UrgentReason).HasColumnName("urgent_reason").HasColumnOrder(6).HasColumnType("character varying(300)");
         builder.Property(x => x.CurrencyCode).HasColumnName("currency_code").HasColumnOrder(7).HasColumnType("character(3)").HasDefaultValueSql("'EUR'::bpchar");
         builder.Property(x => x.TotalAmount).HasColumnName("total_amount").HasColumnOrder(8).HasColumnType("numeric(14,2)").HasDefaultValueSql("0").HasComment("Controlled redundancy: SUM(line_amount), maintained by trigger; needed by the four-eyes CHECK.");
