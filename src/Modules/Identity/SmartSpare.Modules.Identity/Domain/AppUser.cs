@@ -141,6 +141,25 @@ internal sealed partial class AppUser : AggregateRoot<Guid>
         RotateSecurityStamp();
     }
 
+    /// <summary>Ends a lockout after failed sign-ins (user administration, #46).</summary>
+    public void Unlock()
+    {
+        LockoutEnd = null;
+        FailedLoginCount = 0;
+    }
+
+    /// <summary>The home hub of a warehouse keeper; a change rotates the stamp, because the hub is a claim (SS302).</summary>
+    public void SetHomeWarehouse(short? warehouseId)
+    {
+        if (HomeWarehouseId == warehouseId)
+        {
+            return;
+        }
+
+        HomeWarehouseId = warehouseId;
+        RotateSecurityStamp();
+    }
+
     /// <summary>Invalidates every issued session at its next check.</summary>
     public void RotateSecurityStamp() => SecurityStamp = Guid.NewGuid();
 

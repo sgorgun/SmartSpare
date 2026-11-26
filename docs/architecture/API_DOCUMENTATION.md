@@ -97,6 +97,12 @@ operations are described in full:
 | `inventory` | `POST /api/v1/inventory/transfers/{id}/dispatch` and `/receive` | `MoveStock` | 200; 401; 403 `SS302`; 404; 409 `SS300` |
 | `inventory` | `POST /api/v1/inventory/imports` (multipart `source`, `file`): CSV import raw → staging → core | `ImportData`, 5 a minute | 201 `ImportBatchDetails` (status `loaded` or `failed`); 400 `Inventory.ImportHeader` and others; 401; 403; 409 `Inventory.ImportDuplicate`; 429 |
 | `inventory` | `GET /api/v1/inventory/imports` and `/imports/{id}`: batches and their row errors | `ImportData` | 200; 401; 403; 404 `Inventory.ImportNotFound` |
+| `identity` | `GET /api/v1/identity/users?search=&page=&pageSize=`: the masked user directory | `Administration` | 200 `PagedResponse<UserSummary>`; 400; 401; 403 |
+| `identity` | `GET /api/v1/identity/users/form-options`: roles, brands, active hubs | `Administration` | 200; 401; 403 |
+| `identity` | `POST /api/v1/identity/users`: create a user with an initial password | `Administration` (writes as `app_admin`) | 201; 400; 401; 403; 409 `Identity.UserNameTaken` |
+| `identity` | `PUT /api/v1/identity/users/{id}/access`: roles, brands, home hub | `Administration` | 200 `UserSummary`; 400; 401; 403; 404; 422 `Identity.OwnAdministration` |
+| `identity` | `POST /api/v1/identity/users/{id}/unlock`, `/deactivate`, `/anonymise` | `Administration` | 200 `UserSummary`; 401; 403 (`SS301` for the own account); 404; 422 |
+| `identity` | `POST /api/v1/identity/me/password`: change the own password | any signed-in user | 204; 400 `Identity.WrongPassword`; 401 |
 
 `ReadInventory` admits every role but not a user without one. Reads are never brand-scoped (STAGE_3_PLAN §3.3). The
 other five module documents fill as stages 5–9 add `/api/v1` endpoints, each with its summary, response types and
