@@ -41,6 +41,8 @@ exports these gauges and exits:
 | `smartspare_broker_connections` | — | Open AMQP connections to the vhost (the free plan allows 20) |
 | `smartspare_broker_published_messages` | — | Messages published to the vhost since the broker last reset its statistics |
 
+The API has no monthly count, so the monthly quota of 1 M messages has no gauge and no alert rule: CloudAMQP e-mails the account at 70 % and 100 % of it ([ADR 0023](../adr/0023-message-quota-watched-by-cloudamqp.md)).
+
 The management API is `https://<AMQP host>/` on CloudAMQP; `RabbitMq:ManagementUrl` overrides it.
 - **Locally:** the `broker-metrics` resource of `--topology services` runs the job when it is started from the Aspire dashboard. The AppHost passes it the local RabbitMQ's management endpoint.
 - **In Azure:** a Container Apps cron job runs it every 15 minutes (#85).

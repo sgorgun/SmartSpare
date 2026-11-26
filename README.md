@@ -28,7 +28,7 @@ The database criteria are in [DATABASE_DESIGN.md §0](docs/database/DATABASE_DES
 | Asynchronous messaging | Outbox/Inbox + RabbitMQ transport (`SmartSpare.Infrastructure.RabbitMq`, [ADR 0017](docs/adr/0017-rabbitmq-integration-event-transport.md)); `RabbitMqTransportTests`, CI job "Topology test" | done |
 | Security | Cookie BFF, ES256 internal tokens, policies, antiforgery, rate limit, CSP ([ADR 0014](docs/adr/0014-browser-sign-in-through-bff-endpoints.md), [ADR 0016](docs/adr/0016-authentication-behind-the-gateway.md)); `tests/SmartSpare.Host.IntegrationTests` | done |
 | Error handling, logging, tracing | ProblemDetails with a trace id; OpenTelemetry → Grafana stack ([TRACING.md](docs/operations/TRACING.md), [ADR 0018](docs/adr/0018-observability-with-the-grafana-stack.md)) | done |
-| Monitoring and alerting | Dashboards and 8 alert rules in [`infra/observability`](infra/observability) (local Grafana) | done locally; Grafana Cloud and alert delivery in PR 4j (#59) |
+| Monitoring and alerting | Dashboards and 7 alert rules in [`infra/observability`](infra/observability) (local Grafana) | done locally; Grafana Cloud and alert delivery in PR 4j (#59) |
 | Tests and coverage gate | Unit, integration (Testcontainers), architecture, topology, bUnit, Playwright; `tools/check.sh coverage` fails below 70 % of business logic | done |
 | CI/CD | `.github/workflows/ci.yml` (gates, integration, E2E, topology, images), `deploy-<service>.yml`, Bicep in [`infra/`](infra) | CI done; first deployment in stage 10 (#85) |
 | No secrets in the repository | user-secrets, Key Vault references; gitleaks scan of the whole history ([`.gitleaksignore`](.gitleaksignore)) | done |

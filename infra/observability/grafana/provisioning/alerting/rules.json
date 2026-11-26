@@ -259,55 +259,6 @@
               }
             }
           ]
-        },
-        {
-          "uid": "ss-quota",
-          "title": "Monthly message quota",
-          "condition": "C",
-          "for": "0s",
-          "noDataState": "OK",
-          "execErrState": "Error",
-          "labels": {
-            "severity": "warning",
-            "system": "smartspare"
-          },
-          "annotations": {
-            "summary": "More than 70 % of the broker's 1 M monthly messages are used."
-          },
-          "data": [
-            {
-              "refId": "A",
-              "relativeTimeRange": {
-                "from": 300,
-                "to": 0
-              },
-              "datasourceUid": "prometheus",
-              "model": {
-                "refId": "A",
-                "expr": "max(smartspare_broker_published_messages_month)",
-                "instant": true
-              }
-            },
-            {
-              "refId": "C",
-              "datasourceUid": "__expr__",
-              "model": {
-                "refId": "C",
-                "type": "threshold",
-                "expression": "A",
-                "conditions": [
-                  {
-                    "evaluator": {
-                      "type": "gt",
-                      "params": [
-                        700000
-                      ]
-                    }
-                  }
-                ]
-              }
-            }
-          ]
         }
       ]
     },

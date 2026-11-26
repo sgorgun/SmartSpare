@@ -31,7 +31,7 @@ resource "grafana_dashboard" "smartspare" {
   )
 }
 
-# The 8 rules in 3 groups of ADR 0018 §4, from the local provisioning file.
+# The 7 rules in 3 groups of ADR 0018 §4 and ADR 0023, from the local provisioning file.
 resource "grafana_rule_group" "smartspare" {
   for_each = { for group in local.rule_file.groups : group.name => group }
 
