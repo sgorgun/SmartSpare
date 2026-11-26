@@ -750,6 +750,23 @@ Moved to stage 10 with the first deployment (#85):
 - the measured cold start;
 - spending within NFR07 with the budget alert.
 
+### 12.1 Evidence (26 November 2026, v0.4.0)
+
+| # | Met by |
+|---|---|
+| 1 | Every CI job green on `main` (Build and test, Integration tests, End-to-end smoke test, Topology test, Container images, Coverage report); the 122 architecture tests include `ModuleBoundaryTests` and `TopologyBoundaryTests` (module code has no topology concerns, one module per service host). |
+| 2 | `TopologyTests` (CI job "Topology test"): sign-in through the gateway, both services reached with minted internal tokens, the services on their own logins. `GatewayUnitTests.The_route_table_has_two_literal_routes_per_module_and_none_can_match_internal` and `GatewayTests.Internal_endpoints_and_service_health_are_never_forwarded`. Locally, `--topology services` with a demo user (25 and 26 November). |
+| 3 | `RabbitMqTransportTests` against `rabbitmq:4.4` (consumed once and acknowledged, an unroutable event returned to the outbox, dead-lettering after the delivery limit, idempotent declarations, the trace across the broker); `TopologyBoundaryTests.Subscriptions_stay_within_the_broker_queue_budget` and `ServiceStartTests.A_service_pools_at_most_four_connections_unless_configured`. On CloudAMQP (26 November): 9 probes Identity → Inventory, at most 2 of 100 queues and 2 of 20 connections (#99). |
+| 4 | The request trace and the linked delivery trace in the local Tempo (25 November, 4g-2) and asserted by `TopologyTests`; the request trace gateway → identity → PostgreSQL in Grafana Cloud Tempo, fed by the local services topology (26 November, screenshot in [TRACING.md §4](../operations/TRACING.md)). The delivery trace's link was checked in the local Tempo; in Grafana Cloud the same spans arrive through the same collector. |
+| 5 | `ApiDocumentationTests` (no `/internal` paths, anonymous documents, the `bff` document, the ProblemDetails schema) and `GatewayTests` (documents through the gateway); the nonce CSP of `/scalar` (#92, #98). |
+| 6 | The composite action `.github/actions/gates` (coverage ≥ 70 % of business logic and vulnerable packages) runs in `ci.yml` and before every image in the deploy workflows (#87, #95). Unit coverage 75.2 %, with integration tests 97.6 % (#100). |
+| 7 | The Grafana Cloud test rule reached the e-mail contact point through the real notification policy (26 November, #99). Telegram is supported by the same Terraform and not set up (no bot token). |
+| 8 | `infra.yml` what-if in North Europe: 45 resources to create, nothing else (ADR 0022, #95); every image builds in the CI job "Container images"; `deploy-<service>.yml` and `deploy-migrations.yml` with the gates and the MigrationRunner job (`DeployWorkflowTests`). |
+
+**Scope moved during the stage** (each decided by the product owner and recorded where it applies): the first deployment
+to stage 10 (#85); the read-only Inventory API and parts page pulled forward from stage 5 (#98); the monthly message
+quota left to CloudAMQP's e-mails (ADR 0023); Terraform applied from the developer machine until #85.
+
 ---
 
 ## 13. Proposals and new issues

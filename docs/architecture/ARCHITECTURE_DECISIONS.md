@@ -1,6 +1,6 @@
 # SmartSpare — Architecture Decisions
 
-Status: **approved** (16 November 2026). **Amended** 24 November 2026 by the topology decisions D1–D4 of the product owner (ADRs 0015–0019). Stages 1–3 are implemented (release v0.3.0, 25 November 2026; see the [CHANGELOG](../../CHANGELOG.md)).
+Status: **approved** (16 November 2026). **Amended** 24 November 2026 by the topology decisions D1–D4 of the product owner (ADRs 0015–0019). Stages 1–4 are implemented (release v0.4.0, 26 November 2026; see the [CHANGELOG](../../CHANGELOG.md)); stage 4 built and tested the services topology locally and in CI, and its first Azure deployment is stage 10 (#85).
 
 This is the architecture of SmartSpare. It superseded the database-stage architecture note, which was removed (it remains in the Git history). Individual decisions are recorded as ADRs in [`docs/adr/`](../adr/README.md).
 
@@ -32,7 +32,7 @@ Business code is identical in both. Only the composition roots differ.
 | 16 | Evolvability | Abstractions only at seams to volatile technology; stable contracts (Contracts, versioned HTTP API, events); claims-based authorization | [0012](../adr/0012-evolvability-principles.md) |
 | 17 | Domain model and persistence | Aggregates in `Domain/` mapped directly by EF Core; stage 2 table mirrors removed per module stage; no generic repository | [0013](../adr/0013-domain-model-and-persistence.md) |
 | 18 | Browser sign-in | WASM sign-in page posts to `/bff` endpoints; ASP.NET Core Identity with custom stores over `iam`; antiforgery on every unsafe request. **Implemented** in stage 3, v0.3.0 (server side PR 3b, WASM client and sign-in page PR 3d, browser smoke test PR 3e) | [0014](../adr/0014-browser-sign-in-through-bff-endpoints.md) |
-| 19 | Authentication behind the gateway | The BFF issues the cookie after the Identity module checks credentials; services receive a 2-minute ES256 internal token; one principal in both topologies. Single-host part **implemented** in stage 3, v0.3.0 (PRs 3b–3c: internal tokens, policy scheme, session context, shared key ring in `iam.data_protection_keys`); gateway and services in stage 4 | [0016](../adr/0016-authentication-behind-the-gateway.md) |
+| 19 | Authentication behind the gateway | The BFF issues the cookie after the Identity module checks credentials; services receive a 2-minute ES256 internal token; one principal in both topologies. Single-host part **implemented** in stage 3, v0.3.0 (PRs 3b–3c: internal tokens, policy scheme, session context, shared key ring in `iam.data_protection_keys`); gateway and services **implemented** in stage 4, v0.4.0 (PRs 4d–4e, topology test 4g) | [0016](../adr/0016-authentication-behind-the-gateway.md) |
 | 20 | API documentation | OpenAPI per service + Scalar UI, published without sign-in; endpoints still require authorization | [0019](../adr/0019-public-api-documentation.md) |
 
 ## 1. Architectural style
@@ -181,7 +181,7 @@ The frontend is **Blazor WebAssembly with MudBlazor**, as stated in the topic ap
 
 Security is layered: browser → BFF → services → database, and each layer checks permissions on its own.
 
-- **Authentication** ([ADR 0016](../adr/0016-authentication-behind-the-gateway.md); the single-host part is implemented since stage 3, the gateway part follows in stage 4):
+- **Authentication** ([ADR 0016](../adr/0016-authentication-behind-the-gateway.md); the single-host part is implemented since stage 3, the gateway part since stage 4):
   - an HttpOnly, SameSite=Strict cookie between the browser and the BFF;
   - between the gateway and the services, a 2-minute ES256 internal token. Only the gateway holds the private key; services hold only the public key.
   - The browser never holds a token. Services are reachable only through internal ingress.
@@ -277,13 +277,13 @@ SmartSpare/
 ├─ src/
 │  ├─ Bootstrapper/
 │  │  ├─ SmartSpare.Host/              # single host: BFF + all modules, WASM hosting (development, tests)
-│  │  ├─ SmartSpare.Gateway/           # production BFF: YARP, WASM hosting, cookie, internal tokens (stage 4)
-│  │  ├─ Services/SmartSpare.Services.<Module>/  # one host per module service (stage 4)
+│  │  ├─ SmartSpare.Gateway/           # production BFF: YARP, WASM hosting, cookie, internal tokens
+│  │  ├─ Services/SmartSpare.Services.<Module>/  # one host per module service
 │  │  ├─ SmartSpare.MigrationRunner/, SmartSpare.ModuleCatalog/
 │  ├─ BuildingBlocks/
 │  │  ├─ SmartSpare.SharedKernel/      # Entity, ValueObject, Result, domain events
 │  │  ├─ SmartSpare.Infrastructure/    # Outbox/Inbox, handlers and decorators, EF interceptors, transport seam
-│  │  ├─ SmartSpare.Infrastructure.RabbitMq/  # RabbitMQ transport (stage 4)
+│  │  ├─ SmartSpare.Infrastructure.RabbitMq/  # RabbitMQ transport, broker metrics job
 │  │  ├─ SmartSpare.Bff/               # /bff endpoints, cookie, antiforgery, internal-token issuer (stage 3/4)
 │  │  └─ SmartSpare.ServiceDefaults/   # OpenTelemetry, health, resilience
 │  ├─ Modules/
@@ -322,7 +322,7 @@ Work is done on the developer machine (.NET 10 SDK + Docker), where the code can
 1. **Skeleton.** Solution, `Directory.*.props`, BuildingBlocks, host, Aspire, empty modules, architecture tests, CI build.
 2. **Data layer.** DbContexts and Fluent configurations for all modules, initial migrations with SQL parts from V001–V016, Outbox/Inbox. Check: schema matches the current one, 97 SQL tests green.
 3. **Identity and BFF.** Cookie sign-in, roles, policies, internal-token validation (ADR 0016); Blazor client skeleton with MudBlazor and the sign-in page. **Done:** v0.3.0, PRs 3a–3e ([STAGE_3_PLAN.md](../stage-3/STAGE_3_PLAN.md), section 10).
-4. **Topology** (25 Nov – 3 Dec 2026). Service hosts, YARP gateway, RabbitMQ transport, Grafana stack, per-service images, pipelines and Bicep (ADRs 0015–0020), built and tested locally and in CI; CloudAMQP and Grafana Cloud are used from the local services topology. Nothing is deployed to Azure in this stage (product owner, 25 November 2026). Forwarded headers (#48) are configured here and verified behind the real ingress in stage 10. Coverage and vulnerability gates (#63, #64) land before the first per-service pipeline. Plan: [STAGE_4_PLAN.md](../stage-4/STAGE_4_PLAN.md) (#67).
+4. **Topology** (25 Nov – 3 Dec 2026). Service hosts, YARP gateway, RabbitMQ transport, Grafana stack, per-service images, pipelines and Bicep (ADRs 0015–0020), built and tested locally and in CI; CloudAMQP and Grafana Cloud are used from the local services topology. Nothing is deployed to Azure in this stage (product owner, 25 November 2026). Forwarded headers (#48) are configured here and verified behind the real ingress in stage 10. Coverage and vulnerability gates (#63, #64) land before the first per-service pipeline. Plan: [STAGE_4_PLAN.md](../stage-4/STAGE_4_PLAN.md) (#67). **Done:** v0.4.0, PRs 4a–4k; exit criteria with evidence in STAGE_4_PLAN section 12.
 5. **Inventory** (4–7 Dec). Stock, movements, reservations, transfers, file import + screens. The read-only parts catalogue and warehouses (API and page) were pulled forward into stage 4 for the API review.
 6. **Fleet** (8–11 Dec). Machines, engine hours, service orders (UC02) + mobile card.
 7. **Procurement** (12–14 Dec). Purchase orders with the four-eyes rule.

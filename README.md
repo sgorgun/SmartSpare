@@ -12,7 +12,7 @@ Compliance with the backend grading rubric: [BACKEND_REQUIREMENTS.md](docs/archi
 
 ## Diploma criteria
 
-Where each criterion is implemented, as of `main` during stage 4. **done** means it exists on `main` and can be shown;
+Where each criterion is implemented, as of release v0.4.0 (end of stage 4). **done** means it exists on `main` and can be shown;
 **planned** names the stage it comes with ([ARCHITECTURE_DECISIONS §13](docs/architecture/ARCHITECTURE_DECISIONS.md#13-work-plan)).
 
 ### Back-end
@@ -28,7 +28,7 @@ The database criteria are in [DATABASE_DESIGN.md §0](docs/database/DATABASE_DES
 | Asynchronous messaging | Outbox/Inbox + RabbitMQ transport (`SmartSpare.Infrastructure.RabbitMq`, [ADR 0017](docs/adr/0017-rabbitmq-integration-event-transport.md)); `RabbitMqTransportTests`, CI job "Topology test" | done |
 | Security | Cookie BFF, ES256 internal tokens, policies, antiforgery, rate limit, CSP ([ADR 0014](docs/adr/0014-browser-sign-in-through-bff-endpoints.md), [ADR 0016](docs/adr/0016-authentication-behind-the-gateway.md)); `tests/SmartSpare.Host.IntegrationTests` | done |
 | Error handling, logging, tracing | ProblemDetails with a trace id; OpenTelemetry → Grafana stack ([TRACING.md](docs/operations/TRACING.md), [ADR 0018](docs/adr/0018-observability-with-the-grafana-stack.md)) | done |
-| Monitoring and alerting | Dashboards and 7 alert rules in [`infra/observability`](infra/observability) (local Grafana) | done locally; Grafana Cloud and alert delivery in PR 4j (#59) |
+| Monitoring and alerting | Dashboards and 7 alert rules in [`infra/observability`](infra/observability) (local Grafana), provisioned to Grafana Cloud by Terraform in [`infra/grafana`](infra/grafana); test alert delivered by e-mail | done; production traffic from stage 10 (#85) |
 | Tests and coverage gate | Unit, integration (Testcontainers), architecture, topology, bUnit, Playwright; `tools/check.sh coverage` fails below 70 % of business logic | done |
 | CI/CD | `.github/workflows/ci.yml` (gates, integration, E2E, topology, images), `deploy-<service>.yml`, Bicep in [`infra/`](infra) | CI done; first deployment in stage 10 (#85) |
 | No secrets in the repository | user-secrets, Key Vault references; gitleaks scan of the whole history ([`.gitleaksignore`](.gitleaksignore)) | done |
@@ -122,7 +122,20 @@ dotnet user-secrets set ConnectionStrings:messaging "amqps://<user>:<password>@<
 ```
 
 The services then declare their queues on that instance ([BROKER.md](docs/operations/BROKER.md)). Remove the secret to
-use the local broker again.
+use the local broker again. The `broker-metrics` resource, started from the Aspire dashboard, runs the broker metrics job
+once against whichever broker is configured.
+
+To also send the telemetry to a Grafana Cloud stack, give the AppHost the stack's OTLP endpoint, instance id and an
+access policy token with write scopes only ([infra/grafana](infra/grafana/README.md), which also provisions the stack's
+dashboards and alert rules with Terraform):
+
+```bash
+dotnet user-secrets set GrafanaCloud:OtlpEndpoint "https://otlp-gateway-<region>.grafana.net/otlp" --project src/SmartSpare.AppHost
+dotnet user-secrets set GrafanaCloud:InstanceId "<instance id>" --project src/SmartSpare.AppHost
+dotnet user-secrets set GrafanaCloud:Token "<access policy token>" --project src/SmartSpare.AppHost
+```
+
+Without these secrets nothing leaves the machine.
 
 If the AppHost is stopped abruptly, its containers can stay behind. Remove them with
 `docker rm -f $(docker ps -aq --filter name=otelcollector- --filter name=prometheus- --filter name=loki- --filter name=tempo- --filter name=grafana- --filter name=messaging-)`.
@@ -155,7 +168,7 @@ The OpenAPI document `/openapi/bff.json` describes these endpoints with examples
 first.
 
 Module endpoints also accept an **internal token** (`Authorization: Bearer`), the 2-minute ES256 token the gateway
-will mint in stage 4. The single host validates it with a key that never lives in a file of the repository. Without a
+mints. The single host validates it with a key that never lives in a file of the repository. Without a
 key, every bearer token is rejected, which is the safe default. To try the token path locally, put a P-256 key into the
 host's user secrets:
 
@@ -165,7 +178,7 @@ dotnet user-secrets set InternalTokens:SigningKey "$(cat key.pem)" --project src
 rm key.pem
 ```
 
-Services in stage 4 get only the public key as a JWKS document (`InternalTokens:Jwks`).
+Services get only the public key as a JWKS document (`InternalTokens:Jwks`).
 
 **Data Protection keys** (cookies and antiforgery tokens, #22). With a database, the host keeps its key ring in
 `iam.data_protection_keys` under the application name `SmartSpare`, so every instance of the host accepts the others'
@@ -178,7 +191,7 @@ cookies. Protection of the keys at rest is configured per environment in the sec
 | `DataProtection:CertificateThumbprint` | keys encrypted with a certificate from the CurrentUser\My store |
 | `DataProtection:UseKeyVault` | refused until stage 10, when the production Key Vault exists |
 
-The gateway (stage 4) keeps its key ring in Blob Storage, protected with Key Vault ([ADR 0016](docs/adr/0016-authentication-behind-the-gateway.md) §6).
+The gateway keeps its key ring in a directory (`DataProtection:KeysDirectory`, locally under `%LOCALAPPDATA%/SmartSpare/gateway-keys`); in Azure it moves to Blob Storage, protected with Key Vault, in stage 10 ([ADR 0016](docs/adr/0016-authentication-behind-the-gateway.md) §6).
 
 | Task | Command |
 |---|---|
