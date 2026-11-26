@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using SmartSpare.Modules.Fleet.Domain.Maintenance;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace SmartSpare.Modules.Fleet.Infrastructure.Persistence.Configurations;
@@ -21,10 +22,7 @@ internal sealed class MaintenancePlanPartConfiguration : IEntityTypeConfiguratio
         builder.Property(x => x.Quantity).HasColumnName("quantity").HasColumnOrder(2).HasColumnType("numeric(12,3)").HasComment("Quantity of the part in the service kit.");
         // fk_maintenance_plan_part_part -> catalog.part removed: cross-module FK (ADR 0011, MODULE_MAPPING section 2).
 
-        builder.HasOne<MaintenancePlan>().WithMany()
-            .HasForeignKey(x => x.MaintenancePlanId)
-            .HasPrincipalKey(x => x.Id)
-            .HasConstraintName("fk_maintenance_plan_part_plan").OnDelete(DeleteBehavior.Cascade);
+        // fk_maintenance_plan_part_plan is configured with the Parts navigation of MaintenancePlan.
 
         builder.HasIndex(x => x.PartId).HasDatabaseName("ix_maintenance_plan_part_part");
     }

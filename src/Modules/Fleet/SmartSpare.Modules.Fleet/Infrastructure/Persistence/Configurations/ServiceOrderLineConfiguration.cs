@@ -1,9 +1,10 @@
 using Microsoft.EntityFrameworkCore;
+using SmartSpare.Modules.Fleet.Domain.ServiceOrders;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace SmartSpare.Modules.Fleet.Infrastructure.Persistence.Configurations;
 
-/// <summary><c>fleet.service_order_line</c> as created by V016 (names, types, constraints and comments unchanged).</summary>
+/// <summary><c>fleet.service_order_line</c> mapped onto <see cref="ServiceOrderLine"/> (V016 unchanged; ADR 0013).</summary>
 internal sealed class ServiceOrderLineConfiguration : IEntityTypeConfiguration<ServiceOrderLine>
 {
     public void Configure(EntityTypeBuilder<ServiceOrderLine> builder)
@@ -25,10 +26,8 @@ internal sealed class ServiceOrderLineConfiguration : IEntityTypeConfiguration<S
         builder.Property(x => x.QtyIssued).HasColumnName("qty_issued").HasColumnOrder(4).HasColumnType("numeric(12,3)").HasDefaultValueSql("0").HasComment("Quantity already issued from stock (ISSUE_SERVICE).");
         // fk_service_order_line_part -> catalog.part removed: cross-module FK (ADR 0011, MODULE_MAPPING section 2).
 
-        builder.HasOne<ServiceOrder>().WithMany()
-            .HasForeignKey(x => x.ServiceOrderId)
-            .HasPrincipalKey(x => x.Id)
-            .HasConstraintName("fk_service_order_line_order").OnDelete(DeleteBehavior.Cascade);
+        // fk_service_order_line_order is configured with the Lines navigation of ServiceOrder.
+        builder.Ignore(x => x.QtyOpen);
 
         builder.HasIndex(x => x.PartId).HasDatabaseName("ix_service_order_line_part");
     }

@@ -401,8 +401,9 @@ FROM (VALUES ('CLAAS','COMBINE','Lexion 8700'), ('CLAAS','COMBINE','Lexion 7600'
 JOIN ref.brand b ON b.code = m.brand JOIN ref.machine_type t ON t.code = m.mtype;
 
 -- OEM intervals differ by brand (finding F5, Appendix C.9)
-INSERT INTO fleet.maintenance_plan (model_id, interval_hours, name)
-SELECT mm.id, iv.h, iv.label
+-- Calendar intervals (STAGE_6_PLAN F3): engine service yearly, transmission service every two years, whichever comes first.
+INSERT INTO fleet.maintenance_plan (model_id, interval_hours, name, interval_months)
+SELECT mm.id, iv.h, iv.label, CASE WHEN iv.label = 'Engine service' THEN 12 ELSE 24 END
 FROM fleet.machine_model mm
 JOIN ref.brand b ON b.id = mm.brand_id
 JOIN ref.machine_type t ON t.id = mm.machine_type_id AND t.code IN ('TRACTOR', 'COMBINE')

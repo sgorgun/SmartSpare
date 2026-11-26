@@ -1,9 +1,17 @@
 using Microsoft.EntityFrameworkCore;
+using SmartSpare.Infrastructure.Persistence;
+using SmartSpare.Modules.Fleet.Domain.ServiceOrders;
+using SmartSpare.Modules.Fleet.Domain.Maintenance;
+using SmartSpare.Modules.Fleet.Domain.Machines;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace SmartSpare.Modules.Fleet.Infrastructure.Persistence.Configurations;
 
-/// <summary><c>fleet.service_order</c> as created by V016 (names, types, constraints and comments unchanged).</summary>
+/// <summary>
+/// <c>fleet.service_order</c> mapped onto the <see cref="ServiceOrder"/> aggregate (names, types, constraints and comments
+/// of V016 unchanged; ADR 0013). The number is assigned by the database trigger: EF Core gives a new order a temporary
+/// number, leaves it out of the INSERT and reads the real one back.
+/// </summary>
 internal sealed class ServiceOrderConfiguration : IEntityTypeConfiguration<ServiceOrder>
 {
     public void Configure(EntityTypeBuilder<ServiceOrder> builder)
@@ -21,7 +29,8 @@ internal sealed class ServiceOrderConfiguration : IEntityTypeConfiguration<Servi
         builder.HasAlternateKey(x => x.Number).HasName("uq_service_order_number");
 
         builder.Property(x => x.Id).HasColumnName("id").HasColumnOrder(0).HasColumnType("bigint").UseIdentityByDefaultColumn().HasComment("Surrogate primary key.");
-        builder.Property(x => x.Number).HasColumnName("number").HasColumnOrder(1).HasColumnType("character varying(20)").HasComment("Business document number (assigned by trigger).");
+        builder.Property(x => x.Number).HasColumnName("number").HasColumnOrder(1).HasColumnType("character varying(20)").HasComment("Business document number (assigned by trigger).")
+            .ValueGeneratedOnAdd().HasValueGenerator<TemporaryDocumentNumberGenerator>();
         builder.Property(x => x.MachineId).HasColumnName("machine_id").HasColumnOrder(2).HasColumnType("bigint").HasComment("Reference to fleet.machine.");
         builder.Property(x => x.MaintenancePlanId).HasColumnName("maintenance_plan_id").HasColumnOrder(3).HasColumnType("integer").HasComment("Reference to fleet.maintenance_plan.");
         builder.Property(x => x.WarehouseId).HasColumnName("warehouse_id").HasColumnOrder(4).HasColumnType("smallint").HasComment("Reference to inventory.warehouse.");
@@ -45,6 +54,18 @@ internal sealed class ServiceOrderConfiguration : IEntityTypeConfiguration<Servi
             .HasForeignKey(x => x.MaintenancePlanId)
             .HasPrincipalKey(x => x.Id)
             .HasConstraintName("fk_service_order_plan").OnDelete(DeleteBehavior.NoAction);
+
+        builder.HasMany(x => x.Lines).WithOne()
+            .HasForeignKey(x => x.ServiceOrderId)
+            .HasPrincipalKey(x => x.Id)
+            .HasConstraintName("fk_service_order_line_order").OnDelete(DeleteBehavior.Cascade);
+        builder.Navigation(x => x.Lines).UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        // PostgreSQL's xmin system column as the concurrency token (no DDL; STAGE_3_PLAN section 7).
+        builder.Property<uint>("xmin").IsRowVersion();
+        builder.Ignore(x => x.DomainEvents);
+        builder.Ignore(x => x.IsPlanned);
+        builder.Ignore(x => x.IsOpen);
 
         builder.HasIndex(x => x.CreatedBy).HasDatabaseName("ix_service_order_created_by");
         builder.HasIndex(x => new { x.WarehouseId, x.Status }).HasDatabaseName("ix_service_order_open").HasFilter("(status = ANY (ARRAY['draft'::fleet.service_order_status, 'parts_reserved'::fleet.service_order_status, 'in_progress'::fleet.service_order_status]))");

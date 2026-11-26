@@ -2,6 +2,8 @@ using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 using SmartSpare.Infrastructure.Persistence;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
+using SmartSpare.Modules.Fleet.Domain.Machines;
+using SmartSpare.Modules.Fleet.Domain.ServiceOrders;
 using SmartSpare.Modules.Fleet.Infrastructure.Persistence;
 
 #nullable disable

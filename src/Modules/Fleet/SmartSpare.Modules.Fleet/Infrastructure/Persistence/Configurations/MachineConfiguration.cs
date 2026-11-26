@@ -1,9 +1,10 @@
 using Microsoft.EntityFrameworkCore;
+using SmartSpare.Modules.Fleet.Domain.Machines;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace SmartSpare.Modules.Fleet.Infrastructure.Persistence.Configurations;
 
-/// <summary><c>fleet.machine</c> as created by V016 (names, types, constraints and comments unchanged).</summary>
+/// <summary><c>fleet.machine</c> mapped onto the <see cref="Machine"/> aggregate (names, types, constraints and comments of V016 unchanged; ADR 0013).</summary>
 internal sealed class MachineConfiguration : IEntityTypeConfiguration<Machine>
 {
     public void Configure(EntityTypeBuilder<Machine> builder)
@@ -47,6 +48,11 @@ internal sealed class MachineConfiguration : IEntityTypeConfiguration<Machine>
             .HasForeignKey(x => x.ModelId)
             .HasPrincipalKey(x => x.Id)
             .HasConstraintName("fk_machine_model").OnDelete(DeleteBehavior.NoAction);
+
+        // PostgreSQL's xmin system column as the concurrency token (no DDL; STAGE_3_PLAN section 7).
+        builder.Property<uint>("xmin").IsRowVersion();
+        builder.Ignore(x => x.DomainEvents);
+        builder.Ignore(x => x.IsActive);
 
         builder.HasIndex(x => x.OperatingConditionId).HasDatabaseName("ix_machine_condition");
         builder.HasIndex(x => x.CustomerId).HasDatabaseName("ix_machine_customer");

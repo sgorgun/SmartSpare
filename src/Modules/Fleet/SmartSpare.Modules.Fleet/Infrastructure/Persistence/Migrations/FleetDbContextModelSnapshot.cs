@@ -4,6 +4,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
+using SmartSpare.Modules.Fleet.Domain.Machines;
+using SmartSpare.Modules.Fleet.Domain.ServiceOrders;
 using SmartSpare.Modules.Fleet.Infrastructure.Persistence;
 
 #nullable disable
@@ -134,6 +136,493 @@ namespace SmartSpare.Modules.Fleet.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("SmartSpare.Modules.Fleet.Domain.Machines.EngineHoursReading", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id")
+                        .HasColumnOrder(0)
+                        .HasComment("Surrogate primary key.");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasColumnOrder(6)
+                        .HasDefaultValueSql("now()")
+                        .HasComment("Time the record was created.");
+
+                    b.Property<long>("MachineId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("machine_id")
+                        .HasColumnOrder(1)
+                        .HasComment("Reference to fleet.machine.");
+
+                    b.Property<DateTimeOffset>("ReadAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("read_at")
+                        .HasColumnOrder(3)
+                        .HasComment("Time the reading was taken in the field (may be earlier than created_at for offline entry).");
+
+                    b.Property<decimal>("ReadingHours")
+                        .HasColumnType("numeric(8,1)")
+                        .HasColumnName("reading_hours")
+                        .HasColumnOrder(2)
+                        .HasComment("Odometer value; must not decrease and must be physically plausible.");
+
+                    b.Property<Guid?>("RecordedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("recorded_by")
+                        .HasColumnOrder(5)
+                        .HasComment("User who performed the step (iam.app_user).");
+
+                    b.Property<ReadingSource>("Source")
+                        .HasColumnType("fleet.reading_source")
+                        .HasColumnName("source")
+                        .HasColumnOrder(4)
+                        .HasDefaultValueSql("'manual'::fleet.reading_source");
+
+                    b.HasKey("Id")
+                        .HasName("pk_engine_hours_reading");
+
+                    b.HasAlternateKey("MachineId", "ReadAt")
+                        .HasName("uq_engine_hours_reading_machine_time");
+
+                    b.HasIndex("RecordedBy")
+                        .HasDatabaseName("ix_engine_hours_reading_user");
+
+                    b.ToTable("engine_hours_reading", "fleet", t =>
+                        {
+                            t.HasComment("Odometer history (US05). Monotonic and physically plausible readings are enforced by trigger.");
+
+                            t.HasCheckConstraint("ck_engine_hours_reading_hours", "((reading_hours >= (0)::numeric) AND (reading_hours <= (100000)::numeric))");
+
+                            t.HasCheckConstraint("ck_engine_hours_reading_not_future", "(read_at <= (created_at + '00:05:00'::interval))");
+                        });
+                });
+
+            modelBuilder.Entity("SmartSpare.Modules.Fleet.Domain.Machines.Machine", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id")
+                        .HasColumnOrder(0)
+                        .HasComment("Surrogate primary key.");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateOnly?>("CommissionedOn")
+                        .HasColumnType("date")
+                        .HasColumnName("commissioned_on")
+                        .HasColumnOrder(10);
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasColumnOrder(11)
+                        .HasDefaultValueSql("now()")
+                        .HasComment("Time the record was created.");
+
+                    b.Property<decimal>("CurrentEngineHours")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("numeric(8,1)")
+                        .HasColumnName("current_engine_hours")
+                        .HasColumnOrder(7)
+                        .HasDefaultValueSql("0")
+                        .HasComment("Latest odometer value; maintained by the reading trigger.");
+
+                    b.Property<long>("CustomerId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("customer_id")
+                        .HasColumnOrder(3)
+                        .HasComment("Reference to fleet.customer.");
+
+                    b.Property<DateTimeOffset?>("EngineHoursReadAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("engine_hours_read_at")
+                        .HasColumnOrder(8)
+                        .HasComment("Time of the engine hours read event.");
+
+                    b.Property<short>("HomeWarehouseId")
+                        .HasColumnType("smallint")
+                        .HasColumnName("home_warehouse_id")
+                        .HasColumnOrder(5)
+                        .HasComment("Nearest depot where service kits are reserved.");
+
+                    b.Property<short>("ManufactureYear")
+                        .HasColumnType("smallint")
+                        .HasColumnName("manufacture_year")
+                        .HasColumnOrder(6);
+
+                    b.Property<int>("ModelId")
+                        .HasColumnType("integer")
+                        .HasColumnName("model_id")
+                        .HasColumnOrder(2)
+                        .HasComment("Reference to fleet.machine_model.");
+
+                    b.Property<short>("OperatingConditionId")
+                        .HasColumnType("smallint")
+                        .HasColumnName("operating_condition_id")
+                        .HasColumnOrder(4)
+                        .HasComment("Operating condition that shortens OEM intervals (F5).");
+
+                    b.Property<MachineStatus>("Status")
+                        .HasColumnType("fleet.machine_status")
+                        .HasColumnName("status")
+                        .HasColumnOrder(9)
+                        .HasDefaultValueSql("'active'::fleet.machine_status")
+                        .HasComment("Workflow status (state machine guarded by trigger).");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasColumnOrder(12)
+                        .HasDefaultValueSql("now()")
+                        .HasComment("Time of the last change (maintained by trigger).");
+
+                    b.Property<string>("Vin")
+                        .IsRequired()
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("vin")
+                        .HasColumnOrder(1)
+                        .HasComment("Vehicle / product identification number (unique).");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id")
+                        .HasName("pk_machine");
+
+                    b.HasAlternateKey("Vin")
+                        .HasName("uq_machine_vin");
+
+                    b.HasIndex("CustomerId")
+                        .HasDatabaseName("ix_machine_customer");
+
+                    b.HasIndex("HomeWarehouseId")
+                        .HasDatabaseName("ix_machine_home_wh_active")
+                        .HasFilter("(status = 'active'::fleet.machine_status)");
+
+                    b.HasIndex("ModelId")
+                        .HasDatabaseName("ix_machine_model");
+
+                    b.HasIndex("OperatingConditionId")
+                        .HasDatabaseName("ix_machine_condition");
+
+                    b.HasIndex("Vin")
+                        .HasDatabaseName("ix_machine_vin_trgm");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Vin"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Vin"), new[] { "gin_trgm_ops" });
+
+                    b.ToTable("machine", "fleet", t =>
+                        {
+                            t.HasComment("Registered machine (installed base). current_engine_hours is maintained by the engine-hour reading trigger.");
+
+                            t.HasCheckConstraint("ck_machine_commissioned", "((commissioned_on IS NULL) OR (EXTRACT(year FROM commissioned_on) >= (manufacture_year)::numeric))");
+
+                            t.HasCheckConstraint("ck_machine_engine_hours", "((current_engine_hours >= (0)::numeric) AND (current_engine_hours <= (100000)::numeric))");
+
+                            t.HasCheckConstraint("ck_machine_vin", "((vin)::text ~ '^[A-Z0-9]{8,20}$'::text)");
+
+                            t.HasCheckConstraint("ck_machine_year", "((manufacture_year >= 1950) AND (manufacture_year <= 2100))");
+                        });
+                });
+
+            modelBuilder.Entity("SmartSpare.Modules.Fleet.Domain.Maintenance.MaintenancePlan", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id")
+                        .HasColumnOrder(0)
+                        .HasComment("Surrogate primary key.");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("IntervalHours")
+                        .HasColumnType("integer")
+                        .HasColumnName("interval_hours")
+                        .HasColumnOrder(2)
+                        .HasComment("OEM interval in engine hours (e.g. 500).");
+
+                    b.Property<short?>("IntervalMonths")
+                        .HasColumnType("smallint")
+                        .HasColumnName("interval_months")
+                        .HasColumnOrder(5)
+                        .HasComment("OEM calendar interval in months, if any; the service is due by engine hours or by calendar, whichever comes first.");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active")
+                        .HasColumnOrder(4)
+                        .HasDefaultValueSql("true")
+                        .HasComment("FALSE = deactivated, kept for history.");
+
+                    b.Property<int>("ModelId")
+                        .HasColumnType("integer")
+                        .HasColumnName("model_id")
+                        .HasColumnOrder(1)
+                        .HasComment("Reference to fleet.machine_model.");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("name")
+                        .HasColumnOrder(3)
+                        .HasComment("Display name.");
+
+                    b.HasKey("Id")
+                        .HasName("pk_maintenance_plan");
+
+                    b.HasAlternateKey("ModelId", "IntervalHours")
+                        .HasName("uq_maintenance_plan_model_interval");
+
+                    b.ToTable("maintenance_plan", "fleet", t =>
+                        {
+                            t.HasComment("OEM service interval of a model (e.g. 500 h engine oil service). The effective interval = interval_hours x operating_condition.interval_factor.");
+
+                            t.HasCheckConstraint("ck_maintenance_plan_interval", "((interval_hours >= 10) AND (interval_hours <= 20000))");
+
+                            t.HasCheckConstraint("ck_maintenance_plan_interval_months", "((interval_months IS NULL) OR ((interval_months >= 1) AND (interval_months <= 60)))");
+                        });
+                });
+
+            modelBuilder.Entity("SmartSpare.Modules.Fleet.Domain.Maintenance.MaintenancePlanPart", b =>
+                {
+                    b.Property<int>("MaintenancePlanId")
+                        .HasColumnType("integer")
+                        .HasColumnName("maintenance_plan_id")
+                        .HasColumnOrder(0)
+                        .HasComment("Reference to fleet.maintenance_plan.");
+
+                    b.Property<long>("PartId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("part_id")
+                        .HasColumnOrder(1)
+                        .HasComment("Reference to catalog.part.");
+
+                    b.Property<decimal>("Quantity")
+                        .HasColumnType("numeric(12,3)")
+                        .HasColumnName("quantity")
+                        .HasColumnOrder(2)
+                        .HasComment("Quantity of the part in the service kit.");
+
+                    b.HasKey("MaintenancePlanId", "PartId")
+                        .HasName("pk_maintenance_plan_part");
+
+                    b.HasIndex("PartId")
+                        .HasDatabaseName("ix_maintenance_plan_part_part");
+
+                    b.ToTable("maintenance_plan_part", "fleet", t =>
+                        {
+                            t.HasComment("Service kit / bill of materials of a maintenance plan (M:N plan <-> part with quantity).");
+
+                            t.HasCheckConstraint("ck_maintenance_plan_part_qty", "(quantity > (0)::numeric)");
+                        });
+                });
+
+            modelBuilder.Entity("SmartSpare.Modules.Fleet.Domain.ServiceOrders.ServiceOrder", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id")
+                        .HasColumnOrder(0)
+                        .HasComment("Surrogate primary key.");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("CancelReason")
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("cancel_reason")
+                        .HasColumnOrder(12);
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at")
+                        .HasColumnOrder(11)
+                        .HasComment("Time of the completed event.");
+
+                    b.Property<decimal?>("CompletedEngineHours")
+                        .HasColumnType("numeric(8,1)")
+                        .HasColumnName("completed_engine_hours")
+                        .HasColumnOrder(8);
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasColumnOrder(10)
+                        .HasDefaultValueSql("now()")
+                        .HasComment("Time the record was created.");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by")
+                        .HasColumnOrder(9)
+                        .HasComment("User who created the record (iam.app_user).");
+
+                    b.Property<decimal?>("DueEngineHours")
+                        .HasColumnType("numeric(8,1)")
+                        .HasColumnName("due_engine_hours")
+                        .HasColumnOrder(6)
+                        .HasComment("Engine-hour threshold this planned service covers (e.g. 500, 1000, 1500 ...).");
+
+                    b.Property<long>("MachineId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("machine_id")
+                        .HasColumnOrder(2)
+                        .HasComment("Reference to fleet.machine.");
+
+                    b.Property<int?>("MaintenancePlanId")
+                        .HasColumnType("integer")
+                        .HasColumnName("maintenance_plan_id")
+                        .HasColumnOrder(3)
+                        .HasComment("Reference to fleet.maintenance_plan.");
+
+                    b.Property<string>("Number")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("number")
+                        .HasColumnOrder(1)
+                        .HasComment("Business document number (assigned by trigger).");
+
+                    b.Property<ServiceOrderStatus>("Status")
+                        .HasColumnType("fleet.service_order_status")
+                        .HasColumnName("status")
+                        .HasColumnOrder(5)
+                        .HasDefaultValueSql("'draft'::fleet.service_order_status")
+                        .HasComment("Workflow status (state machine guarded by trigger).");
+
+                    b.Property<decimal?>("TriggerEngineHours")
+                        .HasColumnType("numeric(8,1)")
+                        .HasColumnName("trigger_engine_hours")
+                        .HasColumnOrder(7)
+                        .HasComment("Engine hours of the reading that triggered the draft.");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasColumnOrder(13)
+                        .HasDefaultValueSql("now()")
+                        .HasComment("Time of the last change (maintained by trigger).");
+
+                    b.Property<short>("WarehouseId")
+                        .HasColumnType("smallint")
+                        .HasColumnName("warehouse_id")
+                        .HasColumnOrder(4)
+                        .HasComment("Reference to inventory.warehouse.");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id")
+                        .HasName("pk_service_order");
+
+                    b.HasAlternateKey("Number")
+                        .HasName("uq_service_order_number");
+
+                    b.HasIndex("CreatedBy")
+                        .HasDatabaseName("ix_service_order_created_by");
+
+                    b.HasIndex("MaintenancePlanId")
+                        .HasDatabaseName("ix_service_order_plan");
+
+                    b.HasIndex("WarehouseId", "Status")
+                        .HasDatabaseName("ix_service_order_open")
+                        .HasFilter("(status = ANY (ARRAY['draft'::fleet.service_order_status, 'parts_reserved'::fleet.service_order_status, 'in_progress'::fleet.service_order_status]))");
+
+                    b.HasIndex("MachineId", "MaintenancePlanId", "DueEngineHours")
+                        .IsUnique()
+                        .HasDatabaseName("uq_service_order_machine_plan_due")
+                        .HasFilter("((status <> 'cancelled'::fleet.service_order_status) AND (maintenance_plan_id IS NOT NULL))");
+
+                    b.ToTable("service_order", "fleet", t =>
+                        {
+                            t.HasComment("Service order (SO-YYYY-NNNNNN). Planned (plan + due hours) or unplanned repair (plan NULL). Completed orders form the maintenance history.");
+
+                            t.HasCheckConstraint("ck_service_order_cancel", "((status = 'cancelled'::fleet.service_order_status) = (cancel_reason IS NOT NULL))");
+
+                            t.HasCheckConstraint("ck_service_order_completed", "((status = 'completed'::fleet.service_order_status) = ((completed_at IS NOT NULL) AND (completed_engine_hours IS NOT NULL)))");
+
+                            t.HasCheckConstraint("ck_service_order_number", "((number)::text ~ '^SO-\\d{4}-\\d{6}$'::text)");
+
+                            t.HasCheckConstraint("ck_service_order_planned_due", "((maintenance_plan_id IS NULL) OR (due_engine_hours IS NOT NULL))");
+                        });
+                });
+
+            modelBuilder.Entity("SmartSpare.Modules.Fleet.Domain.ServiceOrders.ServiceOrderLine", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id")
+                        .HasColumnOrder(0)
+                        .HasComment("Surrogate primary key.");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<long>("PartId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("part_id")
+                        .HasColumnOrder(2)
+                        .HasComment("Reference to catalog.part.");
+
+                    b.Property<decimal>("QtyIssued")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("numeric(12,3)")
+                        .HasColumnName("qty_issued")
+                        .HasColumnOrder(4)
+                        .HasDefaultValueSql("0")
+                        .HasComment("Quantity already issued from stock (ISSUE_SERVICE).");
+
+                    b.Property<decimal>("QtyRequired")
+                        .HasColumnType("numeric(12,3)")
+                        .HasColumnName("qty_required")
+                        .HasColumnOrder(3)
+                        .HasComment("Quantity in the unit of measure of the part.");
+
+                    b.Property<long>("ServiceOrderId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("service_order_id")
+                        .HasColumnOrder(1)
+                        .HasComment("Reference to fleet.service_order.");
+
+                    b.HasKey("Id")
+                        .HasName("pk_service_order_line");
+
+                    b.HasAlternateKey("ServiceOrderId", "PartId")
+                        .HasName("uq_service_order_line_part");
+
+                    b.HasIndex("PartId")
+                        .HasDatabaseName("ix_service_order_line_part");
+
+                    b.ToTable("service_order_line", "fleet", t =>
+                        {
+                            t.HasComment("Parts required by a service order (copied from the kit, editable for repairs).");
+
+                            t.HasCheckConstraint("ck_service_order_line_issued", "((qty_issued >= (0)::numeric) AND (qty_issued <= qty_required))");
+
+                            t.HasCheckConstraint("ck_service_order_line_required", "(qty_required > (0)::numeric)");
+                        });
+                });
+
             modelBuilder.Entity("SmartSpare.Modules.Fleet.Infrastructure.Persistence.Customer", b =>
                 {
                     b.Property<long>("Id")
@@ -205,204 +694,6 @@ namespace SmartSpare.Modules.Fleet.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("SmartSpare.Modules.Fleet.Infrastructure.Persistence.EngineHoursReading", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint")
-                        .HasColumnName("id")
-                        .HasColumnOrder(0)
-                        .HasComment("Surrogate primary key.");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at")
-                        .HasColumnOrder(6)
-                        .HasDefaultValueSql("now()")
-                        .HasComment("Time the record was created.");
-
-                    b.Property<long>("MachineId")
-                        .HasColumnType("bigint")
-                        .HasColumnName("machine_id")
-                        .HasColumnOrder(1)
-                        .HasComment("Reference to fleet.machine.");
-
-                    b.Property<DateTimeOffset>("ReadAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("read_at")
-                        .HasColumnOrder(3)
-                        .HasComment("Time the reading was taken in the field (may be earlier than created_at for offline entry).");
-
-                    b.Property<decimal>("ReadingHours")
-                        .HasColumnType("numeric(8,1)")
-                        .HasColumnName("reading_hours")
-                        .HasColumnOrder(2)
-                        .HasComment("Odometer value; must not decrease and must be physically plausible.");
-
-                    b.Property<Guid?>("RecordedBy")
-                        .HasColumnType("uuid")
-                        .HasColumnName("recorded_by")
-                        .HasColumnOrder(5)
-                        .HasComment("User who performed the step (iam.app_user).");
-
-                    b.Property<ReadingSource>("Source")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("fleet.reading_source")
-                        .HasColumnName("source")
-                        .HasColumnOrder(4)
-                        .HasDefaultValueSql("'manual'::fleet.reading_source");
-
-                    b.HasKey("Id")
-                        .HasName("pk_engine_hours_reading");
-
-                    b.HasAlternateKey("MachineId", "ReadAt")
-                        .HasName("uq_engine_hours_reading_machine_time");
-
-                    b.HasIndex("RecordedBy")
-                        .HasDatabaseName("ix_engine_hours_reading_user");
-
-                    b.ToTable("engine_hours_reading", "fleet", t =>
-                        {
-                            t.HasComment("Odometer history (US05). Monotonic and physically plausible readings are enforced by trigger.");
-
-                            t.HasCheckConstraint("ck_engine_hours_reading_hours", "((reading_hours >= (0)::numeric) AND (reading_hours <= (100000)::numeric))");
-
-                            t.HasCheckConstraint("ck_engine_hours_reading_not_future", "(read_at <= (created_at + '00:05:00'::interval))");
-                        });
-                });
-
-            modelBuilder.Entity("SmartSpare.Modules.Fleet.Infrastructure.Persistence.Machine", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint")
-                        .HasColumnName("id")
-                        .HasColumnOrder(0)
-                        .HasComment("Surrogate primary key.");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
-
-                    b.Property<DateOnly?>("CommissionedOn")
-                        .HasColumnType("date")
-                        .HasColumnName("commissioned_on")
-                        .HasColumnOrder(10);
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at")
-                        .HasColumnOrder(11)
-                        .HasDefaultValueSql("now()")
-                        .HasComment("Time the record was created.");
-
-                    b.Property<decimal>("CurrentEngineHours")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("numeric(8,1)")
-                        .HasColumnName("current_engine_hours")
-                        .HasColumnOrder(7)
-                        .HasDefaultValueSql("0")
-                        .HasComment("Latest odometer value; maintained by the reading trigger.");
-
-                    b.Property<long>("CustomerId")
-                        .HasColumnType("bigint")
-                        .HasColumnName("customer_id")
-                        .HasColumnOrder(3)
-                        .HasComment("Reference to fleet.customer.");
-
-                    b.Property<DateTimeOffset?>("EngineHoursReadAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("engine_hours_read_at")
-                        .HasColumnOrder(8)
-                        .HasComment("Time of the engine hours read event.");
-
-                    b.Property<short>("HomeWarehouseId")
-                        .HasColumnType("smallint")
-                        .HasColumnName("home_warehouse_id")
-                        .HasColumnOrder(5)
-                        .HasComment("Nearest depot where service kits are reserved.");
-
-                    b.Property<short>("ManufactureYear")
-                        .HasColumnType("smallint")
-                        .HasColumnName("manufacture_year")
-                        .HasColumnOrder(6);
-
-                    b.Property<int>("ModelId")
-                        .HasColumnType("integer")
-                        .HasColumnName("model_id")
-                        .HasColumnOrder(2)
-                        .HasComment("Reference to fleet.machine_model.");
-
-                    b.Property<short>("OperatingConditionId")
-                        .HasColumnType("smallint")
-                        .HasColumnName("operating_condition_id")
-                        .HasColumnOrder(4)
-                        .HasComment("Operating condition that shortens OEM intervals (F5).");
-
-                    b.Property<MachineStatus>("Status")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("fleet.machine_status")
-                        .HasColumnName("status")
-                        .HasColumnOrder(9)
-                        .HasDefaultValueSql("'active'::fleet.machine_status")
-                        .HasComment("Workflow status (state machine guarded by trigger).");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at")
-                        .HasColumnOrder(12)
-                        .HasDefaultValueSql("now()")
-                        .HasComment("Time of the last change (maintained by trigger).");
-
-                    b.Property<string>("Vin")
-                        .IsRequired()
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("vin")
-                        .HasColumnOrder(1)
-                        .HasComment("Vehicle / product identification number (unique).");
-
-                    b.HasKey("Id")
-                        .HasName("pk_machine");
-
-                    b.HasAlternateKey("Vin")
-                        .HasName("uq_machine_vin");
-
-                    b.HasIndex("CustomerId")
-                        .HasDatabaseName("ix_machine_customer");
-
-                    b.HasIndex("HomeWarehouseId")
-                        .HasDatabaseName("ix_machine_home_wh_active")
-                        .HasFilter("(status = 'active'::fleet.machine_status)");
-
-                    b.HasIndex("ModelId")
-                        .HasDatabaseName("ix_machine_model");
-
-                    b.HasIndex("OperatingConditionId")
-                        .HasDatabaseName("ix_machine_condition");
-
-                    b.HasIndex("Vin")
-                        .HasDatabaseName("ix_machine_vin_trgm");
-
-                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Vin"), "gin");
-                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Vin"), new[] { "gin_trgm_ops" });
-
-                    b.ToTable("machine", "fleet", t =>
-                        {
-                            t.HasComment("Registered machine (installed base). current_engine_hours is maintained by the engine-hour reading trigger.");
-
-                            t.HasCheckConstraint("ck_machine_commissioned", "((commissioned_on IS NULL) OR (EXTRACT(year FROM commissioned_on) >= (manufacture_year)::numeric))");
-
-                            t.HasCheckConstraint("ck_machine_engine_hours", "((current_engine_hours >= (0)::numeric) AND (current_engine_hours <= (100000)::numeric))");
-
-                            t.HasCheckConstraint("ck_machine_vin", "((vin)::text ~ '^[A-Z0-9]{8,20}$'::text)");
-
-                            t.HasCheckConstraint("ck_machine_year", "((manufacture_year >= 1950) AND (manufacture_year <= 2100))");
-                        });
-                });
-
             modelBuilder.Entity("SmartSpare.Modules.Fleet.Infrastructure.Persistence.MachineModel", b =>
                 {
                     b.Property<int>("Id")
@@ -444,92 +735,6 @@ namespace SmartSpare.Modules.Fleet.Infrastructure.Persistence.Migrations
                     b.ToTable("machine_model", "fleet", t =>
                         {
                             t.HasComment("Machine model, e.g. Claas Lexion 8700, John Deere 6R 150.");
-                        });
-                });
-
-            modelBuilder.Entity("SmartSpare.Modules.Fleet.Infrastructure.Persistence.MaintenancePlan", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasColumnName("id")
-                        .HasColumnOrder(0)
-                        .HasComment("Surrogate primary key.");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("IntervalHours")
-                        .HasColumnType("integer")
-                        .HasColumnName("interval_hours")
-                        .HasColumnOrder(2)
-                        .HasComment("OEM interval in engine hours (e.g. 500).");
-
-                    b.Property<bool>("IsActive")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasColumnName("is_active")
-                        .HasColumnOrder(4)
-                        .HasDefaultValueSql("true")
-                        .HasComment("FALSE = deactivated, kept for history.");
-
-                    b.Property<int>("ModelId")
-                        .HasColumnType("integer")
-                        .HasColumnName("model_id")
-                        .HasColumnOrder(1)
-                        .HasComment("Reference to fleet.machine_model.");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("character varying(120)")
-                        .HasColumnName("name")
-                        .HasColumnOrder(3)
-                        .HasComment("Display name.");
-
-                    b.HasKey("Id")
-                        .HasName("pk_maintenance_plan");
-
-                    b.HasAlternateKey("ModelId", "IntervalHours")
-                        .HasName("uq_maintenance_plan_model_interval");
-
-                    b.ToTable("maintenance_plan", "fleet", t =>
-                        {
-                            t.HasComment("OEM service interval of a model (e.g. 500 h engine oil service). The effective interval = interval_hours x operating_condition.interval_factor.");
-
-                            t.HasCheckConstraint("ck_maintenance_plan_interval", "((interval_hours >= 10) AND (interval_hours <= 20000))");
-                        });
-                });
-
-            modelBuilder.Entity("SmartSpare.Modules.Fleet.Infrastructure.Persistence.MaintenancePlanPart", b =>
-                {
-                    b.Property<int>("MaintenancePlanId")
-                        .HasColumnType("integer")
-                        .HasColumnName("maintenance_plan_id")
-                        .HasColumnOrder(0)
-                        .HasComment("Reference to fleet.maintenance_plan.");
-
-                    b.Property<long>("PartId")
-                        .HasColumnType("bigint")
-                        .HasColumnName("part_id")
-                        .HasColumnOrder(1)
-                        .HasComment("Reference to catalog.part.");
-
-                    b.Property<decimal>("Quantity")
-                        .HasColumnType("numeric(12,3)")
-                        .HasColumnName("quantity")
-                        .HasColumnOrder(2)
-                        .HasComment("Quantity of the part in the service kit.");
-
-                    b.HasKey("MaintenancePlanId", "PartId")
-                        .HasName("pk_maintenance_plan_part");
-
-                    b.HasIndex("PartId")
-                        .HasDatabaseName("ix_maintenance_plan_part_part");
-
-                    b.ToTable("maintenance_plan_part", "fleet", t =>
-                        {
-                            t.HasComment("Service kit / bill of materials of a maintenance plan (M:N plan <-> part with quantity).");
-
-                            t.HasCheckConstraint("ck_maintenance_plan_part_qty", "(quantity > (0)::numeric)");
                         });
                 });
 
@@ -578,194 +783,9 @@ namespace SmartSpare.Modules.Fleet.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("SmartSpare.Modules.Fleet.Infrastructure.Persistence.ServiceOrder", b =>
+            modelBuilder.Entity("SmartSpare.Modules.Fleet.Domain.Machines.EngineHoursReading", b =>
                 {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint")
-                        .HasColumnName("id")
-                        .HasColumnOrder(0)
-                        .HasComment("Surrogate primary key.");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
-
-                    b.Property<string>("CancelReason")
-                        .HasColumnType("character varying(300)")
-                        .HasColumnName("cancel_reason")
-                        .HasColumnOrder(12);
-
-                    b.Property<DateTimeOffset?>("CompletedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("completed_at")
-                        .HasColumnOrder(11)
-                        .HasComment("Time of the completed event.");
-
-                    b.Property<decimal?>("CompletedEngineHours")
-                        .HasColumnType("numeric(8,1)")
-                        .HasColumnName("completed_engine_hours")
-                        .HasColumnOrder(8);
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at")
-                        .HasColumnOrder(10)
-                        .HasDefaultValueSql("now()")
-                        .HasComment("Time the record was created.");
-
-                    b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uuid")
-                        .HasColumnName("created_by")
-                        .HasColumnOrder(9)
-                        .HasComment("User who created the record (iam.app_user).");
-
-                    b.Property<decimal?>("DueEngineHours")
-                        .HasColumnType("numeric(8,1)")
-                        .HasColumnName("due_engine_hours")
-                        .HasColumnOrder(6)
-                        .HasComment("Engine-hour threshold this planned service covers (e.g. 500, 1000, 1500 ...).");
-
-                    b.Property<long>("MachineId")
-                        .HasColumnType("bigint")
-                        .HasColumnName("machine_id")
-                        .HasColumnOrder(2)
-                        .HasComment("Reference to fleet.machine.");
-
-                    b.Property<int?>("MaintenancePlanId")
-                        .HasColumnType("integer")
-                        .HasColumnName("maintenance_plan_id")
-                        .HasColumnOrder(3)
-                        .HasComment("Reference to fleet.maintenance_plan.");
-
-                    b.Property<string>("Number")
-                        .IsRequired()
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("number")
-                        .HasColumnOrder(1)
-                        .HasComment("Business document number (assigned by trigger).");
-
-                    b.Property<ServiceOrderStatus>("Status")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("fleet.service_order_status")
-                        .HasColumnName("status")
-                        .HasColumnOrder(5)
-                        .HasDefaultValueSql("'draft'::fleet.service_order_status")
-                        .HasComment("Workflow status (state machine guarded by trigger).");
-
-                    b.Property<decimal?>("TriggerEngineHours")
-                        .HasColumnType("numeric(8,1)")
-                        .HasColumnName("trigger_engine_hours")
-                        .HasColumnOrder(7)
-                        .HasComment("Engine hours of the reading that triggered the draft.");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at")
-                        .HasColumnOrder(13)
-                        .HasDefaultValueSql("now()")
-                        .HasComment("Time of the last change (maintained by trigger).");
-
-                    b.Property<short>("WarehouseId")
-                        .HasColumnType("smallint")
-                        .HasColumnName("warehouse_id")
-                        .HasColumnOrder(4)
-                        .HasComment("Reference to inventory.warehouse.");
-
-                    b.HasKey("Id")
-                        .HasName("pk_service_order");
-
-                    b.HasAlternateKey("Number")
-                        .HasName("uq_service_order_number");
-
-                    b.HasIndex("CreatedBy")
-                        .HasDatabaseName("ix_service_order_created_by");
-
-                    b.HasIndex("MaintenancePlanId")
-                        .HasDatabaseName("ix_service_order_plan");
-
-                    b.HasIndex("WarehouseId", "Status")
-                        .HasDatabaseName("ix_service_order_open")
-                        .HasFilter("(status = ANY (ARRAY['draft'::fleet.service_order_status, 'parts_reserved'::fleet.service_order_status, 'in_progress'::fleet.service_order_status]))");
-
-                    b.HasIndex("MachineId", "MaintenancePlanId", "DueEngineHours")
-                        .IsUnique()
-                        .HasDatabaseName("uq_service_order_machine_plan_due")
-                        .HasFilter("((status <> 'cancelled'::fleet.service_order_status) AND (maintenance_plan_id IS NOT NULL))");
-
-                    b.ToTable("service_order", "fleet", t =>
-                        {
-                            t.HasComment("Service order (SO-YYYY-NNNNNN). Planned (plan + due hours) or unplanned repair (plan NULL). Completed orders form the maintenance history.");
-
-                            t.HasCheckConstraint("ck_service_order_cancel", "((status = 'cancelled'::fleet.service_order_status) = (cancel_reason IS NOT NULL))");
-
-                            t.HasCheckConstraint("ck_service_order_completed", "((status = 'completed'::fleet.service_order_status) = ((completed_at IS NOT NULL) AND (completed_engine_hours IS NOT NULL)))");
-
-                            t.HasCheckConstraint("ck_service_order_number", "((number)::text ~ '^SO-\\d{4}-\\d{6}$'::text)");
-
-                            t.HasCheckConstraint("ck_service_order_planned_due", "((maintenance_plan_id IS NULL) OR (due_engine_hours IS NOT NULL))");
-                        });
-                });
-
-            modelBuilder.Entity("SmartSpare.Modules.Fleet.Infrastructure.Persistence.ServiceOrderLine", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint")
-                        .HasColumnName("id")
-                        .HasColumnOrder(0)
-                        .HasComment("Surrogate primary key.");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
-
-                    b.Property<long>("PartId")
-                        .HasColumnType("bigint")
-                        .HasColumnName("part_id")
-                        .HasColumnOrder(2)
-                        .HasComment("Reference to catalog.part.");
-
-                    b.Property<decimal>("QtyIssued")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("numeric(12,3)")
-                        .HasColumnName("qty_issued")
-                        .HasColumnOrder(4)
-                        .HasDefaultValueSql("0")
-                        .HasComment("Quantity already issued from stock (ISSUE_SERVICE).");
-
-                    b.Property<decimal>("QtyRequired")
-                        .HasColumnType("numeric(12,3)")
-                        .HasColumnName("qty_required")
-                        .HasColumnOrder(3)
-                        .HasComment("Quantity in the unit of measure of the part.");
-
-                    b.Property<long>("ServiceOrderId")
-                        .HasColumnType("bigint")
-                        .HasColumnName("service_order_id")
-                        .HasColumnOrder(1)
-                        .HasComment("Reference to fleet.service_order.");
-
-                    b.HasKey("Id")
-                        .HasName("pk_service_order_line");
-
-                    b.HasAlternateKey("ServiceOrderId", "PartId")
-                        .HasName("uq_service_order_line_part");
-
-                    b.HasIndex("PartId")
-                        .HasDatabaseName("ix_service_order_line_part");
-
-                    b.ToTable("service_order_line", "fleet", t =>
-                        {
-                            t.HasComment("Parts required by a service order (copied from the kit, editable for repairs).");
-
-                            t.HasCheckConstraint("ck_service_order_line_issued", "((qty_issued >= (0)::numeric) AND (qty_issued <= qty_required))");
-
-                            t.HasCheckConstraint("ck_service_order_line_required", "(qty_required > (0)::numeric)");
-                        });
-                });
-
-            modelBuilder.Entity("SmartSpare.Modules.Fleet.Infrastructure.Persistence.EngineHoursReading", b =>
-                {
-                    b.HasOne("SmartSpare.Modules.Fleet.Infrastructure.Persistence.Machine", null)
+                    b.HasOne("SmartSpare.Modules.Fleet.Domain.Machines.Machine", null)
                         .WithMany()
                         .HasForeignKey("MachineId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -773,7 +793,7 @@ namespace SmartSpare.Modules.Fleet.Infrastructure.Persistence.Migrations
                         .HasConstraintName("fk_engine_hours_reading_machine");
                 });
 
-            modelBuilder.Entity("SmartSpare.Modules.Fleet.Infrastructure.Persistence.Machine", b =>
+            modelBuilder.Entity("SmartSpare.Modules.Fleet.Domain.Machines.Machine", b =>
                 {
                     b.HasOne("SmartSpare.Modules.Fleet.Infrastructure.Persistence.Customer", null)
                         .WithMany()
@@ -797,6 +817,52 @@ namespace SmartSpare.Modules.Fleet.Infrastructure.Persistence.Migrations
                         .HasConstraintName("fk_machine_condition");
                 });
 
+            modelBuilder.Entity("SmartSpare.Modules.Fleet.Domain.Maintenance.MaintenancePlan", b =>
+                {
+                    b.HasOne("SmartSpare.Modules.Fleet.Infrastructure.Persistence.MachineModel", null)
+                        .WithMany()
+                        .HasForeignKey("ModelId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_maintenance_plan_model");
+                });
+
+            modelBuilder.Entity("SmartSpare.Modules.Fleet.Domain.Maintenance.MaintenancePlanPart", b =>
+                {
+                    b.HasOne("SmartSpare.Modules.Fleet.Domain.Maintenance.MaintenancePlan", null)
+                        .WithMany("Parts")
+                        .HasForeignKey("MaintenancePlanId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_maintenance_plan_part_plan");
+                });
+
+            modelBuilder.Entity("SmartSpare.Modules.Fleet.Domain.ServiceOrders.ServiceOrder", b =>
+                {
+                    b.HasOne("SmartSpare.Modules.Fleet.Domain.Machines.Machine", null)
+                        .WithMany()
+                        .HasForeignKey("MachineId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("fk_service_order_machine");
+
+                    b.HasOne("SmartSpare.Modules.Fleet.Domain.Maintenance.MaintenancePlan", null)
+                        .WithMany()
+                        .HasForeignKey("MaintenancePlanId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .HasConstraintName("fk_service_order_plan");
+                });
+
+            modelBuilder.Entity("SmartSpare.Modules.Fleet.Domain.ServiceOrders.ServiceOrderLine", b =>
+                {
+                    b.HasOne("SmartSpare.Modules.Fleet.Domain.ServiceOrders.ServiceOrder", null)
+                        .WithMany("Lines")
+                        .HasForeignKey("ServiceOrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_service_order_line_order");
+                });
+
             modelBuilder.Entity("SmartSpare.Modules.Fleet.Infrastructure.Persistence.MachineModel", b =>
                 {
                     b.HasOne("SmartSpare.Modules.Fleet.Infrastructure.Persistence.RefBrand", null)
@@ -814,50 +880,14 @@ namespace SmartSpare.Modules.Fleet.Infrastructure.Persistence.Migrations
                         .HasConstraintName("fk_machine_model_type");
                 });
 
-            modelBuilder.Entity("SmartSpare.Modules.Fleet.Infrastructure.Persistence.MaintenancePlan", b =>
+            modelBuilder.Entity("SmartSpare.Modules.Fleet.Domain.Maintenance.MaintenancePlan", b =>
                 {
-                    b.HasOne("SmartSpare.Modules.Fleet.Infrastructure.Persistence.MachineModel", null)
-                        .WithMany()
-                        .HasForeignKey("ModelId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_maintenance_plan_model");
+                    b.Navigation("Parts");
                 });
 
-            modelBuilder.Entity("SmartSpare.Modules.Fleet.Infrastructure.Persistence.MaintenancePlanPart", b =>
+            modelBuilder.Entity("SmartSpare.Modules.Fleet.Domain.ServiceOrders.ServiceOrder", b =>
                 {
-                    b.HasOne("SmartSpare.Modules.Fleet.Infrastructure.Persistence.MaintenancePlan", null)
-                        .WithMany()
-                        .HasForeignKey("MaintenancePlanId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_maintenance_plan_part_plan");
-                });
-
-            modelBuilder.Entity("SmartSpare.Modules.Fleet.Infrastructure.Persistence.ServiceOrder", b =>
-                {
-                    b.HasOne("SmartSpare.Modules.Fleet.Infrastructure.Persistence.Machine", null)
-                        .WithMany()
-                        .HasForeignKey("MachineId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired()
-                        .HasConstraintName("fk_service_order_machine");
-
-                    b.HasOne("SmartSpare.Modules.Fleet.Infrastructure.Persistence.MaintenancePlan", null)
-                        .WithMany()
-                        .HasForeignKey("MaintenancePlanId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .HasConstraintName("fk_service_order_plan");
-                });
-
-            modelBuilder.Entity("SmartSpare.Modules.Fleet.Infrastructure.Persistence.ServiceOrderLine", b =>
-                {
-                    b.HasOne("SmartSpare.Modules.Fleet.Infrastructure.Persistence.ServiceOrder", null)
-                        .WithMany()
-                        .HasForeignKey("ServiceOrderId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_service_order_line_order");
+                    b.Navigation("Lines");
                 });
 #pragma warning restore 612, 618
         }
