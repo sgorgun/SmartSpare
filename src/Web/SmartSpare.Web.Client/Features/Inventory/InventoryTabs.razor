@@ -1,9 +1,10 @@
 @inject IStringLocalizer<SharedResource> Text
 @inject NavigationManager Navigation
+@inject IAuthorizationService Authorization
 
 @* The pages of the Inventory area. Only pages that exist are linked, so main stays demo-ready. *@
 <MudToolBar Dense="true" Gutters="false" Class="mb-3 flex-wrap" aria-label="@Text["Inventory.Pages"]">
-    @foreach (var (href, key, icon) in Pages)
+    @foreach (var (href, key, icon, _) in Pages.Where(p => p.Policy is null || _allowed.Contains(p.Policy)))
     {
         var current = IsCurrent(href);
         <MudButton Href="@href" Variant="@(current ? Variant.Filled : Variant.Text)" Color="Color.Primary" StartIcon="@icon"
@@ -12,12 +13,36 @@
 </MudToolBar>
 
 @code {
-    private static readonly (string Href, string Key, string Icon)[] Pages =
+    private static readonly (string Href, string Key, string Icon, string? Policy)[] Pages =
     [
-        ("inventory", "Inventory.Tab.Parts", Icons.Material.Filled.Category),
-        ("inventory/stock", "Inventory.Tab.Stock", Icons.Material.Filled.Warehouse),
-        ("inventory/transfers", "Inventory.Tab.Transfers", Icons.Material.Filled.LocalShipping),
+        ("inventory", "Inventory.Tab.Parts", Icons.Material.Filled.Category, null),
+        ("inventory/stock", "Inventory.Tab.Stock", Icons.Material.Filled.Warehouse, null),
+        ("inventory/transfers", "Inventory.Tab.Transfers", Icons.Material.Filled.LocalShipping, null),
+        ("inventory/imports", "Inventory.Tab.Imports", Icons.Material.Filled.UploadFile, AppPolicies.ImportData),
     ];
+
+    private readonly HashSet<string> _allowed = [];
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationState { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _allowed.Clear();
+        if (AuthenticationState is null)
+        {
+            return;
+        }
+
+        var user = (await AuthenticationState).User;
+        foreach (var policy in Pages.Select(p => p.Policy).OfType<string>().Distinct())
+        {
+            if ((await Authorization.AuthorizeAsync(user, policy)).Succeeded)
+            {
+                _allowed.Add(policy);
+            }
+        }
+    }
 
     private bool IsCurrent(string href)
     {
