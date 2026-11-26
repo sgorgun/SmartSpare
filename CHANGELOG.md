@@ -8,6 +8,63 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-26
+
+Stage 4: the services topology ([STAGE_4_PLAN.md](docs/stage-4/STAGE_4_PLAN.md)). The same module code now runs as a
+YARP gateway and six services that exchange integration events over RabbitMQ, with the Grafana stack locally and in
+Grafana Cloud. Everything is built and tested locally and in CI; the first Azure deployment is in stage 10 ([#85]).
+
+### Added
+
+- Composition seams for both topologies: module installers, an integration-event transport seam, stable consumer
+  names (`<module>.<purpose>`) and the topology architecture rules ([#86], closes [#32]).
+- Outbox back-off with jitter, parking of poison events after the last attempt, the `smartspare.outbox.*` metrics, a
+  health check and a data-quality row for parked events ([#88], closes [#31]).
+- RabbitMQ transport on the official client: a topic exchange per publishing module, a quorum queue per consumer with
+  native delayed retry, a dead-letter queue per module, publisher confirms, idempotent inbox, budget tests for queues
+  and connections, and a diagnostics probe from Identity to Inventory (ADR 0017, ADR 0021) ([#89]).
+- Six service hosts (`SmartSpare.Services.<Module>`) on their own database logins, accepting only internal tokens;
+  Identity's credential and session checks over `/internal/v1`; `--job <name>` and `MigrationRunner --module`
+  (ADR 0020) ([#90]).
+- `SmartSpare.Gateway`, the production BFF: YARP routes to the services, the cookie and antiforgery of the BFF
+  building block, ES256 internal tokens, rate limiting, `/warmup`, and a route-table test that `/internal` is never
+  routed (ADR 0015, ADR 0016) ([#91]).
+- Public OpenAPI 3.1 documents per module and the Scalar reference at `/scalar`, cached and rate-limited, with a strict
+  CSP (ADR 0019) ([#92], closes [#54]).
+- The services topology test in CI: gateway, Identity and Inventory with PostgreSQL and RabbitMQ in Testcontainers,
+  sign-in through the gateway, the probe over the broker and its linked delivery trace ([#93], closes [#57]).
+- `--topology services` in the Aspire AppHost: the gateway, six services, RabbitMQ (or CloudAMQP by configuration),
+  and an OpenTelemetry Collector with Prometheus, Loki, Tempo and Grafana, provisioned with the SmartSpare dashboards
+  and alert rules (ADR 0018) ([#94]).
+- Container images for the gateway, the six services and the migration job; per-service deploy workflows with the
+  shared quality gates and generated path filters; Bicep for the Azure environment, checked with what-if and not
+  applied (ADR 0020, ADR 0022) ([#95]).
+- The coverage gate on business logic (70 %; [#63] stays open for the 80 % step) and an explicit vulnerable-package
+  check in every pipeline ([#87], closes [#64]).
+- `/openapi/bff.json` for the session endpoints, examples and ProblemDetails with `code` and `traceId` in every
+  document (ADR 0019 amendment 1); the read-only Inventory API (`GET /api/v1/inventory/parts`, `/parts/{id}`,
+  `/warehouses`) under the `ReadInventory` policy and the parts catalogue page with a server-paged grid, pulled forward
+  from stage 5 ([#98]).
+- Grafana Cloud as code: Terraform in `infra/grafana` for the folder, five dashboards, seven alert rules, the e-mail
+  contact point and the notification policy; the broker metrics job (`--job reporting.broker-metrics`); the local
+  services topology exporting to the stack by configuration (ADR 0023) ([#99], closes [#59]).
+- Diploma criteria tables in the README, FRONTEND.md, API_DOCUMENTATION.md and a mobile layout test ([#96]).
+- Unit + integration coverage reported next to the unit-test gate ([#100]).
+
+### Changed
+
+- .NET Aspire 17 (the AppHost is a plain SDK project with `AddDotnetProject`) and Testcontainers 4.17 ([#86]).
+- TRACING.md describes the request trace and the linked delivery trace in Grafana Tempo, with a Grafana Cloud
+  example ([#93], [#99]).
+- The monthly CloudAMQP message quota is watched by CloudAMQP's e-mails instead of an alert rule (ADR 0023) ([#99]).
+
+### Security
+
+- Services accept only the gateway's 2-minute ES256 internal tokens and run on one database login each (ADR 0016,
+  ADR 0015 §5) ([#90], [#91]).
+- No secrets in the repository: user-secrets locally, Key Vault references in Bicep; a gitleaks scan of the full
+  history ([#96]).
+
 ## [0.3.0] - 2026-11-25
 
 Stage 3: Identity, BFF and the Blazor client skeleton ([STAGE_3_PLAN.md](docs/stage-3/STAGE_3_PLAN.md)). A demo user
@@ -142,7 +199,8 @@ Stage 1: solution skeleton.
 - Architecture tests for module boundaries.
 - CI for build, format check and tests, with locked-mode restore and Dependabot.
 
-[Unreleased]: https://github.com/sgorgun/SmartSpare/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/sgorgun/SmartSpare/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/sgorgun/SmartSpare/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/sgorgun/SmartSpare/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/sgorgun/SmartSpare/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/sgorgun/SmartSpare/compare/v0.1.0...v0.2.0
@@ -161,6 +219,8 @@ Stage 1: solution skeleton.
 [#20]: https://github.com/sgorgun/SmartSpare/pull/20
 [#22]: https://github.com/sgorgun/SmartSpare/issues/22
 [#29]: https://github.com/sgorgun/SmartSpare/pull/29
+[#31]: https://github.com/sgorgun/SmartSpare/issues/31
+[#32]: https://github.com/sgorgun/SmartSpare/issues/32
 [#33]: https://github.com/sgorgun/SmartSpare/issues/33
 [#34]: https://github.com/sgorgun/SmartSpare/issues/34
 [#35]: https://github.com/sgorgun/SmartSpare/issues/35
@@ -170,7 +230,12 @@ Stage 1: solution skeleton.
 [#39]: https://github.com/sgorgun/SmartSpare/pull/39
 [#40]: https://github.com/sgorgun/SmartSpare/pull/40
 [#52]: https://github.com/sgorgun/SmartSpare/pull/52
+[#54]: https://github.com/sgorgun/SmartSpare/issues/54
+[#57]: https://github.com/sgorgun/SmartSpare/issues/57
+[#59]: https://github.com/sgorgun/SmartSpare/issues/59
 [#60]: https://github.com/sgorgun/SmartSpare/issues/60
+[#63]: https://github.com/sgorgun/SmartSpare/issues/63
+[#64]: https://github.com/sgorgun/SmartSpare/issues/64
 [#65]: https://github.com/sgorgun/SmartSpare/pull/65
 [#66]: https://github.com/sgorgun/SmartSpare/issues/66
 [#68]: https://github.com/sgorgun/SmartSpare/pull/68
@@ -182,3 +247,18 @@ Stage 1: solution skeleton.
 [#74]: https://github.com/sgorgun/SmartSpare/pull/74
 [#76]: https://github.com/sgorgun/SmartSpare/pull/76
 [#77]: https://github.com/sgorgun/SmartSpare/pull/77
+[#85]: https://github.com/sgorgun/SmartSpare/issues/85
+[#86]: https://github.com/sgorgun/SmartSpare/pull/86
+[#87]: https://github.com/sgorgun/SmartSpare/pull/87
+[#88]: https://github.com/sgorgun/SmartSpare/pull/88
+[#89]: https://github.com/sgorgun/SmartSpare/pull/89
+[#90]: https://github.com/sgorgun/SmartSpare/pull/90
+[#91]: https://github.com/sgorgun/SmartSpare/pull/91
+[#92]: https://github.com/sgorgun/SmartSpare/pull/92
+[#93]: https://github.com/sgorgun/SmartSpare/pull/93
+[#94]: https://github.com/sgorgun/SmartSpare/pull/94
+[#95]: https://github.com/sgorgun/SmartSpare/pull/95
+[#96]: https://github.com/sgorgun/SmartSpare/pull/96
+[#98]: https://github.com/sgorgun/SmartSpare/pull/98
+[#99]: https://github.com/sgorgun/SmartSpare/pull/99
+[#100]: https://github.com/sgorgun/SmartSpare/pull/100
