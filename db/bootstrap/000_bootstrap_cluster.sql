@@ -82,6 +82,10 @@ GRANT app_audit  TO smartspare_reporting;    -- the Reporting service also reads
 GRANT app_write  TO smartspare_identity, smartspare_inventory, smartspare_fleet,
                     smartspare_procurement, smartspare_forecasting;
 GRANT app_ml     TO smartspare_forecasting;  -- forecasts, model versions and the training job
+-- User administration (#46): the API and the Identity service may switch to app_admin for one transaction
+-- (SET LOCAL ROLE), but never inherit its privileges, so their everyday rights stay those of app_write.
+-- Per-module roles replace this in stage 10 (#16).
+GRANT app_admin  TO smartspare_api, smartspare_identity WITH INHERIT FALSE, SET TRUE;
 
 -- Safety net: workload roles can never be superuser / create roles / DBs.
 ALTER ROLE smartspare_api       NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;

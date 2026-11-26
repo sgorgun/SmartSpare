@@ -15,10 +15,16 @@ SELECT pg_temp.ok((SELECT count(*) = 5 FROM pg_roles r
                                        'smartspare_procurement', 'smartspare_forecasting')
                      AND r.rolcanlogin AND r.rolconnlimit BETWEEN 1 AND 10
                      AND pg_has_role(r.rolname, 'app_write', 'MEMBER')
-                     AND NOT pg_has_role(r.rolname, 'app_admin', 'MEMBER')
+                     AND NOT pg_has_role(r.rolname, 'app_admin', 'USAGE')
                      AND NOT pg_has_role(r.rolname, 'smartspare_owner', 'MEMBER')
                      AND has_database_privilege(r.rolname, current_database(), 'CONNECT')),
-                  'Service logins (ADR 0015) can connect, write through app_write, and are neither admin nor owner');
+                  'Service logins (ADR 0015) can connect, write through app_write, and never hold admin or owner privileges');
+SELECT pg_temp.ok((SELECT array_agg(r.rolname ORDER BY r.rolname) FROM pg_roles r
+                    WHERE r.rolcanlogin AND NOT r.rolsuper AND pg_has_role(r.rolname, 'app_admin', 'SET')
+                      AND r.rolname NOT IN ('smartspare_migrator')) = ARRAY['smartspare_api', 'smartspare_identity']::name[]
+                  AND NOT pg_has_role('smartspare_api', 'app_admin', 'USAGE')
+                  AND NOT pg_has_role('smartspare_identity', 'app_admin', 'USAGE'),
+                  'Only the API and Identity logins may switch to app_admin (user administration, #46), and neither inherits it');
 SELECT pg_temp.ok(pg_has_role('smartspare_forecasting', 'app_ml', 'MEMBER')
                   AND pg_has_role('smartspare_reporting', 'app_audit', 'MEMBER')
                   AND NOT pg_has_role('smartspare_reporting', 'app_write', 'MEMBER'),
