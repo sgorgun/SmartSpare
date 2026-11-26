@@ -57,6 +57,8 @@ tools/check.sh e2e topology # optional, after a build: the Playwright smoke test
 
 Stage new files (`git add`) first: the stale-terms check scans tracked files only. On Windows, run the script in Git Bash.
 
+**Coverage.** Two figures, both of business logic (#63): the **unit-test** coverage is the gate (`tools/check.sh coverage`, at least 70 %); **unit + integration** (`tools/check.sh coverage-combined`, after the integration step) is reported, not gated. CI shows both in the summary of the "Coverage report" job. A pull request that lowers the unit-test figure by more than 2 points explains why in its description, for example a handler that can only be tested against PostgreSQL.
+
 **Memory.** Locally the script runs the test projects one at a time, with each project's test collections in series, so
 at most one Testcontainers PostgreSQL runs at once (`CHECK_SEQUENTIAL=1`, the default unless `CI=true`). The same tests
 run, just more slowly. CI keeps the parallel run; `CHECK_SEQUENTIAL=0 tools/check.sh` reproduces it locally if the

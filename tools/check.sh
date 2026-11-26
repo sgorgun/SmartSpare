@@ -9,10 +9,10 @@
 #   tools/check.sh e2e             # optional: the Playwright smoke test (Docker and Chromium; CI job "End-to-end")
 #   tools/check.sh topology        # optional: gateway + services + PostgreSQL + RabbitMQ (Docker; CI job "Topology test")
 #
-# Steps: stale-terms deploy-paths restore vulnerabilities build format check-model test coverage integration database; optional: e2e
-# topology (they need a build first, e.g. tools/check.sh restore build e2e topology)
-# Everything runs in the Release configuration, like CI. Test results and coverage
-# (XPlat Code Coverage, as in CI) go to TestResults/.
+# Steps: stale-terms deploy-paths restore vulnerabilities build format check-model test coverage integration database
+# coverage-combined; optional: e2e topology (they need a build first, e.g. tools/check.sh restore build e2e topology)
+# Everything runs in the Release configuration, like CI. Test results and coverage (XPlat Code Coverage, as in CI) go
+# to TestResults/: the unit tests' to TestResults/<run>/, the integration tests' to TestResults/integration/<run>/.
 #
 # Memory: CHECK_SEQUENTIAL=1 runs the test projects one at a time and the test collections of each project one at a
 # time, so at most one Testcontainers PostgreSQL runs at once. It is the default locally; CI (CI=true, set by GitHub
@@ -81,29 +81,46 @@ step_test() {
 }
 
 # Line coverage of business logic, as #63 defines it (BACKEND_REQUIREMENTS): module Domain/ and Features/, SharedKernel
-# and the handler pipeline; no migrations, EF configurations, generated code or host Program. Reads the Cobertura files
-# of the test step and fails below COVERAGE_THRESHOLD (70 %, raised to 80 % by stage 9). Report in TestResults/coverage.
-step_coverage() {
+# and the handler pipeline; no migrations, EF configurations, generated code or host Program.
+# coverage_report NAME TITLE REPORTS [THRESHOLD]: the report of the given Cobertura files in TestResults/NAME, its
+# summary printed and added to the GitHub job summary; fails below THRESHOLD when one is given.
+coverage_report() {
+  local name="$1" title="$2" reports="$3" threshold="${4:-}"
+  local report="$RESULTS/$name"
   dotnet tool restore >/dev/null
-  local report="$RESULTS/coverage"
   rm -rf "$report"
   dotnet tool run reportgenerator \
-    "-reports:$RESULTS/**/coverage.cobertura.xml" \
+    "-reports:$reports" \
     "-targetdir:$report" \
     "-reporttypes:Html;TextSummary;MarkdownSummaryGithub" \
     "-assemblyfilters:+SmartSpare.Modules.*;+SmartSpare.SharedKernel;+SmartSpare.Infrastructure;-*.Contracts" \
     "-filefilters:+*Domain*;+*Features*;+*SmartSpare.SharedKernel*;+*Messaging*Decorators*;+*Messaging*HandlerRegistration.cs;-*Migrations*;-*obj*" \
     "-verbosity:Error" \
-    "minimumCoverageThresholds:lineCoverage=${COVERAGE_THRESHOLD:-70}" \
+    ${threshold:+"minimumCoverageThresholds:lineCoverage=$threshold"} \
     && status=0 || status=$?
+  echo "-- $title"
   grep -E "Line coverage|Covered lines|Coverable lines" "$report/Summary.txt" || true
   if [ -n "${GITHUB_STEP_SUMMARY:-}" ] && [ -f "$report/SummaryGithub.md" ]; then
-    cat "$report/SummaryGithub.md" >>"$GITHUB_STEP_SUMMARY"
+    { echo "## $title"; echo; cat "$report/SummaryGithub.md"; echo; } >>"$GITHUB_STEP_SUMMARY"
   fi
   if [ "$status" -ne 0 ]; then
-    echo "coverage of business logic is below ${COVERAGE_THRESHOLD:-70} % (see $report/index.html)" >&2
+    echo "coverage of business logic is below $threshold % (see $report/index.html)" >&2
     return "$status"
   fi
+}
+
+# The gate: unit tests only (the test step's files, one level below TestResults), at least COVERAGE_THRESHOLD (70 %,
+# raised to 80 % by stage 9). A pull request that lowers it by more than 2 points says why (CONTRIBUTING.md).
+step_coverage() {
+  coverage_report coverage "Unit-test coverage of business logic (gate ${COVERAGE_THRESHOLD:-70} %)" \
+    "$RESULTS/*/coverage.cobertura.xml" "${COVERAGE_THRESHOLD:-70}"
+}
+
+# Report only, no gate: unit and integration tests together, after the test and integration steps. Handlers that only
+# run against PostgreSQL (SQL queries) are covered here, not by the gate.
+step_coverage_combined() {
+  coverage_report coverage-combined "Unit + integration coverage of business logic (report only)" \
+    "$RESULTS/**/coverage.cobertura.xml"
 }
 
 # Known-vulnerable packages, direct and transitive (#64). NuGet Audit already fails restore on them; this step names the
@@ -130,8 +147,12 @@ PY
 }
 
 step_integration() {
+  if [ -d "$RESULTS/integration" ]; then
+    find "$RESULTS/integration" -name 'coverage.cobertura.xml' -delete
+  fi
   run_tests "Category=Integration" \
-    --logger trx --results-directory "$RESULTS"
+    --logger trx --results-directory "$RESULTS/integration" \
+    --collect "XPlat Code Coverage"
 }
 
 step_database() { RUNNER_ARGS="--no-build --configuration $CONFIGURATION" tools/verify_database.sh; }
@@ -167,7 +188,7 @@ report_containers() {
 }
 
 FAST=(stale-terms deploy-paths restore vulnerabilities build format check-model test coverage)
-ALL=("${FAST[@]}" integration database)
+ALL=("${FAST[@]}" integration database coverage-combined)
 OPTIONAL=(e2e topology)
 
 if [ $# -eq 0 ]; then

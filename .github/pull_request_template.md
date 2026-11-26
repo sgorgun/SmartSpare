@@ -11,6 +11,7 @@
 - [ ] Title follows Conventional Commits (`type(scope): summary`)
 - [ ] `dotnet build -warnaserror`, tests and `dotnet format --verify-no-changes` pass locally
 - [ ] Tests added or updated for the change
+- [ ] Unit-test coverage not lowered by more than 2 points, or the reason is given above
 - [ ] Module boundaries respected (architecture tests green)
 - [ ] Docs / ADRs updated if a decision or behaviour changed
 - [ ] No secrets, no generated files, English only
