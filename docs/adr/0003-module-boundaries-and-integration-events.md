@@ -1,6 +1,6 @@
 # ADR 0003: Module boundaries and integration events
 
-- Status: Accepted, amended by [ADR 0017](0017-rabbitmq-integration-event-transport.md) (2026-11-24)
+- Status: Accepted, amended by [ADR 0017](0017-rabbitmq-integration-event-transport.md) (2026-11-24) and [ADR 0024](0024-acting-user-of-integration-events-and-jobs.md) (2026-11-27)
 - Date: 2026-11-16
 
 ## Context
@@ -26,3 +26,7 @@ The Outbox/Inbox design of this ADR is unchanged. RabbitMQ replaces only the del
 - the inbox stays the idempotency guard.
 
 The in-process transport stays for the single-host topology.
+
+## Amendment (2026-11-27)
+
+[ADR 0024](0024-acting-user-of-integration-events-and-jobs.md): an integration event caused by a person carries that person (`IActedByUser.ActorId`) for attribution only; its consumers act as that user without roles, so permissions are checked when the user acts, never from the message. Background jobs act as a named system user.

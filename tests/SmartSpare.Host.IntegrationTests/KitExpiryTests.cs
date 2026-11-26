@@ -6,6 +6,7 @@ using SmartSpare.ApiContracts.Authorization;
 using SmartSpare.ApiContracts.Fleet;
 using SmartSpare.Host.IntegrationTests.Support;
 using SmartSpare.Infrastructure.Jobs;
+using SmartSpare.Infrastructure.Persistence;
 
 namespace SmartSpare.Host.IntegrationTests;
 
@@ -53,6 +54,15 @@ public sealed class KitExpiryTests(IdentityDatabaseFixture database) : IAsyncLif
         _host.Time.Advance(TimeSpan.FromDays(2));
         await RunExpiryAsync();
         (await HoldsAsync(order, "expired")).ShouldBe(2);
+        (await database.ScalarAsync<long>(
+                """
+                SELECT count(*) FROM audit.audit_log a
+                WHERE a.table_name = 'inventory.stock_reservation' AND a.action = 'UPDATE' AND a.new_values ->> 'status' = 'expired'
+                  AND a.user_id = @system AND a.reason = 'job:inventory.reservation-expiry'
+                  AND a.record_id IN (SELECT r.id::text FROM inventory.stock_reservation r JOIN fleet.service_order_line l ON l.id = r.service_order_line_id
+                                      WHERE l.service_order_id = @o)
+                """, ("system", SystemUser.Id), ("o", order)))
+            .ShouldBe(2, "ADR 0024: the job's writes are attributed to the named system user");
         await EventuallyAsync(async () => await StatusAsync(order) == "draft");
         (await database.ScalarAsync<decimal>("SELECT sum(qty_reserved) FROM fleet.service_order_line WHERE service_order_id = @o", ("o", order))).ShouldBe(0m);
         (await database.ScalarAsync<long>(
@@ -96,12 +106,9 @@ public sealed class KitExpiryTests(IdentityDatabaseFixture database) : IAsyncLif
             .ShouldBe(0);
     }
 
-    private async Task RunExpiryAsync()
-    {
-        await using var scope = _host.Services.CreateAsyncScope();
-        var job = scope.ServiceProvider.GetServices<IJob>().Single(j => j.Name == ExpiryJob);
-        await job.RunAsync(Ct);
-    }
+    /// <summary>Runs the job through the <c>--job</c> entry point, so it acts as the named system user (ADR 0024).</summary>
+    private async Task RunExpiryAsync() =>
+        (await JobRunner.RunAsync(_host.Services, ExpiryJob, Ct)).ShouldBe(JobRunner.Succeeded);
 
     /// <summary>The transitional completion consumes the holds and issues the kit (replaced by the event flow in 6h).</summary>
     private async Task CompleteAsync(long order)

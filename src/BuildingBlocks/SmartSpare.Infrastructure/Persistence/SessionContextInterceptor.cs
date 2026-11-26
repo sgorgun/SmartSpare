@@ -36,6 +36,18 @@ internal sealed class NoCurrentUser : ICurrentUser
 }
 
 /// <summary>
+/// The named system user that background jobs act as (ADR 0024): their writes are attributed to it in the audit trail and
+/// the actor columns, with the reason <c>job:&lt;name&gt;</c>, and it has no roles. A well-known id, not a database row:
+/// actor columns carry no foreign keys (MODULE_MAPPING 2.1), and screens show it as "System".
+/// </summary>
+public static class SystemUser
+{
+    public static readonly Guid Id = Guid.Parse("00000000-0000-4000-8000-00000000f001");
+
+    public const string Name = "System";
+}
+
+/// <summary>
 /// Overrides <see cref="ICurrentUser"/> for one scope of work done on behalf of a user who is not (yet) the
 /// request's principal. Sign-in uses it: failed-attempt counters, lockouts and rehashes are written while the user
 /// is signing in, so the audit must name that user, with the reason <c>sign-in</c> (STAGE_3_PLAN section 2.2).

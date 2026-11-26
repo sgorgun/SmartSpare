@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using SmartSpare.Infrastructure.Jobs;
+using SmartSpare.Infrastructure.Persistence;
 
 namespace SmartSpare.Infrastructure.UnitTests;
 
@@ -25,6 +26,20 @@ public sealed class JobRunnerTests
 
         exitCode.ShouldBe(JobRunner.Succeeded);
         RecordingJob.Runs.ShouldContain("test.ok");
+    }
+
+    [Fact]
+    public async Task A_job_acts_as_the_named_system_user_without_roles()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
+        services.AddScoped<ActingUser>();
+        services.AddScoped<IJob>(sp => new ActingUserJob(sp.GetRequiredService<ActingUser>()));
+        await using var provider = services.BuildServiceProvider();
+
+        (await JobRunner.RunAsync(provider, ActingUserJob.JobName, TestContext.Current.CancellationToken)).ShouldBe(JobRunner.Succeeded);
+
+        ActingUserJob.Seen.ShouldBe((SystemUser.Id, $"job:{ActingUserJob.JobName}"));
     }
 
     [Fact]
@@ -65,6 +80,21 @@ public sealed class JobRunnerTests
             }
 
             return fail ? throw new InvalidOperationException("The job failed (test).") : Task.CompletedTask;
+        }
+    }
+
+    private sealed class ActingUserJob(ActingUser acting) : IJob
+    {
+        public const string JobName = "test.acting-user";
+
+        public static (Guid? UserId, string? Reason) Seen { get; private set; }
+
+        public string Name => JobName;
+
+        public Task RunAsync(CancellationToken cancellationToken)
+        {
+            Seen = (acting.UserId, acting.Reason);
+            return Task.CompletedTask;
         }
     }
 }

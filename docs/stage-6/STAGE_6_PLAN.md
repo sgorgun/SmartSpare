@@ -360,6 +360,8 @@ Each PR passes the full `tools/check.sh` and `tools/check.sh restore build e2e t
 8. Unit coverage of business logic at or above the 70 % gate, with all three figures reported.
 9. #12 closed; #30, #82, #17 closed or explicitly moved by the timebox.
 
+**Known limitation (27 November 2026).** The expiry of service-kit holds runs only in the services topology, as `--job inventory.reservation-expiry` (a Container Apps cron job from stage 10): the single host has no scheduler until #30 adds Quartz. In the single host a soft hold therefore stays until the order is completed or cancelled. #30 is in milestone v0.6.0 (PR 6m); if 6m is cut by the timebox, #30 and this limitation move with it to v0.10.0. The job acts as the named system user (ADR 0024).
+
 **Cut order if the stage runs late** (each cut becomes an issue in a later milestone; the later stages are not moved):
 1. 6i kit line editing (and unplanned repair orders in 6h) → v0.11.0.
 2. 6m housekeeping (#30, #82) → v0.10.0.

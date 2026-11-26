@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using SmartSpare.Infrastructure.Persistence;
 
 namespace SmartSpare.Infrastructure.Jobs;
 
@@ -77,6 +78,9 @@ public static class JobRunner
             }
 
             var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("SmartSpare.Jobs");
+
+            // ADR 0024: a job acts as the named system user, without roles, so its writes are attributed to it.
+            using var actingAs = scope.ServiceProvider.GetService<ActingUser>()?.ActAs(SystemUser.Id, "job:" + job.Name);
             try
             {
                 await job.RunAsync(cancellationToken).ConfigureAwait(false);
