@@ -16,14 +16,20 @@ internal static class MovementTypes
     public const string AdjustmentOut = "ADJUSTMENT_OUT";
     public const string HistoricalDemand = "HISTORICAL_DEMAND";
 
-    /// <summary>+1 adds to stock, -1 takes from it, 0 has no stock effect (the <c>balance_sign</c> column).</summary>
-    public static int BalanceSign(string code) => code switch
+    // A lookup rather than a switch over ten strings: a Debug build compiles such a switch to a hash that calls the
+    // compiler-generated <PrivateImplementationDetails> type, which the architecture test of the domain rejects.
+    private static readonly Dictionary<string, int> BalanceSigns = new(StringComparer.Ordinal)
     {
-        OpeningBalance or ReceiptPurchaseOrder or ReturnFromCustomer or AdjustmentIn or TransferIn => 1,
-        TransferOut or IssueService or IssueSale or AdjustmentOut => -1,
-        HistoricalDemand => 0,
-        _ => throw new ArgumentOutOfRangeException(nameof(code), code, "Unknown movement type."),
+        [OpeningBalance] = 1, [ReceiptPurchaseOrder] = 1, [ReturnFromCustomer] = 1, [AdjustmentIn] = 1, [TransferIn] = 1,
+        [TransferOut] = -1, [IssueService] = -1, [IssueSale] = -1, [AdjustmentOut] = -1,
+        [HistoricalDemand] = 0,
     };
+
+    /// <summary>+1 adds to stock, -1 takes from it, 0 has no stock effect (the <c>balance_sign</c> column).</summary>
+    public static int BalanceSign(string code) =>
+        BalanceSigns.TryGetValue(code, out var sign)
+            ? sign
+            : throw new ArgumentOutOfRangeException(nameof(code), code, "Unknown movement type.");
 
     /// <summary>Whether the movement counts as demand for forecasting (the <c>is_demand</c> column).</summary>
     public static bool IsDemand(string code) => code is IssueService or IssueSale or HistoricalDemand;
