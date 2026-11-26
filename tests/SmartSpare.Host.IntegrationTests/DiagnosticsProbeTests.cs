@@ -51,7 +51,18 @@ public sealed class DiagnosticsProbeTests(IdentityDatabaseFixture database) : IA
         }
 
         handled.ShouldBe(1);
-        (await database.ScalarAsync<bool>("SELECT processed_at IS NOT NULL FROM iam.outbox_message WHERE id = @id", ("id", eventId))).ShouldBeTrue();
+
+        // The inbox row commits in Inventory's transaction before the dispatcher marks Identity's outbox row, so the mark
+        // can lag the inbox row by a moment.
+        bool marked;
+        while (!(marked = await database.ScalarAsync<bool>(
+                   "SELECT processed_at IS NOT NULL FROM iam.outbox_message WHERE id = @id", ("id", eventId)))
+               && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(200, TestContext.Current.CancellationToken);
+        }
+
+        marked.ShouldBeTrue();
     }
 
     [Fact]
