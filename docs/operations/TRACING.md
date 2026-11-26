@@ -43,12 +43,24 @@ Typical questions this answers: did the request reach the database at all, which
 
 ## 4. From stage 4: Grafana Tempo across services
 
-In production the gateway and the six services export OTLP to Grafana Cloud ([ADR 0018](../adr/0018-observability-with-the-grafana-stack.md)); locally, `--topology services` runs the same stack self-hosted. The same reference is the key there:
+In production the gateway and the six services export OTLP to Grafana Cloud ([ADR 0018](../adr/0018-observability-with-the-grafana-stack.md)). Locally, `--topology services` runs the same stack self-hosted: Grafana is the `grafana` resource in the Aspire dashboard. With the `GrafanaCloud:*` user secrets, the local topology also sends everything to the Grafana Cloud stack ([infra/grafana](../../infra/grafana/README.md)), so both work the same way.
 
-- In Grafana, open **Explore**, choose the Tempo data source and enter the trace id as the query.
-- One trace then spans every hop: the gateway's request, the internal HTTP call to the owning service, its database commands, and, for events, the RabbitMQ publish and consume spans (the `traceparent` travels in the message headers, ADR 0017).
-- The Loki log records of the request carry the same trace id, so the logs of every service involved are found with it too.
+**Find the request.** In Grafana, open **Explore**, choose the Tempo data source and enter the reference as the trace id. The request's trace contains:
+- the gateway's server span and its proxied HTTP client span;
+- the owning service's server span;
+- the service's database commands (Npgsql);
+- for a request that publishes an event, the outbox insert.
 
-These steps describe the planned stage 4 setup; they are checked and completed when the Grafana stack is in place (#67).
+**Follow the event.** The outbox dispatcher publishes later, in its own activity. So the delivery is a **second trace**, which starts with the publish span and carries a **link** to the request's trace (STAGE_4_PLAN 6.5). It contains:
+- the outbox publish;
+- RabbitMQ.Client's own send and receive spans;
+- the consumer's span in the receiving service;
+- its inbox insert.
+
+The `traceparent` travels in the message headers (ADR 0017), and the outbox row keeps the request's `traceparent` for the link. In Tempo, the publish span's **Links** open the request trace.
+
+**Logs.** The Loki log records carry the same trace id (`trace_id`), so the logs of every service involved are found with it too, and the Loki data source links them back to Tempo.
+
+Checked on 25 November 2026 with the diagnostics probe, Identity → RabbitMQ → Inventory, in the local Tempo (PR 4g-2). The topology CI job asserts the same link (`TopologyTests`).
 
 Telemetry is kept for 14 days in Grafana Cloud Free, so a reference older than that can no longer be traced.
