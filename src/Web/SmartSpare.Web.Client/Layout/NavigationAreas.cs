@@ -26,6 +26,7 @@ public static class NavigationAreas
         new("forecasting", "Nav.Forecasting", "Module.Forecasting", Icons.Material.Filled.Insights, 8,
             [AppPolicies.DecideRecommendation]),
         new("reporting", "Nav.Reporting", "Module.Reporting", Icons.Material.Filled.BarChart, 9, []),
+        new("admin/users", "Nav.Users", "Module.Users", Icons.Material.Filled.ManageAccounts, 5, [AppPolicies.Administration]),
     ];
 }
 
