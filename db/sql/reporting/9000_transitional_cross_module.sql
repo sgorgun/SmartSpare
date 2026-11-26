@@ -79,36 +79,6 @@ LEFT JOIN inventory.v_in_transit it  ON it.warehouse_id = wp.warehouse_id AND it
 COMMENT ON VIEW inventory.v_stock_overview IS 'US04: on-hand, reserved, available and in-transit stock per part and warehouse with last-updated timestamp.';
 GRANT SELECT ON inventory.v_stock_overview TO app_read;
 
--- TRANSITIONAL: replaced by a module-local view in stage 6 (reads inventory.warehouse; X10) (#12)
-CREATE VIEW fleet.v_machine_maintenance_status AS
-SELECT m.id                      AS machine_id,
-       m.vin,
-       b.name                    AS brand_name,
-       mm.model_name,
-       mt.code                   AS machine_type_code,
-       c.customer_code,
-       w.code                    AS home_warehouse_code,
-       oc.code                   AS operating_condition_code,
-       m.current_engine_hours,
-       m.engine_hours_read_at,
-       nd.plan_name              AS next_service,
-       nd.due_engine_hours       AS next_service_due_hours,
-       nd.remaining_hours        AS next_service_remaining_hours,
-       coalesce(nd.is_overdue, false) AS is_overdue,
-       (SELECT count(*) FROM fleet.service_order so
-        WHERE so.machine_id = m.id AND so.status IN ('draft', 'parts_reserved', 'in_progress')) AS open_service_orders
-FROM fleet.machine m
-JOIN fleet.machine_model mm      ON mm.id = m.model_id
-JOIN ref.brand b                 ON b.id = mm.brand_id
-JOIN ref.machine_type mt         ON mt.id = mm.machine_type_id
-JOIN fleet.customer c            ON c.id = m.customer_id
-JOIN inventory.warehouse w       ON w.id = m.home_warehouse_id
-JOIN ref.operating_condition oc  ON oc.id = m.operating_condition_id
-LEFT JOIN LATERAL (SELECT * FROM fleet.fn_maintenance_due(m.id, 1000000) LIMIT 1) nd ON true
-WHERE m.status = 'active';
-COMMENT ON VIEW fleet.v_machine_maintenance_status IS 'Machine card (WF03): current engine hours and the next not yet planned OEM service.';
-GRANT SELECT ON fleet.v_machine_maintenance_status TO app_read;
-
 -- TRANSITIONAL: replaced by fleet.part_snapshot and qty_reserved in stage 6 (reads catalog and inventory; X9) (#12)
 CREATE VIEW fleet.v_service_kit_shortage AS
 SELECT s.id AS service_order_id, s.number, s.status, w.code AS warehouse_code,

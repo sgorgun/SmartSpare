@@ -1383,7 +1383,7 @@ Machine card (WF03): current engine hours and the next not yet planned OEM servi
 | `model_name` | `character varying(80)` |  |  |  |
 | `machine_type_code` | `character varying(20)` |  |  |  |
 | `customer_code` | `character varying(12)` |  |  |  |
-| `home_warehouse_code` | `character varying(10)` |  |  |  |
+| `home_warehouse_id` | `smallint` |  |  |  |
 | `operating_condition_code` | `character varying(20)` |  |  |  |
 | `current_engine_hours` | `numeric(8,1)` |  |  |  |
 | `engine_hours_read_at` | `timestamp with time zone` |  |  |  |

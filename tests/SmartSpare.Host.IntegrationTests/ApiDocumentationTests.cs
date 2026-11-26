@@ -135,6 +135,45 @@ public sealed partial class ApiDocumentationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task The_fleet_document_describes_every_operation_with_parameters_responses_and_examples()
+    {
+        var root = await DocumentAsync("fleet");
+        var paths = root.GetProperty("paths");
+
+        foreach (var (path, method, statuses) in new (string, string, string[])[]
+        {
+            ("/api/v1/fleet/machines", "get", ["200", "400", "401", "403"]),
+            ("/api/v1/fleet/machines/{id}", "get", ["200", "401", "403", "404"]),
+            ("/api/v1/fleet/machines/{id}/readings", "get", ["200", "400", "401", "403", "404"]),
+            ("/api/v1/fleet/maintenance/due", "get", ["200", "400", "401", "403"]),
+            ("/api/v1/fleet/maintenance-plans", "get", ["200", "401", "403"]),
+        })
+        {
+            var operation = paths.GetProperty(path).GetProperty(method);
+            operation.GetProperty("summary").GetString().ShouldNotBeNullOrWhiteSpace(path);
+            operation.GetProperty("description").GetString().ShouldNotBeNullOrWhiteSpace(path);
+            var responses = operation.GetProperty("responses");
+            responses.EnumerateObject().Select(r => r.Name).ShouldBe(statuses, ignoreOrder: true, path);
+            ExampleOf(responses.GetProperty(statuses[0])).ValueKind.ShouldNotBe(JsonValueKind.Undefined, $"{path} has a {statuses[0]} example");
+            if (operation.TryGetProperty("parameters", out var parameters))
+            {
+                parameters.EnumerateArray().ShouldAllBe(
+                    p => !string.IsNullOrWhiteSpace(p.GetProperty("description").GetString()), $"{path}: every parameter is described");
+            }
+        }
+
+        var schemas = root.GetProperty("components").GetProperty("schemas");
+        foreach (var name in new[] { "MachineSummary", "MachineDetails", "MaintenancePlanDue", "ReadingRow", "DueMaintenanceRow", "MaintenancePlanResponse", "KitPart" })
+        {
+            schemas.GetProperty(name).GetProperty("properties").EnumerateObject()
+                .Where(p => !p.Value.TryGetProperty("description", out _)).Select(p => p.Name).ShouldBeEmpty($"every field of {name} is described");
+        }
+
+        var notFound = ExampleOf(paths.GetProperty("/api/v1/fleet/machines/{id}").GetProperty("get").GetProperty("responses").GetProperty("404"));
+        notFound.GetProperty("code").GetString().ShouldBe("Fleet.MachineNotFound");
+    }
+
+    [Fact]
     public async Task The_session_endpoints_have_their_own_public_document_with_errors_and_examples()
     {
         var root = await DocumentAsync(BffEndpoints.DocumentName);

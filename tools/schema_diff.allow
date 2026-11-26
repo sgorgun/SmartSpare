@@ -89,3 +89,8 @@
 # PR 6d (STAGE_6_PLAN 5.2, #12): Fleet's read-only copy of the part catalogue, fed by PartCatalogChanged, with its
 # privileges (Fleet migration AddPartSnapshot, db/sql/fleet/0004_part_snapshot.sql).
 +fleet\.part_snapshot
+
+# PR 6e (STAGE_6_PLAN 3.3, MODULE_MAPPING X10): fleet.v_machine_maintenance_status is module-local and returns the
+# home hub id instead of its code (created in db/sql/fleet/0001_fleet_logic.sql, no longer in the Reporting script).
+-CREATE VIEW fleet\.v_machine_maintenance_status AS .* w\.code AS home_warehouse_code
++CREATE VIEW fleet\.v_machine_maintenance_status AS .* c\.customer_code, m\.home_warehouse_id, oc\.code AS operating_condition_code
