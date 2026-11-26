@@ -72,8 +72,8 @@ flowchart LR
   - Telemetry, the AI agent, MCP and the hosted developer tools are switched off, so nothing is sent to Scalar's services.
   - Its page has its own CSP, `script-src 'self' 'nonce-…'`, with a fresh 144-bit nonce per response. Every other page keeps the stricter stage 3 policy.
 
-**Content today.** A read-only slice of stage 5 was pulled forward for the API review (2 December 2026), so these
-operations are described in full:
+**Content today** (v0.5.0). The Inventory API of stage 5 and the user administration of Identity are described in
+full:
 
 | Document | Operation | Policy | Responses |
 |---|---|---|---|
