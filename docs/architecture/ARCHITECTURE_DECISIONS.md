@@ -90,7 +90,7 @@ Every module has the same shape and consists of two projects: the implementation
 
 - **Domain** — aggregates, value objects, domain events, invariants. Examples: `TransferOrder` with its state machine, `PurchaseOrder` with the four-eyes rule, `Quantity` and `Money` as value objects. No references to EF or ASP.NET.
 - **Features (vertical slices)** — one folder per use case: `ApproveTransfer/` holds the command, handler, validator and endpoint. Changing one use case touches one folder.
-- **Infrastructure** — the module's DbContext, EF configurations, migrations, handlers for incoming events.
+- **Infrastructure** — the module's DbContext, EF configurations, migrations, handlers for incoming events, and the data access of the use cases: read models and query handlers that only read (raw SQL or EF projections), and the SQL behind commands (SECURITY DEFINER functions, bulk loads). Features call it but never run SQL themselves; the unit-test metric of business logic covers Domain and Features (#63, architecture test `CoverageDefinitionTests`).
 
 **CQRS-lite.** Commands go through aggregates and EF Core; queries read straight into DTOs (EF projections or database views). One database, no separate read stores.
 

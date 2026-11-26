@@ -58,7 +58,12 @@ runs:
       shell: bash
       run: tools/check.sh test
 
-    # Line coverage of business logic (#63: Domain, Features, SharedKernel, handler pipeline) must be at least 70 %.
+    # Line coverage of business logic (#63: Domain and Features of the modules, SharedKernel, handler pipeline,
+    # ApiContracts; not Infrastructure) must be at least 70 %. All code is reported next to it.
     - name: Coverage gate
       shell: bash
       run: tools/check.sh coverage
+
+    - name: Coverage of all code (report)
+      shell: bash
+      run: tools/check.sh coverage-all

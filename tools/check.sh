@@ -9,7 +9,7 @@
 #   tools/check.sh e2e             # optional: the Playwright smoke test (Docker and Chromium; CI job "End-to-end")
 #   tools/check.sh topology        # optional: gateway + services + PostgreSQL + RabbitMQ (Docker; CI job "Topology test")
 #
-# Steps: stale-terms deploy-paths restore vulnerabilities build format duplication check-model test coverage integration database
+# Steps: stale-terms deploy-paths restore vulnerabilities build format duplication check-model test coverage coverage-all integration database
 # coverage-combined; optional: e2e topology (they need a build first, e.g. tools/check.sh restore build e2e topology)
 # Everything runs in the Release configuration, like CI. Test results and coverage (XPlat Code Coverage, as in CI) go
 # to TestResults/: the unit tests' to TestResults/<run>/, the integration tests' to TestResults/integration/<run>/.
@@ -85,12 +85,22 @@ step_test() {
     --collect "XPlat Code Coverage"
 }
 
-# Line coverage of business logic, as #63 defines it (BACKEND_REQUIREMENTS): module Domain/ and Features/, SharedKernel
-# and the handler pipeline; no migrations, EF configurations, generated code or host Program.
-# coverage_report NAME TITLE REPORTS [THRESHOLD]: the report of the given Cobertura files in TestResults/NAME, its
-# summary printed and added to the GitHub job summary; fails below THRESHOLD when one is given.
+# Coverage figures (#63, defined by layer on 27 November 2026, BACKEND_REQUIREMENTS):
+# - business logic: each module's Domain/ and Features/ (aggregates, value objects, validators, business rules,
+#   orchestration of use cases), the SharedKernel, the handler pipeline and the ApiContracts (DTO validators, policies).
+#   Not Infrastructure/ (EF configurations, migrations, read models and data-access query handlers, the SQL behind
+#   commands), not generated code. An architecture test keeps Domain and Features in this definition and raw SQL out of
+#   Features (CoverageDefinitionTests).
+# - all code: every SmartSpare assembly except tests, migrations and generated code.
+BUSINESS_ASSEMBLIES="+SmartSpare.Modules.*;+SmartSpare.SharedKernel;+SmartSpare.Infrastructure;+SmartSpare.ApiContracts;-*.Contracts"
+BUSINESS_FILES="+*Domain*;+*Features*;+*SmartSpare.SharedKernel*;+*Messaging*Decorators*;+*Messaging*HandlerRegistration.cs;+*SmartSpare.ApiContracts*;-*Migrations*;-*obj*;-*.g.cs"
+ALL_ASSEMBLIES="+SmartSpare.*;-*Tests*;-SmartSpare.E2E"
+ALL_FILES="-*Migrations*;-*obj*;-*.g.cs"
+
+# coverage_report NAME TITLE REPORTS ASSEMBLIES FILES [THRESHOLD]: the report of the given Cobertura files in
+# TestResults/NAME, its summary printed and added to the GitHub job summary; fails below THRESHOLD when one is given.
 coverage_report() {
-  local name="$1" title="$2" reports="$3" threshold="${4:-}"
+  local name="$1" title="$2" reports="$3" assemblies="$4" files="$5" threshold="${6:-}"
   local report="$RESULTS/$name"
   dotnet tool restore >/dev/null
   rm -rf "$report"
@@ -98,8 +108,8 @@ coverage_report() {
     "-reports:$reports" \
     "-targetdir:$report" \
     "-reporttypes:Html;TextSummary;MarkdownSummaryGithub" \
-    "-assemblyfilters:+SmartSpare.Modules.*;+SmartSpare.SharedKernel;+SmartSpare.Infrastructure;-*.Contracts" \
-    "-filefilters:+*Domain*;+*Features*;+*SmartSpare.SharedKernel*;+*Messaging*Decorators*;+*Messaging*HandlerRegistration.cs;-*Migrations*;-*obj*" \
+    "-assemblyfilters:$assemblies" \
+    "-filefilters:$files" \
     "-verbosity:Error" \
     ${threshold:+"minimumCoverageThresholds:lineCoverage=$threshold"} \
     && status=0 || status=$?
@@ -109,23 +119,29 @@ coverage_report() {
     { echo "## $title"; echo; cat "$report/SummaryGithub.md"; echo; } >>"$GITHUB_STEP_SUMMARY"
   fi
   if [ "$status" -ne 0 ]; then
-    echo "coverage of business logic is below $threshold % (see $report/index.html)" >&2
+    echo "$title: below $threshold % (see $report/index.html)" >&2
     return "$status"
   fi
 }
 
-# The gate: unit tests only (the test step's files, one level below TestResults), at least COVERAGE_THRESHOLD (70 %,
-# raised to 80 % by stage 9). A pull request that lowers it by more than 2 points says why (CONTRIBUTING.md).
+# The gate: unit tests only (the test step's files, one level below TestResults), business logic at least
+# COVERAGE_THRESHOLD (70 %; goal 80 % by stage 9, #63). A pull request that lowers it by more than 2 points says why.
 step_coverage() {
   coverage_report coverage "Unit-test coverage of business logic (gate ${COVERAGE_THRESHOLD:-70} %)" \
-    "$RESULTS/*/coverage.cobertura.xml" "${COVERAGE_THRESHOLD:-70}"
+    "$RESULTS/*/coverage.cobertura.xml" "$BUSINESS_ASSEMBLIES" "$BUSINESS_FILES" "${COVERAGE_THRESHOLD:-70}"
 }
 
-# Report only, no gate: unit and integration tests together, after the test and integration steps. Handlers that only
-# run against PostgreSQL (SQL queries) are covered here, not by the gate.
+# Report only: unit tests over all code, data access included.
+step_coverage_all() {
+  coverage_report coverage-all "Unit-test coverage of all code (report only)" \
+    "$RESULTS/*/coverage.cobertura.xml" "$ALL_ASSEMBLIES" "$ALL_FILES"
+}
+
+# Report only: unit and integration tests together over all code, after the test and integration steps. Data access
+# that only runs against PostgreSQL is covered here.
 step_coverage_combined() {
-  coverage_report coverage-combined "Unit + integration coverage of business logic (report only)" \
-    "$RESULTS/**/coverage.cobertura.xml"
+  coverage_report coverage-combined "Unit + integration coverage of all code (report only)" \
+    "$RESULTS/**/coverage.cobertura.xml" "$ALL_ASSEMBLIES" "$ALL_FILES"
 }
 
 # Known-vulnerable packages, direct and transitive (#64). NuGet Audit already fails restore on them; this step names the
@@ -192,7 +208,7 @@ report_containers() {
   fi
 }
 
-FAST=(stale-terms deploy-paths restore vulnerabilities build format duplication check-model test coverage)
+FAST=(stale-terms deploy-paths restore vulnerabilities build format duplication check-model test coverage coverage-all)
 ALL=("${FAST[@]}" integration database coverage-combined)
 OPTIONAL=(e2e topology)
 

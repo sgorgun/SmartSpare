@@ -87,7 +87,8 @@ jobs:
           path: TestResults
           if-no-files-found: ignore
 
-  # Both coverage figures in one job summary: the unit-test gate again, and unit + integration as a report (no gate).
+  # The three coverage figures in one job summary: business logic (unit, gated), all code (unit) and all code (unit +
+  # integration), the last two as reports.
   # Not a required check; it only reads the two jobs' Cobertura files.
   coverage:
     name: Coverage report
@@ -114,7 +115,7 @@ jobs:
           path: TestResults
 
       - name: Unit and unit + integration coverage
-        run: tools/check.sh coverage coverage-combined
+        run: tools/check.sh coverage coverage-all coverage-combined
 
       - name: Upload the combined coverage report
         if: always()
