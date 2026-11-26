@@ -25,7 +25,7 @@ internal sealed class DemandHistoryConfiguration : IEntityTypeConfiguration<Dema
         builder.Property(x => x.DocRef).HasColumnName("doc_ref").HasColumnOrder(6).HasColumnType("character varying(40)");
         builder.Property(x => x.RowHash).HasColumnName("row_hash").HasColumnOrder(7).HasColumnType("bytea").HasComment("SHA-256 of the normalised business key (date|hub|part|doc_ref|qty) for deduplication.");
         builder.Property(x => x.IsValid).HasColumnName("is_valid").HasColumnOrder(8).HasColumnType("boolean").HasComment("Flag: valid.");
-        builder.Property(x => x.IsDuplicate).HasColumnName("is_duplicate").HasColumnOrder(9).HasColumnType("boolean").HasDefaultValueSql("false").HasComment("TRUE if the row was already loaded by this or an earlier batch.");
+        builder.Property(x => x.IsDuplicate).HasColumnName("is_duplicate").HasColumnOrder(9).HasColumnType("boolean").HasDefaultValueSql("false").HasComment("TRUE if the row was already loaded by this or an earlier batch.").ValueGeneratedNever();
 
         builder.HasOne<DemandHistoryRow>().WithMany()
             .HasForeignKey(x => new { x.ImportBatchId, x.LineNo })

@@ -1,9 +1,14 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore;
+using SmartSpare.Modules.Inventory.Domain.Transfers;
 
 namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Configurations;
 
-/// <summary><c>inventory.transfer_order</c> as created by V016 (names, types, constraints and comments unchanged).</summary>
+/// <summary>
+/// <c>inventory.transfer_order</c> mapped onto the <see cref="TransferOrder"/> aggregate (names, types, constraints and
+/// comments of V016 unchanged; ADR 0013). The number is assigned by the database trigger: EF Core gives a new order a
+/// temporary number, leaves it out of the INSERT and reads the real one back.
+/// </summary>
 internal sealed class TransferOrderConfiguration : IEntityTypeConfiguration<TransferOrder>
 {
     public void Configure(EntityTypeBuilder<TransferOrder> builder)
@@ -25,11 +30,12 @@ internal sealed class TransferOrderConfiguration : IEntityTypeConfiguration<Tran
         builder.HasAlternateKey(x => x.Number).HasName("uq_transfer_order_number");
 
         builder.Property(x => x.Id).HasColumnName("id").HasColumnOrder(0).HasColumnType("bigint").UseIdentityByDefaultColumn().HasComment("Surrogate primary key.");
-        builder.Property(x => x.Number).HasColumnName("number").HasColumnOrder(1).HasColumnType("character varying(20)").HasComment("Business document number (assigned by trigger).");
+        builder.Property(x => x.Number).HasColumnName("number").HasColumnOrder(1).HasColumnType("character varying(20)").HasComment("Business document number (assigned by trigger).")
+            .ValueGeneratedOnAdd().HasValueGenerator<TemporaryDocumentNumberGenerator>();
         builder.Property(x => x.FromWarehouseId).HasColumnName("from_warehouse_id").HasColumnOrder(2).HasColumnType("smallint").HasComment("Reference to inventory.warehouse_route.");
         builder.Property(x => x.ToWarehouseId).HasColumnName("to_warehouse_id").HasColumnOrder(3).HasColumnType("smallint").HasComment("Reference to inventory.warehouse_route.");
-        builder.Property(x => x.Status).HasColumnName("status").HasColumnOrder(4).HasDefaultValueSql("'proposed'::inventory.transfer_status").HasComment("Workflow status (state machine guarded by trigger).");
-        builder.Property(x => x.IsUrgent).HasColumnName("is_urgent").HasColumnOrder(5).HasColumnType("boolean").HasDefaultValueSql("false").HasComment("Flag: urgent.");
+        builder.Property(x => x.Status).HasColumnName("status").HasColumnOrder(4).HasDefaultValueSql("'proposed'::inventory.transfer_status").HasComment("Workflow status (state machine guarded by trigger).").ValueGeneratedNever();
+        builder.Property(x => x.IsUrgent).HasColumnName("is_urgent").HasColumnOrder(5).HasColumnType("boolean").HasDefaultValueSql("false").HasComment("Flag: urgent.").ValueGeneratedNever();
         builder.Property(x => x.RequestedBy).HasColumnName("requested_by").HasColumnOrder(6).HasColumnType("uuid").HasComment("User who created the record (iam.app_user).");
         builder.Property(x => x.ApprovedBy).HasColumnName("approved_by").HasColumnOrder(7).HasColumnType("uuid").HasComment("User who performed the step (iam.app_user).");
         builder.Property(x => x.ApprovedAt).HasColumnName("approved_at").HasColumnOrder(8).HasColumnType("timestamp with time zone").HasComment("Time of the approved event.");
@@ -49,6 +55,17 @@ internal sealed class TransferOrderConfiguration : IEntityTypeConfiguration<Tran
             .HasForeignKey(x => new { x.FromWarehouseId, x.ToWarehouseId })
             .HasPrincipalKey(x => new { x.FromWarehouseId, x.ToWarehouseId })
             .HasConstraintName("fk_transfer_order_route").OnDelete(DeleteBehavior.NoAction);
+
+        builder.HasMany(x => x.Lines).WithOne()
+            .HasForeignKey(x => x.TransferOrderId)
+            .HasPrincipalKey(x => x.Id)
+            .HasConstraintName("fk_transfer_order_line_order").OnDelete(DeleteBehavior.Cascade);
+        builder.Navigation(x => x.Lines).UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        // PostgreSQL's xmin system column as the concurrency token (no DDL; STAGE_3_PLAN section 7).
+        builder.Property<uint>("xmin").IsRowVersion();
+        builder.Ignore(x => x.DomainEvents);
+        builder.Ignore(x => x.PartIds);
 
         builder.HasIndex(x => x.ApprovedBy).HasDatabaseName("ix_transfer_order_approved_by");
         builder.HasIndex(x => x.DispatchedBy).HasDatabaseName("ix_transfer_order_dispatched_by");

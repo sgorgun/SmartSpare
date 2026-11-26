@@ -1,5 +1,7 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore;
+using SmartSpare.Modules.Inventory.Domain.Stock;
+using SmartSpare.Modules.Inventory.Domain.Transfers;
 
 namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Configurations;
 
@@ -23,7 +25,7 @@ internal sealed class StockReservationConfiguration : IEntityTypeConfiguration<S
         builder.Property(x => x.WarehouseId).HasColumnName("warehouse_id").HasColumnOrder(1).HasColumnType("smallint").HasComment("Reference to inventory.stock_balance.");
         builder.Property(x => x.PartId).HasColumnName("part_id").HasColumnOrder(2).HasColumnType("bigint").HasComment("Reference to inventory.stock_balance.");
         builder.Property(x => x.Quantity).HasColumnName("quantity").HasColumnOrder(3).HasColumnType("numeric(12,3)").HasComment("Quantity in the unit of measure of the part.");
-        builder.Property(x => x.Status).HasColumnName("status").HasColumnOrder(4).HasDefaultValueSql("'soft'::inventory.reservation_status").HasComment("Workflow status (state machine guarded by trigger).");
+        builder.Property(x => x.Status).HasColumnName("status").HasColumnOrder(4).HasDefaultValueSql("'soft'::inventory.reservation_status").HasComment("Workflow status (state machine guarded by trigger).").ValueGeneratedNever();
         builder.Property(x => x.ExpiresAt).HasColumnName("expires_at").HasColumnOrder(5).HasColumnType("timestamp with time zone").HasComment("End of a soft hold (now + 7 days for service kits, UC02).");
         builder.Property(x => x.ServiceOrderLineId).HasColumnName("service_order_line_id").HasColumnOrder(6).HasColumnType("bigint").HasComment("Reference to fleet.service_order_line.");
         builder.Property(x => x.TransferOrderLineId).HasColumnName("transfer_order_line_id").HasColumnOrder(7).HasColumnType("bigint").HasComment("Reference to inventory.transfer_order_line.");

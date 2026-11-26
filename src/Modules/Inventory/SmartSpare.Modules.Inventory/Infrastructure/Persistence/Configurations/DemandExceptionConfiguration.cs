@@ -1,5 +1,6 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore;
+using SmartSpare.Modules.Inventory.Domain.Stock;
 
 namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Configurations;
 

@@ -24,10 +24,10 @@ internal sealed class WarehouseConfiguration : IEntityTypeConfiguration<Warehous
         builder.Property(x => x.Name).HasColumnName("name").HasColumnOrder(2).HasColumnType("character varying(120)").HasComment("Display name.");
         builder.Property(x => x.City).HasColumnName("city").HasColumnOrder(3).HasColumnType("character varying(80)");
         builder.Property(x => x.Address).HasColumnName("address").HasColumnOrder(4).HasColumnType("character varying(200)");
-        builder.Property(x => x.IsCentralHub).HasColumnName("is_central_hub").HasColumnOrder(5).HasColumnType("boolean").HasDefaultValueSql("false").HasComment("Flag: central hub.");
+        builder.Property(x => x.IsCentralHub).HasColumnName("is_central_hub").HasColumnOrder(5).HasColumnType("boolean").HasDefaultValueSql("false").HasComment("Flag: central hub.").ValueGeneratedNever();
         builder.Property(x => x.Latitude).HasColumnName("latitude").HasColumnOrder(6).HasColumnType("numeric(8,5)");
         builder.Property(x => x.Longitude).HasColumnName("longitude").HasColumnOrder(7).HasColumnType("numeric(8,5)");
-        builder.Property(x => x.IsActive).HasColumnName("is_active").HasColumnOrder(8).HasColumnType("boolean").HasDefaultValueSql("true").HasComment("FALSE = deactivated, kept for history.");
+        builder.Property(x => x.IsActive).HasColumnName("is_active").HasColumnOrder(8).HasColumnType("boolean").HasDefaultValueSql("true").HasComment("FALSE = deactivated, kept for history.").HasSentinel(true);
         builder.Property(x => x.CreatedAt).HasColumnName("created_at").HasColumnOrder(9).HasColumnType("timestamp with time zone").HasDefaultValueSql("now()").HasComment("Time the record was created.");
 
         builder.HasIndex(x => x.IsCentralHub).HasDatabaseName("uq_warehouse_single_central_hub").IsUnique().HasFilter("is_central_hub");

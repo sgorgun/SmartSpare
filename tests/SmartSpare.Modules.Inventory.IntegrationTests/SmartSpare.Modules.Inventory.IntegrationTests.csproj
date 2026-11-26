@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Needs Docker (Testcontainers, postgres:17); every test class is tagged Category=Integration. -->
+
+  <ItemGroup>
+    <PackageReference Include="Testcontainers.PostgreSql" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Bootstrapper\SmartSpare.MigrationRunner\SmartSpare.MigrationRunner.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Inventory\SmartSpare.Modules.Inventory\SmartSpare.Modules.Inventory.csproj" />
+  </ItemGroup>
+
+</Project>
