@@ -1,0 +1,264 @@
+@page "/inventory/stock/{WarehouseId:int}/{PartId:long}"
+@attribute [Authorize(Policy = AppPolicies.ReadInventory)]
+@using System.Globalization
+@using SmartSpare.ApiContracts.Inventory
+@inject IStringLocalizer<SharedResource> Text
+@inject InventoryClient Inventory
+@inject ProblemMessages Messages
+@inject ISnackbar Snackbar
+@inject IAuthorizationService Authorization
+
+<PageTitle>@Text["Position.Title"]</PageTitle>
+
+<MudText Typo="Typo.h4" HtmlTag="h1" Class="mb-2">@Text["Nav.Inventory"]</MudText>
+<InventoryTabs />
+
+@if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-3" data-testid="position-error">@_error</MudAlert>
+}
+
+@if (_position is null)
+{
+    @if (_error is null)
+    {
+        <MudProgressLinear Indeterminate="true" Class="my-4" aria-label="@Text["Position.Loading"]" />
+        <MudText>@Text["Position.Loading"]</MudText>
+    }
+}
+else
+{
+    var stock = _position.Stock;
+    <div class="d-flex align-center flex-wrap mb-2">
+        <MudText Typo="Typo.h5" HtmlTag="h2" Class="mr-3">@stock.OemPartNumber · @stock.WarehouseCode</MudText>
+        <StockStatusChip Status="@stock.Status" />
+    </div>
+    <MudText Class="mb-3">@stock.BrandCode · @stock.Description@(_position.BinLocation is { } bin ? $" · {Text["Position.Bin"]} {bin}" : string.Empty)</MudText>
+
+    <MudGrid Spacing="2" Class="mb-4" data-testid="position-figures">
+        @foreach (var (key, value) in Figures(stock))
+        {
+            <MudItem xs="6" sm="4" md="2">
+                <MudPaper Outlined="true" Class="pa-3">
+                    <MudText Typo="Typo.caption">@Text[key]</MudText>
+                    <MudText Typo="Typo.h6">@value</MudText>
+                </MudPaper>
+            </MudItem>
+        }
+    </MudGrid>
+
+    <MudGrid Spacing="3">
+        @if (_mayPlan)
+        {
+            <MudItem xs="12" md="6">
+                <MudPaper Outlined="true" Class="pa-4" data-testid="levels-form">
+                    <MudText Typo="Typo.h6" HtmlTag="h3" Class="mb-2">@Text["Position.Levels"]</MudText>
+                    <MudNumericField T="decimal" @bind-Value="_safety" Label="@Text["Stock.Safety"]" Min="0" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-2" />
+                    <MudNumericField T="decimal?" @bind-Value="_max" Label="@Text["Stock.Max"]" Min="0" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                     HelperText="@Text["Position.MaxHelp"]" Class="mb-2" />
+                    @if (_levelsError is not null)
+                    {
+                        <MudText Color="Color.Error" Typo="Typo.body2" Class="mb-2" data-testid="levels-error">@_levelsError</MudText>
+                    }
+                    <MudButton OnClick="SaveLevelsAsync" Disabled="_busy" data-testid="save-levels" Variant="Variant.Filled" Color="Color.Primary">@Text["Position.SaveLevels"]</MudButton>
+                </MudPaper>
+            </MudItem>
+        }
+
+        @if (_mayMove)
+        {
+            <MudItem xs="12" md="6">
+                <MudPaper Outlined="true" Class="pa-4" data-testid="adjust-form">
+                    <MudText Typo="Typo.h6" HtmlTag="h3" Class="mb-2">@Text["Position.Adjust"]</MudText>
+                    <MudNumericField T="decimal" @bind-Value="_adjustQuantity" Label="@Text["Position.AdjustQuantity"]" data-testid="adjust-quantity" Variant="Variant.Outlined"
+                                     Margin="Margin.Dense" HelperText="@Text["Position.AdjustHelp"]" Class="mb-2" />
+                    <MudTextField T="string" @bind-Value="_adjustNote" Label="@Text["Position.AdjustNote"]" data-testid="adjust-note" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                  MaxLength="InventoryLimits.MaxNoteLength" Class="mb-2" />
+                    @if (_adjustError is not null)
+                    {
+                        <MudText Color="Color.Error" Typo="Typo.body2" Class="mb-2" data-testid="adjust-error">@_adjustError</MudText>
+                    }
+                    <MudButton OnClick="AdjustAsync" Disabled="_busy" data-testid="post-adjustment" Variant="Variant.Filled" Color="Color.Primary">@Text["Position.Post"]</MudButton>
+                </MudPaper>
+            </MudItem>
+        }
+
+        <MudItem xs="12" md="6">
+            <MudText Typo="Typo.h6" HtmlTag="h3" Class="mb-2">@Text["Position.Reservations"]</MudText>
+            @if (_position.Reservations.Count == 0)
+            {
+                <MudText Typo="Typo.body2">@Text["Position.NoReservations"]</MudText>
+            }
+            else
+            {
+                <MudSimpleTable Dense="true" Outlined="true" Elevation="0" data-testid="reservations">
+                    <thead><tr><th>@Text["Position.Document"]</th><th>@Text["Stock.Status"]</th><th>@Text["Position.Quantity"]</th></tr></thead>
+                    <tbody>
+                        @foreach (var reservation in _position.Reservations)
+                        {
+                            <tr>
+                                <td>@(reservation.TransferOrderNumber ?? Text["Position.ServiceOrderLine", reservation.ServiceOrderLineId ?? 0].Value)</td>
+                                <td>@Text["Reservation." + reservation.Status]</td>
+                                <td>@Number(reservation.Quantity)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </MudSimpleTable>
+            }
+        </MudItem>
+
+        <MudItem xs="12" md="6">
+            <MudText Typo="Typo.h6" HtmlTag="h3" Class="mb-2">@Text["Position.Movements"]</MudText>
+            @if (_position.RecentMovements.Count == 0)
+            {
+                <MudText Typo="Typo.body2">@Text["Position.NoMovements"]</MudText>
+            }
+            else
+            {
+                <MudSimpleTable Dense="true" Outlined="true" Elevation="0" data-testid="movements">
+                    <thead><tr><th>@Text["Position.When"]</th><th>@Text["Position.Type"]</th><th>@Text["Position.Quantity"]</th><th>@Text["Position.Document"]</th></tr></thead>
+                    <tbody>
+                        @foreach (var movement in _position.RecentMovements)
+                        {
+                            <tr>
+                                <td>@movement.OccurredAt.ToLocalTime().ToString("g", CultureInfo.CurrentCulture)</td>
+                                <td>@movement.MovementType</td>
+                                <td>@SignedNumber(movement.Quantity)</td>
+                                <td>@(movement.Document ?? movement.Note)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </MudSimpleTable>
+            }
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    [Parameter]
+    public int WarehouseId { get; set; }
+
+    [Parameter]
+    public long PartId { get; set; }
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationState { get; set; }
+
+    private StockPositionDetails? _position;
+    private string? _error;
+    private bool _mayPlan;
+    private bool _mayMove;
+    private bool _busy;
+    private decimal _safety;
+    private decimal? _max;
+    private string? _levelsError;
+    private decimal _adjustQuantity;
+    private string? _adjustNote;
+    private string? _adjustError;
+
+    private short Warehouse => (short)WarehouseId;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        if (AuthenticationState is not null)
+        {
+            var user = (await AuthenticationState).User;
+            _mayPlan = (await Authorization.AuthorizeAsync(user, AppPolicies.PlanInventory)).Succeeded;
+            _mayMove = (await Authorization.AuthorizeAsync(user, AppPolicies.MoveStock)).Succeeded;
+        }
+
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        var result = await Inventory.GetStockPositionAsync(Warehouse, PartId);
+        if (!result.IsSuccess)
+        {
+            _error = Messages.Describe(result.Problem!);
+            return;
+        }
+
+        _error = null;
+        _position = result.Value;
+        _safety = _position!.Stock.SafetyStock;
+        _max = _position.Stock.MaxStock;
+    }
+
+    private async Task SaveLevelsAsync()
+    {
+        _levelsError = Validate(new ChangeStockLevelsRequestValidator(), new ChangeStockLevelsRequest(_safety, _max));
+        if (_levelsError is not null || _position is null)
+        {
+            return;
+        }
+
+        _busy = true;
+        var result = await Inventory.ChangeStockLevelsAsync(Warehouse, PartId, new ChangeStockLevelsRequest(_safety, _max), _position.Version);
+        _busy = false;
+        if (!result.IsSuccess)
+        {
+            // 409: someone changed the levels since they were read; the reload shows their values.
+            _levelsError = Messages.Describe(result.Problem!);
+            if (result.Problem!.Status == 409)
+            {
+                await LoadAsync();
+            }
+
+            return;
+        }
+
+        Snackbar.Add(Text["Position.LevelsSaved"], Severity.Success);
+        await LoadAsync();
+    }
+
+    private async Task AdjustAsync()
+    {
+        var request = new StockAdjustmentRequest(Warehouse, PartId, _adjustQuantity, _adjustNote?.Trim() ?? string.Empty);
+        _adjustError = Validate(new StockAdjustmentRequestValidator(), request);
+        if (_adjustError is not null)
+        {
+            return;
+        }
+
+        _busy = true;
+        var result = await Inventory.AdjustStockAsync(request);
+        _busy = false;
+        if (!result.IsSuccess)
+        {
+            _adjustError = Messages.Describe(result.Problem!);
+            return;
+        }
+
+        _adjustQuantity = 0;
+        _adjustNote = null;
+        Snackbar.Add(Text["Position.Posted"], Severity.Success);
+        await LoadAsync();
+    }
+
+    /// <summary>The shared ApiContracts validator, so the form and the server agree (STAGE_3_PLAN 8.4).</summary>
+    private static string? Validate<T>(FluentValidation.IValidator<T> validator, T request)
+    {
+        var result = validator.Validate(request);
+        return result.IsValid ? null : string.Join(" ", result.Errors.Select(e => e.ErrorMessage));
+    }
+
+    private IEnumerable<(string Key, string Value)> Figures(StockRow stock) =>
+    [
+        ("Stock.OnHand", Number(stock.OnHand)),
+        ("Stock.Reserved", Number(stock.Reserved)),
+        ("Stock.Available", Number(stock.Available)),
+        ("Stock.Safety", Number(stock.SafetyStock)),
+        ("Stock.Max", stock.MaxStock is { } max ? Number(max) : "—"),
+        ("Stock.InTransit", Number(stock.InTransit)),
+    ];
+
+    private static string Number(decimal value) => value.ToString("0.###", CultureInfo.CurrentCulture);
+
+    private static string SignedNumber(decimal value) => value.ToString("+0.###;-0.###;0", CultureInfo.CurrentCulture);
+}

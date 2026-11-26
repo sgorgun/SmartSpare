@@ -1,0 +1,178 @@
+@page "/inventory/stock"
+@attribute [Authorize(Policy = AppPolicies.ReadInventory)]
+@using System.Globalization
+@using SmartSpare.ApiContracts.Inventory
+@inject IStringLocalizer<SharedResource> Text
+@inject InventoryClient Inventory
+@inject ProblemMessages Messages
+@inject NavigationManager Navigation
+
+<PageTitle>@Text["Stock.Title"]</PageTitle>
+
+<MudText Typo="Typo.h4" HtmlTag="h1" Class="mb-2">@Text["Nav.Inventory"]</MudText>
+<InventoryTabs />
+
+<MudText Typo="Typo.h5" HtmlTag="h2" Class="mb-2">@Text["Stock.Title"]</MudText>
+
+<MudGrid Spacing="2" Class="mb-2">
+    <MudItem xs="12" sm="4" md="3">
+        <MudSelect T="short?" Value="_warehouseId" ValueChanged="WarehouseChangedAsync" Label="@Text["Stock.Hub"]" Variant="Variant.Outlined"
+                   Dense="true" data-testid="stock-hub">
+            <MudSelectItem T="short?" Value="null">@Text["Stock.AllHubs"]</MudSelectItem>
+            @foreach (var warehouse in _warehouses)
+            {
+                <MudSelectItem T="short?" Value="warehouse.Id">@warehouse.Code · @warehouse.Name</MudSelectItem>
+            }
+        </MudSelect>
+    </MudItem>
+    <MudItem xs="12" sm="4" md="3">
+        <MudSelect T="string" Value="_status" ValueChanged="StatusChangedAsync" Label="@Text["Stock.Status"]" Variant="Variant.Outlined"
+                   Dense="true" data-testid="stock-status">
+            <MudSelectItem T="string" Value="@(null)">@Text["Stock.AllStatuses"]</MudSelectItem>
+            @foreach (var status in StockStatuses.All)
+            {
+                <MudSelectItem T="string" Value="status">@Text["StockStatus." + status]</MudSelectItem>
+            }
+        </MudSelect>
+    </MudItem>
+    <MudItem xs="12" sm="4" md="6">
+        <MudTextField T="string" @bind-Value="_search" Label="@Text["Parts.Search"]" Variant="Variant.Outlined" Margin="Margin.Dense"
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Clearable="true"
+                      DebounceInterval="400" OnDebounceIntervalElapsed="SearchAsync" OnClearButtonClick="ClearAsync"
+                      MaxLength="StockSearch.MaxSearchLength" InputMode="InputMode.search" />
+    </MudItem>
+</MudGrid>
+
+@if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-3" data-testid="stock-error">@_error</MudAlert>
+}
+
+@* Below the sm breakpoint (the engineer's tablet in portrait, the keeper's phone) each row is shown as a card. *@
+<MudDataGrid @ref="_grid" T="StockRow" ServerData="LoadAsync" RowsPerPage="StockSearch.DefaultPageSize" Hover="true" Dense="true"
+             Outlined="true" Elevation="0" Breakpoint="Breakpoint.Sm" SortMode="SortMode.None" Filterable="false"
+             RowClick="OpenRow" RowStyle="cursor: pointer" data-testid="stock-grid">
+    <Columns>
+        <PropertyColumn Property="r => r.WarehouseCode" Title="@Text["Stock.Hub"]" />
+        <PropertyColumn Property="r => r.OemPartNumber" Title="@Text["Parts.OemPartNumber"]" />
+        <PropertyColumn Property="r => r.BrandCode" Title="@Text["Parts.Brand"]" />
+        <PropertyColumn Property="r => r.Description" Title="@Text["Parts.Description"]" />
+        <PropertyColumn Property="r => r.OnHand" Title="@Text["Stock.OnHand"]" Format="0.###" />
+        <PropertyColumn Property="r => r.Reserved" Title="@Text["Stock.Reserved"]" Format="0.###" />
+        <PropertyColumn Property="r => r.Available" Title="@Text["Stock.Available"]" Format="0.###" />
+        <PropertyColumn Property="r => r.SafetyStock" Title="@Text["Stock.Safety"]" Format="0.###" />
+        <PropertyColumn Property="r => r.InTransit" Title="@Text["Stock.InTransit"]" Format="0.###" />
+        <TemplateColumn Title="@Text["Stock.Status"]">
+            <CellTemplate><StockStatusChip Status="@context.Item.Status" /></CellTemplate>
+        </TemplateColumn>
+        <TemplateColumn Title="" CellClass="text-right">
+            <CellTemplate>
+                <MudButton Href="@PositionHref(context.Item)" Size="Size.Small" Variant="Variant.Text" Color="Color.Primary"
+                           aria-label="@Text["Stock.OpenPosition", context.Item.OemPartNumber, context.Item.WarehouseCode].Value">@Text["Stock.Open"]</MudButton>
+            </CellTemplate>
+        </TemplateColumn>
+    </Columns>
+    <NoRecordsContent>
+        <MudText>@(_error is null ? Text["Stock.None"] : Text["Stock.Unavailable"])</MudText>
+    </NoRecordsContent>
+    <LoadingContent>
+        <MudText>@Text["Stock.Loading"]</MudText>
+    </LoadingContent>
+    <PagerContent>
+        <MudDataGridPager T="StockRow" PageSizeOptions="PageSizes" />
+    </PagerContent>
+</MudDataGrid>
+
+@code {
+    private static readonly int[] PageSizes = [10, StockSearch.DefaultPageSize, 50, StockSearch.MaxPageSize];
+
+    private MudDataGrid<StockRow>? _grid;
+    private IReadOnlyList<WarehouseResponse> _warehouses = [];
+    private short? _warehouseId;
+    private string? _status;
+    private string? _search;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Prerendering has no session cookie to call the API with; the page loads once WebAssembly runs.
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        var warehouses = await Inventory.ListWarehousesAsync();
+        if (warehouses.IsSuccess)
+        {
+            _warehouses = warehouses.Value!;
+        }
+    }
+
+    /// <summary>Server paging for the grid (0-based pages in MudDataGrid, 1-based in the API).</summary>
+    private async Task<GridData<StockRow>> LoadAsync(GridState<StockRow> state, CancellationToken cancellationToken)
+    {
+        if (!RendererInfo.IsInteractive)
+        {
+            return new GridData<StockRow> { Items = [], TotalItems = 0 };
+        }
+
+        var result = await Inventory.GetStockAsync(_warehouseId, _status, _search, state.Page + 1, state.PageSize, cancellationToken);
+        SetError(result.IsSuccess ? null : Messages.Describe(result.Problem!));
+        return result.IsSuccess
+            ? new GridData<StockRow> { Items = result.Value!.Items, TotalItems = result.Value.TotalCount }
+            : new GridData<StockRow> { Items = [], TotalItems = 0 };
+    }
+
+    private void SetError(string? error)
+    {
+        if (error != _error)
+        {
+            // The alert belongs to the page, which the grid's own reload doesn't re-render.
+            _error = error;
+            StateHasChanged();
+        }
+    }
+
+    private async Task WarehouseChangedAsync(short? warehouseId)
+    {
+        _warehouseId = warehouseId;
+        await ReloadAsync();
+    }
+
+    private async Task StatusChangedAsync(string? status)
+    {
+        _status = status;
+        await ReloadAsync();
+    }
+
+    private Task SearchAsync(string? _) => ReloadAsync();
+
+    private Task ClearAsync(MouseEventArgs _)
+    {
+        _search = null;
+        return ReloadAsync();
+    }
+
+    /// <summary>A new filter starts at the first page; NavigateTo reloads the server data.</summary>
+    private async Task ReloadAsync()
+    {
+        if (_grid is null)
+        {
+            return;
+        }
+
+        if (_grid.CurrentPage != 0)
+        {
+            _grid.NavigateTo(Page.First);
+        }
+        else
+        {
+            await _grid.ReloadServerData();
+        }
+    }
+
+    private void OpenRow(DataGridRowClickEventArgs<StockRow> args) => Navigation.NavigateTo(PositionHref(args.Item));
+
+    private static string PositionHref(StockRow row) =>
+        string.Create(CultureInfo.InvariantCulture, $"inventory/stock/{row.WarehouseId}/{row.PartId}");
+}
