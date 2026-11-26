@@ -13,6 +13,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\..\BuildingBlocks\SmartSpare.Infrastructure\SmartSpare.Infrastructure.csproj" />
     <ProjectReference Include="..\SmartSpare.Modules.Identity.Contracts\SmartSpare.Modules.Identity.Contracts.csproj" />
+    <!-- IWarehouseQueries: home hubs of keepers are validated by the Inventory module (MODULE_MAPPING 2.2). -->
+    <ProjectReference Include="..\..\Inventory\SmartSpare.Modules.Inventory.Contracts\SmartSpare.Modules.Inventory.Contracts.csproj" />
     <!-- The public HTTP contract: claim types and role names (STAGE_3_PLAN S14, ADR 0014). -->
     <ProjectReference Include="..\..\..\Web\SmartSpare.ApiContracts\SmartSpare.ApiContracts.csproj" />
   </ItemGroup>

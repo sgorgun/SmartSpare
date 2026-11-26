@@ -464,10 +464,17 @@
           "Microsoft.AspNetCore.DataProtection.EntityFrameworkCore": "[10.0.15, )",
           "SmartSpare.ApiContracts": "[1.0.0, )",
           "SmartSpare.Infrastructure": "[1.0.0, )",
-          "SmartSpare.Modules.Identity.Contracts": "[1.0.0, )"
+          "SmartSpare.Modules.Identity.Contracts": "[1.0.0, )",
+          "SmartSpare.Modules.Inventory.Contracts": "[1.0.0, )"
         }
       },
       "smartspare.modules.identity.contracts": {
+        "type": "Project",
+        "dependencies": {
+          "SmartSpare.SharedKernel": "[1.0.0, )"
+        }
+      },
+      "smartspare.modules.inventory.contracts": {
         "type": "Project",
         "dependencies": {
           "SmartSpare.SharedKernel": "[1.0.0, )"

@@ -240,6 +240,8 @@ As specified in #46: `/api/v1/identity/users` (policy `Administration`) — list
 
 This PR comes last among the features because it is independent of the Inventory flow; it is the first cut (section 12).
 
+**As built (PR 5k):** roles, brands and the home hub are set together (`PUT /users/{id}/access`, one form); `GET /users/form-options` serves the roles, brands and active hubs. The API login and the Identity service login hold `app_admin` with `INHERIT FALSE, SET TRUE` (bootstrap), so they switch to it only for one administrative transaction (`SET LOCAL ROLE`). Administrators cannot deactivate themselves, remove their own Administrator role or anonymise themselves (SS301 from `iam.anonymise_user`). A password change ends every session of the user, who signs in again.
+
 ---
 
 ## 10. Static analysis (#61)

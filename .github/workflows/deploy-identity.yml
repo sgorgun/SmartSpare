@@ -15,6 +15,7 @@ on:
       - 'src/BuildingBlocks/SmartSpare.SharedKernel/**'
       - 'src/Modules/Identity/SmartSpare.Modules.Identity.Contracts/**'
       - 'src/Modules/Identity/SmartSpare.Modules.Identity/**'
+      - 'src/Modules/Inventory/SmartSpare.Modules.Inventory.Contracts/**'
       - 'src/Web/SmartSpare.ApiContracts/**'
       - 'src/Bootstrapper/Services/Directory.Build.props'
       - 'src/Bootstrapper/Services/ServiceHost.cs'

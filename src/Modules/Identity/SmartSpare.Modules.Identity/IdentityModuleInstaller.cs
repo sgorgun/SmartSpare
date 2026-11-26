@@ -77,6 +77,12 @@ public sealed class IdentityModuleInstaller : IModuleInstaller
             .AddDefaultTokenProviders();
         services.AddScoped<IUserConfirmation<AppUser>, ActiveUserConfirmation>();
         services.AddScoped<ICredentialVerifier, CredentialVerifier>();
+
+        // User administration (#46).
+        services.AddScoped<Infrastructure.Persistence.AdminSession>();
+        services.AddScoped<Infrastructure.Persistence.IdentityFunctions>();
+        services.AddScoped<Features.Users.AccessResolver>();
+        services.AddScoped<Features.Users.UserReader>();
     }
 
     /// <summary>
@@ -111,6 +117,10 @@ public sealed class IdentityModuleInstaller : IModuleInstaller
         var group = endpoints.MapGroup($"/api/{Name}").WithTags("Identity");
         PingEndpoint.Map(group);
         Features.Diagnostics.SendDiagnosticsProbeEndpoint.Map(group);
+
+        // The versioned business API (ADR 0012), described in the module's OpenAPI document (ADR 0019).
+        var v1 = endpoints.MapGroup($"/api/v1/{Name}").WithTags("Identity");
+        Features.Users.UserEndpoints.Map(v1);
     }
 
     public void MapInternalEndpoints(IEndpointRouteBuilder endpoints) => Features.InternalChecks.InternalCheckEndpoints.Map(endpoints);
