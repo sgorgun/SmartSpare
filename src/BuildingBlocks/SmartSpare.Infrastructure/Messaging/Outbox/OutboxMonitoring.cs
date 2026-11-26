@@ -62,8 +62,9 @@ public sealed class OutboxHealthCheck(OutboxMonitor monitor) : IHealthCheck
     public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
     {
         var parked = monitor.Statuses.Where(s => s.Exhausted > 0).ToList();
+        var healthy = monitor.RefreshedAt is null ? "Outbox status not refreshed yet." : "No parked integration events.";
         return Task.FromResult(parked.Count == 0
-            ? HealthCheckResult.Healthy(monitor.RefreshedAt is null ? "Outbox status not refreshed yet." : "No parked integration events.")
+            ? HealthCheckResult.Healthy(healthy)
             : HealthCheckResult.Degraded(
                 "Parked integration events: " + string.Join(", ", parked.Select(s => $"{s.Schema} {s.Exhausted}")) +
                 ". See docs/operations/OUTBOX.md.",
