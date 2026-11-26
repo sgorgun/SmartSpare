@@ -19,45 +19,6 @@ namespace SmartSpare.Modules.Inventory.Features.Stock;
 /// <summary>One stock position with its open reservations and latest movements.</summary>
 internal sealed record GetStockPositionQuery(short WarehouseId, long PartId) : IQuery<StockPositionDetails>;
 
-internal sealed class GetStockPositionQueryHandler(InventoryDbContext db) : IQueryHandler<GetStockPositionQuery, StockPositionDetails>
-{
-    public const int RecentMovements = 20;
-
-    public async Task<Result<StockPositionDetails>> Handle(GetStockPositionQuery query, CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(query);
-        var stock = await StockRows.FindAsync(db, query.WarehouseId, query.PartId, cancellationToken).ConfigureAwait(false);
-        if (stock is null)
-        {
-            return InventoryErrors.StockPositionNotFound;
-        }
-
-        var policy = await db.Set<WarehousePart>().AsNoTracking()
-            .Where(p => p.WarehouseId == query.WarehouseId && p.PartId == query.PartId)
-            .Select(p => new { p.BinLocation, Version = EF.Property<uint>(p, "xmin") })
-            .SingleAsync(cancellationToken).ConfigureAwait(false);
-
-        var reservations = await db.Database.SqlQueryRaw<ReservationSummary>(
-                """
-                SELECT r.id, r.quantity, r.status::text AS status, r.expires_at, o.id AS transfer_order_id,
-                       o.number AS transfer_order_number, r.service_order_line_id, r.created_at
-                FROM inventory.stock_reservation r
-                LEFT JOIN inventory.transfer_order_line l ON l.id = r.transfer_order_line_id
-                LEFT JOIN inventory.transfer_order o ON o.id = l.transfer_order_id
-                WHERE r.warehouse_id = @warehouse AND r.part_id = @part AND r.status IN ('soft', 'firm')
-                ORDER BY r.created_at, r.id
-                """,
-                new NpgsqlParameter<short>("warehouse", query.WarehouseId),
-                new NpgsqlParameter<long>("part", query.PartId))
-            .ToListAsync(cancellationToken).ConfigureAwait(false);
-
-        var movements = await Movements.PageAsync(
-            db, new Movements.Filter(query.WarehouseId, query.PartId, null, null, null), 1, RecentMovements, cancellationToken).ConfigureAwait(false);
-
-        return new StockPositionDetails(stock, policy.BinLocation, Versions.Format(policy.Version), reservations, movements);
-    }
-}
-
 /// <summary>The <c>xmin</c> concurrency version of an aggregate as an opaque string and an entity tag.</summary>
 internal static class Versions
 {

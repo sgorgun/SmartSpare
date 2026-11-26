@@ -13,6 +13,7 @@ using SmartSpare.Infrastructure.Persistence;
 using SmartSpare.Modules.Inventory.Domain;
 using SmartSpare.Modules.Inventory.Domain.Stock;
 using SmartSpare.Modules.Inventory.Infrastructure.Persistence;
+using SmartSpare.Modules.Inventory.Infrastructure.Queries;
 using SmartSpare.SharedKernel;
 
 namespace SmartSpare.Modules.Inventory.Features.Stock;

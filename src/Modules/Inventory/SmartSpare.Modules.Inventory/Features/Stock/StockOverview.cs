@@ -30,18 +30,6 @@ internal sealed class StockOverviewQueryValidator : AbstractValidator<StockOverv
     }
 }
 
-internal sealed class StockOverviewQueryHandler(InventoryDbContext db) : IQueryHandler<StockOverviewQuery, PagedResponse<StockRow>>
-{
-    public async Task<Result<PagedResponse<StockRow>>> Handle(StockOverviewQuery query, CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(query);
-        var filter = new StockRows.Filter(query.WarehouseId, Status: query.Status, Search: query.Search);
-        var total = await StockRows.CountAsync(db, filter, cancellationToken).ConfigureAwait(false);
-        var items = await StockRows.PageAsync(db, filter, query.Page, query.PageSize, cancellationToken).ConfigureAwait(false);
-        return Result.Success(new PagedResponse<StockRow>(items, query.Page, query.PageSize, total));
-    }
-}
-
 internal static class StockOverviewEndpoint
 {
     /// <summary>GET /api/v1/inventory/stock — the stock overview.</summary>

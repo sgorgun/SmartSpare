@@ -94,7 +94,7 @@ internal sealed class CancelTransferCommandValidator : AbstractValidator<CancelT
 /// ledger, the role and warehouse checks again) in the same transaction.
 /// </summary>
 internal sealed class TransferTransitionHandler(
-    InventoryDbContext db, IUnitOfWork<InventoryDbContext> unitOfWork, ICurrentUser user, TimeProvider clock,
+    TransferFunctions functions, IUnitOfWork<InventoryDbContext> unitOfWork, ICurrentUser user, TimeProvider clock,
     TransferAccess access, TransferDetailsReader reader)
     : ICommandHandler<ApproveTransferCommand, TransferDetails>,
       ICommandHandler<CancelTransferCommand, TransferDetails>,
@@ -112,7 +112,7 @@ internal sealed class TransferTransitionHandler(
 
             // TransferApproved is written to the outbox from stage 8, when Forecasting consumes it (#14): an integration
             // event is published only once at least one consumer exists (STAGE_5_PLAN section 4.1).
-            await db.Database.ExecuteSqlAsync($"SELECT inventory.approve_transfer({order.Id})", ct).ConfigureAwait(false);
+            await functions.ApproveAsync(order.Id, ct).ConfigureAwait(false);
             return Result.Success();
         }, cancellationToken);
 
@@ -126,7 +126,7 @@ internal sealed class TransferTransitionHandler(
             }
 
             // TransferCancelled follows TransferApproved into the outbox in stage 8 (#14).
-            await db.Database.ExecuteSqlAsync($"SELECT inventory.cancel_transfer({order.Id}, {order.CancelReason})", ct).ConfigureAwait(false);
+            await functions.CancelAsync(order.Id, order.CancelReason!, ct).ConfigureAwait(false);
             return Result.Success();
         }, cancellationToken);
 
@@ -139,7 +139,7 @@ internal sealed class TransferTransitionHandler(
                 return step;
             }
 
-            await db.Database.ExecuteSqlAsync($"SELECT inventory.dispatch_transfer({order.Id})", ct).ConfigureAwait(false);
+            await functions.DispatchAsync(order.Id, ct).ConfigureAwait(false);
             return Result.Success();
         }, cancellationToken);
 
@@ -152,7 +152,7 @@ internal sealed class TransferTransitionHandler(
                 return step;
             }
 
-            await db.Database.ExecuteSqlAsync($"SELECT inventory.receive_transfer({order.Id})", ct).ConfigureAwait(false);
+            await functions.ReceiveAsync(order.Id, ct).ConfigureAwait(false);
             return Result.Success();
         }, cancellationToken);
 

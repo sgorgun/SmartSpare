@@ -24,58 +24,6 @@ internal static class PartErrors
     public static Error NotFound(long id) => Error.NotFound(NotFoundCode, $"Part {id} does not exist.");
 }
 
-internal sealed class GetPartQueryHandler(InventoryDbContext db) : IQueryHandler<GetPartQuery, PartDetails>
-{
-    public async Task<Result<PartDetails>> Handle(GetPartQuery query, CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(query);
-        var part = await db.Database
-            .SqlQueryRaw<PartDetailsRow>(
-                """
-                SELECT p.id, b.code AS brand_code, b.name AS brand_name, p.oem_part_number, p.description,
-                       c.code AS category_code, c.name AS category_name, u.code AS unit_of_measure,
-                       p.weight_kg, p.unit_cost, p.is_condition_based, p.is_active
-                FROM catalog.part p
-                JOIN ref.brand b ON b.id = p.brand_id
-                JOIN ref.part_category c ON c.id = p.category_id
-                JOIN ref.unit_of_measure u ON u.id = p.uom_id
-                WHERE p.id = @id
-                """,
-                new NpgsqlParameter<long>("id", query.Id))
-            .SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false);
-        if (part is null)
-        {
-            return Result.Failure<PartDetails>(PartErrors.NotFound(query.Id));
-        }
-
-        var stock = await db.Set<StockBalance>().AsNoTracking()
-            .Where(s => s.PartId == query.Id)
-            .Join(db.Set<Warehouse>(), s => s.WarehouseId, w => w.Id, (s, w) => new { Balance = s, w.Code })
-            .OrderBy(x => x.Code)
-            .Select(x => new WarehouseStock(
-                x.Balance.WarehouseId, x.Code, x.Balance.OnHandQty, x.Balance.ReservedQty, x.Balance.OnHandQty - x.Balance.ReservedQty))
-            .ToListAsync(cancellationToken).ConfigureAwait(false);
-
-        return Result.Success(new PartDetails(
-            part.Id, part.BrandCode, part.BrandName, part.OemPartNumber, part.Description, part.CategoryCode, part.CategoryName,
-            part.UnitOfMeasure, part.WeightKg, part.UnitCost, part.IsConditionBased, part.IsActive, stock));
-    }
-}
-
-internal sealed record PartDetailsRow(
-    long Id,
-    string BrandCode,
-    string BrandName,
-    string OemPartNumber,
-    string Description,
-    string CategoryCode,
-    string CategoryName,
-    string UnitOfMeasure,
-    decimal? WeightKg,
-    decimal UnitCost,
-    bool IsConditionBased,
-    bool IsActive);
-
 internal static class GetPartEndpoint
 {
     /// <summary>GET /api/v1/inventory/parts/{id} — one part with its stock.</summary>

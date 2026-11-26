@@ -11,6 +11,8 @@ using SmartSpare.Modules.Inventory.Features.Stock;
 using SmartSpare.Modules.Inventory.Infrastructure.Persistence;
 using SmartSpare.SharedKernel;
 
+using SmartSpare.Modules.Inventory.Features;
+
 namespace SmartSpare.Modules.Inventory;
 
 /// <summary>The rules of the stock API that need no database: validation, versions, statuses and the HTTP client.</summary>
@@ -89,7 +91,7 @@ public sealed class StockFeatureTests
 
     [Fact]
     public void Every_domain_status_has_its_api_name() =>
-        Enum.GetValues<StockStatus>().Select(StockRows.ToApi).ShouldBe(
+        Enum.GetValues<StockStatus>().Select(StockStatusNames.ToApi).ShouldBe(
             [StockStatuses.Out, StockStatuses.BelowSafety, StockStatuses.Ok, StockStatuses.AboveMax]);
 
     [Theory]
@@ -98,7 +100,7 @@ public sealed class StockFeatureTests
     [InlineData("re90", "%re90%")]
     [InlineData("50%_off\\", @"%50\%\_off\\%")]
     public void Search_text_matches_literally(string? search, string? pattern) =>
-        StockRows.Pattern(search).ShouldBe(pattern);
+        SearchText.Pattern(search).ShouldBe(pattern);
 
     [Fact]
     public async Task The_warehouse_client_reads_the_internal_endpoint()
