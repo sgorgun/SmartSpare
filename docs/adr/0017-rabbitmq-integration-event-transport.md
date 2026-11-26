@@ -1,6 +1,6 @@
 # ADR 0017: RabbitMQ as the integration-event transport
 
-- Status: Accepted, amended by [ADR 0021](0021-queue-per-consumer-name.md) (2026-11-25) and [ADR 0023](0023-message-quota-watched-by-cloudamqp.md) (2026-11-26)
+- Status: Accepted, amended by [ADR 0021](0021-queue-per-consumer-name.md) (2026-11-25) , [ADR 0023](0023-message-quota-watched-by-cloudamqp.md) (2026-11-26) and [ADR 0024](0024-acting-user-of-integration-events-and-jobs.md) (2026-11-27)
 - Date: 2026-11-24
 - Amends: [ADR 0003](0003-module-boundaries-and-integration-events.md)
 
@@ -108,3 +108,7 @@ Limits from the [CloudAMQP plans page](https://www.cloudamqp.com/plans.html), re
 ## Amendment (2026-11-25)
 
 [ADR 0021](0021-queue-per-consumer-name.md): §2 named the queue `<consuming-module>.<EventName>.v<N>`. With the stable consumer names of #32 (`<module>.<purpose>`), the queue is now `<consumer name>.<EventName>.v<N>`, so two consumers of one event in one module don't share a queue. It still starts with the consuming module.
+
+## Amendment (2026-11-27)
+
+[ADR 0024](0024-acting-user-of-integration-events-and-jobs.md): a message carries no permission. The delivery pipeline (in process and over RabbitMQ alike) handles an event that names its acting user as that user, without roles, for attribution only; authorization happened when the event was published.
