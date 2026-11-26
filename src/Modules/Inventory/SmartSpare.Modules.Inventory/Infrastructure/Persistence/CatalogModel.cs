@@ -84,6 +84,7 @@ internal sealed class WarehouseRoute
 }
 
 /// <summary>Row of <c>inventory.demand_exception</c>.</summary>
+#pragma warning disable S2166 // An exceptional demand (US08), named after its table; not a System.Exception.
 internal sealed class DemandException
 {
     public long MovementId { get; set; }
@@ -98,3 +99,4 @@ internal sealed class DemandException
 
     public DateTimeOffset FlaggedAt { get; set; }
 }
+#pragma warning restore S2166

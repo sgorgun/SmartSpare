@@ -77,4 +77,6 @@ app.MapRazorComponents<App>()
 await app.RunAsync().ConfigureAwait(false);
 
 /// <summary>Entry point; public so integration tests can use <c>WebApplicationFactory&lt;Program&gt;</c>.</summary>
+#pragma warning disable S1118 // The Program of the top-level statements; tests need its type, not an instance.
 public partial class Program;
+#pragma warning restore S1118

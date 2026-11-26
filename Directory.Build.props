@@ -18,4 +18,13 @@
     <InternalsVisibleTo Include="$(MSBuildProjectName).UnitTests" />
     <InternalsVisibleTo Include="$(MSBuildProjectName).IntegrationTests" />
   </ItemGroup>
+
+  <!--
+    Static analysis (#61, STAGE_5_PLAN section 10): the SonarQube C# rules as a NuGet analyzer in every production
+    project, under TreatWarningsAsErrors like the .NET analyzers. Rules that conflict with the codebase's conventions
+    are switched off in .editorconfig with a reason.
+  -->
+  <ItemGroup Condition="!$(MSBuildProjectName.EndsWith('Tests')) And '$(MSBuildProjectName)' != 'SmartSpare.E2E'">
+    <PackageReference Include="SonarAnalyzer.CSharp" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers" />
+  </ItemGroup>
 </Project>
