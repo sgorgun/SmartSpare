@@ -41,9 +41,13 @@ public sealed class TopologyTests(TopologyFixture topology)
             new Uri("/api/v1/inventory/warehouses", UriKind.Relative), Ct);
         using var parts = await browser.GetAsync(new Uri("/api/v1/inventory/parts?pageSize=5", UriKind.Relative), Ct);
         using var unknown = await browser.GetAsync(new Uri("/api/v1/inventory/parts/999999999", UriKind.Relative), Ct);
+        using var stock = await browser.GetAsync(new Uri("/api/v1/inventory/stock?pageSize=5", UriKind.Relative), Ct);
+        using var internalQuery = await browser.GetAsync(new Uri("/internal/v1/inventory/warehouses", UriKind.Relative), Ct);
 
         warehouses!.Select(w => w.Code).ShouldContain("VLN");
         parts.StatusCode.ShouldBe(HttpStatusCode.OK);
+        stock.StatusCode.ShouldBe(HttpStatusCode.OK, "the stock overview reads inventory, catalog and ref as smartspare_inventory");
+        internalQuery.StatusCode.ShouldBe(HttpStatusCode.NotFound, "the gateway never routes /internal");
         unknown.StatusCode.ShouldBe(HttpStatusCode.NotFound, "the service's ProblemDetails passes through the gateway");
     }
 

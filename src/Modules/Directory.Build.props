@@ -3,9 +3,12 @@
   <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
 
   <!--
-    XML documentation comments of endpoint handlers become summaries and descriptions in the module's OpenAPI
-    document (ADR 0019, STAGE_4_PLAN section 7). Handlers must be methods, not lambdas, for their comments to be
-    captured. Only installers and Contracts are public, so a missing comment (CS1591) is not an error.
+    XML documentation comments are checked (cref, param names) but do not reach the OpenAPI documents: those are
+    built by ApiDocumentation in SmartSpare.Infrastructure, which references no module, so the XML-comment generator of
+    Microsoft.AspNetCore.OpenApi never sees module code (#97). Endpoints therefore declare their documentation
+    explicitly: WithSummary, WithDescription, [Description] on parameters and on ApiContracts properties, and
+    WithRequestExample / WithResponseExample (ADR 0019, API_DOCUMENTATION.md). Only installers and Contracts are
+    public, so a missing comment (CS1591) is not an error.
   -->
   <PropertyGroup>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
