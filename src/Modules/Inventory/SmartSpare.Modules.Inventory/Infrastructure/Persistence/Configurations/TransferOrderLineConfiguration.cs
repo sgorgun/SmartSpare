@@ -1,5 +1,6 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore;
+using SmartSpare.Modules.Inventory.Domain.Transfers;
 
 namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Configurations;
 
@@ -26,10 +27,7 @@ internal sealed class TransferOrderLineConfiguration : IEntityTypeConfiguration<
         builder.Property(x => x.ProposedQty).HasColumnName("proposed_qty").HasColumnOrder(4).HasColumnType("numeric(12,3)").HasComment("Quantity proposed by the system; differs from quantity only with override_reason (KPI-04).");
         builder.Property(x => x.OverrideReason).HasColumnName("override_reason").HasColumnOrder(5).HasColumnType("character varying(300)").HasComment("Mandatory justification of a manual change (UC01 A2).");
 
-        builder.HasOne<TransferOrder>().WithMany()
-            .HasForeignKey(x => x.TransferOrderId)
-            .HasPrincipalKey(x => x.Id)
-            .HasConstraintName("fk_transfer_order_line_order").OnDelete(DeleteBehavior.Cascade);
+        // fk_transfer_order_line_order is configured with the Lines navigation of TransferOrder.
         builder.HasOne<Part>().WithMany()
             .HasForeignKey(x => x.PartId)
             .HasPrincipalKey(x => x.Id)

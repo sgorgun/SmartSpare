@@ -1,5 +1,6 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore;
+using SmartSpare.Modules.Inventory.Domain.Stock;
 
 namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Configurations;
 
@@ -23,8 +24,11 @@ internal sealed class WarehousePartConfiguration : IEntityTypeConfiguration<Ware
         builder.Property(x => x.BinLocation).HasColumnName("bin_location").HasColumnOrder(2).HasColumnType("character varying(20)");
         builder.Property(x => x.SafetyStockQty).HasColumnName("safety_stock_qty").HasColumnOrder(3).HasColumnType("numeric(12,3)").HasDefaultValueSql("0").HasComment("Local safety buffer; a donor hub may only give away stock above it (US10).");
         builder.Property(x => x.MaxStockQty).HasColumnName("max_stock_qty").HasColumnOrder(4).HasColumnType("numeric(12,3)");
-        builder.Property(x => x.IsStocked).HasColumnName("is_stocked").HasColumnOrder(5).HasColumnType("boolean").HasDefaultValueSql("true").HasComment("Flag: stocked.");
+        builder.Property(x => x.IsStocked).HasColumnName("is_stocked").HasColumnOrder(5).HasColumnType("boolean").HasDefaultValueSql("true").HasComment("Flag: stocked.").HasSentinel(true);
         builder.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasColumnOrder(6).HasColumnType("timestamp with time zone").HasDefaultValueSql("now()").HasComment("Time of the last change (maintained by trigger).");
+
+        // PostgreSQL's xmin system column as the concurrency token (no DDL; STAGE_3_PLAN section 7).
+        builder.Property<uint>("xmin").IsRowVersion();
 
         builder.HasOne<Part>().WithMany()
             .HasForeignKey(x => x.PartId)

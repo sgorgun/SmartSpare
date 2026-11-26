@@ -1,6 +1,8 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Conventions;
+using Microsoft.EntityFrameworkCore;
 using SmartSpare.Infrastructure.Messaging.Outbox;
+using SmartSpare.Modules.Inventory.Domain.Stock;
+using SmartSpare.Modules.Inventory.Domain.Transfers;
 
 namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence;
 

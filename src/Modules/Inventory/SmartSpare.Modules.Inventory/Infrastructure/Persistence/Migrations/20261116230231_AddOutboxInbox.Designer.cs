@@ -5,6 +5,8 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
+using SmartSpare.Modules.Inventory.Domain.Stock;
+using SmartSpare.Modules.Inventory.Domain.Transfers;
 using SmartSpare.Modules.Inventory.Infrastructure.Persistence;
 
 #nullable disable

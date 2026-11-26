@@ -1,7 +1,9 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
+using Microsoft.EntityFrameworkCore;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Infrastructure;
 using SmartSpare.Infrastructure.Persistence;
+using SmartSpare.Modules.Inventory.Domain.Stock;
+using SmartSpare.Modules.Inventory.Domain.Transfers;
 
 namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence;
 

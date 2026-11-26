@@ -8,6 +8,7 @@ using SmartSpare.ApiContracts.Authorization;
 using SmartSpare.ApiContracts.Inventory;
 using SmartSpare.Infrastructure.Http;
 using SmartSpare.Infrastructure.Messaging;
+using SmartSpare.Modules.Inventory.Domain.Stock;
 using SmartSpare.Modules.Inventory.Infrastructure.Persistence;
 using SmartSpare.SharedKernel;
 

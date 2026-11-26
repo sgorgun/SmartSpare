@@ -60,6 +60,7 @@
     <Project Path="tests/SmartSpare.Infrastructure.UnitTests/SmartSpare.Infrastructure.UnitTests.csproj" />
     <Project Path="tests/SmartSpare.Modules.Identity.IntegrationTests/SmartSpare.Modules.Identity.IntegrationTests.csproj" />
     <Project Path="tests/SmartSpare.Modules.Identity.UnitTests/SmartSpare.Modules.Identity.UnitTests.csproj" />
+    <Project Path="tests/SmartSpare.Modules.Inventory.IntegrationTests/SmartSpare.Modules.Inventory.IntegrationTests.csproj" />
     <Project Path="tests/SmartSpare.Modules.Inventory.UnitTests/SmartSpare.Modules.Inventory.UnitTests.csproj" />
     <Project Path="tests/SmartSpare.Persistence.IntegrationTests/SmartSpare.Persistence.IntegrationTests.csproj" />
     <Project Path="tests/SmartSpare.SharedKernel.UnitTests/SmartSpare.SharedKernel.UnitTests.csproj" />

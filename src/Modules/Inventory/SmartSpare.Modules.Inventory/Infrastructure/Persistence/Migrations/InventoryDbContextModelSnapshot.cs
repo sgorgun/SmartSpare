@@ -4,6 +4,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
+using SmartSpare.Modules.Inventory.Domain.Stock;
+using SmartSpare.Modules.Inventory.Domain.Transfers;
 using SmartSpare.Modules.Inventory.Infrastructure.Persistence;
 
 #nullable disable
@@ -135,6 +137,573 @@ namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("SmartSpare.Modules.Inventory.Domain.Stock.StockBalance", b =>
+                {
+                    b.Property<short>("WarehouseId")
+                        .HasColumnType("smallint")
+                        .HasColumnName("warehouse_id")
+                        .HasColumnOrder(0)
+                        .HasComment("Reference to inventory.warehouse_part.");
+
+                    b.Property<long>("PartId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("part_id")
+                        .HasColumnOrder(1)
+                        .HasComment("Reference to inventory.warehouse_part.");
+
+                    b.Property<decimal?>("AvailableQty")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("numeric(12,3)")
+                        .HasColumnName("available_qty")
+                        .HasColumnOrder(4)
+                        .HasComputedColumnSql("(on_hand_qty - reserved_qty)", true)
+                        .HasComment("Generated column: on_hand - reserved (never stored inconsistently).");
+
+                    b.Property<DateTimeOffset?>("LastMovementAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_movement_at")
+                        .HasColumnOrder(5)
+                        .HasComment("Time of the latest physical movement (US04 \"last updated\").");
+
+                    b.Property<decimal>("OnHandQty")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("numeric(12,3)")
+                        .HasColumnName("on_hand_qty")
+                        .HasColumnOrder(2)
+                        .HasDefaultValueSql("0")
+                        .HasComment("Physical quantity in the warehouse (SUM of ledger movements); never negative.");
+
+                    b.Property<decimal>("ReservedQty")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("numeric(12,3)")
+                        .HasColumnName("reserved_qty")
+                        .HasColumnOrder(3)
+                        .HasDefaultValueSql("0")
+                        .HasComment("Quantity held by active (soft/firm) reservations; never above on_hand_qty.");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasColumnOrder(6)
+                        .HasDefaultValueSql("now()")
+                        .HasComment("Time of the last change (maintained by trigger).");
+
+                    b.HasKey("WarehouseId", "PartId")
+                        .HasName("pk_stock_balance");
+
+                    b.HasIndex("PartId")
+                        .HasDatabaseName("ix_stock_balance_part");
+
+                    b.ToTable("stock_balance", "inventory", t =>
+                        {
+                            t.HasComment("Current stock per warehouse and part. Controlled redundancy: = SUM of the ledger, kept in sync by triggers for O(1) reads (NFR01).");
+
+                            t.HasCheckConstraint("ck_stock_balance_on_hand_non_negative", "(on_hand_qty >= (0)::numeric)");
+
+                            t.HasCheckConstraint("ck_stock_balance_reserved_le_on_hand", "(reserved_qty <= on_hand_qty)");
+
+                            t.HasCheckConstraint("ck_stock_balance_reserved_non_negative", "(reserved_qty >= (0)::numeric)");
+                        });
+                });
+
+            modelBuilder.Entity("SmartSpare.Modules.Inventory.Domain.Stock.StockMovement", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id")
+                        .HasColumnOrder(0);
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("occurred_at")
+                        .HasColumnOrder(1);
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasColumnOrder(14)
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by")
+                        .HasColumnOrder(13);
+
+                    b.Property<string>("ExternalDocRef")
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("external_doc_ref")
+                        .HasColumnOrder(11);
+
+                    b.Property<long?>("ImportBatchId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("import_batch_id")
+                        .HasColumnOrder(10);
+
+                    b.Property<string>("MovementTypeCode")
+                        .IsRequired()
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("movement_type_code")
+                        .HasColumnOrder(4);
+
+                    b.Property<string>("Note")
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("note")
+                        .HasColumnOrder(12);
+
+                    b.Property<long>("PartId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("part_id")
+                        .HasColumnOrder(3);
+
+                    b.Property<long?>("PurchaseOrderLineId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("purchase_order_line_id")
+                        .HasColumnOrder(9);
+
+                    b.Property<decimal>("Quantity")
+                        .HasColumnType("numeric(12,3)")
+                        .HasColumnName("quantity")
+                        .HasColumnOrder(5);
+
+                    b.Property<long?>("ServiceOrderLineId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("service_order_line_id")
+                        .HasColumnOrder(7);
+
+                    b.Property<long?>("TransferOrderLineId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("transfer_order_line_id")
+                        .HasColumnOrder(8);
+
+                    b.Property<decimal?>("UnitCost")
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("unit_cost")
+                        .HasColumnOrder(6);
+
+                    b.Property<short>("WarehouseId")
+                        .HasColumnType("smallint")
+                        .HasColumnName("warehouse_id")
+                        .HasColumnOrder(2);
+
+                    b.HasKey("Id", "OccurredAt")
+                        .HasName("pk_stock_movement");
+
+                    b.ToTable("stock_movement", "inventory", t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
+                });
+
+            modelBuilder.Entity("SmartSpare.Modules.Inventory.Domain.Stock.StockReservation", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id")
+                        .HasColumnOrder(0)
+                        .HasComment("Surrogate primary key.");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTimeOffset?>("ClosedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("closed_at")
+                        .HasColumnOrder(10)
+                        .HasComment("Time of the closed event.");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasColumnOrder(9)
+                        .HasDefaultValueSql("now()")
+                        .HasComment("Time the record was created.");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by")
+                        .HasColumnOrder(8)
+                        .HasComment("User who created the record (iam.app_user).");
+
+                    b.Property<DateTimeOffset?>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at")
+                        .HasColumnOrder(5)
+                        .HasComment("End of a soft hold (now + 7 days for service kits, UC02).");
+
+                    b.Property<long>("PartId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("part_id")
+                        .HasColumnOrder(2)
+                        .HasComment("Reference to inventory.stock_balance.");
+
+                    b.Property<decimal>("Quantity")
+                        .HasColumnType("numeric(12,3)")
+                        .HasColumnName("quantity")
+                        .HasColumnOrder(3)
+                        .HasComment("Quantity in the unit of measure of the part.");
+
+                    b.Property<long?>("ServiceOrderLineId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("service_order_line_id")
+                        .HasColumnOrder(6)
+                        .HasComment("Reference to fleet.service_order_line.");
+
+                    b.Property<ReservationStatus>("Status")
+                        .HasColumnType("inventory.reservation_status")
+                        .HasColumnName("status")
+                        .HasColumnOrder(4)
+                        .HasDefaultValueSql("'soft'::inventory.reservation_status")
+                        .HasComment("Workflow status (state machine guarded by trigger).");
+
+                    b.Property<long?>("TransferOrderLineId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("transfer_order_line_id")
+                        .HasColumnOrder(7)
+                        .HasComment("Reference to inventory.transfer_order_line.");
+
+                    b.Property<short>("WarehouseId")
+                        .HasColumnType("smallint")
+                        .HasColumnName("warehouse_id")
+                        .HasColumnOrder(1)
+                        .HasComment("Reference to inventory.stock_balance.");
+
+                    b.HasKey("Id")
+                        .HasName("pk_stock_reservation");
+
+                    b.HasIndex("CreatedBy")
+                        .HasDatabaseName("ix_stock_reservation_created_by");
+
+                    b.HasIndex("ExpiresAt")
+                        .HasDatabaseName("ix_stock_reservation_soft_expiry")
+                        .HasFilter("(status = 'soft'::inventory.reservation_status)");
+
+                    b.HasIndex("ServiceOrderLineId")
+                        .HasDatabaseName("ix_stock_reservation_service_line")
+                        .HasFilter("(service_order_line_id IS NOT NULL)");
+
+                    b.HasIndex("TransferOrderLineId")
+                        .HasDatabaseName("ix_stock_reservation_transfer_line")
+                        .HasFilter("(transfer_order_line_id IS NOT NULL)");
+
+                    b.HasIndex("WarehouseId", "PartId")
+                        .HasDatabaseName("ix_stock_reservation_active")
+                        .HasFilter("(status = ANY (ARRAY['soft'::inventory.reservation_status, 'firm'::inventory.reservation_status]))");
+
+                    b.ToTable("stock_reservation", "inventory", t =>
+                        {
+                            t.HasComment("Stock holds. Active (soft/firm) quantities are summed into stock_balance.reserved_qty by trigger.");
+
+                            t.HasCheckConstraint("ck_stock_reservation_closed", "((status = ANY (ARRAY['soft'::inventory.reservation_status, 'firm'::inventory.reservation_status])) = (closed_at IS NULL))");
+
+                            t.HasCheckConstraint("ck_stock_reservation_one_source", "(num_nonnulls(service_order_line_id, transfer_order_line_id) = 1)");
+
+                            t.HasCheckConstraint("ck_stock_reservation_quantity", "(quantity > (0)::numeric)");
+
+                            t.HasCheckConstraint("ck_stock_reservation_soft_expires", "((status <> 'soft'::inventory.reservation_status) OR (expires_at IS NOT NULL))");
+                        });
+                });
+
+            modelBuilder.Entity("SmartSpare.Modules.Inventory.Domain.Stock.WarehousePart", b =>
+                {
+                    b.Property<short>("WarehouseId")
+                        .HasColumnType("smallint")
+                        .HasColumnName("warehouse_id")
+                        .HasColumnOrder(0)
+                        .HasComment("Reference to inventory.warehouse.");
+
+                    b.Property<long>("PartId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("part_id")
+                        .HasColumnOrder(1)
+                        .HasComment("Reference to catalog.part.");
+
+                    b.Property<string>("BinLocation")
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("bin_location")
+                        .HasColumnOrder(2);
+
+                    b.Property<bool>("IsStocked")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_stocked")
+                        .HasColumnOrder(5)
+                        .HasDefaultValueSql("true")
+                        .HasComment("Flag: stocked.");
+
+                    b.Property<decimal?>("MaxStockQty")
+                        .HasColumnType("numeric(12,3)")
+                        .HasColumnName("max_stock_qty")
+                        .HasColumnOrder(4);
+
+                    b.Property<decimal>("SafetyStockQty")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("numeric(12,3)")
+                        .HasColumnName("safety_stock_qty")
+                        .HasColumnOrder(3)
+                        .HasDefaultValueSql("0")
+                        .HasComment("Local safety buffer; a donor hub may only give away stock above it (US10).");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasColumnOrder(6)
+                        .HasDefaultValueSql("now()")
+                        .HasComment("Time of the last change (maintained by trigger).");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("WarehouseId", "PartId")
+                        .HasName("pk_warehouse_part");
+
+                    b.HasIndex("PartId")
+                        .HasDatabaseName("ix_warehouse_part_part");
+
+                    b.ToTable("warehouse_part", "inventory", t =>
+                        {
+                            t.HasComment("Stocking policy of a part in a warehouse: shelf location, safety stock, maximum.");
+
+                            t.HasCheckConstraint("ck_warehouse_part_bin", "((bin_location IS NULL) OR ((bin_location)::text ~ '^[A-Z0-9-]{2,20}$'::text))");
+
+                            t.HasCheckConstraint("ck_warehouse_part_max", "((max_stock_qty IS NULL) OR (max_stock_qty >= safety_stock_qty))");
+
+                            t.HasCheckConstraint("ck_warehouse_part_safety", "(safety_stock_qty >= (0)::numeric)");
+                        });
+                });
+
+            modelBuilder.Entity("SmartSpare.Modules.Inventory.Domain.Transfers.TransferOrder", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id")
+                        .HasColumnOrder(0)
+                        .HasComment("Surrogate primary key.");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTimeOffset?>("ApprovedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("approved_at")
+                        .HasColumnOrder(8)
+                        .HasComment("Time of the approved event.");
+
+                    b.Property<Guid?>("ApprovedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("approved_by")
+                        .HasColumnOrder(7)
+                        .HasComment("User who performed the step (iam.app_user).");
+
+                    b.Property<string>("CancelReason")
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("cancel_reason")
+                        .HasColumnOrder(13);
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasColumnOrder(14)
+                        .HasDefaultValueSql("now()")
+                        .HasComment("Time the record was created.");
+
+                    b.Property<DateTimeOffset?>("DispatchedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("dispatched_at")
+                        .HasColumnOrder(10)
+                        .HasComment("Time of the dispatched event.");
+
+                    b.Property<Guid?>("DispatchedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("dispatched_by")
+                        .HasColumnOrder(9)
+                        .HasComment("User who performed the step (iam.app_user).");
+
+                    b.Property<short>("FromWarehouseId")
+                        .HasColumnType("smallint")
+                        .HasColumnName("from_warehouse_id")
+                        .HasColumnOrder(2)
+                        .HasComment("Reference to inventory.warehouse_route.");
+
+                    b.Property<bool>("IsUrgent")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_urgent")
+                        .HasColumnOrder(5)
+                        .HasDefaultValueSql("false")
+                        .HasComment("Flag: urgent.");
+
+                    b.Property<string>("Number")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("number")
+                        .HasColumnOrder(1)
+                        .HasComment("Business document number (assigned by trigger).");
+
+                    b.Property<DateTimeOffset?>("ReceivedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("received_at")
+                        .HasColumnOrder(12)
+                        .HasComment("Time of the received event.");
+
+                    b.Property<Guid?>("ReceivedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("received_by")
+                        .HasColumnOrder(11)
+                        .HasComment("User who performed the step (iam.app_user).");
+
+                    b.Property<Guid?>("RequestedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("requested_by")
+                        .HasColumnOrder(6)
+                        .HasComment("User who created the record (iam.app_user).");
+
+                    b.Property<TransferStatus>("Status")
+                        .HasColumnType("inventory.transfer_status")
+                        .HasColumnName("status")
+                        .HasColumnOrder(4)
+                        .HasDefaultValueSql("'proposed'::inventory.transfer_status")
+                        .HasComment("Workflow status (state machine guarded by trigger).");
+
+                    b.Property<short>("ToWarehouseId")
+                        .HasColumnType("smallint")
+                        .HasColumnName("to_warehouse_id")
+                        .HasColumnOrder(3)
+                        .HasComment("Reference to inventory.warehouse_route.");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasColumnOrder(15)
+                        .HasDefaultValueSql("now()")
+                        .HasComment("Time of the last change (maintained by trigger).");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id")
+                        .HasName("pk_transfer_order");
+
+                    b.HasAlternateKey("Number")
+                        .HasName("uq_transfer_order_number");
+
+                    b.HasIndex("ApprovedBy")
+                        .HasDatabaseName("ix_transfer_order_approved_by");
+
+                    b.HasIndex("DispatchedBy")
+                        .HasDatabaseName("ix_transfer_order_dispatched_by");
+
+                    b.HasIndex("ReceivedBy")
+                        .HasDatabaseName("ix_transfer_order_received_by");
+
+                    b.HasIndex("RequestedBy")
+                        .HasDatabaseName("ix_transfer_order_requested_by");
+
+                    b.HasIndex("ToWarehouseId")
+                        .HasDatabaseName("ix_transfer_order_to_wh");
+
+                    b.HasIndex("Status", "CreatedAt")
+                        .HasDatabaseName("ix_transfer_order_open")
+                        .HasFilter("(status = ANY (ARRAY['proposed'::inventory.transfer_status, 'approved'::inventory.transfer_status, 'dispatched'::inventory.transfer_status]))");
+
+                    b.ToTable("transfer_order", "inventory", t =>
+                        {
+                            t.HasComment("Inter-warehouse transfer order (TR-YYYY-NNNNNN). Status changes only through inventory.approve/dispatch/receive/cancel_transfer().");
+
+                            t.HasCheckConstraint("ck_transfer_order_approved", "((status = ANY (ARRAY['proposed'::inventory.transfer_status, 'cancelled'::inventory.transfer_status])) OR (approved_at IS NOT NULL))");
+
+                            t.HasCheckConstraint("ck_transfer_order_cancel", "((status = 'cancelled'::inventory.transfer_status) = (cancel_reason IS NOT NULL))");
+
+                            t.HasCheckConstraint("ck_transfer_order_dispatched", "((status <> ALL (ARRAY['dispatched'::inventory.transfer_status, 'received'::inventory.transfer_status])) OR (dispatched_at IS NOT NULL))");
+
+                            t.HasCheckConstraint("ck_transfer_order_distinct", "(from_warehouse_id <> to_warehouse_id)");
+
+                            t.HasCheckConstraint("ck_transfer_order_number", "((number)::text ~ '^TR-\\d{4}-\\d{6}$'::text)");
+
+                            t.HasCheckConstraint("ck_transfer_order_received", "((status = 'received'::inventory.transfer_status) = (received_at IS NOT NULL))");
+
+                            t.HasCheckConstraint("ck_transfer_order_timeline", "((dispatched_at IS NULL) OR (dispatched_at >= approved_at))");
+
+                            t.HasCheckConstraint("ck_transfer_order_timeline2", "((received_at IS NULL) OR (received_at >= dispatched_at))");
+                        });
+                });
+
+            modelBuilder.Entity("SmartSpare.Modules.Inventory.Domain.Transfers.TransferOrderLine", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id")
+                        .HasColumnOrder(0)
+                        .HasComment("Surrogate primary key.");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("OverrideReason")
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("override_reason")
+                        .HasColumnOrder(5)
+                        .HasComment("Mandatory justification of a manual change (UC01 A2).");
+
+                    b.Property<long>("PartId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("part_id")
+                        .HasColumnOrder(2)
+                        .HasComment("Reference to catalog.part.");
+
+                    b.Property<decimal?>("ProposedQty")
+                        .HasColumnType("numeric(12,3)")
+                        .HasColumnName("proposed_qty")
+                        .HasColumnOrder(4)
+                        .HasComment("Quantity proposed by the system; differs from quantity only with override_reason (KPI-04).");
+
+                    b.Property<decimal>("Quantity")
+                        .HasColumnType("numeric(12,3)")
+                        .HasColumnName("quantity")
+                        .HasColumnOrder(3)
+                        .HasComment("Quantity in the unit of measure of the part.");
+
+                    b.Property<long>("TransferOrderId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("transfer_order_id")
+                        .HasColumnOrder(1)
+                        .HasComment("Reference to inventory.transfer_order.");
+
+                    b.HasKey("Id")
+                        .HasName("pk_transfer_order_line");
+
+                    b.HasAlternateKey("TransferOrderId", "PartId")
+                        .HasName("uq_transfer_order_line_part");
+
+                    b.HasIndex("PartId")
+                        .HasDatabaseName("ix_transfer_order_line_part");
+
+                    b.ToTable("transfer_order_line", "inventory", t =>
+                        {
+                            t.HasComment("Parts and quantities of a transfer; proposed_qty keeps the system proposal for KPI-04 (acceptance rate).");
+
+                            t.HasCheckConstraint("ck_transfer_order_line_override", "((proposed_qty IS NULL) OR (quantity = proposed_qty) OR (override_reason IS NOT NULL))");
+
+                            t.HasCheckConstraint("ck_transfer_order_line_proposed", "((proposed_qty IS NULL) OR (proposed_qty > (0)::numeric))");
+
+                            t.HasCheckConstraint("ck_transfer_order_line_qty", "(quantity > (0)::numeric)");
+                        });
+                });
+
             modelBuilder.Entity("SmartSpare.Modules.Inventory.Infrastructure.Persistence.DemandException", b =>
                 {
                     b.Property<long>("MovementId")
@@ -213,7 +782,6 @@ namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Migrations
                         .HasColumnOrder(6);
 
                     b.Property<bool>("IsDuplicate")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
                         .HasColumnName("is_duplicate")
                         .HasColumnOrder(9)
@@ -376,7 +944,6 @@ namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Migrations
                         .HasColumnOrder(1);
 
                     b.Property<ImportStatus>("Status")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("raw.import_status")
                         .HasColumnName("status")
                         .HasColumnOrder(4)
@@ -536,7 +1103,6 @@ namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Migrations
                         .HasComment("FALSE = deactivated, kept for history.");
 
                     b.Property<bool>("IsConditionBased")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
                         .HasColumnName("is_condition_based")
                         .HasColumnOrder(8)
@@ -850,497 +1416,6 @@ namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("SmartSpare.Modules.Inventory.Infrastructure.Persistence.StockBalance", b =>
-                {
-                    b.Property<short>("WarehouseId")
-                        .HasColumnType("smallint")
-                        .HasColumnName("warehouse_id")
-                        .HasColumnOrder(0)
-                        .HasComment("Reference to inventory.warehouse_part.");
-
-                    b.Property<long>("PartId")
-                        .HasColumnType("bigint")
-                        .HasColumnName("part_id")
-                        .HasColumnOrder(1)
-                        .HasComment("Reference to inventory.warehouse_part.");
-
-                    b.Property<decimal?>("AvailableQty")
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("numeric(12,3)")
-                        .HasColumnName("available_qty")
-                        .HasColumnOrder(4)
-                        .HasComputedColumnSql("(on_hand_qty - reserved_qty)", true)
-                        .HasComment("Generated column: on_hand - reserved (never stored inconsistently).");
-
-                    b.Property<DateTimeOffset?>("LastMovementAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("last_movement_at")
-                        .HasColumnOrder(5)
-                        .HasComment("Time of the latest physical movement (US04 \"last updated\").");
-
-                    b.Property<decimal>("OnHandQty")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("numeric(12,3)")
-                        .HasColumnName("on_hand_qty")
-                        .HasColumnOrder(2)
-                        .HasDefaultValueSql("0")
-                        .HasComment("Physical quantity in the warehouse (SUM of ledger movements); never negative.");
-
-                    b.Property<decimal>("ReservedQty")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("numeric(12,3)")
-                        .HasColumnName("reserved_qty")
-                        .HasColumnOrder(3)
-                        .HasDefaultValueSql("0")
-                        .HasComment("Quantity held by active (soft/firm) reservations; never above on_hand_qty.");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at")
-                        .HasColumnOrder(6)
-                        .HasDefaultValueSql("now()")
-                        .HasComment("Time of the last change (maintained by trigger).");
-
-                    b.HasKey("WarehouseId", "PartId")
-                        .HasName("pk_stock_balance");
-
-                    b.HasIndex("PartId")
-                        .HasDatabaseName("ix_stock_balance_part");
-
-                    b.ToTable("stock_balance", "inventory", t =>
-                        {
-                            t.HasComment("Current stock per warehouse and part. Controlled redundancy: = SUM of the ledger, kept in sync by triggers for O(1) reads (NFR01).");
-
-                            t.HasCheckConstraint("ck_stock_balance_on_hand_non_negative", "(on_hand_qty >= (0)::numeric)");
-
-                            t.HasCheckConstraint("ck_stock_balance_reserved_le_on_hand", "(reserved_qty <= on_hand_qty)");
-
-                            t.HasCheckConstraint("ck_stock_balance_reserved_non_negative", "(reserved_qty >= (0)::numeric)");
-                        });
-                });
-
-            modelBuilder.Entity("SmartSpare.Modules.Inventory.Infrastructure.Persistence.StockMovement", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint")
-                        .HasColumnName("id")
-                        .HasColumnOrder(0);
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
-
-                    b.Property<DateTimeOffset>("OccurredAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("occurred_at")
-                        .HasColumnOrder(1);
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at")
-                        .HasColumnOrder(14)
-                        .HasDefaultValueSql("now()");
-
-                    b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uuid")
-                        .HasColumnName("created_by")
-                        .HasColumnOrder(13);
-
-                    b.Property<string>("ExternalDocRef")
-                        .HasColumnType("character varying(40)")
-                        .HasColumnName("external_doc_ref")
-                        .HasColumnOrder(11);
-
-                    b.Property<long?>("ImportBatchId")
-                        .HasColumnType("bigint")
-                        .HasColumnName("import_batch_id")
-                        .HasColumnOrder(10);
-
-                    b.Property<string>("MovementTypeCode")
-                        .IsRequired()
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("movement_type_code")
-                        .HasColumnOrder(4);
-
-                    b.Property<string>("Note")
-                        .HasColumnType("character varying(300)")
-                        .HasColumnName("note")
-                        .HasColumnOrder(12);
-
-                    b.Property<long>("PartId")
-                        .HasColumnType("bigint")
-                        .HasColumnName("part_id")
-                        .HasColumnOrder(3);
-
-                    b.Property<long?>("PurchaseOrderLineId")
-                        .HasColumnType("bigint")
-                        .HasColumnName("purchase_order_line_id")
-                        .HasColumnOrder(9);
-
-                    b.Property<decimal>("Quantity")
-                        .HasColumnType("numeric(12,3)")
-                        .HasColumnName("quantity")
-                        .HasColumnOrder(5);
-
-                    b.Property<long?>("ServiceOrderLineId")
-                        .HasColumnType("bigint")
-                        .HasColumnName("service_order_line_id")
-                        .HasColumnOrder(7);
-
-                    b.Property<long?>("TransferOrderLineId")
-                        .HasColumnType("bigint")
-                        .HasColumnName("transfer_order_line_id")
-                        .HasColumnOrder(8);
-
-                    b.Property<decimal?>("UnitCost")
-                        .HasColumnType("numeric(12,2)")
-                        .HasColumnName("unit_cost")
-                        .HasColumnOrder(6);
-
-                    b.Property<short>("WarehouseId")
-                        .HasColumnType("smallint")
-                        .HasColumnName("warehouse_id")
-                        .HasColumnOrder(2);
-
-                    b.HasKey("Id", "OccurredAt")
-                        .HasName("pk_stock_movement");
-
-                    b.ToTable("stock_movement", "inventory", t =>
-                        {
-                            t.ExcludeFromMigrations();
-                        });
-                });
-
-            modelBuilder.Entity("SmartSpare.Modules.Inventory.Infrastructure.Persistence.StockReservation", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint")
-                        .HasColumnName("id")
-                        .HasColumnOrder(0)
-                        .HasComment("Surrogate primary key.");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
-
-                    b.Property<DateTimeOffset?>("ClosedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("closed_at")
-                        .HasColumnOrder(10)
-                        .HasComment("Time of the closed event.");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at")
-                        .HasColumnOrder(9)
-                        .HasDefaultValueSql("now()")
-                        .HasComment("Time the record was created.");
-
-                    b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uuid")
-                        .HasColumnName("created_by")
-                        .HasColumnOrder(8)
-                        .HasComment("User who created the record (iam.app_user).");
-
-                    b.Property<DateTimeOffset?>("ExpiresAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("expires_at")
-                        .HasColumnOrder(5)
-                        .HasComment("End of a soft hold (now + 7 days for service kits, UC02).");
-
-                    b.Property<long>("PartId")
-                        .HasColumnType("bigint")
-                        .HasColumnName("part_id")
-                        .HasColumnOrder(2)
-                        .HasComment("Reference to inventory.stock_balance.");
-
-                    b.Property<decimal>("Quantity")
-                        .HasColumnType("numeric(12,3)")
-                        .HasColumnName("quantity")
-                        .HasColumnOrder(3)
-                        .HasComment("Quantity in the unit of measure of the part.");
-
-                    b.Property<long?>("ServiceOrderLineId")
-                        .HasColumnType("bigint")
-                        .HasColumnName("service_order_line_id")
-                        .HasColumnOrder(6)
-                        .HasComment("Reference to fleet.service_order_line.");
-
-                    b.Property<ReservationStatus>("Status")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("inventory.reservation_status")
-                        .HasColumnName("status")
-                        .HasColumnOrder(4)
-                        .HasDefaultValueSql("'soft'::inventory.reservation_status")
-                        .HasComment("Workflow status (state machine guarded by trigger).");
-
-                    b.Property<long?>("TransferOrderLineId")
-                        .HasColumnType("bigint")
-                        .HasColumnName("transfer_order_line_id")
-                        .HasColumnOrder(7)
-                        .HasComment("Reference to inventory.transfer_order_line.");
-
-                    b.Property<short>("WarehouseId")
-                        .HasColumnType("smallint")
-                        .HasColumnName("warehouse_id")
-                        .HasColumnOrder(1)
-                        .HasComment("Reference to inventory.stock_balance.");
-
-                    b.HasKey("Id")
-                        .HasName("pk_stock_reservation");
-
-                    b.HasIndex("CreatedBy")
-                        .HasDatabaseName("ix_stock_reservation_created_by");
-
-                    b.HasIndex("ExpiresAt")
-                        .HasDatabaseName("ix_stock_reservation_soft_expiry")
-                        .HasFilter("(status = 'soft'::inventory.reservation_status)");
-
-                    b.HasIndex("ServiceOrderLineId")
-                        .HasDatabaseName("ix_stock_reservation_service_line")
-                        .HasFilter("(service_order_line_id IS NOT NULL)");
-
-                    b.HasIndex("TransferOrderLineId")
-                        .HasDatabaseName("ix_stock_reservation_transfer_line")
-                        .HasFilter("(transfer_order_line_id IS NOT NULL)");
-
-                    b.HasIndex("WarehouseId", "PartId")
-                        .HasDatabaseName("ix_stock_reservation_active")
-                        .HasFilter("(status = ANY (ARRAY['soft'::inventory.reservation_status, 'firm'::inventory.reservation_status]))");
-
-                    b.ToTable("stock_reservation", "inventory", t =>
-                        {
-                            t.HasComment("Stock holds. Active (soft/firm) quantities are summed into stock_balance.reserved_qty by trigger.");
-
-                            t.HasCheckConstraint("ck_stock_reservation_closed", "((status = ANY (ARRAY['soft'::inventory.reservation_status, 'firm'::inventory.reservation_status])) = (closed_at IS NULL))");
-
-                            t.HasCheckConstraint("ck_stock_reservation_one_source", "(num_nonnulls(service_order_line_id, transfer_order_line_id) = 1)");
-
-                            t.HasCheckConstraint("ck_stock_reservation_quantity", "(quantity > (0)::numeric)");
-
-                            t.HasCheckConstraint("ck_stock_reservation_soft_expires", "((status <> 'soft'::inventory.reservation_status) OR (expires_at IS NOT NULL))");
-                        });
-                });
-
-            modelBuilder.Entity("SmartSpare.Modules.Inventory.Infrastructure.Persistence.TransferOrder", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint")
-                        .HasColumnName("id")
-                        .HasColumnOrder(0)
-                        .HasComment("Surrogate primary key.");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
-
-                    b.Property<DateTimeOffset?>("ApprovedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("approved_at")
-                        .HasColumnOrder(8)
-                        .HasComment("Time of the approved event.");
-
-                    b.Property<Guid?>("ApprovedBy")
-                        .HasColumnType("uuid")
-                        .HasColumnName("approved_by")
-                        .HasColumnOrder(7)
-                        .HasComment("User who performed the step (iam.app_user).");
-
-                    b.Property<string>("CancelReason")
-                        .HasColumnType("character varying(300)")
-                        .HasColumnName("cancel_reason")
-                        .HasColumnOrder(13);
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at")
-                        .HasColumnOrder(14)
-                        .HasDefaultValueSql("now()")
-                        .HasComment("Time the record was created.");
-
-                    b.Property<DateTimeOffset?>("DispatchedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("dispatched_at")
-                        .HasColumnOrder(10)
-                        .HasComment("Time of the dispatched event.");
-
-                    b.Property<Guid?>("DispatchedBy")
-                        .HasColumnType("uuid")
-                        .HasColumnName("dispatched_by")
-                        .HasColumnOrder(9)
-                        .HasComment("User who performed the step (iam.app_user).");
-
-                    b.Property<short>("FromWarehouseId")
-                        .HasColumnType("smallint")
-                        .HasColumnName("from_warehouse_id")
-                        .HasColumnOrder(2)
-                        .HasComment("Reference to inventory.warehouse_route.");
-
-                    b.Property<bool>("IsUrgent")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasColumnName("is_urgent")
-                        .HasColumnOrder(5)
-                        .HasDefaultValueSql("false")
-                        .HasComment("Flag: urgent.");
-
-                    b.Property<string>("Number")
-                        .IsRequired()
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("number")
-                        .HasColumnOrder(1)
-                        .HasComment("Business document number (assigned by trigger).");
-
-                    b.Property<DateTimeOffset?>("ReceivedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("received_at")
-                        .HasColumnOrder(12)
-                        .HasComment("Time of the received event.");
-
-                    b.Property<Guid?>("ReceivedBy")
-                        .HasColumnType("uuid")
-                        .HasColumnName("received_by")
-                        .HasColumnOrder(11)
-                        .HasComment("User who performed the step (iam.app_user).");
-
-                    b.Property<Guid?>("RequestedBy")
-                        .HasColumnType("uuid")
-                        .HasColumnName("requested_by")
-                        .HasColumnOrder(6)
-                        .HasComment("User who created the record (iam.app_user).");
-
-                    b.Property<TransferStatus>("Status")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("inventory.transfer_status")
-                        .HasColumnName("status")
-                        .HasColumnOrder(4)
-                        .HasDefaultValueSql("'proposed'::inventory.transfer_status")
-                        .HasComment("Workflow status (state machine guarded by trigger).");
-
-                    b.Property<short>("ToWarehouseId")
-                        .HasColumnType("smallint")
-                        .HasColumnName("to_warehouse_id")
-                        .HasColumnOrder(3)
-                        .HasComment("Reference to inventory.warehouse_route.");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at")
-                        .HasColumnOrder(15)
-                        .HasDefaultValueSql("now()")
-                        .HasComment("Time of the last change (maintained by trigger).");
-
-                    b.HasKey("Id")
-                        .HasName("pk_transfer_order");
-
-                    b.HasAlternateKey("Number")
-                        .HasName("uq_transfer_order_number");
-
-                    b.HasIndex("ApprovedBy")
-                        .HasDatabaseName("ix_transfer_order_approved_by");
-
-                    b.HasIndex("DispatchedBy")
-                        .HasDatabaseName("ix_transfer_order_dispatched_by");
-
-                    b.HasIndex("ReceivedBy")
-                        .HasDatabaseName("ix_transfer_order_received_by");
-
-                    b.HasIndex("RequestedBy")
-                        .HasDatabaseName("ix_transfer_order_requested_by");
-
-                    b.HasIndex("ToWarehouseId")
-                        .HasDatabaseName("ix_transfer_order_to_wh");
-
-                    b.HasIndex("Status", "CreatedAt")
-                        .HasDatabaseName("ix_transfer_order_open")
-                        .HasFilter("(status = ANY (ARRAY['proposed'::inventory.transfer_status, 'approved'::inventory.transfer_status, 'dispatched'::inventory.transfer_status]))");
-
-                    b.ToTable("transfer_order", "inventory", t =>
-                        {
-                            t.HasComment("Inter-warehouse transfer order (TR-YYYY-NNNNNN). Status changes only through inventory.approve/dispatch/receive/cancel_transfer().");
-
-                            t.HasCheckConstraint("ck_transfer_order_approved", "((status = ANY (ARRAY['proposed'::inventory.transfer_status, 'cancelled'::inventory.transfer_status])) OR (approved_at IS NOT NULL))");
-
-                            t.HasCheckConstraint("ck_transfer_order_cancel", "((status = 'cancelled'::inventory.transfer_status) = (cancel_reason IS NOT NULL))");
-
-                            t.HasCheckConstraint("ck_transfer_order_dispatched", "((status <> ALL (ARRAY['dispatched'::inventory.transfer_status, 'received'::inventory.transfer_status])) OR (dispatched_at IS NOT NULL))");
-
-                            t.HasCheckConstraint("ck_transfer_order_distinct", "(from_warehouse_id <> to_warehouse_id)");
-
-                            t.HasCheckConstraint("ck_transfer_order_number", "((number)::text ~ '^TR-\\d{4}-\\d{6}$'::text)");
-
-                            t.HasCheckConstraint("ck_transfer_order_received", "((status = 'received'::inventory.transfer_status) = (received_at IS NOT NULL))");
-
-                            t.HasCheckConstraint("ck_transfer_order_timeline", "((dispatched_at IS NULL) OR (dispatched_at >= approved_at))");
-
-                            t.HasCheckConstraint("ck_transfer_order_timeline2", "((received_at IS NULL) OR (received_at >= dispatched_at))");
-                        });
-                });
-
-            modelBuilder.Entity("SmartSpare.Modules.Inventory.Infrastructure.Persistence.TransferOrderLine", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint")
-                        .HasColumnName("id")
-                        .HasColumnOrder(0)
-                        .HasComment("Surrogate primary key.");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
-
-                    b.Property<string>("OverrideReason")
-                        .HasColumnType("character varying(300)")
-                        .HasColumnName("override_reason")
-                        .HasColumnOrder(5)
-                        .HasComment("Mandatory justification of a manual change (UC01 A2).");
-
-                    b.Property<long>("PartId")
-                        .HasColumnType("bigint")
-                        .HasColumnName("part_id")
-                        .HasColumnOrder(2)
-                        .HasComment("Reference to catalog.part.");
-
-                    b.Property<decimal?>("ProposedQty")
-                        .HasColumnType("numeric(12,3)")
-                        .HasColumnName("proposed_qty")
-                        .HasColumnOrder(4)
-                        .HasComment("Quantity proposed by the system; differs from quantity only with override_reason (KPI-04).");
-
-                    b.Property<decimal>("Quantity")
-                        .HasColumnType("numeric(12,3)")
-                        .HasColumnName("quantity")
-                        .HasColumnOrder(3)
-                        .HasComment("Quantity in the unit of measure of the part.");
-
-                    b.Property<long>("TransferOrderId")
-                        .HasColumnType("bigint")
-                        .HasColumnName("transfer_order_id")
-                        .HasColumnOrder(1)
-                        .HasComment("Reference to inventory.transfer_order.");
-
-                    b.HasKey("Id")
-                        .HasName("pk_transfer_order_line");
-
-                    b.HasAlternateKey("TransferOrderId", "PartId")
-                        .HasName("uq_transfer_order_line_part");
-
-                    b.HasIndex("PartId")
-                        .HasDatabaseName("ix_transfer_order_line_part");
-
-                    b.ToTable("transfer_order_line", "inventory", t =>
-                        {
-                            t.HasComment("Parts and quantities of a transfer; proposed_qty keeps the system proposal for KPI-04 (acceptance rate).");
-
-                            t.HasCheckConstraint("ck_transfer_order_line_override", "((proposed_qty IS NULL) OR (quantity = proposed_qty) OR (override_reason IS NOT NULL))");
-
-                            t.HasCheckConstraint("ck_transfer_order_line_proposed", "((proposed_qty IS NULL) OR (proposed_qty > (0)::numeric))");
-
-                            t.HasCheckConstraint("ck_transfer_order_line_qty", "(quantity > (0)::numeric)");
-                        });
-                });
-
             modelBuilder.Entity("SmartSpare.Modules.Inventory.Infrastructure.Persistence.Warehouse", b =>
                 {
                     b.Property<short>("Id")
@@ -1387,7 +1462,6 @@ namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Migrations
                         .HasComment("FALSE = deactivated, kept for history.");
 
                     b.Property<bool>("IsCentralHub")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
                         .HasColumnName("is_central_hub")
                         .HasColumnOrder(5)
@@ -1431,72 +1505,6 @@ namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("ck_warehouse_lat", "((latitude >= ('-90'::integer)::numeric) AND (latitude <= (90)::numeric))");
 
                             t.HasCheckConstraint("ck_warehouse_lon", "((longitude >= ('-180'::integer)::numeric) AND (longitude <= (180)::numeric))");
-                        });
-                });
-
-            modelBuilder.Entity("SmartSpare.Modules.Inventory.Infrastructure.Persistence.WarehousePart", b =>
-                {
-                    b.Property<short>("WarehouseId")
-                        .HasColumnType("smallint")
-                        .HasColumnName("warehouse_id")
-                        .HasColumnOrder(0)
-                        .HasComment("Reference to inventory.warehouse.");
-
-                    b.Property<long>("PartId")
-                        .HasColumnType("bigint")
-                        .HasColumnName("part_id")
-                        .HasColumnOrder(1)
-                        .HasComment("Reference to catalog.part.");
-
-                    b.Property<string>("BinLocation")
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("bin_location")
-                        .HasColumnOrder(2);
-
-                    b.Property<bool>("IsStocked")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasColumnName("is_stocked")
-                        .HasColumnOrder(5)
-                        .HasDefaultValueSql("true")
-                        .HasComment("Flag: stocked.");
-
-                    b.Property<decimal?>("MaxStockQty")
-                        .HasColumnType("numeric(12,3)")
-                        .HasColumnName("max_stock_qty")
-                        .HasColumnOrder(4);
-
-                    b.Property<decimal>("SafetyStockQty")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("numeric(12,3)")
-                        .HasColumnName("safety_stock_qty")
-                        .HasColumnOrder(3)
-                        .HasDefaultValueSql("0")
-                        .HasComment("Local safety buffer; a donor hub may only give away stock above it (US10).");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at")
-                        .HasColumnOrder(6)
-                        .HasDefaultValueSql("now()")
-                        .HasComment("Time of the last change (maintained by trigger).");
-
-                    b.HasKey("WarehouseId", "PartId")
-                        .HasName("pk_warehouse_part");
-
-                    b.HasIndex("PartId")
-                        .HasDatabaseName("ix_warehouse_part_part");
-
-                    b.ToTable("warehouse_part", "inventory", t =>
-                        {
-                            t.HasComment("Stocking policy of a part in a warehouse: shelf location, safety stock, maximum.");
-
-                            t.HasCheckConstraint("ck_warehouse_part_bin", "((bin_location IS NULL) OR ((bin_location)::text ~ '^[A-Z0-9-]{2,20}$'::text))");
-
-                            t.HasCheckConstraint("ck_warehouse_part_max", "((max_stock_qty IS NULL) OR (max_stock_qty >= safety_stock_qty))");
-
-                            t.HasCheckConstraint("ck_warehouse_part_safety", "(safety_stock_qty >= (0)::numeric)");
                         });
                 });
 
@@ -1551,9 +1559,79 @@ namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("SmartSpare.Modules.Inventory.Domain.Stock.StockBalance", b =>
+                {
+                    b.HasOne("SmartSpare.Modules.Inventory.Domain.Stock.WarehousePart", null)
+                        .WithMany()
+                        .HasForeignKey("WarehouseId", "PartId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_stock_balance_warehouse_part");
+                });
+
+            modelBuilder.Entity("SmartSpare.Modules.Inventory.Domain.Stock.StockReservation", b =>
+                {
+                    b.HasOne("SmartSpare.Modules.Inventory.Domain.Transfers.TransferOrderLine", null)
+                        .WithMany()
+                        .HasForeignKey("TransferOrderLineId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .HasConstraintName("fk_stock_reservation_transfer_line");
+
+                    b.HasOne("SmartSpare.Modules.Inventory.Domain.Stock.StockBalance", null)
+                        .WithMany()
+                        .HasForeignKey("WarehouseId", "PartId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_stock_reservation_balance");
+                });
+
+            modelBuilder.Entity("SmartSpare.Modules.Inventory.Domain.Stock.WarehousePart", b =>
+                {
+                    b.HasOne("SmartSpare.Modules.Inventory.Infrastructure.Persistence.Part", null)
+                        .WithMany()
+                        .HasForeignKey("PartId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_warehouse_part_part");
+
+                    b.HasOne("SmartSpare.Modules.Inventory.Infrastructure.Persistence.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("WarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_warehouse_part_warehouse");
+                });
+
+            modelBuilder.Entity("SmartSpare.Modules.Inventory.Domain.Transfers.TransferOrder", b =>
+                {
+                    b.HasOne("SmartSpare.Modules.Inventory.Infrastructure.Persistence.WarehouseRoute", null)
+                        .WithMany()
+                        .HasForeignKey("FromWarehouseId", "ToWarehouseId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("fk_transfer_order_route");
+                });
+
+            modelBuilder.Entity("SmartSpare.Modules.Inventory.Domain.Transfers.TransferOrderLine", b =>
+                {
+                    b.HasOne("SmartSpare.Modules.Inventory.Infrastructure.Persistence.Part", null)
+                        .WithMany()
+                        .HasForeignKey("PartId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("fk_transfer_order_line_part");
+
+                    b.HasOne("SmartSpare.Modules.Inventory.Domain.Transfers.TransferOrder", null)
+                        .WithMany("Lines")
+                        .HasForeignKey("TransferOrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_transfer_order_line_order");
+                });
+
             modelBuilder.Entity("SmartSpare.Modules.Inventory.Infrastructure.Persistence.DemandException", b =>
                 {
-                    b.HasOne("SmartSpare.Modules.Inventory.Infrastructure.Persistence.StockMovement", null)
+                    b.HasOne("SmartSpare.Modules.Inventory.Domain.Stock.StockMovement", null)
                         .WithMany()
                         .HasForeignKey("MovementId", "MovementOccurredAt")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -1652,76 +1730,6 @@ namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Migrations
                         .HasConstraintName("fk_part_catalog_row_batch");
                 });
 
-            modelBuilder.Entity("SmartSpare.Modules.Inventory.Infrastructure.Persistence.StockBalance", b =>
-                {
-                    b.HasOne("SmartSpare.Modules.Inventory.Infrastructure.Persistence.WarehousePart", null)
-                        .WithMany()
-                        .HasForeignKey("WarehouseId", "PartId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_stock_balance_warehouse_part");
-                });
-
-            modelBuilder.Entity("SmartSpare.Modules.Inventory.Infrastructure.Persistence.StockReservation", b =>
-                {
-                    b.HasOne("SmartSpare.Modules.Inventory.Infrastructure.Persistence.TransferOrderLine", null)
-                        .WithMany()
-                        .HasForeignKey("TransferOrderLineId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .HasConstraintName("fk_stock_reservation_transfer_line");
-
-                    b.HasOne("SmartSpare.Modules.Inventory.Infrastructure.Persistence.StockBalance", null)
-                        .WithMany()
-                        .HasForeignKey("WarehouseId", "PartId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_stock_reservation_balance");
-                });
-
-            modelBuilder.Entity("SmartSpare.Modules.Inventory.Infrastructure.Persistence.TransferOrder", b =>
-                {
-                    b.HasOne("SmartSpare.Modules.Inventory.Infrastructure.Persistence.WarehouseRoute", null)
-                        .WithMany()
-                        .HasForeignKey("FromWarehouseId", "ToWarehouseId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired()
-                        .HasConstraintName("fk_transfer_order_route");
-                });
-
-            modelBuilder.Entity("SmartSpare.Modules.Inventory.Infrastructure.Persistence.TransferOrderLine", b =>
-                {
-                    b.HasOne("SmartSpare.Modules.Inventory.Infrastructure.Persistence.Part", null)
-                        .WithMany()
-                        .HasForeignKey("PartId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired()
-                        .HasConstraintName("fk_transfer_order_line_part");
-
-                    b.HasOne("SmartSpare.Modules.Inventory.Infrastructure.Persistence.TransferOrder", null)
-                        .WithMany()
-                        .HasForeignKey("TransferOrderId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_transfer_order_line_order");
-                });
-
-            modelBuilder.Entity("SmartSpare.Modules.Inventory.Infrastructure.Persistence.WarehousePart", b =>
-                {
-                    b.HasOne("SmartSpare.Modules.Inventory.Infrastructure.Persistence.Part", null)
-                        .WithMany()
-                        .HasForeignKey("PartId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_warehouse_part_part");
-
-                    b.HasOne("SmartSpare.Modules.Inventory.Infrastructure.Persistence.Warehouse", null)
-                        .WithMany()
-                        .HasForeignKey("WarehouseId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_warehouse_part_warehouse");
-                });
-
             modelBuilder.Entity("SmartSpare.Modules.Inventory.Infrastructure.Persistence.WarehouseRoute", b =>
                 {
                     b.HasOne("SmartSpare.Modules.Inventory.Infrastructure.Persistence.Warehouse", null)
@@ -1737,6 +1745,11 @@ namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_warehouse_route_to");
+                });
+
+            modelBuilder.Entity("SmartSpare.Modules.Inventory.Domain.Transfers.TransferOrder", b =>
+                {
+                    b.Navigation("Lines");
                 });
 #pragma warning restore 612, 618
         }

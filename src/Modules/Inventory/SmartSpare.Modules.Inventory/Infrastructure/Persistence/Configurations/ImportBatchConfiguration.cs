@@ -23,7 +23,7 @@ internal sealed class ImportBatchConfiguration : IEntityTypeConfiguration<Import
         builder.Property(x => x.Source).HasColumnName("source").HasColumnOrder(1);
         builder.Property(x => x.FileName).HasColumnName("file_name").HasColumnOrder(2).HasColumnType("character varying(255)");
         builder.Property(x => x.FileSha256).HasColumnName("file_sha256").HasColumnOrder(3).HasColumnType("character(64)").HasComment("SHA-256 of the file content; the same file cannot be imported twice.");
-        builder.Property(x => x.Status).HasColumnName("status").HasColumnOrder(4).HasDefaultValueSql("'uploaded'::raw.import_status").HasComment("Workflow status (state machine guarded by trigger).");
+        builder.Property(x => x.Status).HasColumnName("status").HasColumnOrder(4).HasDefaultValueSql("'uploaded'::raw.import_status").HasComment("Workflow status (state machine guarded by trigger).").ValueGeneratedNever();
         builder.Property(x => x.TotalRows).HasColumnName("total_rows").HasColumnOrder(5).HasColumnType("integer").HasDefaultValueSql("0");
         builder.Property(x => x.ValidRows).HasColumnName("valid_rows").HasColumnOrder(6).HasColumnType("integer");
         builder.Property(x => x.ErrorRows).HasColumnName("error_rows").HasColumnOrder(7).HasColumnType("integer");

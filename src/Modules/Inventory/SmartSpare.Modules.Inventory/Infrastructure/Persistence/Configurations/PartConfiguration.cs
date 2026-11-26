@@ -28,8 +28,8 @@ internal sealed class PartConfiguration : IEntityTypeConfiguration<Part>
         builder.Property(x => x.UomId).HasColumnName("uom_id").HasColumnOrder(5).HasColumnType("smallint").HasComment("Reference to ref.unit_of_measure.");
         builder.Property(x => x.WeightKg).HasColumnName("weight_kg").HasColumnOrder(6).HasColumnType("numeric(9,3)");
         builder.Property(x => x.UnitCost).HasColumnName("unit_cost").HasColumnOrder(7).HasColumnType("numeric(12,2)").HasComment("Standard (valuation) cost per unit, EUR. Money is numeric, never float.");
-        builder.Property(x => x.IsConditionBased).HasColumnName("is_condition_based").HasColumnOrder(8).HasColumnType("boolean").HasDefaultValueSql("false").HasComment("TRUE for parts replaced \"as required\" (air/cab filters, finding F6): demand only from the forecast stream.");
-        builder.Property(x => x.IsActive).HasColumnName("is_active").HasColumnOrder(9).HasColumnType("boolean").HasDefaultValueSql("true").HasComment("FALSE = deactivated, kept for history.");
+        builder.Property(x => x.IsConditionBased).HasColumnName("is_condition_based").HasColumnOrder(8).HasColumnType("boolean").HasDefaultValueSql("false").HasComment("TRUE for parts replaced \"as required\" (air/cab filters, finding F6): demand only from the forecast stream.").ValueGeneratedNever();
+        builder.Property(x => x.IsActive).HasColumnName("is_active").HasColumnOrder(9).HasColumnType("boolean").HasDefaultValueSql("true").HasComment("FALSE = deactivated, kept for history.").HasSentinel(true);
         builder.Property(x => x.CreatedAt).HasColumnName("created_at").HasColumnOrder(10).HasColumnType("timestamp with time zone").HasDefaultValueSql("now()").HasComment("Time the record was created.");
         builder.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasColumnOrder(11).HasColumnType("timestamp with time zone").HasDefaultValueSql("now()").HasComment("Time of the last change (maintained by trigger).");
 
