@@ -60,11 +60,12 @@ SELECT b.warehouse_id, b.part_id, b.reserved_qty FROM inventory.stock_balance b
 JOIN inventory.stock_reservation r ON r.warehouse_id = b.warehouse_id AND r.part_id = b.part_id
 JOIN fleet.service_order_line l ON l.id = r.service_order_line_id
 WHERE l.service_order_id = (SELECT service_order_id FROM t_so);
-UPDATE inventory.stock_reservation r SET expires_at = now() - interval '1 minute'
-FROM fleet.service_order_line l WHERE l.id = r.service_order_line_id AND l.service_order_id = (SELECT service_order_id FROM t_so);
-CALL inventory.expire_soft_reservations(NULL);
-SELECT pg_temp.ok((SELECT status = 'draft' FROM fleet.service_order WHERE id = (SELECT service_order_id FROM t_so)),
-                  'Expiry job: service order back to draft after its soft holds expired');
+-- The job passes its clock (TimeProvider); eight days later the 7-day holds are overdue. Fleet reopens the order on
+-- ServiceKitReservationExpired (C# tests, stage 6).
+CREATE TEMP TABLE t_expired AS SELECT * FROM inventory.expire_soft_reservations(now() + interval '8 days');
+SELECT pg_temp.ok((SELECT count(*) = 5 FROM t_expired e JOIN fleet.service_order_line l ON l.id = e.service_order_line_id
+                   WHERE l.service_order_id = (SELECT service_order_id FROM t_so)),
+                  'Expiry job: the 5 kit holds expire at the job clock and their lines are returned for the event');
 SELECT pg_temp.ok((SELECT bool_and(b.reserved_qty < t.reserved_qty) FROM t_before t
                    JOIN inventory.stock_balance b USING (warehouse_id, part_id)),
                   'Expiry job: reserved_qty released by trigger');

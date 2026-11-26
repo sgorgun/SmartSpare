@@ -40,4 +40,15 @@ public sealed class KitReservationTests
     {
         KitReservation.Reserved(Drafted(), [], Expires).FullyReserved.ShouldBeFalse();
     }
+
+    [Fact]
+    public void Expired_lines_are_published_sorted_in_chunks_of_at_most_500()
+    {
+        var events = KitExpiry.Events([.. Enumerable.Range(1, 1001).Select(i => (long)(1002 - i))], Expires);
+
+        events.Select(e => e.LineIds.Count).ShouldBe([500, 500, 1]);
+        events[0].LineIds[0].ShouldBe(1);
+        events.ShouldAllBe(e => e.ExpiredAt == Expires);
+        KitExpiry.Events([], Expires).ShouldBeEmpty();
+    }
 }

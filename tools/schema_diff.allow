@@ -132,3 +132,11 @@
 -^v_qty := least\(coalesce\(v_avail, 0\), v_line\.qty_required\);
 -^v_(all|avail|line|lines|qty) +(boolean := true|numeric|record|integer := 0);$
 +^GRANT UPDATE\(status\) ON TABLE fleet\.service_order TO app_write;$
+
+# PR 6g3 (STAGE_6_PLAN 5.5, MODULE_MAPPING X5, #12): the transitional procedure that also reopened fleet.service_order is
+# replaced by the module-local function inventory.expire_soft_reservations(timestamptz), which takes the job's clock,
+# locks the overdue holds in (part_id, warehouse_id) order and returns their lines for ServiceKitReservationExpired
+# (Inventory migration ServiceKitExpiry, db/sql/inventory/0008_service_kit_expiry.sql).
+-PROCEDURE inventory\.expire_soft_reservations\(
++FUNCTION inventory\.expire_soft_reservations\(p_now timestamp with time zone\)
++^-- Lock the overdue holds in \(part_id, warehouse_id\) order first

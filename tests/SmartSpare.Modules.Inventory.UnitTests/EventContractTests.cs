@@ -15,7 +15,7 @@ public sealed class EventContractTests
     private static readonly Guid Planner = Guid.Parse("6f1c2a9e-3b7d-4c11-9a52-0d8e4b7f3a21");
 
     public static TheoryData<string> EventTypes =>
-        [nameof(TransferApproved), nameof(TransferCancelled), nameof(TransferRejected), nameof(PartCatalogChanged), nameof(ServiceKitReserved)];
+        [nameof(TransferApproved), nameof(TransferCancelled), nameof(TransferRejected), nameof(PartCatalogChanged), nameof(ServiceKitReserved), nameof(ServiceKitReservationExpired)];
 
     [Fact]
     public void TransferApproved_round_trips_through_the_outbox_with_a_stable_shape()
@@ -85,6 +85,20 @@ public sealed class EventContractTests
         PropertyNames(json).ShouldBe(["id", "occurredAt", "serviceOrderId", "lines", "fullyReserved", "expiresAt", "actorId"], ignoreOrder: true);
         json.GetProperty("lines")[1].GetProperty("reservedQty").GetDecimal().ShouldBe(12.5m);
         reserved.ShouldBeAssignableTo<SmartSpare.SharedKernel.IActedByUser>()!.ActorId.ShouldBe(Planner);
+    }
+
+    [Fact]
+    public void ServiceKitReservationExpired_names_the_lines_and_the_time()
+    {
+        var sent = new ServiceKitReservationExpired([71, 72], At) { OccurredAt = At };
+
+        var (received, json) = RoundTrip(sent);
+
+        var expired = received.ShouldBeOfType<ServiceKitReservationExpired>();
+        expired.LineIds.ShouldBe([71L, 72L]);
+        expired.ExpiredAt.ShouldBe(At);
+        PropertyNames(json).ShouldBe(["id", "occurredAt", "lineIds", "expiredAt"], ignoreOrder: true);
+        ServiceKitReservationExpired.MaxLines.ShouldBe(500);
     }
 
     [Theory]

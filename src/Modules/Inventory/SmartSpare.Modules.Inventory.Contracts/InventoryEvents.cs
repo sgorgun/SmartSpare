@@ -72,3 +72,14 @@ public sealed record ServiceKitReserved(
     bool FullyReserved,
     DateTimeOffset ExpiresAt,
     Guid ActorId) : IntegrationEvent, IActedByUser;
+
+/// <summary>
+/// Soft holds of service kits expired after their 7 days (STAGE_6_PLAN 5.5, MODULE_MAPPING X5). Inventory's holds know the
+/// service order line, not the order, so the event names the lines; Fleet sets their <c>qty_reserved</c> copy to 0 and
+/// returns an order that was parts reserved to draft. Published by the expiry job from PR 6g3, in chunks of at most
+/// <see cref="MaxLines"/> lines.
+/// </summary>
+public sealed record ServiceKitReservationExpired(IReadOnlyList<long> LineIds, DateTimeOffset ExpiredAt) : IntegrationEvent
+{
+    public const int MaxLines = 500;
+}
