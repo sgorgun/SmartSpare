@@ -3,7 +3,8 @@
 -- Statements copied verbatim from V001 (schema comment), V006, V011, V012 and V015.
 -- uq_customer_erp_ref_hash is created here: it is a UNIQUE constraint on a nullable column, which
 -- EF cannot model as an alternate key. fleet.v_machine_maintenance_status is module-local since stage 6 (X10);
--- fleet.v_service_kit_shortage still reads inventory and is created by the last Reporting migration until PR 6g (X9).
+-- fleet.v_service_kit_shortage too (X9), created in 0005 after its column. The transitional draft, completion and
+-- cancellation keep Fleet's copy service_order_line.qty_reserved current until the event flow replaces them (6g2, 6h).
 -- =============================================================================
 
 COMMENT ON SCHEMA fleet       IS 'Core layer / Fleet & Maintenance module: machines, engine hours, maintenance plans, service orders.';
@@ -179,6 +180,7 @@ BEGIN
         IF v_qty > 0 THEN
             INSERT INTO inventory.stock_reservation (warehouse_id, part_id, quantity, status, expires_at, service_order_line_id, created_by)
             VALUES (v_wh, v_line.part_id, v_qty, 'soft', now() + interval '7 days', v_line.id, v_user);
+            UPDATE fleet.service_order_line SET qty_reserved = v_qty WHERE id = v_line.id;   -- Fleet's copy (stage 6)
         END IF;
         IF v_qty < v_line.qty_required THEN v_all := false; END IF;   -- shortage -> visible in fleet.v_service_kit_shortage
     END LOOP;
@@ -255,7 +257,7 @@ BEGIN
         INSERT INTO inventory.stock_movement (occurred_at, warehouse_id, part_id, movement_type_code, quantity,
                                               unit_cost, service_order_line_id, created_by)
         VALUES (now(), v_so.warehouse_id, v_line.part_id, 'ISSUE_SERVICE', v_line.qty, v_line.unit_cost, v_line.id, v_user);
-        UPDATE fleet.service_order_line SET qty_issued = qty_required WHERE id = v_line.id;
+        UPDATE fleet.service_order_line SET qty_issued = qty_required, qty_reserved = 0 WHERE id = v_line.id;
     END LOOP;
 
     UPDATE fleet.service_order
@@ -274,6 +276,7 @@ BEGIN
     UPDATE inventory.stock_reservation r SET status = 'released'
       FROM fleet.service_order_line l
      WHERE l.service_order_id = p_service_order_id AND r.service_order_line_id = l.id AND r.status IN ('soft', 'firm');
+    UPDATE fleet.service_order_line SET qty_reserved = 0 WHERE service_order_id = p_service_order_id;
     UPDATE fleet.service_order SET status = 'cancelled', cancel_reason = p_reason WHERE id = p_service_order_id;
 END $$;
 

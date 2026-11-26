@@ -8,7 +8,7 @@
 #   1. builds the database with SmartSpare.MigrationRunner (bootstrap + every EF context);
 #   2. loads the demo dataset db/testdata/T001 (psql in the container) and gives the demo users a
 #      throw-away password with `MigrationRunner set-demo-passwords` (from the host, it needs .NET);
-#   3. runs the SQL suite db/tests/run_tests.sh and requires all 106 assertions to pass;
+#   3. runs the SQL suite db/tests/run_tests.sh and requires all 117 assertions to pass;
 #   4. runs db/tests/concurrency_test.sh (row lock wait, SS200, no negative stock);
 #   5. requires mart.v_data_quality to report 0 failed rows in every check and
 #      util.v_privilege_findings to return no rows.
@@ -23,7 +23,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PARTS="${1:-2000}"
-EXPECTED_ASSERTIONS=106
+EXPECTED_ASSERTIONS=117
 IMAGE="postgres:17"
 NAME="ss-verify-$$"
 PORT="${PORT:-55434}"
