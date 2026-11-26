@@ -1,0 +1,38 @@
+name: Grafana Cloud
+
+# STAGE_4_PLAN 6.4, PR 4j: the Terraform in infra/grafana that provisions the dashboards, alert rules and contact point
+# of infra/observability to Grafana Cloud. Every pull request that changes them checks the format, validates the
+# configuration and plans it against a mock provider (infra/grafana/tests), which needs no stack and no credentials.
+# Applying is done with tools/grafana-cloud.sh (infra/grafana/README.md); remote state comes with the first
+# deployment (#85).
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'infra/grafana/**'
+      - 'infra/observability/dashboards/**'
+      - 'infra/observability/grafana/provisioning/alerting/**'
+      - '.github/workflows/grafana.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  terraform:
+    name: Terraform check
+    runs-on: ubuntu-latest
+    env:
+      TERRAFORM: docker run --rm -v ${{ github.workspace }}:/repo -w /repo/infra/grafana hashicorp/terraform:1.17.2
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Format
+        run: $TERRAFORM fmt -check -recursive -diff
+
+      - name: Init and validate
+        run: |
+          $TERRAFORM init -backend=false -input=false
+          $TERRAFORM validate
+
+      - name: Plan against a mock provider
+        run: $TERRAFORM test
