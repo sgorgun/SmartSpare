@@ -10,6 +10,7 @@ using SmartSpare.Infrastructure.Persistence;
 using SmartSpare.Modules.Inventory.Contracts;
 using SmartSpare.Modules.Inventory.Infrastructure.Persistence;
 using SmartSpare.Modules.Inventory.Features.GetPart;
+using SmartSpare.Modules.Inventory.Features.Imports;
 using SmartSpare.Modules.Inventory.Features.ListWarehouses;
 using SmartSpare.Modules.Inventory.Features.Ping;
 using SmartSpare.Modules.Inventory.Features.SearchParts;
@@ -34,6 +35,7 @@ public sealed class InventoryModuleInstaller : IModuleInstaller
         services.AddScoped<IWarehouseQueries, WarehouseQueries>();
         services.AddScoped<TransferAccess>();
         services.AddScoped<TransferDetailsReader>();
+        services.AddImportRateLimit();
         InventoryDatabase.Instance.AddTo(services, assembly, configuration.GetConnectionString(PersistenceRegistration.ConnectionStringName), InventoryDbContext.HistorySchema);
     }
 
@@ -54,6 +56,7 @@ public sealed class InventoryModuleInstaller : IModuleInstaller
         AdjustStockEndpoint.Map(v1);
         TransferQueryEndpoints.Map(v1);
         TransferCommandEndpoints.Map(v1);
+        ImportEndpoints.Map(v1);
     }
 
     public void MapInternalEndpoints(IEndpointRouteBuilder endpoints) => WarehouseQueriesEndpoint.Map(endpoints);

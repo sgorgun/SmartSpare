@@ -25,6 +25,7 @@ public static class AppPolicies
     public const string DecideRecommendation = nameof(DecideRecommendation);
     public const string ReadAudit = nameof(ReadAudit);
     public const string ReadInventory = nameof(ReadInventory);
+    public const string ImportData = nameof(ImportData);
 
     /// <summary>The roles each policy allows: the table of STAGE_3_PLAN section 3.2.</summary>
     public static IReadOnlyDictionary<string, IReadOnlyList<string>> Roles { get; } = new Dictionary<string, IReadOnlyList<string>>
@@ -40,6 +41,10 @@ public static class AppPolicies
         [CancelPurchaseOrder] = [AppRoles.BrandManager, AppRoles.Sponsor, AppRoles.Administrator],
         [DecideRecommendation] = [AppRoles.BrandManager, AppRoles.InventoryPlanner],
         [ReadAudit] = [AppRoles.Sponsor, AppRoles.Administrator],
+
+        // CSV import of the part catalogue and the demand history (STAGE_5_PLAN 3.2): a planning and support task.
+        // staging.process_batch has no role check of its own, so this policy is the control.
+        [ImportData] = [AppRoles.Administrator, AppRoles.InventoryPlanner],
 
         // Read policies (stages 5–9) front no SQL function and are never brand-scoped (section 3.3 rule 1). Every role
         // works with parts and stock: planners and managers plan, keepers move, engineers fit parts, sponsors approve

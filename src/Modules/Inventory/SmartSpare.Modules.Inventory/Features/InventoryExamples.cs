@@ -41,6 +41,14 @@ internal static class InventoryExamples
         CancelReason: null,
         AllowedActions: [TransferActions.Approve, TransferActions.Cancel]);
 
+    public static ImportBatchDetails ImportDetails { get; } = new(
+        new ImportBatchResponse(
+            Id: 58, Source: ImportSources.PartCatalog, FileName: "jd-catalogue-2026-11.csv", Status: ImportStatuses.Loaded, TotalRows: 1200,
+            ValidRows: 1196, ErrorRows: 4, LoadedRows: 1196, UploadedBy: Guid.Parse("6f1c2a9e-3b7d-4c11-9a52-0d8e4b7f3a21"),
+            UploadedAt: At, ProcessedAt: At.AddSeconds(3), Message: "1200 rows: 1196 loaded/updated, 4 invalid, 0 duplicates skipped"),
+        Errors: [new ImportRowError(17, "unit_cost", "TYPE", "Invalid unit cost \"12,5O\"")],
+        ErrorCount: 4);
+
     /// <summary>The problem body an expected error produces, as <c>ResultHttpExtensions.ToProblem</c> writes it.</summary>
     public static IReadOnlyDictionary<string, object?> Problem(Error error)
     {

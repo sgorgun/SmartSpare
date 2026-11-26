@@ -95,6 +95,8 @@ operations are described in full:
 | `inventory` | `POST /api/v1/inventory/transfers/{id}/approve` | `ApproveTransfer` + brand scope | 200; 401; 403 `Inventory.OutOfBrandScope`; 404; 409 `SS200`, `SS201`, `SS300` |
 | `inventory` | `POST /api/v1/inventory/transfers/{id}/cancel` with a reason | `CancelTransfer` + brand scope | 200; 400; 401; 403; 404; 409 `SS300` |
 | `inventory` | `POST /api/v1/inventory/transfers/{id}/dispatch` and `/receive` | `MoveStock` | 200; 401; 403 `SS302`; 404; 409 `SS300` |
+| `inventory` | `POST /api/v1/inventory/imports` (multipart `source`, `file`): CSV import raw → staging → core | `ImportData`, 5 a minute | 201 `ImportBatchDetails` (status `loaded` or `failed`); 400 `Inventory.ImportHeader` and others; 401; 403; 409 `Inventory.ImportDuplicate`; 429 |
+| `inventory` | `GET /api/v1/inventory/imports` and `/imports/{id}`: batches and their row errors | `ImportData` | 200; 401; 403; 404 `Inventory.ImportNotFound` |
 
 `ReadInventory` admits every role but not a user without one. Reads are never brand-scoped (STAGE_3_PLAN §3.3). The
 other five module documents fill as stages 5–9 add `/api/v1` endpoints, each with its summary, response types and
