@@ -26,8 +26,18 @@ internal static class FleetErrors
     public static readonly Error ReadingOutOfOrder = Error.BusinessRule(
         "SS103", "The reading time must be after the last reading.");
 
-    public static readonly Error ReadingInFuture = Error.Validation(
-        "Fleet.ReadingInFuture", "The reading time cannot be in the future.");
+    /// <summary>
+    /// SS104 (new in stage 6): the reading time lies in the future beyond the clock tolerance. The database guards the
+    /// same rule with <c>ck_engine_hours_reading_not_future</c>, which <c>DatabaseErrorMapper</c> maps to SS104.
+    /// </summary>
+    public static readonly Error ReadingInFuture = Error.BusinessRule(
+        "SS104", "The reading time cannot be in the future.");
+
+    public static readonly Error ReadingConflict = Error.Conflict(
+        "Fleet.ReadingConflict", "A reading with a different value already exists for this machine at this time.");
+
+    public static readonly Error InvalidReadingSource = Error.Validation(
+        "Fleet.InvalidReadingSource", "The reading source is manual, telematics or serviceVisit.");
 
     public static readonly Error NoLines = Error.Validation(
         "Fleet.NoLines", "A service order needs at least one part line.");

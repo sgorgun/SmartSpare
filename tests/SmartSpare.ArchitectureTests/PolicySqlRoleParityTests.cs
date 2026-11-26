@@ -28,6 +28,8 @@ public sealed partial class PolicySqlRoleParityTests
 
     private static readonly Lazy<IReadOnlyDictionary<string, IReadOnlySet<string>>> SqlRoles = new(ReadSqlRoleChecks);
 
+    private static readonly Lazy<IReadOnlyDictionary<string, IReadOnlySet<string>>> SqlExecuteGrants = new(ReadExecuteGrants);
+
     public static TheoryData<string, string> MappedFunctions()
     {
         var data = new TheoryData<string, string>();
@@ -54,6 +56,22 @@ public sealed partial class PolicySqlRoleParityTests
         var api = AppPolicies.Roles[policy].Order(StringComparer.Ordinal).ToList();
 
         api.ShouldBe(sql, $"policy {policy} [{string.Join(", ", api)}] differs from {function} [{string.Join(", ", sql)}]");
+    }
+
+    /// <summary>
+    /// The other half of the agreement between a policy and its SQL function (stage 6, #118): the API reaches the function
+    /// only if its database role may execute it. A fronted function is granted EXECUTE to <c>app_write</c>, the role of the
+    /// API and service logins; the Administration functions to <c>app_admin</c>, which those logins switch to for one
+    /// administrative transaction (STAGE_5_PLAN section 9). So a policy never fronts a function the API cannot call.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(MappedFunctions))]
+    public void The_api_role_may_execute_every_fronted_function(string policy, string function)
+    {
+        var role = policy == AppPolicies.Administration ? "app_admin" : "app_write";
+
+        SqlExecuteGrants.Value.ShouldContainKey(function, $"{function} (policy {policy}) has no GRANT EXECUTE in db/sql/");
+        SqlExecuteGrants.Value[function].ShouldContain(role, $"{function} (policy {policy}) is not executable by {role}");
     }
 
     [Fact]
@@ -109,6 +127,36 @@ public sealed partial class PolicySqlRoleParityTests
 
         return result;
     }
+
+    /// <summary>Function name → roles granted EXECUTE on it, from every <c>GRANT EXECUTE ON FUNCTION ... TO ...;</c> in db/sql/.</summary>
+    private static Dictionary<string, IReadOnlySet<string>> ReadExecuteGrants()
+    {
+        var result = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+        foreach (var file in Directory.EnumerateFiles(Path.Combine(Solution.RootDirectory, "db", "sql"), "*.sql", SearchOption.AllDirectories))
+        {
+            foreach (Match grant in GrantExecute().Matches(File.ReadAllText(file)))
+            {
+                var roles = grant.Groups["roles"].Value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+                foreach (Match function in FunctionName().Matches(grant.Groups["functions"].Value))
+                {
+                    if (!result.TryGetValue(function.Groups["name"].Value, out var granted))
+                    {
+                        result[function.Groups["name"].Value] = granted = new HashSet<string>(StringComparer.Ordinal);
+                    }
+
+                    granted.UnionWith(roles);
+                }
+            }
+        }
+
+        return result.ToDictionary(r => r.Key, r => (IReadOnlySet<string>)r.Value, StringComparer.Ordinal);
+    }
+
+    [GeneratedRegex(@"GRANT\s+EXECUTE\s+ON\s+FUNCTION\s+(?<functions>.+?)\s+TO\s+(?<roles>[a-z_,\s]+?)\s*;", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
+    private static partial Regex GrantExecute();
+
+    [GeneratedRegex(@"(?<name>[a-z_]+\.[a-z_]+)\s*\(")]
+    private static partial Regex FunctionName();
 
     [GeneratedRegex(@"CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+(?<name>[a-z_]+\.[a-z_]+)\s*\(", RegexOptions.IgnoreCase)]
     private static partial Regex CreateFunction();

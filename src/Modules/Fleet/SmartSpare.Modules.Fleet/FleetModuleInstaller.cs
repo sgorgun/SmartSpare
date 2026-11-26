@@ -10,6 +10,7 @@ using SmartSpare.Infrastructure.Persistence;
 using SmartSpare.Modules.Fleet.Contracts;
 using SmartSpare.Modules.Fleet.Features.Machines;
 using SmartSpare.Modules.Fleet.Features.Maintenance;
+using SmartSpare.Modules.Fleet.Features.Readings;
 using SmartSpare.Modules.Fleet.Infrastructure.Persistence;
 using SmartSpare.Modules.Fleet.Infrastructure.Queries;
 using SmartSpare.Modules.Fleet.Features.Ping;
@@ -29,6 +30,7 @@ public sealed class FleetModuleInstaller : IModuleInstaller
         services.AddHandlersFromAssembly(assembly);
         services.TryAddSingleton(TimeProvider.System);
         services.AddScoped<FleetDueReader>();
+        services.AddScoped<ReadingStore>();
         FleetDatabase.Instance.AddTo(services, assembly, configuration.GetConnectionString(PersistenceRegistration.ConnectionStringName), FleetDbContext.HistorySchema);
     }
 
@@ -41,5 +43,6 @@ public sealed class FleetModuleInstaller : IModuleInstaller
         var v1 = endpoints.MapGroup($"/api/v1/{Name}").WithTags("Fleet");
         MachineQueryEndpoints.Map(v1);
         MaintenanceQueryEndpoints.Map(v1);
+        RecordReadingEndpoint.Map(v1);
     }
 }

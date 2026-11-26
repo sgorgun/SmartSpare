@@ -35,7 +35,7 @@ public static class DatabaseErrorMapper
         // Business rules: the message is written for the user by the raising function.
         ErrorType? businessType = state switch
         {
-            "SS100" or "SS101" or "SS102" or "SS103" => ErrorType.BusinessRule,   // engine hours (UC02)
+            "SS100" or "SS101" or "SS102" or "SS103" or "SS104" => ErrorType.BusinessRule,   // engine hours (UC02)
             "SS200" or "SS201" => ErrorType.Conflict,                             // stock (NFR03, US10)
             "SS300" => ErrorType.Conflict,                                        // state machines
             "SS301" or "SS302" => ErrorType.Forbidden,                            // role / warehouse in the database
@@ -45,6 +45,12 @@ public static class DatabaseErrorMapper
         if (businessType is { } type)
         {
             return new Error(state, exception.MessageText, type);
+        }
+
+        // A reading time in the future is a business rule (SS104) that only a CHECK guards in the database.
+        if (state == PostgresErrorCodes.CheckViolation && exception.ConstraintName == FutureReadingConstraint)
+        {
+            return Error.BusinessRule("SS104", "The reading time cannot be in the future.");
         }
 
         // Constraint and concurrency errors: generic description; the constraint name helps support.
@@ -68,6 +74,9 @@ public static class DatabaseErrorMapper
             _ => null,
         };
     }
+
+    /// <summary>The CHECK of <c>fleet.engine_hours_reading</c> that refuses readings in the future (SS104).</summary>
+    public const string FutureReadingConstraint = "ck_engine_hours_reading_not_future";
 
     private static PostgresException? FindPostgresException(Exception exception)
     {

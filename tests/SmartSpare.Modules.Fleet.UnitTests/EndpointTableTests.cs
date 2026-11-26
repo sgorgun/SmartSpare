@@ -18,7 +18,7 @@ public sealed class EndpointTableTests
     public static TheoryData<string> VersionedRoutes => [.. Endpoints.Select(Describe)];
 
     [Fact]
-    public void The_read_api_of_stage_6_is_mapped() =>
+    public void The_api_of_stage_6_is_mapped() =>
         Endpoints.Select(Describe).ShouldBe(
         [
             "GET /api/v1/fleet/machines",
@@ -26,6 +26,7 @@ public sealed class EndpointTableTests
             "GET /api/v1/fleet/machines/{id:long}/readings",
             "GET /api/v1/fleet/maintenance/due",
             "GET /api/v1/fleet/maintenance-plans",
+            "POST /api/v1/fleet/machines/{id:long}/readings",
         ], ignoreOrder: true);
 
     [Theory]
@@ -37,7 +38,8 @@ public sealed class EndpointTableTests
         endpoint.Metadata.GetMetadata<IEndpointNameMetadata>().ShouldNotBeNull(route);
         endpoint.Metadata.GetMetadata<IEndpointSummaryMetadata>()!.Summary.ShouldNotBeNullOrWhiteSpace(route);
         endpoint.Metadata.GetMetadata<IEndpointDescriptionMetadata>()!.Description.ShouldNotBeNullOrWhiteSpace(route);
-        endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>().ShouldHaveSingleItem().Policy.ShouldBe(AppPolicies.ReadFleet, route);
+        var expected = route.StartsWith("GET ", StringComparison.Ordinal) ? AppPolicies.ReadFleet : AppPolicies.RecordServiceWork;
+        endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>().ShouldHaveSingleItem().Policy.ShouldBe(expected, route);
         endpoint.Metadata.GetOrderedMetadata<IProducesResponseTypeMetadata>().Select(p => p.StatusCode)
             .ShouldContain(StatusCodes.Status401Unauthorized, route);
     }

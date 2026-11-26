@@ -129,7 +129,7 @@ examples (#54).
 | `SS-AUTH-004` | 403 | Signed in, but the policy or brand scope doesn't allow it |
 | `SS-AUTH-005` | 429 | Too many attempts; see `Retry-After` |
 | `SS-SYS-001` | 503 | A service the request needs didn't answer (gateway topology) |
-| `SS100`–`SS402` | 400–422 | Business rules enforced by the database, mapped by `DatabaseErrorMapper` |
+| `SS100`–`SS402` | 400–422 | Business rules enforced by the database, mapped by `DatabaseErrorMapper`; the full list is in [DATABASE_DESIGN.md §6.3](../database/DATABASE_DESIGN.md#63-triggers-functions-and-procedures-business-logic) (SS104, a reading in the future, since stage 6) |
 | `<Module>.<Error>` | 400–422 | Module errors from `Result<T>`, for example `Identity.InvalidCredentials` |
 
 The codes are defined in [`ProblemCodes`](../../src/Web/SmartSpare.ApiContracts/ProblemCodes.cs) and the module error classes; `ProducesProblem` declares them per endpoint.

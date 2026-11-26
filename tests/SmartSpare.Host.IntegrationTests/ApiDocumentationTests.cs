@@ -147,6 +147,7 @@ public sealed partial class ApiDocumentationTests : IAsyncLifetime
             ("/api/v1/fleet/machines/{id}/readings", "get", ["200", "400", "401", "403", "404"]),
             ("/api/v1/fleet/maintenance/due", "get", ["200", "400", "401", "403"]),
             ("/api/v1/fleet/maintenance-plans", "get", ["200", "401", "403"]),
+            ("/api/v1/fleet/machines/{id}/readings", "post", ["201", "200", "400", "401", "403", "404", "409", "422"]),
         })
         {
             var operation = paths.GetProperty(path).GetProperty(method);
@@ -160,10 +161,21 @@ public sealed partial class ApiDocumentationTests : IAsyncLifetime
                 parameters.EnumerateArray().ShouldAllBe(
                     p => !string.IsNullOrWhiteSpace(p.GetProperty("description").GetString()), $"{path}: every parameter is described");
             }
+
+            if (operation.TryGetProperty("requestBody", out var body))
+            {
+                ExampleOf(body).ValueKind.ShouldNotBe(JsonValueKind.Undefined, $"{path} has a request example");
+            }
+        }
+
+        var record = paths.GetProperty("/api/v1/fleet/machines/{id}/readings").GetProperty("post").GetProperty("responses");
+        foreach (var (status, code) in new[] { ("403", "SS-AUTH-004"), ("404", "Fleet.MachineNotFound"), ("409", "Fleet.ReadingConflict"), ("422", "SS100") })
+        {
+            ExampleOf(record.GetProperty(status)).GetProperty("code").GetString().ShouldBe(code, $"the {status} example shows its code");
         }
 
         var schemas = root.GetProperty("components").GetProperty("schemas");
-        foreach (var name in new[] { "MachineSummary", "MachineDetails", "MaintenancePlanDue", "ReadingRow", "DueMaintenanceRow", "MaintenancePlanResponse", "KitPart" })
+        foreach (var name in new[] { "RecordReadingRequest", "RecordReadingResponse", "DraftedServiceOrder", "MachineSummary", "MachineDetails", "MaintenancePlanDue", "ReadingRow", "DueMaintenanceRow", "MaintenancePlanResponse", "KitPart" })
         {
             schemas.GetProperty(name).GetProperty("properties").EnumerateObject()
                 .Where(p => !p.Value.TryGetProperty("description", out _)).Select(p => p.Name).ShouldBeEmpty($"every field of {name} is described");
