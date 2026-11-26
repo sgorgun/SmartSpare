@@ -598,6 +598,14 @@ namespace SmartSpare.Modules.Fleet.Infrastructure.Persistence.Migrations
                         .HasColumnOrder(3)
                         .HasComment("Quantity in the unit of measure of the part.");
 
+                    b.Property<decimal>("QtyReserved")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("numeric(12,3)")
+                        .HasColumnName("qty_reserved")
+                        .HasColumnOrder(5)
+                        .HasDefaultValueSql("0")
+                        .HasComment("Fleet's copy of the quantity Inventory holds for the line (ServiceKitReserved; MODULE_MAPPING 3.5).");
+
                     b.Property<long>("ServiceOrderId")
                         .HasColumnType("bigint")
                         .HasColumnName("service_order_id")
@@ -620,6 +628,8 @@ namespace SmartSpare.Modules.Fleet.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("ck_service_order_line_issued", "((qty_issued >= (0)::numeric) AND (qty_issued <= qty_required))");
 
                             t.HasCheckConstraint("ck_service_order_line_required", "(qty_required > (0)::numeric)");
+
+                            t.HasCheckConstraint("ck_service_order_line_reserved", "((qty_reserved >= (0)::numeric) AND (qty_reserved <= qty_required))");
                         });
                 });
 

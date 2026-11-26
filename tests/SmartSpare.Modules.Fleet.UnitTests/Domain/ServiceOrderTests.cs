@@ -45,6 +45,7 @@ public sealed class ServiceOrderTests
         order.CreatedBy.ShouldBe(Engineer);
         order.Lines.Select(l => (l.PartId, l.QtyRequired, l.QtyIssued)).ShouldBe([(101L, 1m, 0m), (102L, 1m, 0m), (103L, 30m, 0m)]);
         order.Lines.ShouldAllBe(l => l.QtyOpen == l.QtyRequired);
+        order.Lines.ShouldAllBe(l => l.QtyReserved == 0 && l.QtyMissing == l.QtyRequired, "nothing is held until Inventory reserves the kit");
     }
 
     [Theory]

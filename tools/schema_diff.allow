@@ -94,3 +94,27 @@
 # home hub id instead of its code (created in db/sql/fleet/0001_fleet_logic.sql, no longer in the Reporting script).
 -CREATE VIEW fleet\.v_machine_maintenance_status AS .* w\.code AS home_warehouse_code
 +CREATE VIEW fleet\.v_machine_maintenance_status AS .* c\.customer_code, m\.home_warehouse_id, oc\.code AS operating_condition_code
+
+# PR 6g1 (STAGE_6_PLAN 5.3 and 5.7, MODULE_MAPPING X6 and X9, #12): Fleet's copy service_order_line.qty_reserved
+# (0 <= reserved <= required) kept current by the transitional draft, completion and cancellation; the module-local
+# fleet.v_service_kit_shortage reads it and fleet.part_snapshot (Fleet migration ServiceOrderLineReservedQty,
+# db/sql/fleet/0005_service_kit_shortage.sql); inventory.reserve_service_kit, partial and idempotent per line, balances
+# locked in (part_id, warehouse_id) order (Inventory migration ServiceKitReservation, db/sql/inventory/0007).
+-CREATE TABLE fleet\.service_order_line \(
+-CREATE VIEW fleet\.v_service_kit_shortage AS .*w\.code AS warehouse_code
+-^UPDATE fleet\.service_order_line SET qty_issued = qty_required WHERE id = v_line\.id;$
++qty_reserved
++reserve_service_kit
++^-- Lock the kit's balances in a deterministic order before any write\. PERFORM 1 FROM inventory\.stock_balance b
++^BEGIN IF cardinality\(p_line_ids\) IS DISTINCT FROM cardinality\(p_part_ids\)
++^IF p_expires_at IS NULL OR p_expires_at <= now\(\) THEN
++^FOR v_line IN SELECT k\.line_id, k\.part_id, k\.quantity FROM unnest\(p_line_ids, p_part_ids, p_quantities\)
++^IF v_seen THEN
++^IF v_qty > 0 THEN INSERT INTO inventory\.stock_reservation .*p_expires_at, v_line\.line_id, v_user\)
++^SELECT b\.available_qty INTO v_avail FROM inventory\.stock_balance b WHERE b\.warehouse_id = p_warehouse_id AND b\.part_id = v_line\.part_id;$
++^(CONTINUE|RETURN NEXT);$
++^service_order_line_id := v_line\.line_id;$
++^reserved_qty := greatest\(v_qty, 0\);$
++^v_qty := least\(coalesce\(v_avail, 0\), v_line\.quantity\);$
++^v_(avail|held|qty) +numeric;$
++^v_seen +boolean;$

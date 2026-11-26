@@ -36,6 +36,16 @@ internal sealed class ServiceOrderLine : Entity<long>
 
     public decimal QtyIssued { get; private set; }
 
+    /// <summary>
+    /// Fleet's copy of the quantity Inventory holds for this line (MODULE_MAPPING 3.5): written by the transitional draft
+    /// until PR 6g2, then from <c>ServiceKitReserved</c>. Never above the required quantity
+    /// (<c>ck_service_order_line_reserved</c>).
+    /// </summary>
+    public decimal QtyReserved { get; private set; }
+
+    /// <summary>What the kit still lacks: required minus issued minus reserved.</summary>
+    public decimal QtyMissing => Math.Max(0, QtyRequired - QtyIssued - QtyReserved);
+
     /// <summary>What is still to be issued.</summary>
     public decimal QtyOpen => QtyRequired - QtyIssued;
 

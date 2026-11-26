@@ -37,6 +37,9 @@ SELECT pg_temp.ok((SELECT count(*) = 5 AND bool_and(r.status = 'soft') AND bool_
                   'UC02: 5 kit parts soft-reserved for 7 days (oil filter, fuel filter, hydraulic filter, belt, oil)');
 SELECT pg_temp.ok((SELECT count(*) = 0 FROM fleet.log_engine_hours((SELECT id FROM t_m), 512.5, now() - interval '20 minutes')),
                   'Idempotency: another reading does not draft the 500 h service twice');
+SELECT pg_temp.ok((SELECT bool_and(l.qty_reserved = l.qty_required) FROM fleet.service_order_line l
+                   WHERE l.service_order_id = (SELECT service_order_id FROM t_so)),
+                  'Fleet copy: qty_reserved of every UC02 kit line equals the soft hold (stage 6)');
 
 -- Reservation expiry job
 CREATE TEMP TABLE t_before AS
@@ -101,6 +104,55 @@ SELECT (SELECT max(id) FROM inventory.transfer_order), part_id,
 FROM t_p;
 SELECT pg_temp.expect_error($$SELECT inventory.approve_transfer((SELECT max(id) FROM inventory.transfer_order))$$, 'SS201',
                             'US10: donor may not give away its safety stock');
+
+-- ---------------------------------------------------------------------------
+-- Service kits (stage 6, #12): inventory.reserve_service_kit, the stock invariant, Fleet's qty_reserved copy
+-- ---------------------------------------------------------------------------
+SELECT pg_temp.act_as('tomas.radzevicius');
+CREATE TEMP TABLE t_kit AS
+SELECT b.warehouse_id, b.part_id, b.available_qty AS avail, b.on_hand_qty AS on_hand
+FROM inventory.stock_balance b JOIN catalog.part p ON p.id = b.part_id
+WHERE b.warehouse_id = (SELECT id FROM inventory.warehouse WHERE code = 'KLP') AND p.oem_part_number = 'CP-4821';
+SELECT pg_temp.ok((SELECT avail >= 1 FROM t_kit), 'Kit test: the part has available stock at KLP');
+
+CREATE TEMP TABLE t_res AS
+SELECT * FROM inventory.reserve_service_kit((SELECT warehouse_id FROM t_kit), ARRAY[9100000001::bigint],
+                                            ARRAY[(SELECT part_id FROM t_kit)], ARRAY[(SELECT avail + 5 FROM t_kit)],
+                                            now() + interval '7 days');
+SELECT pg_temp.ok((SELECT reserved_qty = (SELECT avail FROM t_kit) FROM t_res),
+                  'Partial reservation: a short kit line holds what is available, not more');
+SELECT pg_temp.ok((SELECT available_qty = 0 AND reserved_qty <= on_hand_qty FROM inventory.stock_balance
+                   WHERE (warehouse_id, part_id) = (SELECT warehouse_id, part_id FROM t_kit)),
+                  'Invariant: available = on_hand - reserved reaches 0, reserved stays <= on_hand');
+CREATE TEMP TABLE t_res2 AS
+SELECT * FROM inventory.reserve_service_kit((SELECT warehouse_id FROM t_kit), ARRAY[9100000001::bigint],
+                                            ARRAY[(SELECT part_id FROM t_kit)], ARRAY[(SELECT avail + 5 FROM t_kit)],
+                                            now() + interval '7 days');
+SELECT pg_temp.ok((SELECT reserved_qty = (SELECT avail FROM t_kit) FROM t_res2)
+                  AND (SELECT count(*) = 1 FROM inventory.stock_reservation WHERE service_order_line_id = 9100000001),
+                  'Idempotent per line: reserving the same line again adds no second hold');
+SELECT pg_temp.ok((SELECT reserved_qty = 0 FROM inventory.reserve_service_kit((SELECT warehouse_id FROM t_kit), ARRAY[9100000002::bigint],
+                                            ARRAY[(SELECT part_id FROM t_kit)], ARRAY[1::numeric], now() + interval '7 days')),
+                  'Nothing available: the line is reported with 0 reserved');
+SELECT pg_temp.expect_error($$SELECT * FROM inventory.reserve_service_kit(1::smallint, ARRAY[9100000003::bigint], ARRAY[1::bigint],
+                                                                         ARRAY[1::numeric], now() - interval '1 minute')$$,
+                            '22023', 'A soft hold needs an expiry in the future');
+
+-- Transfers use available = on_hand - reserved: on hand is there, but the kit holds it.
+INSERT INTO inventory.transfer_order (from_warehouse_id, to_warehouse_id, requested_by, is_urgent)
+SELECT f.id, t.id, util.current_app_user(), true FROM inventory.warehouse f, inventory.warehouse t WHERE f.code = 'KLP' AND t.code = 'PNV';
+INSERT INTO inventory.transfer_order_line (transfer_order_id, part_id, quantity)
+SELECT (SELECT max(id) FROM inventory.transfer_order), part_id, 1 FROM t_kit;
+SELECT pg_temp.ok((SELECT on_hand_qty >= 1 FROM inventory.stock_balance WHERE (warehouse_id, part_id) = (SELECT warehouse_id, part_id FROM t_kit)),
+                  'Kit test: one unit is still on hand');
+SELECT pg_temp.expect_error($$SELECT inventory.approve_transfer((SELECT max(id) FROM inventory.transfer_order))$$, 'SS200',
+                            'Transfers use available stock: a unit held for a service kit cannot be transferred');
+SELECT pg_temp.expect_error($$UPDATE inventory.stock_balance SET reserved_qty = -1
+                              WHERE (warehouse_id, part_id) = (SELECT warehouse_id, part_id FROM t_kit)$$,
+                            '23514', 'NFR03: reserved quantity is never negative');
+SELECT pg_temp.expect_error($$UPDATE fleet.service_order_line SET qty_reserved = qty_required + 1
+                              WHERE id = (SELECT min(id) FROM fleet.service_order_line)$$,
+                            '23514', 'Fleet copy: qty_reserved never exceeds qty_required');
 
 -- ---------------------------------------------------------------------------
 -- Procurement rules

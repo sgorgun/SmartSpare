@@ -79,23 +79,6 @@ LEFT JOIN inventory.v_in_transit it  ON it.warehouse_id = wp.warehouse_id AND it
 COMMENT ON VIEW inventory.v_stock_overview IS 'US04: on-hand, reserved, available and in-transit stock per part and warehouse with last-updated timestamp.';
 GRANT SELECT ON inventory.v_stock_overview TO app_read;
 
--- TRANSITIONAL: replaced by fleet.part_snapshot and qty_reserved in stage 6 (reads catalog and inventory; X9) (#12)
-CREATE VIEW fleet.v_service_kit_shortage AS
-SELECT s.id AS service_order_id, s.number, s.status, w.code AS warehouse_code,
-       l.part_id, p.oem_part_number, p.description,
-       l.qty_required, l.qty_issued, coalesce(r.held, 0) AS qty_reserved,
-       l.qty_required - l.qty_issued - coalesce(r.held, 0) AS qty_missing
-FROM fleet.service_order s
-JOIN fleet.service_order_line l ON l.service_order_id = s.id
-JOIN catalog.part p             ON p.id = l.part_id
-JOIN inventory.warehouse w      ON w.id = s.warehouse_id
-LEFT JOIN LATERAL (SELECT sum(sr.quantity) AS held FROM inventory.stock_reservation sr
-                   WHERE sr.service_order_line_id = l.id AND sr.status IN ('soft', 'firm')) r ON true
-WHERE s.status IN ('draft', 'parts_reserved', 'in_progress')
-  AND l.qty_required - l.qty_issued - coalesce(r.held, 0) > 0;
-COMMENT ON VIEW fleet.v_service_kit_shortage IS 'Open service orders whose kit could not be fully reserved (input for transfers / purchasing).';
-GRANT SELECT ON fleet.v_service_kit_shortage TO app_read;
-
 -- TRANSITIONAL: replaced by a module-local view in stage 7 (reads inventory.warehouse and iam.app_user; X14) (#13)
 CREATE VIEW procurement.v_purchase_order_overview AS
 SELECT po.id, po.number, s.code AS supplier_code, s.name AS supplier_name, w.code AS warehouse_code,
