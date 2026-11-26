@@ -1,6 +1,6 @@
 # SmartSpare — Data Dictionary
 
-_Generated from the PostgreSQL catalogue by `tools/generate_db_docs.py` on 2026-11-24. Do not edit by hand — change the EF Core migrations (or their SQL parts in `db/sql/`) and regenerate._
+_Generated from the PostgreSQL catalogue by `tools/generate_db_docs.py` on 2026-11-26. Do not edit by hand — change the EF Core migrations (or their SQL parts in `db/sql/`) and regenerate._
 
 The database is built by the EF Core migrations of each module (ADR 0004, ADR 0011); references between modules are plain ids, not foreign keys. Row counts are those of the synthetic demo dataset (`db/testdata/T001`, 2,000 SKUs).
 
@@ -245,7 +245,7 @@ Rows (demo): **5**
 
 ### `iam.__ef_migrations_history` (table)
 
-Rows (demo): **7**
+Rows (demo): **9**
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -361,6 +361,9 @@ Rows (demo): **0**
 | `processed_at` | `timestamp with time zone` |  |  | Time the event was delivered to every consumer; NULL = pending. |
 | `attempts` | `integer` | NN | `0` | Failed delivery attempts so far. |
 | `error` | `character varying(2000)` |  |  | Last delivery error, if any. |
+| `exhausted_at` | `timestamp with time zone` |  |  | Time the event ran out of delivery attempts and was parked for an operator; NULL = still being delivered. |
+| `next_attempt_at` | `timestamp with time zone` |  |  | Earliest time of the next delivery attempt after a failure (exponential back-off); NULL = now. |
+| `trace_parent` | `character varying(64)` |  |  | W3C traceparent of the request that raised the event; the publish span links to it. NULL outside a trace. |
 
 **Data quality expectations / integrity rules**
 
@@ -370,7 +373,8 @@ Rows (demo): **0**
 
 **Indexes**
 
-- `ix_outbox_message_pending` — `btree (occurred_at) WHERE (processed_at IS NULL)`
+- `ix_outbox_message_exhausted` — `btree (exhausted_at) WHERE ((exhausted_at IS NOT NULL) AND (processed_at IS NULL))`
+- `ix_outbox_message_pending` — `btree (occurred_at) WHERE ((processed_at IS NULL) AND (exhausted_at IS NULL))`
 - `pk_outbox_message` — `btree (id)`
 
 ### `iam.role` (table)
@@ -544,7 +548,7 @@ Rows (demo): **1**
 
 ### `inventory.__ef_migrations_history` (table)
 
-Rows (demo): **3**
+Rows (demo): **5**
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -684,6 +688,9 @@ Rows (demo): **0**
 | `processed_at` | `timestamp with time zone` |  |  | Time the event was delivered to every consumer; NULL = pending. |
 | `attempts` | `integer` | NN | `0` | Failed delivery attempts so far. |
 | `error` | `character varying(2000)` |  |  | Last delivery error, if any. |
+| `exhausted_at` | `timestamp with time zone` |  |  | Time the event ran out of delivery attempts and was parked for an operator; NULL = still being delivered. |
+| `next_attempt_at` | `timestamp with time zone` |  |  | Earliest time of the next delivery attempt after a failure (exponential back-off); NULL = now. |
+| `trace_parent` | `character varying(64)` |  |  | W3C traceparent of the request that raised the event; the publish span links to it. NULL outside a trace. |
 
 **Data quality expectations / integrity rules**
 
@@ -693,14 +700,15 @@ Rows (demo): **0**
 
 **Indexes**
 
-- `ix_outbox_message_pending` — `btree (occurred_at) WHERE (processed_at IS NULL)`
+- `ix_outbox_message_exhausted` — `btree (exhausted_at) WHERE ((exhausted_at IS NOT NULL) AND (processed_at IS NULL))`
+- `ix_outbox_message_pending` — `btree (occurred_at) WHERE ((processed_at IS NULL) AND (exhausted_at IS NULL))`
 - `pk_outbox_message` — `btree (id)`
 
 ### `inventory.stock_balance` (table)
 
 Current stock per warehouse and part. Controlled redundancy: = SUM of the ledger, kept in sync by triggers for O(1) reads (NFR01).
 
-Rows (demo): **7,111**
+Rows (demo): **7,112**
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -729,7 +737,7 @@ Rows (demo): **7,111**
 
 Append-only stock ledger (single source of truth for stock and demand history). Partitioned by month; corrections only via compensating movements.
 
-Rows (demo): **197,902** · Partitioning: `RANGE (occurred_at)`, 61 partitions
+Rows (demo): **198,461** · Partitioning: `RANGE (occurred_at)`, 61 partitions
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -778,7 +786,7 @@ Rows (demo): **197,902** · Partitioning: `RANGE (occurred_at)`, 61 partitions
 
 Stock holds. Active (soft/firm) quantities are summed into stock_balance.reserved_qty by trigger.
 
-Rows (demo): **307**
+Rows (demo): **303**
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -1035,7 +1043,7 @@ Rows (demo): **42**
 
 ### `fleet.__ef_migrations_history` (table)
 
-Rows (demo): **2**
+Rows (demo): **4**
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -1274,6 +1282,9 @@ Rows (demo): **0**
 | `processed_at` | `timestamp with time zone` |  |  | Time the event was delivered to every consumer; NULL = pending. |
 | `attempts` | `integer` | NN | `0` | Failed delivery attempts so far. |
 | `error` | `character varying(2000)` |  |  | Last delivery error, if any. |
+| `exhausted_at` | `timestamp with time zone` |  |  | Time the event ran out of delivery attempts and was parked for an operator; NULL = still being delivered. |
+| `next_attempt_at` | `timestamp with time zone` |  |  | Earliest time of the next delivery attempt after a failure (exponential back-off); NULL = now. |
+| `trace_parent` | `character varying(64)` |  |  | W3C traceparent of the request that raised the event; the publish span links to it. NULL outside a trace. |
 
 **Data quality expectations / integrity rules**
 
@@ -1283,14 +1294,15 @@ Rows (demo): **0**
 
 **Indexes**
 
-- `ix_outbox_message_pending` — `btree (occurred_at) WHERE (processed_at IS NULL)`
+- `ix_outbox_message_exhausted` — `btree (exhausted_at) WHERE ((exhausted_at IS NOT NULL) AND (processed_at IS NULL))`
+- `ix_outbox_message_pending` — `btree (occurred_at) WHERE ((processed_at IS NULL) AND (exhausted_at IS NULL))`
 - `pk_outbox_message` — `btree (id)`
 
 ### `fleet.service_order` (table)
 
 Service order (SO-YYYY-NNNNNN). Planned (plan + due hours) or unplanned repair (plan NULL). Completed orders form the maintenance history.
 
-Rows (demo): **90**
+Rows (demo): **91**
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -1335,7 +1347,7 @@ Rows (demo): **90**
 
 Parts required by a service order (copied from the kit, editable for repairs).
 
-Rows (demo): **256**
+Rows (demo): **252**
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -1403,7 +1415,7 @@ Open service orders whose kit could not be fully reserved (input for transfers /
 
 ### `procurement.__ef_migrations_history` (table)
 
-Rows (demo): **1**
+Rows (demo): **3**
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -1453,6 +1465,9 @@ Rows (demo): **0**
 | `processed_at` | `timestamp with time zone` |  |  | Time the event was delivered to every consumer; NULL = pending. |
 | `attempts` | `integer` | NN | `0` | Failed delivery attempts so far. |
 | `error` | `character varying(2000)` |  |  | Last delivery error, if any. |
+| `exhausted_at` | `timestamp with time zone` |  |  | Time the event ran out of delivery attempts and was parked for an operator; NULL = still being delivered. |
+| `next_attempt_at` | `timestamp with time zone` |  |  | Earliest time of the next delivery attempt after a failure (exponential back-off); NULL = now. |
+| `trace_parent` | `character varying(64)` |  |  | W3C traceparent of the request that raised the event; the publish span links to it. NULL outside a trace. |
 
 **Data quality expectations / integrity rules**
 
@@ -1462,14 +1477,15 @@ Rows (demo): **0**
 
 **Indexes**
 
-- `ix_outbox_message_pending` — `btree (occurred_at) WHERE (processed_at IS NULL)`
+- `ix_outbox_message_exhausted` — `btree (exhausted_at) WHERE ((exhausted_at IS NOT NULL) AND (processed_at IS NULL))`
+- `ix_outbox_message_pending` — `btree (occurred_at) WHERE ((processed_at IS NULL) AND (exhausted_at IS NULL))`
 - `pk_outbox_message` — `btree (id)`
 
 ### `procurement.purchase_order` (table)
 
 Supplier purchase order (PO-YYYY-NNNNNN). Drafts are generated from recommendations and approved by management (US14).
 
-Rows (demo): **33**
+Rows (demo): **27**
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -1686,7 +1702,7 @@ WF04: purchase order list with totals and approval state.
 
 ### `forecast.__ef_migrations_history` (table)
 
-Rows (demo): **1**
+Rows (demo): **3**
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -1733,7 +1749,7 @@ Rows (demo): **48**
 
 Weekly forecast quantity per run, warehouse and part (ternary relationship run x warehouse x part, plus week).
 
-Rows (demo): **115,152**
+Rows (demo): **115,136**
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -1881,6 +1897,9 @@ Rows (demo): **0**
 | `processed_at` | `timestamp with time zone` |  |  | Time the event was delivered to every consumer; NULL = pending. |
 | `attempts` | `integer` | NN | `0` | Failed delivery attempts so far. |
 | `error` | `character varying(2000)` |  |  | Last delivery error, if any. |
+| `exhausted_at` | `timestamp with time zone` |  |  | Time the event ran out of delivery attempts and was parked for an operator; NULL = still being delivered. |
+| `next_attempt_at` | `timestamp with time zone` |  |  | Earliest time of the next delivery attempt after a failure (exponential back-off); NULL = now. |
+| `trace_parent` | `character varying(64)` |  |  | W3C traceparent of the request that raised the event; the publish span links to it. NULL outside a trace. |
 
 **Data quality expectations / integrity rules**
 
@@ -1890,7 +1909,8 @@ Rows (demo): **0**
 
 **Indexes**
 
-- `ix_outbox_message_pending` — `btree (occurred_at) WHERE (processed_at IS NULL)`
+- `ix_outbox_message_exhausted` — `btree (exhausted_at) WHERE ((exhausted_at IS NOT NULL) AND (processed_at IS NULL))`
+- `ix_outbox_message_pending` — `btree (occurred_at) WHERE ((processed_at IS NULL) AND (exhausted_at IS NULL))`
 - `pk_outbox_message` — `btree (id)`
 
 ### `forecast.recommendation` (table)
@@ -2000,7 +2020,7 @@ NFR08: decomposition (a) base demand, (b) maintenance, (c) lead-time buffer, (d)
 
 Immutable audit trail of state-changing operations: timestamp, user, action, previous and new values, reason (US18).
 
-Rows (demo): **26,955** · Partitioning: `RANGE (occurred_at)`, 49 partitions
+Rows (demo): **26,945** · Partitioning: `RANGE (occurred_at)`, 49 partitions
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -2240,7 +2260,7 @@ Rows (demo): **2,070**
 
 ### `mart.__ef_migrations_history` (table)
 
-Rows (demo): **2**
+Rows (demo): **3**
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -2259,7 +2279,7 @@ Rows (demo): **2**
 
 Data mart: ADI / CV² demand classification per series (intermittent, lumpy, smooth, erratic).
 
-Rows (demo): **7,197**
+Rows (demo): **7,196**
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -2285,7 +2305,7 @@ Rows (demo): **7,197**
 
 Data mart: weekly demand (only non-zero weeks) per warehouse and part; source for ML training and accuracy.
 
-Rows (demo): **189,670**
+Rows (demo): **190,170**
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -2330,7 +2350,7 @@ Rows (demo): **4**
 
 ### `mart.v_data_quality` (view)
 
-Automated reconciliation checks (ledger vs. balance, reservations, PO totals, odometer, duplicates). Expected: all failed_rows = 0.
+Automated reconciliation checks (ledger vs. balance, reservations, PO totals, odometer, duplicates, parked outbox events). Expected: all failed_rows = 0.
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -2480,12 +2500,12 @@ Security self-check: must return zero rows. Executed by the test suite after eve
 | `iam.user_has_role(uuid,text[])` | function (sql) | invoker | `boolean` | TRUE if the active user has at least one of the given role codes. |
 | `inventory.approve_transfer(bigint)` | function (plpgsql) | DEFINER | `void` | UC01 step 10-11: approves a proposed transfer and places firm reservations at the donor (atomic, all lines or none). |
 | `inventory.cancel_transfer(bigint,text)` | function (plpgsql) | DEFINER | `void` |  |
-| `inventory.dispatch_transfer(bigint)` | function (plpgsql) | DEFINER | `void` | US11: consumes the firm reservations, posts TRANSFER_OUT movements, status -> dispatched (stock is now in transit). |
+| `inventory.dispatch_transfer(bigint)` | function (plpgsql) | DEFINER | `void` | US11: consumes the firm reservations, posts TRANSFER_OUT movements, status -&gt; dispatched (stock is now in transit). |
 | `inventory.expire_soft_reservations(integer)` | procedure (plpgsql) | invoker | `procedure` | Expires overdue soft reservations and returns affected service orders to draft. |
 | `inventory.find_exceptional_demand_candidates(numeric,interval,integer)` | function (sql) | invoker | `TABLE(movement_id bigint, occurred_at timestamp with time zone, warehouse_id smallint, part_id bigint, quantity numeric, mean_qty numeric, stddev_qty numeric, z_score numeric)` | US08: demand lines above mean + 3 sigma of the SKU (window functions), not yet flagged. |
 | `inventory.flag_exceptional_demand(bigint,timestamp with time zone,text,text)` | function (plpgsql) | DEFINER | `void` |  |
 | `inventory.fn_in_transit_qty(smallint,bigint)` | function (sql) | invoker | `numeric` | Inbound quantity: dispatched transfers + not yet received approved purchase orders. |
-| `inventory.receive_transfer(bigint)` | function (plpgsql) | DEFINER | `void` | US11: posts TRANSFER_IN movements at the recipient hub, status -> received. |
+| `inventory.receive_transfer(bigint)` | function (plpgsql) | DEFINER | `void` | US11: posts TRANSFER_IN movements at the recipient hub, status -&gt; received. |
 | `inventory.trg_demand_exception_validate()` | trigger function (plpgsql) | invoker | `trigger` |  |
 | `inventory.trg_stock_movement_apply()` | trigger function (plpgsql) | DEFINER | `trigger` | AFTER INSERT on the ledger: applies +/- quantity to stock_balance with a row lock; rejects issues exceeding available stock (SS200). |
 | `inventory.trg_stock_reservation_guard()` | trigger function (plpgsql) | invoker | `trigger` |  |
@@ -2500,7 +2520,7 @@ Security self-check: must return zero rows. Executed by the test suite after eve
 | `fleet.trg_engine_hours_apply()` | trigger function (plpgsql) | DEFINER | `trigger` |  |
 | `fleet.trg_engine_hours_validate()` | trigger function (plpgsql) | invoker | `trigger` |  |
 | `fleet.trg_service_order_status_guard()` | trigger function (plpgsql) | invoker | `trigger` |  |
-| `procurement.approve_purchase_order(bigint)` | function (plpgsql) | DEFINER | `void` | US14: approves a submitted PO; > EUR 5,000 requires an approver other than the author (also a CHECK constraint). |
+| `procurement.approve_purchase_order(bigint)` | function (plpgsql) | DEFINER | `void` | US14: approves a submitted PO; &gt; EUR 5,000 requires an approver other than the author (also a CHECK constraint). |
 | `procurement.cancel_purchase_order(bigint,text)` | function (plpgsql) | DEFINER | `void` |  |
 | `procurement.export_purchase_order(bigint)` | function (plpgsql) | DEFINER | `void` |  |
 | `procurement.receive_purchase_order_line(bigint,numeric)` | function (plpgsql) | DEFINER | `void` |  |
@@ -2512,13 +2532,13 @@ Security self-check: must return zero rows. Executed by the test suite after eve
 | `forecast.expire_open_recommendations(interval)` | procedure (sql) | invoker | `procedure` |  |
 | `forecast.fn_classify_demand(numeric,numeric)` | function (sql) | invoker | `character varying` | Syntetos-Boylan class from ADI and CV² using the ranges in ref.demand_class. |
 | `forecast.fn_stock_position(smallint,bigint,bigint,numeric)` | function (sql) | invoker | `TABLE(available_qty numeric, in_transit_qty numeric, base_demand_qty numeric, maintenance_demand_qty numeric, lead_time_buffer_qty numeric, safety_stock_qty numeric, net_position_qty numeric)` | Net = Available + InTransit - (ML forecast + unreserved maintenance demand + lead-time buffer + safety stock). Used by the recommendation engine. |
-| `forecast.promote_model(integer,numeric)` | function (plpgsql) | DEFINER | `boolean` | Promotes a candidate only if its weighted RMSSE is >= 10 % lower than the best of the 5 benchmarks; retires the previous active model atomically. |
+| `forecast.promote_model(integer,numeric)` | function (plpgsql) | DEFINER | `boolean` | Promotes a candidate only if its weighted RMSSE is &gt;= 10 % lower than the best of the 5 benchmarks; retires the previous active model atomically. |
 | `forecast.trg_model_status_guard()` | trigger function (plpgsql) | invoker | `trigger` |  |
 | `audit.purge_expired(interval)` | procedure (plpgsql) | invoker | `procedure` | Drops audit partitions older than the retention period (default 180 days). Run monthly by Quartz.NET. |
 | `audit.trg_row_audit()` | trigger function (plpgsql) | DEFINER | `trigger` | AFTER ROW trigger writing changed columns into audit.audit_log; record_id = id column or the *_id columns of a composite key; arguments = excluded columns (PII, secrets). |
 | `staging.load_demand_history(bigint)` | function (plpgsql) | invoker | `integer` |  |
 | `staging.load_part_catalog(bigint)` | function (plpgsql) | invoker | `integer` |  |
-| `staging.process_batch(bigint,numeric)` | function (plpgsql) | DEFINER | `raw.import_batch` | Validates a raw batch into staging and loads core tables if the share of invalid rows <= threshold (default 5 %). Returns the load report. |
+| `staging.process_batch(bigint,numeric)` | function (plpgsql) | DEFINER | `raw.import_batch` | Validates a raw batch into staging and loads core tables if the share of invalid rows &lt;= threshold (default 5 %). Returns the load report. |
 | `staging.validate_demand_history(bigint)` | function (plpgsql) | invoker | `integer` |  |
 | `staging.validate_part_catalog(bigint)` | function (plpgsql) | invoker | `integer` |  |
 | `mart.refresh_all()` | procedure (plpgsql) | DEFINER | `procedure` | Refreshes the data marts (concurrently once populated) and logs duration/rows/failures. Nightly Quartz.NET job and after imports. |
