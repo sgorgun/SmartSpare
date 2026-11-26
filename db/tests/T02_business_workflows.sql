@@ -27,8 +27,21 @@ SELECT pg_temp.expect_error($$SELECT * FROM fleet.log_engine_hours((SELECT id FR
                             'SS103', 'Reading older than the last reading rejected');
 
 CREATE TEMP TABLE t_so AS SELECT * FROM fleet.log_engine_hours((SELECT id FROM t_m), 512, now() - interval '1 hour');
-SELECT pg_temp.ok((SELECT count(*) = 1 AND bool_and(due_engine_hours = 500) AND bool_and(fully_reserved) FROM t_so),
-                  'UC02 steps 4-7: 512 h crosses 500 h -> one service order with fully reserved kit');
+SELECT pg_temp.ok((SELECT count(*) = 1 AND bool_and(due_engine_hours = 500) AND NOT bool_or(fully_reserved) FROM t_so),
+                  'UC02 steps 4-6: 512 h crosses 500 h -> one drafted service order; its kit is reserved by Inventory');
+SELECT pg_temp.ok((SELECT count(*) = 0 FROM inventory.stock_reservation r JOIN fleet.service_order_line l ON l.id = r.service_order_line_id
+                   WHERE l.service_order_id = (SELECT service_order_id FROM t_so)),
+                  'X6: the draft is module-local, Fleet writes no hold (stage 6)');
+-- UC02 step 7, as Inventory's consumer of ServiceOrderDrafted and Fleet's consumer of ServiceKitReserved do it.
+CREATE TEMP TABLE t_uc02_kit AS
+SELECT * FROM inventory.reserve_service_kit(
+    (SELECT warehouse_id FROM fleet.service_order WHERE id = (SELECT service_order_id FROM t_so)),
+    (SELECT array_agg(id ORDER BY part_id) FROM fleet.service_order_line WHERE service_order_id = (SELECT service_order_id FROM t_so)),
+    (SELECT array_agg(part_id ORDER BY part_id) FROM fleet.service_order_line WHERE service_order_id = (SELECT service_order_id FROM t_so)),
+    (SELECT array_agg(qty_required ORDER BY part_id) FROM fleet.service_order_line WHERE service_order_id = (SELECT service_order_id FROM t_so)),
+    now() + interval '7 days');
+UPDATE fleet.service_order_line l SET qty_reserved = k.reserved_qty FROM t_uc02_kit k WHERE l.id = k.service_order_line_id;
+UPDATE fleet.service_order SET status = 'parts_reserved' WHERE id = (SELECT service_order_id FROM t_so);
 SELECT pg_temp.ok((SELECT current_engine_hours = 512 FROM fleet.machine WHERE id = (SELECT id FROM t_m)),
                   'Trigger: machine odometer updated from the reading');
 SELECT pg_temp.ok((SELECT count(*) = 5 AND bool_and(r.status = 'soft') AND bool_and(r.expires_at > now() + interval '6 days')

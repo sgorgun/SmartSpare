@@ -118,3 +118,17 @@
 +^v_qty := least\(coalesce\(v_avail, 0\), v_line\.quantity\);$
 +^v_(avail|held|qty) +numeric;$
 +^v_seen +boolean;$
+
+# PR 6g2 (STAGE_6_PLAN 5.3, MODULE_MAPPING X6, #12): fleet.create_service_order_draft is module-local; Inventory reserves
+# the kit on ServiceOrderDrafted and Fleet's consumer of ServiceKitReserved writes qty_reserved and parts_reserved
+# (UPDATE of status granted to app_write; Fleet migration KitReservationGrants).
+-COMMENT ON FUNCTION fleet\.log_engine_hours\(.*drafts service orders with soft-reserved kits for every plan due within 50 h
++COMMENT ON FUNCTION fleet\.log_engine_hours\(.*Inventory reserves the kits on ServiceOrderDrafted
+-^FOR v_line IN SELECT l\.id, l\.part_id, l\.qty_required FROM fleet\.service_order_line l WHERE l\.service_order_id = v_so
+-^IF v_lines > 0 AND v_all THEN UPDATE fleet\.service_order SET status = 'parts_reserved' WHERE id = v_so;
+-^IF v_qty < v_line\.qty_required THEN v_all := false;
+-^IF v_qty > 0 THEN INSERT INTO inventory\.stock_reservation .*VALUES \(v_wh, v_line\.part_id, v_qty, 'soft', now\(\)
+-^SELECT b\.available_qty INTO v_avail FROM inventory\.stock_balance b WHERE b\.warehouse_id = v_wh AND b\.part_id = v_line\.part_id FOR UPDATE;
+-^v_qty := least\(coalesce\(v_avail, 0\), v_line\.qty_required\);
+-^v_(all|avail|line|lines|qty) +(boolean := true|numeric|record|integer := 0);$
++^GRANT UPDATE\(status\) ON TABLE fleet\.service_order TO app_write;$

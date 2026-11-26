@@ -19,3 +19,13 @@ public abstract record IntegrationEvent : IIntegrationEvent
 
     public DateTimeOffset OccurredAt { get; init; } = DateTimeOffset.UtcNow;
 }
+
+/// <summary>
+/// An integration event caused by a user's action (STAGE_6_PLAN 5.5). Its consumers act as that user: the delivery
+/// pipeline sets the acting user before the consumer's transaction starts, so the audit trail, <c>created_by</c> and the
+/// database's session check name the user who acted, without roles (the role gate was applied when the user acted).
+/// </summary>
+public interface IActedByUser
+{
+    Guid ActorId { get; }
+}

@@ -255,7 +255,7 @@ db/
   sql/<module>/                         SQL parts of the EF migrations: triggers, functions, views, grants, seed
                                         (embedded in the module assembly, applied by migrationBuilder.Sql — ADR 0004)
   testdata/T001__demo_dataset.sql       deterministic synthetic dataset (dev/test only)
-  tests/                                SQL test suite (117 assertions) + concurrency test
+  tests/                                SQL test suite (118 assertions) + concurrency test
   scripts/                              reset_local.sh, load_testdata.sh, env.sh (credentials from .env)
   baseline/v016_schema.sql              frozen schema of the former SQL-built database (input of tools/schema_diff.sh)
   ddl/smartspare_schema.sql             complete DDL of the EF-built database (generated)
@@ -294,7 +294,7 @@ cp .env.example .env                              # then set your own passwords 
 docker compose up -d                              # PostgreSQL 17 on localhost:5432
 db/scripts/reset_local.sh                         # drop + MigrationRunner: bootstrap + all EF migrations
 db/scripts/load_testdata.sh                       # demo dataset T001 (2,000 SKUs, ~30 s) + demo-user passwords
-db/tests/run_tests.sh                             # SQL test suite (117 assertions)
+db/tests/run_tests.sh                             # SQL test suite (118 assertions)
 db/tests/concurrency_test.sh                      # row-lock test (NFR03)
 ```
 

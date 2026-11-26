@@ -7,8 +7,10 @@ using SmartSpare.ApiContracts.Authorization;
 using SmartSpare.ApiContracts.Fleet;
 using SmartSpare.Infrastructure.Http;
 using SmartSpare.Infrastructure.Messaging;
+using SmartSpare.Infrastructure.Persistence;
 using SmartSpare.Modules.Fleet.Domain;
 using SmartSpare.Modules.Fleet.Domain.Machines;
+using SmartSpare.Modules.Fleet.Features.ServiceOrders;
 using SmartSpare.Modules.Fleet.Infrastructure.Persistence;
 using SmartSpare.SharedKernel;
 
@@ -57,10 +59,10 @@ internal static class ReadingSourceNames
 /// other and the checks below see the previous reading. Idempotency: an identical reading at the same time is a retry
 /// and returns the stored one; a different value at the same time is a conflict. Then the aggregate gives the readable
 /// SS100–SS104 answer, and <c>fleet.log_engine_hours</c> stores the reading (its triggers repeat every rule; a database
-/// SS1xx error maps to the same 422) and drafts the services that became due. No integration event: drafts publish
-/// <c>ServiceOrderDrafted</c> from PR 6g, when Inventory consumes it.
+/// SS1xx error maps to the same 422) and drafts the services that became due. Each draft goes to Inventory as
+/// <c>ServiceOrderDrafted</c> in the same transaction (PR 6g2); the kit is reserved asynchronously.
 /// </summary>
-internal sealed class RecordReadingCommandHandler(ReadingStore store, TimeProvider time)
+internal sealed class RecordReadingCommandHandler(ReadingStore store, IUnitOfWork<FleetDbContext> unitOfWork, ICurrentUser user, TimeProvider time)
     : ICommandHandler<RecordReadingCommand, RecordReadingResponse>
 {
     public async Task<Result<RecordReadingResponse>> Handle(RecordReadingCommand command, CancellationToken cancellationToken)
@@ -95,6 +97,15 @@ internal sealed class RecordReadingCommandHandler(ReadingStore store, TimeProvid
         }
 
         var drafted = await store.LogAsync(command.MachineId, command.Hours, readAt, source, cancellationToken).ConfigureAwait(false);
+        if (drafted.Count > 0)
+        {
+            // #12, X6: Inventory reserves each kit; the outbox rows commit with the reading and the drafts.
+            foreach (var order in await store.OrdersAsync([.. drafted.Select(d => d.ServiceOrderId)], cancellationToken).ConfigureAwait(false))
+            {
+                unitOfWork.AddIntegrationEvent(ServiceOrderEvents.Drafted(order, user.UserId ?? Guid.Empty, now));
+            }
+        }
+
         var stored = (await store.ReadingAtAsync(command.MachineId, readAt, cancellationToken).ConfigureAwait(false))!;
         var current = await store.MachineAsync(command.MachineId, cancellationToken).ConfigureAwait(false);
         return Response(stored, current.CurrentEngineHours, replayed: false, drafted);
@@ -135,7 +146,8 @@ internal static class RecordReadingEndpoint
                 + "the time after the last reading (SS103) and at most five minutes ahead of the server clock (SS104), the "
                 + "hours not below the last reading (SS100, the odometer-rollback case A1) and not rising faster than wall-clock "
                 + "time (SS101). Each refusal is a 422 with the code. A valid reading is stored by fleet.log_engine_hours, which "
-                + "drafts a service order with its kit for every plan due within 50 h (US05); the response lists them. "
+                + "drafts a service order with its kit for every plan due within 50 h (US05); the response lists them, and Inventory "
+                + "reserves each kit right after (ServiceOrderDrafted → ServiceKitReserved). "
                 + "Concurrent readings of one machine are handled one after the other. Posting an identical reading again (same "
                 + "time and hours) is a safe retry: 200 with the stored reading and replayed = true; a different value at the "
                 + "same time is a 409. Policy RecordServiceWork (service engineers, administrators), the same roles as "

@@ -250,6 +250,12 @@
           "SmartSpare.SharedKernel": "[1.0.0, )"
         }
       },
+      "smartspare.modules.fleet.contracts": {
+        "type": "Project",
+        "dependencies": {
+          "SmartSpare.SharedKernel": "[1.0.0, )"
+        }
+      },
       "smartspare.modules.identity.contracts": {
         "type": "Project",
         "dependencies": {

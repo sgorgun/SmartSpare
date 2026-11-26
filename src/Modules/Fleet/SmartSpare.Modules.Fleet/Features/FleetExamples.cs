@@ -49,7 +49,7 @@ internal static class FleetExamples
         Id: 21, ModelId: 7, ModelName: "Lexion 8700", BrandCode: "CLAAS", Name: "Engine service", IntervalHours: 500, IntervalMonths: 12,
         Kit: [new KitPart(1203, "0011534571", "Engine oil filter", "PCS", 1), new KitPart(1210, "0001970050", "Engine oil 15W-40", "L", 30)]);
 
-    /// <summary>UC02: 512 h logged on the Lexion crosses the 500 h engine service, which is drafted with its kit.</summary>
+    /// <summary>UC02: 512 h logged on the Lexion crosses the 500 h engine service, which is drafted; Inventory reserves the kit next.</summary>
     public static RecordReadingResponse RecordedReading { get; } = new(
-        Reading, EngineHours: 512, Replayed: false, DraftedOrders: [new DraftedServiceOrder(9001, "SO-2026-000412", 500, FullyReserved: true)]);
+        Reading, EngineHours: 512, Replayed: false, DraftedOrders: [new DraftedServiceOrder(9001, "SO-2026-000412", 500, FullyReserved: false)]);
 }
