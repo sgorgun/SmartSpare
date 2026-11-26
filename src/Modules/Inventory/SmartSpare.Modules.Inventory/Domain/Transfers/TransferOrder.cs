@@ -239,20 +239,38 @@ internal sealed class TransferOrder : AggregateRoot<long>
         return Result.Success();
     }
 
-    public Result CanApprove() =>
-        Status != TransferStatus.Proposed ? InventoryErrors.InvalidTransition("transfer order", Status, "approved")
-        : _lines.Count == 0 ? InventoryErrors.NoLines
-        : Result.Success();
+    public Result CanApprove()
+    {
+        if (Status != TransferStatus.Proposed)
+        {
+            return InventoryErrors.InvalidTransition("transfer order", Status, "approved");
+        }
 
-    public Result CanDispatch(short? homeWarehouseId) =>
-        Status != TransferStatus.Approved ? InventoryErrors.InvalidTransition("transfer order", Status, "dispatched")
-        : homeWarehouseId is { } home && home != FromWarehouseId ? InventoryErrors.NotYourWarehouse
-        : Result.Success();
+        return _lines.Count == 0 ? InventoryErrors.NoLines : Result.Success();
+    }
 
-    public Result CanReceive(short? homeWarehouseId) =>
-        Status != TransferStatus.Dispatched ? InventoryErrors.InvalidTransition("transfer order", Status, "received")
-        : homeWarehouseId is { } home && home != ToWarehouseId ? InventoryErrors.NotYourWarehouse
-        : Result.Success();
+    public Result CanDispatch(short? homeWarehouseId)
+    {
+        if (Status != TransferStatus.Approved)
+        {
+            return InventoryErrors.InvalidTransition("transfer order", Status, "dispatched");
+        }
+
+        return IsAtHub(homeWarehouseId, FromWarehouseId) ? Result.Success() : InventoryErrors.NotYourWarehouse;
+    }
+
+    public Result CanReceive(short? homeWarehouseId)
+    {
+        if (Status != TransferStatus.Dispatched)
+        {
+            return InventoryErrors.InvalidTransition("transfer order", Status, "received");
+        }
+
+        return IsAtHub(homeWarehouseId, ToWarehouseId) ? Result.Success() : InventoryErrors.NotYourWarehouse;
+    }
+
+    /// <summary>A user without a home hub acts for every hub; a keeper only for the own one (SS302 parity).</summary>
+    private static bool IsAtHub(short? homeWarehouseId, short warehouseId) => homeWarehouseId is null || homeWarehouseId == warehouseId;
 
     public Result CanCancel() =>
         Status is TransferStatus.Proposed or TransferStatus.Approved

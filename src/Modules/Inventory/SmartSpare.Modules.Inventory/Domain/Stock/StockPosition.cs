@@ -25,11 +25,13 @@ internal sealed record StockPosition(decimal OnHand, decimal Reserved, decimal S
 {
     public decimal Available => OnHand - Reserved;
 
-    public StockStatus Status =>
-        Available <= 0 ? StockStatus.Out
-        : Available < SafetyStock ? StockStatus.BelowSafety
-        : MaxStock is { } max && OnHand > max ? StockStatus.AboveMax
-        : StockStatus.Ok;
+    public StockStatus Status => Available switch
+    {
+        <= 0 => StockStatus.Out,
+        var available when available < SafetyStock => StockStatus.BelowSafety,
+        _ when MaxStock is { } max && OnHand > max => StockStatus.AboveMax,
+        _ => StockStatus.Ok,
+    };
 
     /// <summary>Whether <paramref name="quantity"/> can be issued without making the available stock negative (SS200).</summary>
     public bool CanIssue(decimal quantity) => quantity > 0 && quantity <= Available;

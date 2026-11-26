@@ -248,7 +248,7 @@ else
         return result.IsValid ? null : string.Join(" ", result.Errors.Select(e => e.ErrorMessage));
     }
 
-    private IEnumerable<(string Key, string Value)> Figures(StockRow stock) =>
+    private static IEnumerable<(string Key, string Value)> Figures(StockRow stock) =>
     [
         ("Stock.OnHand", Number(stock.OnHand)),
         ("Stock.Reserved", Number(stock.Reserved)),

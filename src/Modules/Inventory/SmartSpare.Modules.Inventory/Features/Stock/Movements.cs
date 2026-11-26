@@ -19,7 +19,7 @@ namespace SmartSpare.Modules.Inventory.Features.Stock;
 /// <summary>The stock ledger read model: movements newest first, with their source document.</summary>
 internal static class Movements
 {
-    private const string From =
+    private const string FromClause =
         """
         FROM inventory.stock_movement m
         JOIN inventory.warehouse w ON w.id = m.warehouse_id
@@ -44,9 +44,9 @@ internal static class Movements
                         CASE WHEN m.purchase_order_line_id IS NOT NULL THEN 'Purchase order line ' || m.purchase_order_line_id END) AS document,
                m.note
 
-        """ + From + "\nORDER BY m.occurred_at DESC, m.id DESC\nLIMIT @limit OFFSET @offset";
+        """ + FromClause + "\nORDER BY m.occurred_at DESC, m.id DESC\nLIMIT @limit OFFSET @offset";
 
-    private const string CountSql = "SELECT count(*)::int AS \"Value\"\n" + From;
+    private const string CountSql = "SELECT count(*)::int AS \"Value\"\n" + FromClause;
 
     public sealed record Filter(short? WarehouseId, long? PartId, string? MovementType, DateTimeOffset? From, DateTimeOffset? To);
 

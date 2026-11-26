@@ -27,9 +27,8 @@ public static class ApiDocumentation
     public static IServiceCollection AddModuleDocuments(this IServiceCollection services, IEnumerable<IModuleInstaller> modules)
     {
         ArgumentNullException.ThrowIfNull(modules);
-        foreach (var module in modules)
+        foreach (var name in modules.Select(module => module.Name))
         {
-            var name = module.Name;
             services.AddApiDocument(
                 name,
                 $"SmartSpare {CultureInfo.InvariantCulture.TextInfo.ToTitleCase(name)} API",

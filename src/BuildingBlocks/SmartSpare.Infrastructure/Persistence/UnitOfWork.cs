@@ -117,12 +117,12 @@ public sealed class EfUnitOfWork<TContext>(TContext context) : IUnitOfWork<TCont
         var schema = table.GetSchema() ?? throw new InvalidOperationException("The inbox table has no schema.");
 
         // The schema comes from the model, never from input; the values are parameters.
-#pragma warning disable EF1002 // Identifier interpolation is intentional (schema from the EF model).
+#pragma warning disable EF1002, S2077 // Identifier interpolation is intentional (schema from the EF model).
         var inserted = await context.Database.ExecuteSqlRawAsync(
             $"INSERT INTO \"{schema}\".inbox_message (message_id, consumer) VALUES (@id, @consumer) ON CONFLICT DO NOTHING",
             [new NpgsqlParameter("id", messageId), new NpgsqlParameter("consumer", consumer)],
             cancellationToken).ConfigureAwait(false);
-#pragma warning restore EF1002
+#pragma warning restore EF1002, S2077
         return inserted == 1;
     }
 
@@ -144,14 +144,13 @@ public sealed class UnitOfWorkRegistry
     public UnitOfWorkRegistry(IEnumerable<UnitOfWorkRegistration> registrations)
     {
         ArgumentNullException.ThrowIfNull(registrations);
-        _byAssembly = [];
-        foreach (var registration in registrations)
+        var all = registrations.ToList();
+        if (all.GroupBy(r => r.ModuleAssembly).FirstOrDefault(g => g.Skip(1).Any()) is { } duplicate)
         {
-            if (!_byAssembly.TryAdd(registration.ModuleAssembly, registration.UnitOfWorkType))
-            {
-                throw new InvalidOperationException($"{registration.ModuleAssembly.GetName().Name} registers more than one unit of work.");
-            }
+            throw new InvalidOperationException($"{duplicate.Key.GetName().Name} registers more than one unit of work.");
         }
+
+        _byAssembly = all.ToDictionary(r => r.ModuleAssembly, r => r.UnitOfWorkType);
     }
 
     public bool IsRegistered(Assembly moduleAssembly) => _byAssembly.ContainsKey(moduleAssembly);
