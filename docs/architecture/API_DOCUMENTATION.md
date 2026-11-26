@@ -89,6 +89,12 @@ operations are described in full:
 | `inventory` | `PUT /api/v1/inventory/stock/{warehouseId}/{partId}/levels` with `If-Match`: safety and maximum stock | `PlanInventory` | 200 `StockRow`; 400; 401; 403; 404; 409 `Database.ConcurrencyConflict` |
 | `inventory` | `GET /api/v1/inventory/movements?warehouseId=&partId=&type=&from=&to=&page=&pageSize=`: the stock ledger | `ReadInventory` | 200 `PagedResponse<MovementRow>`; 400; 401; 403 |
 | `inventory` | `POST /api/v1/inventory/stock-adjustments`: a stock count correction | `MoveStock` | 201 `StockAdjustmentResponse`; 400; 401; 403 `SS302`; 404; 409 `SS200` |
+| `inventory` | `GET /api/v1/inventory/transfers?status=&warehouseId=&page=&pageSize=`: transfer orders | `ReadInventory` | 200 `PagedResponse<TransferSummary>`; 400; 401; 403 |
+| `inventory` | `GET /api/v1/inventory/transfers/{id}`: an order with lines, timeline and `allowedActions` | `ReadInventory` | 200 `TransferDetails`; 401; 403; 404 `Inventory.TransferNotFound` |
+| `inventory` | `POST /api/v1/inventory/transfers`: propose a transfer | `PlanInventory` | 201 `TransferDetails`; 400; 401; 403; 422 `Inventory.NoRoute`, `Inventory.UnknownPart` |
+| `inventory` | `POST /api/v1/inventory/transfers/{id}/approve` | `ApproveTransfer` + brand scope | 200; 401; 403 `Inventory.OutOfBrandScope`; 404; 409 `SS200`, `SS201`, `SS300` |
+| `inventory` | `POST /api/v1/inventory/transfers/{id}/cancel` with a reason | `CancelTransfer` + brand scope | 200; 400; 401; 403; 404; 409 `SS300` |
+| `inventory` | `POST /api/v1/inventory/transfers/{id}/dispatch` and `/receive` | `MoveStock` | 200; 401; 403 `SS302`; 404; 409 `SS300` |
 
 `ReadInventory` admits every role but not a user without one. Reads are never brand-scoped (STAGE_3_PLAN §3.3). The
 other five module documents fill as stages 5–9 add `/api/v1` endpoints, each with its summary, response types and

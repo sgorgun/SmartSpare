@@ -19,7 +19,7 @@ public sealed class EndpointTableTests
         [.. Endpoints.Where(e => e.RoutePattern.RawText!.StartsWith("/api/v1/", StringComparison.Ordinal)).Select(Describe)];
 
     [Fact]
-    public void The_stock_api_of_stage_5_is_mapped() =>
+    public void The_api_of_stage_5_is_mapped() =>
         Endpoints.Select(Describe).ShouldBe(
         [
             "GET /api/v1/inventory/parts",
@@ -30,6 +30,13 @@ public sealed class EndpointTableTests
             "PUT /api/v1/inventory/stock/{warehouseId:int}/{partId:long}/levels",
             "GET /api/v1/inventory/movements",
             "POST /api/v1/inventory/stock-adjustments",
+            "GET /api/v1/inventory/transfers",
+            "GET /api/v1/inventory/transfers/{id:long}",
+            "POST /api/v1/inventory/transfers",
+            "POST /api/v1/inventory/transfers/{id:long}/approve",
+            "POST /api/v1/inventory/transfers/{id:long}/cancel",
+            "POST /api/v1/inventory/transfers/{id:long}/dispatch",
+            "POST /api/v1/inventory/transfers/{id:long}/receive",
             "GET /internal/v1/inventory/warehouses",
         ], ignoreOrder: true);
 
@@ -52,6 +59,11 @@ public sealed class EndpointTableTests
     [InlineData("PUT /api/v1/inventory/stock/{warehouseId:int}/{partId:long}/levels", AppPolicies.PlanInventory)]
     [InlineData("POST /api/v1/inventory/stock-adjustments", AppPolicies.MoveStock)]
     [InlineData("GET /api/v1/inventory/stock", AppPolicies.ReadInventory)]
+    [InlineData("POST /api/v1/inventory/transfers", AppPolicies.PlanInventory)]
+    [InlineData("POST /api/v1/inventory/transfers/{id:long}/approve", AppPolicies.ApproveTransfer)]
+    [InlineData("POST /api/v1/inventory/transfers/{id:long}/cancel", AppPolicies.CancelTransfer)]
+    [InlineData("POST /api/v1/inventory/transfers/{id:long}/dispatch", AppPolicies.MoveStock)]
+    [InlineData("POST /api/v1/inventory/transfers/{id:long}/receive", AppPolicies.MoveStock)]
     [InlineData("GET /internal/v1/inventory/warehouses", AppPolicies.ReadInventory)]
     public void Writes_use_their_own_policies(string route, string policy) =>
         Endpoints.Single(e => Describe(e) == route).Metadata.GetOrderedMetadata<IAuthorizeData>().Single().Policy.ShouldBe(policy);

@@ -30,6 +30,17 @@ internal static class InventoryExamples
         Reservations: [new ReservationSummary(5521, 11, "firm", null, 412, "TR-2026-000412", null, At.AddHours(-2))],
         RecentMovements: [Movement]);
 
+    public static TransferSummary Transfer { get; } = new(
+        Id: 412, Number: "TR-2026-000412", FromWarehouseId: 3, FromWarehouseCode: "KLP", ToWarehouseId: 5, ToWarehouseCode: "PNV",
+        Status: TransferStatuses.Proposed, IsUrgent: false, LineCount: 1, TotalQuantity: 11, CreatedAt: At.AddHours(-1), UpdatedAt: At.AddHours(-1));
+
+    public static TransferDetails TransferDetails { get; } = new(
+        Transfer,
+        Lines: [new TransferLineResponse(907, 1042, "JD", "RE900001", "Engine oil filter", "PCS", 11, ProposedQty: 11, OverrideReason: null, DonorAvailable: 24)],
+        Timeline: [new TransferStep("requested", Guid.Parse("6f1c2a9e-3b7d-4c11-9a52-0d8e4b7f3a21"), At.AddHours(-1))],
+        CancelReason: null,
+        AllowedActions: [TransferActions.Approve, TransferActions.Cancel]);
+
     /// <summary>The problem body an expected error produces, as <c>ResultHttpExtensions.ToProblem</c> writes it.</summary>
     public static IReadOnlyDictionary<string, object?> Problem(Error error)
     {
