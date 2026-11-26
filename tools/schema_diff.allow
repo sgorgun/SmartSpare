@@ -85,3 +85,7 @@
 -CREATE TABLE fleet\.maintenance_plan \( id integer NOT NULL, model_id integer NOT NULL, interval_hours integer NOT NULL, name character varying\(120\) NOT NULL, is_active boolean DEFAULT true NOT NULL, CONSTRAINT
 +CREATE TABLE fleet\.maintenance_plan \( id integer NOT NULL, model_id integer NOT NULL, interval_hours integer NOT NULL, name character varying\(120\) NOT NULL, is_active boolean DEFAULT true NOT NULL, interval_months smallint, .*CONSTRAINT ck_maintenance_plan_interval_months CHECK
 +COMMENT ON COLUMN fleet\.maintenance_plan\.interval_months IS
+
+# PR 6d (STAGE_6_PLAN 5.2, #12): Fleet's read-only copy of the part catalogue, fed by PartCatalogChanged, with its
+# privileges (Fleet migration AddPartSnapshot, db/sql/fleet/0004_part_snapshot.sql).
++fleet\.part_snapshot

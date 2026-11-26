@@ -17,6 +17,7 @@ using SmartSpare.Infrastructure.Http;
 using SmartSpare.Infrastructure.Messaging;
 using SmartSpare.Infrastructure.Persistence;
 using SmartSpare.Modules.Inventory.Infrastructure.Persistence;
+using SmartSpare.Modules.Inventory.Features.PartCatalog;
 using SmartSpare.Modules.Inventory.Infrastructure.Queries;
 using SmartSpare.SharedKernel;
 
@@ -96,6 +97,12 @@ internal sealed class ImportFileCommandHandler(
 
         await store.CopyRowsAsync(batch.Id, command.Source, parsed.Value, cancellationToken).ConfigureAwait(false);
         await store.ProcessBatchAsync(batch.Id, cancellationToken).ConfigureAwait(false);
+        if (source == ImportSource.PartCatalog)
+        {
+            // #12: the parts this load changed go to the outbox in the same transaction (STAGE_6_PLAN 5.2).
+            var changed = await PartCatalogSnapshots.ChangedByBatchAsync(db, batch.Id, cancellationToken).ConfigureAwait(false);
+            PartCatalogPublication.Queue(unitOfWork, changed);
+        }
 
         db.ChangeTracker.Clear();
         return (await ImportReader.ReadAsync(db, batch.Id, cancellationToken).ConfigureAwait(false))!;

@@ -6,12 +6,14 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using SmartSpare.Infrastructure.Messaging;
 using SmartSpare.Infrastructure.Modules;
+using SmartSpare.Infrastructure.Jobs;
 using SmartSpare.Infrastructure.Persistence;
 using SmartSpare.Modules.Inventory.Contracts;
 using SmartSpare.Modules.Inventory.Infrastructure.Persistence;
 using SmartSpare.Modules.Inventory.Infrastructure.Queries;
 using SmartSpare.Modules.Inventory.Features.GetPart;
 using SmartSpare.Modules.Inventory.Features.Imports;
+using SmartSpare.Modules.Inventory.Features.PartCatalog;
 using SmartSpare.Modules.Inventory.Features.ListWarehouses;
 using SmartSpare.Modules.Inventory.Features.Ping;
 using SmartSpare.Modules.Inventory.Features.SearchParts;
@@ -39,6 +41,7 @@ public sealed class InventoryModuleInstaller : IModuleInstaller
         services.AddScoped<TransferFunctions>();
         services.AddScoped<ImportStore>();
         services.AddImportRateLimit();
+        services.AddJob<PartCatalogPublishJob>();
         InventoryDatabase.Instance.AddTo(services, assembly, configuration.GetConnectionString(PersistenceRegistration.ConnectionStringName), InventoryDbContext.HistorySchema);
     }
 

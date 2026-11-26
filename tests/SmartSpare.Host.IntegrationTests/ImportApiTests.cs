@@ -58,6 +58,79 @@ public sealed class ImportApiTests(IdentityDatabaseFixture database) : IAsyncLif
     }
 
     [Fact]
+    public async Task A_catalogue_import_writes_PartCatalogChanged_with_the_load_and_Fleet_copies_the_parts()
+    {
+        // #12 acceptance: the changed parts go to Inventory's outbox in the import's transaction (STAGE_6_PLAN 5.2), and
+        // Fleet's consumer keeps its snapshot; the in-process transport of the single host delivers the event.
+        var file = CatalogHeader + "\n"
+            + $"JD,{_tag}-101,Oil filter for snapshots,OIL_FILTER,PCS,0.45,18.40,no\n"
+            + $"JD,{_tag}-102,Fuel filter for snapshots,FUEL_FILTER,PCS,0.30,12.10,no\n";
+
+        using (var response = await UploadAsync(Planner, ImportSources.PartCatalog, file))
+        {
+            response.StatusCode.ShouldBe(HttpStatusCode.Created, await response.Content.ReadAsStringAsync(Ct));
+        }
+
+        var events = await database.ScalarAsync<long>(
+            """
+            SELECT count(*) FROM inventory.outbox_message o
+            WHERE o.type LIKE '%.PartCatalogChanged,%'
+              AND EXISTS (SELECT 1 FROM jsonb_array_elements(o.payload -> 'parts') p WHERE p ->> 'oemPartNumber' LIKE @tag || '-1%')
+            """, ("tag", _tag));
+        events.ShouldBe(1, "both parts in one chunk");
+
+        var copied = 0L;
+        for (var attempt = 0; attempt < 60 && copied < 2; attempt++)
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(500), Ct);
+            copied = await database.ScalarAsync<long>(
+                "SELECT count(*) FROM fleet.part_snapshot WHERE oem_part_number LIKE @tag || '-1%' AND brand_code = 'JD' AND unit_of_measure = 'PCS' AND is_active",
+                ("tag", _tag));
+        }
+
+        copied.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task Reimporting_unchanged_parts_publishes_nothing()
+    {
+        var first = CatalogHeader + "\n" + $"JD,{_tag}-201,Unchanged part,OIL_FILTER,PCS,0.45,18.40,no\n";
+        var again = first + $"JD,{_tag}-202,New part,OIL_FILTER,PCS,0.45,18.40,no\n";
+
+        using (var response = await UploadAsync(Planner, ImportSources.PartCatalog, first))
+        {
+            response.StatusCode.ShouldBe(HttpStatusCode.Created);
+        }
+
+        using (var response = await UploadAsync(Planner, ImportSources.PartCatalog, again))
+        {
+            response.StatusCode.ShouldBe(HttpStatusCode.Created);
+        }
+
+        var published = await database.ScalarAsync<long>(
+            """
+            SELECT count(*) FROM inventory.outbox_message o, jsonb_array_elements(o.payload -> 'parts') p
+            WHERE o.type LIKE '%.PartCatalogChanged,%' AND p ->> 'oemPartNumber' LIKE @tag || '-2%'
+            """, ("tag", _tag));
+        published.ShouldBe(2, "201 once with the first file, 202 with the second; 201 unchanged is not published again");
+    }
+
+    [Fact]
+    public async Task A_refused_catalogue_publishes_nothing()
+    {
+        var file = CatalogHeader + "\n" + $"XX,{_tag}-301,Unknown brand,OIL_FILTER,PCS,0.45,18.40,no\n";
+
+        using (var response = await UploadAsync(Planner, ImportSources.PartCatalog, file))
+        {
+            response.StatusCode.ShouldBe(HttpStatusCode.Created);
+        }
+
+        (await database.ScalarAsync<long>(
+            "SELECT count(*) FROM inventory.outbox_message o, jsonb_array_elements(o.payload -> 'parts') p WHERE p ->> 'oemPartNumber' LIKE @tag || '-3%'",
+            ("tag", _tag))).ShouldBe(0);
+    }
+
+    [Fact]
     public async Task More_than_five_percent_invalid_rows_load_nothing_and_report_every_error()
     {
         var file = CatalogHeader + "\n"

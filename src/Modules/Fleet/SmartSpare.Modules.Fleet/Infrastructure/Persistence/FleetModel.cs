@@ -32,3 +32,27 @@ internal sealed class MachineModel
 
     public string ModelName { get; set; } = null!;
 }
+
+/// <summary>
+/// Row of <c>fleet.part_snapshot</c>: Fleet's read-only copy of an Inventory part (MODULE_MAPPING 2.3, STAGE_6_PLAN 5.2),
+/// written only by the consumer of <c>PartCatalogChanged</c>. <see cref="SourceOccurredAt"/> is the time of the event
+/// that wrote the row, so a redelivered or late event never overwrites newer data.
+/// </summary>
+internal sealed class PartSnapshot
+{
+    public long PartId { get; set; }
+
+    public string BrandCode { get; set; } = null!;
+
+    public string OemPartNumber { get; set; } = null!;
+
+    public string Description { get; set; } = null!;
+
+    public string UnitOfMeasure { get; set; } = null!;
+
+    public bool IsActive { get; set; }
+
+    public DateTimeOffset SourceOccurredAt { get; set; }
+
+    public DateTimeOffset UpdatedAt { get; set; }
+}
