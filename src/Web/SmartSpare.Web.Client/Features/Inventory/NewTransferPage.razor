@@ -1,0 +1,145 @@
+@page "/inventory/transfers/new"
+@attribute [Authorize(Policy = AppPolicies.PlanInventory)]
+@using System.Globalization
+@using SmartSpare.ApiContracts.Inventory
+@inject IStringLocalizer<SharedResource> Text
+@inject InventoryClient Inventory
+@inject ProblemMessages Messages
+@inject NavigationManager Navigation
+
+<PageTitle>@Text["Transfers.New"]</PageTitle>
+
+<MudText Typo="Typo.h4" HtmlTag="h1" Class="mb-2">@Text["Nav.Inventory"]</MudText>
+<InventoryTabs />
+<MudText Typo="Typo.h5" HtmlTag="h2" Class="mb-3">@Text["Transfers.New"]</MudText>
+
+<MudPaper Outlined="true" Class="pa-4" data-testid="new-transfer-form">
+    <MudGrid Spacing="2">
+        <MudItem xs="12" sm="6">
+            <MudSelect T="short" @bind-Value="_from" Label="@Text["Transfer.From"]" Variant="Variant.Outlined" Dense="true" data-testid="from-hub">
+                @foreach (var warehouse in _warehouses)
+                {
+                    <MudSelectItem T="short" Value="warehouse.Id">@warehouse.Code · @warehouse.Name</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6">
+            <MudSelect T="short" @bind-Value="_to" Label="@Text["Transfer.To"]" Variant="Variant.Outlined" Dense="true" data-testid="to-hub">
+                @foreach (var warehouse in _warehouses)
+                {
+                    <MudSelectItem T="short" Value="warehouse.Id">@warehouse.Code · @warehouse.Name</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12">
+            <MudCheckBox T="bool" @bind-Value="_urgent" Label="@Text["Transfer.UrgentHelp"]" data-testid="urgent" />
+        </MudItem>
+    </MudGrid>
+
+    <MudText Typo="Typo.h6" HtmlTag="h3" Class="mt-2 mb-2">@Text["Transfers.Lines"]</MudText>
+    @for (var i = 0; i < _lines.Count; i++)
+    {
+        var line = _lines[i];
+        var index = i;
+        <MudGrid Spacing="2" Class="mb-1" data-testid="transfer-line">
+            <MudItem xs="12" sm="7">
+                <MudAutocomplete T="PartSummary" @bind-Value="line.Part" SearchFunc="SearchPartsAsync" ToStringFunc="Describe"
+                                 Label="@Text["Transfer.Part"]" Variant="Variant.Outlined" Margin="Margin.Dense" DebounceInterval="300"
+                                 MinCharacters="2" ResetValueOnEmptyText="true" data-testid="@($"line-part-{index}")" />
+            </MudItem>
+            <MudItem xs="8" sm="3">
+                <MudNumericField T="decimal" @bind-Value="line.Quantity" Label="@Text["Position.Quantity"]" Min="0" Variant="Variant.Outlined"
+                                 Margin="Margin.Dense" data-testid="@($"line-quantity-{index}")" />
+            </MudItem>
+            <MudItem xs="4" sm="2" Class="d-flex align-center">
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" OnClick="() => _lines.RemoveAt(index)" Disabled="_lines.Count == 1"
+                               aria-label="@Text["Transfer.RemoveLine"]" />
+            </MudItem>
+        </MudGrid>
+    }
+    <MudButton OnClick="() => _lines.Add(new LineInput())" Disabled="_lines.Count >= TransferLimits.MaxLines" Variant="Variant.Text"
+               StartIcon="@Icons.Material.Filled.Add" Class="mb-3">@Text["Transfer.AddLine"]</MudButton>
+
+    @if (_error is not null)
+    {
+        <MudAlert Severity="Severity.Error" Class="mb-3" data-testid="new-transfer-error">@_error</MudAlert>
+    }
+
+    <div>
+        <MudButton OnClick="SubmitAsync" Disabled="_busy" Variant="Variant.Filled" Color="Color.Primary" data-testid="propose">@Text["Transfer.Propose"]</MudButton>
+        <MudButton Href="inventory/transfers" Variant="Variant.Text" Class="ml-2">@Text["Transfer.No"]</MudButton>
+    </div>
+</MudPaper>
+
+@code {
+    private IReadOnlyList<WarehouseResponse> _warehouses = [];
+    private short _from;
+    private short _to;
+    private bool _urgent;
+    private readonly List<LineInput> _lines = [new()];
+    private string? _error;
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        var warehouses = await Inventory.ListWarehousesAsync();
+        if (warehouses.IsSuccess)
+        {
+            _warehouses = warehouses.Value!;
+        }
+        else
+        {
+            _error = Messages.Describe(warehouses.Problem!);
+        }
+    }
+
+    private async Task<IEnumerable<PartSummary>> SearchPartsAsync(string? text, CancellationToken cancellationToken)
+    {
+        var result = await Inventory.SearchPartsAsync(text, 1, 10, cancellationToken);
+        return result.IsSuccess ? result.Value!.Items : [];
+    }
+
+    private static string Describe(PartSummary? part) => part is null ? string.Empty : $"{part.OemPartNumber} · {part.BrandCode} · {part.Description}";
+
+    private async Task SubmitAsync()
+    {
+        if (_lines.Any(l => l.Part is null))
+        {
+            _error = Text["Transfer.PickParts"];
+            return;
+        }
+
+        var request = new CreateTransferRequest(_from, _to, _urgent, [.. _lines.Select(l => new CreateTransferLine(l.Part!.Id, l.Quantity))]);
+
+        // The shared validator, so the form and the server agree (STAGE_3_PLAN 8.4).
+        var validation = new CreateTransferRequestValidator().Validate(request);
+        if (!validation.IsValid)
+        {
+            _error = string.Join(" ", validation.Errors.Select(e => e.ErrorMessage));
+            return;
+        }
+
+        _busy = true;
+        var result = await Inventory.CreateTransferAsync(request);
+        _busy = false;
+        if (!result.IsSuccess)
+        {
+            _error = Messages.Describe(result.Problem!);
+            return;
+        }
+
+        Navigation.NavigateTo(string.Create(CultureInfo.InvariantCulture, $"inventory/transfers/{result.Value!.Order.Id}"));
+    }
+
+    private sealed class LineInput
+    {
+        public PartSummary? Part { get; set; }
+
+        public decimal Quantity { get; set; } = 1;
+    }
+}

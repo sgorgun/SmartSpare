@@ -157,7 +157,7 @@
     <value>Loading parts…</value>
   </data>
   <data name="Inventory.MoreInStage" xml:space="preserve">
-    <value>Transfers and data import follow in stage {0} of the work plan.</value>
+    <value>Data import follows in stage {0} of the work plan.</value>
   </data>
   <data name="Inventory.Pages" xml:space="preserve">
     <value>Inventory pages</value>
@@ -299,5 +299,158 @@
   </data>
   <data name="Position.ServiceOrderLine" xml:space="preserve">
     <value>Service order line {0}</value>
+  </data>
+  <data name="Inventory.Tab.Transfers" xml:space="preserve">
+    <value>Transfers</value>
+  </data>
+  <data name="Transfers.Title" xml:space="preserve">
+    <value>Transfers</value>
+  </data>
+  <data name="Transfers.New" xml:space="preserve">
+    <value>New transfer</value>
+  </data>
+  <data name="Transfers.AllStatuses" xml:space="preserve">
+    <value>All</value>
+  </data>
+  <data name="Transfers.Number" xml:space="preserve">
+    <value>Number</value>
+  </data>
+  <data name="Transfers.Route" xml:space="preserve">
+    <value>Route</value>
+  </data>
+  <data name="Transfers.Urgent" xml:space="preserve">
+    <value>Urgent</value>
+  </data>
+  <data name="Transfers.Lines" xml:space="preserve">
+    <value>Lines</value>
+  </data>
+  <data name="Transfers.Created" xml:space="preserve">
+    <value>Created</value>
+  </data>
+  <data name="Transfers.OpenNumber" xml:space="preserve">
+    <value>Open {0}</value>
+  </data>
+  <data name="Transfers.None" xml:space="preserve">
+    <value>No transfers match the filter.</value>
+  </data>
+  <data name="Transfers.Unavailable" xml:space="preserve">
+    <value>The transfers could not be loaded.</value>
+  </data>
+  <data name="Transfers.Loading" xml:space="preserve">
+    <value>Loading transfers…</value>
+  </data>
+  <data name="TransferStatus.proposed" xml:space="preserve">
+    <value>Proposed</value>
+  </data>
+  <data name="TransferStatus.approved" xml:space="preserve">
+    <value>Approved</value>
+  </data>
+  <data name="TransferStatus.dispatched" xml:space="preserve">
+    <value>Dispatched</value>
+  </data>
+  <data name="TransferStatus.received" xml:space="preserve">
+    <value>Received</value>
+  </data>
+  <data name="TransferStatus.cancelled" xml:space="preserve">
+    <value>Cancelled</value>
+  </data>
+  <data name="Transfer.Loading" xml:space="preserve">
+    <value>Loading the transfer…</value>
+  </data>
+  <data name="Transfer.Route" xml:space="preserve">
+    <value>From {0} to {1}</value>
+  </data>
+  <data name="Transfer.Action.approve" xml:space="preserve">
+    <value>Approve</value>
+  </data>
+  <data name="Transfer.Action.cancel" xml:space="preserve">
+    <value>Cancel transfer</value>
+  </data>
+  <data name="Transfer.Action.dispatch" xml:space="preserve">
+    <value>Dispatch</value>
+  </data>
+  <data name="Transfer.Action.receive" xml:space="preserve">
+    <value>Receive</value>
+  </data>
+  <data name="Transfer.Confirm.approve" xml:space="preserve">
+    <value>Approve {0}? The stock is firmly reserved at the donor hub.</value>
+  </data>
+  <data name="Transfer.Confirm.cancel" xml:space="preserve">
+    <value>Cancel {0}? Its reservations are released.</value>
+  </data>
+  <data name="Transfer.Confirm.dispatch" xml:space="preserve">
+    <value>Dispatch {0}? The parts leave the donor hub.</value>
+  </data>
+  <data name="Transfer.Confirm.receive" xml:space="preserve">
+    <value>Receive {0}? The parts are added to the recipient hub.</value>
+  </data>
+  <data name="Transfer.Done.approve" xml:space="preserve">
+    <value>{0} was approved.</value>
+  </data>
+  <data name="Transfer.Done.cancel" xml:space="preserve">
+    <value>{0} was cancelled.</value>
+  </data>
+  <data name="Transfer.Done.dispatch" xml:space="preserve">
+    <value>{0} was dispatched.</value>
+  </data>
+  <data name="Transfer.Done.receive" xml:space="preserve">
+    <value>{0} was received.</value>
+  </data>
+  <data name="Transfer.Yes" xml:space="preserve">
+    <value>Confirm</value>
+  </data>
+  <data name="Transfer.No" xml:space="preserve">
+    <value>Back</value>
+  </data>
+  <data name="Transfer.CancelReason" xml:space="preserve">
+    <value>Reason</value>
+  </data>
+  <data name="Transfer.CancelledBecause" xml:space="preserve">
+    <value>Cancelled: {0}</value>
+  </data>
+  <data name="Transfer.DonorAvailable" xml:space="preserve">
+    <value>Available at donor</value>
+  </data>
+  <data name="Transfer.Timeline" xml:space="preserve">
+    <value>Timeline</value>
+  </data>
+  <data name="Transfer.Step.requested" xml:space="preserve">
+    <value>Requested</value>
+  </data>
+  <data name="Transfer.Step.approved" xml:space="preserve">
+    <value>Approved</value>
+  </data>
+  <data name="Transfer.Step.dispatched" xml:space="preserve">
+    <value>Dispatched</value>
+  </data>
+  <data name="Transfer.Step.received" xml:space="preserve">
+    <value>Received</value>
+  </data>
+  <data name="Transfer.Step.cancelled" xml:space="preserve">
+    <value>Cancelled</value>
+  </data>
+  <data name="Transfer.From" xml:space="preserve">
+    <value>From hub</value>
+  </data>
+  <data name="Transfer.To" xml:space="preserve">
+    <value>To hub</value>
+  </data>
+  <data name="Transfer.UrgentHelp" xml:space="preserve">
+    <value>Urgent: the donor may give stock from its safety buffer</value>
+  </data>
+  <data name="Transfer.Part" xml:space="preserve">
+    <value>Part (number or description)</value>
+  </data>
+  <data name="Transfer.AddLine" xml:space="preserve">
+    <value>Add line</value>
+  </data>
+  <data name="Transfer.RemoveLine" xml:space="preserve">
+    <value>Remove line</value>
+  </data>
+  <data name="Transfer.Propose" xml:space="preserve">
+    <value>Propose transfer</value>
+  </data>
+  <data name="Transfer.PickParts" xml:space="preserve">
+    <value>Choose a part for every line.</value>
   </data>
 </root>

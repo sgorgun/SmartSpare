@@ -1,0 +1,129 @@
+@page "/inventory/transfers"
+@attribute [Authorize(Policy = AppPolicies.ReadInventory)]
+@using System.Globalization
+@using SmartSpare.ApiContracts.Inventory
+@inject IStringLocalizer<SharedResource> Text
+@inject InventoryClient Inventory
+@inject ProblemMessages Messages
+@inject NavigationManager Navigation
+
+<PageTitle>@Text["Transfers.Title"]</PageTitle>
+
+<MudText Typo="Typo.h4" HtmlTag="h1" Class="mb-2">@Text["Nav.Inventory"]</MudText>
+<InventoryTabs />
+
+<div class="d-flex align-center flex-wrap mb-2">
+    <MudText Typo="Typo.h5" HtmlTag="h2" Class="mr-auto">@Text["Transfers.Title"]</MudText>
+    <AuthorizeView Policy="@AppPolicies.PlanInventory">
+        <MudButton Href="inventory/transfers/new" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                   data-testid="new-transfer">@Text["Transfers.New"]</MudButton>
+    </AuthorizeView>
+</div>
+
+<MudChipSet T="string" SelectedValue="_status" SelectedValueChanged="StatusChangedAsync" SelectionMode="SelectionMode.SingleSelection"
+            CheckMark="true" Class="mb-2" aria-label="@Text["Stock.Status"]" data-testid="transfer-status">
+    <MudChip T="string" Value="@All">@Text["Transfers.AllStatuses"]</MudChip>
+    @foreach (var status in TransferStatuses.All)
+    {
+        <MudChip T="string" Value="status">@Text["TransferStatus." + status]</MudChip>
+    }
+</MudChipSet>
+
+@if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-3" data-testid="transfers-error">@_error</MudAlert>
+}
+
+@* Below the sm breakpoint each row is shown as a card. *@
+<MudDataGrid @ref="_grid" T="TransferSummary" ServerData="LoadAsync" RowsPerPage="TransferLimits.DefaultPageSize" Hover="true" Dense="true"
+             Outlined="true" Elevation="0" Breakpoint="Breakpoint.Sm" SortMode="SortMode.None" Filterable="false"
+             RowClick="OpenRow" RowStyle="cursor: pointer" data-testid="transfers-grid">
+    <Columns>
+        <PropertyColumn Property="t => t.Number" Title="@Text["Transfers.Number"]" />
+        <TemplateColumn Title="@Text["Transfers.Route"]">
+            <CellTemplate>@context.Item.FromWarehouseCode → @context.Item.ToWarehouseCode</CellTemplate>
+        </TemplateColumn>
+        <TemplateColumn Title="@Text["Stock.Status"]">
+            <CellTemplate>
+                <TransferStatusChip Status="@context.Item.Status" />
+                @if (context.Item.IsUrgent)
+                {
+                    <StatusChip Label="@Text["Transfers.Urgent"]" Icon="@Icons.Material.Filled.PriorityHigh" Color="Color.Error" />
+                }
+            </CellTemplate>
+        </TemplateColumn>
+        <PropertyColumn Property="t => t.LineCount" Title="@Text["Transfers.Lines"]" />
+        <PropertyColumn Property="t => t.TotalQuantity" Title="@Text["Position.Quantity"]" Format="0.###" />
+        <TemplateColumn Title="@Text["Transfers.Created"]">
+            <CellTemplate>@context.Item.CreatedAt.ToLocalTime().ToString("g", CultureInfo.CurrentCulture)</CellTemplate>
+        </TemplateColumn>
+        <TemplateColumn Title="" CellClass="text-right">
+            <CellTemplate>
+                <MudButton Href="@DetailHref(context.Item)" Size="Size.Small" Variant="Variant.Text" Color="Color.Primary"
+                           aria-label="@Text["Transfers.OpenNumber", context.Item.Number].Value">@Text["Stock.Open"]</MudButton>
+            </CellTemplate>
+        </TemplateColumn>
+    </Columns>
+    <NoRecordsContent>
+        <MudText>@(_error is null ? Text["Transfers.None"] : Text["Transfers.Unavailable"])</MudText>
+    </NoRecordsContent>
+    <LoadingContent>
+        <MudText>@Text["Transfers.Loading"]</MudText>
+    </LoadingContent>
+    <PagerContent>
+        <MudDataGridPager T="TransferSummary" PageSizeOptions="PageSizes" />
+    </PagerContent>
+</MudDataGrid>
+
+@code {
+    private const string All = "all";
+    private static readonly int[] PageSizes = [10, TransferLimits.DefaultPageSize, 50, TransferLimits.MaxPageSize];
+
+    private MudDataGrid<TransferSummary>? _grid;
+    private string _status = All;
+    private string? _error;
+
+    private async Task<GridData<TransferSummary>> LoadAsync(GridState<TransferSummary> state, CancellationToken cancellationToken)
+    {
+        // Prerendering has no session cookie to call the API with; the grid loads once WebAssembly runs.
+        if (!RendererInfo.IsInteractive)
+        {
+            return new GridData<TransferSummary> { Items = [], TotalItems = 0 };
+        }
+
+        var result = await Inventory.ListTransfersAsync(_status == All ? null : _status, null, state.Page + 1, state.PageSize, cancellationToken);
+        var error = result.IsSuccess ? null : Messages.Describe(result.Problem!);
+        if (error != _error)
+        {
+            _error = error;
+            StateHasChanged();
+        }
+
+        return result.IsSuccess
+            ? new GridData<TransferSummary> { Items = result.Value!.Items, TotalItems = result.Value.TotalCount }
+            : new GridData<TransferSummary> { Items = [], TotalItems = 0 };
+    }
+
+    private async Task StatusChangedAsync(string? status)
+    {
+        _status = status ?? All;
+        if (_grid is null)
+        {
+            return;
+        }
+
+        if (_grid.CurrentPage != 0)
+        {
+            _grid.NavigateTo(Page.First);
+        }
+        else
+        {
+            await _grid.ReloadServerData();
+        }
+    }
+
+    private void OpenRow(DataGridRowClickEventArgs<TransferSummary> args) => Navigation.NavigateTo(DetailHref(args.Item));
+
+    private static string DetailHref(TransferSummary transfer) =>
+        string.Create(CultureInfo.InvariantCulture, $"inventory/transfers/{transfer.Id}");
+}
