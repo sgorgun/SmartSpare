@@ -18,6 +18,7 @@
     <ProjectReference Include="..\..\src\Bootstrapper\SmartSpare.MigrationRunner\SmartSpare.MigrationRunner.csproj" Aliases="runner" />
     <ProjectReference Include="..\..\src\Bootstrapper\Services\SmartSpare.Services.Identity\SmartSpare.Services.Identity.csproj" />
     <ProjectReference Include="..\..\src\Bootstrapper\Services\SmartSpare.Services.Inventory\SmartSpare.Services.Inventory.csproj" />
+    <ProjectReference Include="..\..\src\Bootstrapper\Services\SmartSpare.Services.Fleet\SmartSpare.Services.Fleet.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1206,6 +1206,15 @@
           "OpenTelemetry.Instrumentation.Runtime": "[1.21.0, )"
         }
       },
+      "smartspare.services.fleet": {
+        "type": "Project",
+        "dependencies": {
+          "SmartSpare.Infrastructure": "[1.0.0, )",
+          "SmartSpare.Infrastructure.RabbitMq": "[1.0.0, )",
+          "SmartSpare.Modules.Fleet": "[1.0.0, )",
+          "SmartSpare.ServiceDefaults": "[1.0.0, )"
+        }
+      },
       "smartspare.services.identity": {
         "type": "Project",
         "dependencies": {
