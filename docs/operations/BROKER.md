@@ -28,6 +28,24 @@ Checked with `tools/SmartSpare.BrokerCheck` against a new Little Lemur instance 
 
 Messages per month, connections, queues, queued messages and idle queue time are as on the plans page; their design is in ADR 0017 §5. CloudAMQP deletes free instances with no traffic for two months, so the weekly warm-up (stage 10) keeps this one alive.
 
+## Broker metrics job
+
+`--job reporting.broker-metrics`, in the Reporting image (STAGE_4_PLAN 6.2), reads the management HTTP API once with the
+credentials and vhost of the AMQP URL. It opens no AMQP connection, so it costs nothing of the connection budget. It then
+exports these gauges and exits:
+
+| Gauge (Prometheus name) | Labels | What |
+|---|---|---|
+| `smartspare_broker_queue_messages` | `queue` | Messages in each consumer queue, ready or unacknowledged |
+| `smartspare_broker_dead_letter_messages` | `queue` | Messages in each `<module>.dead-letter` queue |
+| `smartspare_broker_connections` | — | Open AMQP connections to the vhost (the free plan allows 20) |
+| `smartspare_broker_published_messages` | — | Messages published to the vhost since the broker last reset its statistics |
+
+The management API is `https://<AMQP host>/` on CloudAMQP; `RabbitMq:ManagementUrl` overrides it.
+- **Locally:** the `broker-metrics` resource of `--topology services` runs the job when it is started from the Aspire dashboard. The AppHost passes it the local RabbitMQ's management endpoint.
+- **In Azure:** a Container Apps cron job runs it every 15 minutes (#85).
+- **Tests:** `BrokerMetricsJobTests` run it against `rabbitmq:4.4-management`.
+
 ## Run the check again
 
 ```

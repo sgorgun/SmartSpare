@@ -22,4 +22,10 @@ public sealed class RabbitMqOptions
 
     /// <summary>Deliveries of one message before the quorum queue dead-letters it (ADR 0017 §3).</summary>
     public int DeliveryLimit { get; set; } = 10;
+
+    /// <summary>
+    /// Base URL of the management HTTP API, read by the broker metrics job. Empty means <c>https://&lt;AMQP host&gt;/</c>,
+    /// where CloudAMQP serves it; locally the AppHost passes the RabbitMQ container's management endpoint.
+    /// </summary>
+    public string? ManagementUrl { get; set; }
 }

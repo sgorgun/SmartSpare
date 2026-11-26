@@ -10,12 +10,16 @@ using Testcontainers.RabbitMq;
 
 namespace SmartSpare.Infrastructure.RabbitMq.IntegrationTests;
 
-/// <summary>One RabbitMQ 4.4 broker for the transport tests.</summary>
+/// <summary>One RabbitMQ 4.4 broker for the transport tests, with the management API the broker metrics job reads.</summary>
 public sealed class BrokerFixture : IAsyncLifetime
 {
-    private readonly RabbitMqContainer _broker = new RabbitMqBuilder("rabbitmq:4.4").Build();
+    private const int ManagementPort = 15672;
+
+    private readonly RabbitMqContainer _broker = new RabbitMqBuilder("rabbitmq:4.4-management").WithPortBinding(ManagementPort, true).Build();
 
     public string ConnectionString => _broker.GetConnectionString();
+
+    public string ManagementUrl => $"http://{_broker.Hostname}:{_broker.GetMappedPublicPort(ManagementPort)}/";
 
     public ValueTask InitializeAsync() => new(_broker.StartAsync(TestContext.Current.CancellationToken));
 
