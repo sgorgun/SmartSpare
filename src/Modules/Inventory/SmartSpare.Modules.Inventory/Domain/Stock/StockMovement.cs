@@ -20,8 +20,15 @@ internal static class MovementTypes
     // compiler-generated <PrivateImplementationDetails> type, which the architecture test of the domain rejects.
     private static readonly Dictionary<string, int> BalanceSigns = new(StringComparer.Ordinal)
     {
-        [OpeningBalance] = 1, [ReceiptPurchaseOrder] = 1, [ReturnFromCustomer] = 1, [AdjustmentIn] = 1, [TransferIn] = 1,
-        [TransferOut] = -1, [IssueService] = -1, [IssueSale] = -1, [AdjustmentOut] = -1,
+        [OpeningBalance] = 1,
+        [ReceiptPurchaseOrder] = 1,
+        [ReturnFromCustomer] = 1,
+        [AdjustmentIn] = 1,
+        [TransferIn] = 1,
+        [TransferOut] = -1,
+        [IssueService] = -1,
+        [IssueSale] = -1,
+        [AdjustmentOut] = -1,
         [HistoricalDemand] = 0,
     };
 
