@@ -12,6 +12,22 @@ end_of_line = lf
 # The solution is C# only and "Error" is the established Result-pattern name.
 dotnet_diagnostic.CA1716.severity = none
 
+# Static analysis (#61, STAGE_5_PLAN section 10): SonarQube C# rules that conflict with deliberate conventions.
+# S1144, S3453: EF Core materialises aggregates through private constructors and setters (ADR 0013).
+dotnet_diagnostic.S1144.severity = none
+dotnet_diagnostic.S3453.severity = none
+# S2326: ICommand<TResult>, IQuery<TResult> and IUnitOfWork<TContext> are marker interfaces that tie a request to its
+# handler or a unit of work to its module (ADR 0005).
+dotnet_diagnostic.S2326.severity = none
+# S4035: Entity and ValueObject are the DDD base classes; identity and component equality are their purpose.
+dotnet_diagnostic.S4035.severity = none
+# S6672: request logs are categorised by the request type, not by the generic decorator that writes them.
+dotnet_diagnostic.S6672.severity = none
+# S5332, S1075: services address each other by their internal names (http://identity) inside the Container Apps
+# environment; TLS ends at the ingress (ADR 0015), and the names are service discovery keys, not deployment paths.
+dotnet_diagnostic.S5332.severity = none
+dotnet_diagnostic.S1075.severity = none
+
 [*.{csproj,props,targets,slnx,json,yml,yaml}]
 indent_size = 2
 
@@ -22,3 +38,5 @@ dotnet_diagnostic.CA1707.severity = none
 # EF Core migrations are scaffolded by `dotnet ef`; analyzers treat them as generated code.
 [**/Migrations/*.cs]
 generated_code = true
+# The SonarQube analyzer does not read generated_code; a migration's empty Down is deliberate (forward-only SQL parts).
+dotnet_diagnostic.S1186.severity = none

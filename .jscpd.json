@@ -1,0 +1,17 @@
+{
+  "threshold": 3,
+  "minTokens": 70,
+  "format": ["csharp", "razor"],
+  "path": ["src"],
+  "ignore": [
+    "**/Migrations/**",
+    "**/obj/**",
+    "**/bin/**",
+    "**/wwwroot/**",
+    "**/*.Designer.cs"
+  ],
+  "reporters": ["console", "json"],
+  "output": "TestResults/duplication",
+  "absolute": false,
+  "gitignore": true
+}

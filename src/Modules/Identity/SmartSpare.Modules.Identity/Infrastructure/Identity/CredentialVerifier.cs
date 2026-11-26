@@ -99,7 +99,10 @@ internal sealed partial class CredentialVerifier(
     {
         lock (DummyHashLock)
         {
+            // One hash per process from the injected hasher (same algorithm and cost as real users), under the lock.
+#pragma warning disable S2696
             return s_dummyHash ??= passwordHasher.HashPassword(null!, Guid.NewGuid().ToString("N"));
+#pragma warning restore S2696
         }
     }
 

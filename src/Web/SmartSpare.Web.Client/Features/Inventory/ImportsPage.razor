@@ -128,7 +128,10 @@ else
         _busy = true;
         try
         {
+            // Limited to the 10 MB the API accepts; S5693 does not see the limit passed to OpenReadStream.
+#pragma warning disable S5693
             await using var stream = file.OpenReadStream(ImportLimits.MaxFileBytes);
+#pragma warning restore S5693
             var result = await Inventory.ImportAsync(_source, file.Name, stream);
             if (result.IsSuccess)
             {

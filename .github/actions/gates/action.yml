@@ -43,6 +43,11 @@ runs:
       shell: bash
       run: tools/check.sh format
 
+    # At most 3 % duplicated lines in src/ (jscpd, #61); the SonarQube C# rules already ran in the build.
+    - name: Check duplication
+      shell: bash
+      run: tools/check.sh duplication
+
     # Fails if any DbContext's model differs from its last migration snapshot (a migration is missing).
     - name: Check for pending model changes
       shell: bash

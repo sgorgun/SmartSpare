@@ -30,6 +30,7 @@ The database criteria are in [DATABASE_DESIGN.md §0](docs/database/DATABASE_DES
 | Error handling, logging, tracing | ProblemDetails with a trace id; OpenTelemetry → Grafana stack ([TRACING.md](docs/operations/TRACING.md), [ADR 0018](docs/adr/0018-observability-with-the-grafana-stack.md)) | done |
 | Monitoring and alerting | Dashboards and 7 alert rules in [`infra/observability`](infra/observability) (local Grafana), provisioned to Grafana Cloud by Terraform in [`infra/grafana`](infra/grafana); test alert delivered by e-mail | done; production traffic from stage 10 (#85) |
 | Tests and coverage gate | Unit, integration (Testcontainers), architecture, topology, bUnit, Playwright; `tools/check.sh coverage` fails below 70 % of business logic | done |
+| Static analysis | SonarQube C# rules (`SonarAnalyzer.CSharp`) fail the build like the .NET analyzers; `tools/check.sh duplication` (jscpd) fails above 3 % duplicated lines. Results: the build log and the "Check duplication" step of the CI job "Build and test" (JSON report in `TestResults/duplication`) | done |
 | CI/CD | `.github/workflows/ci.yml` (gates, integration, E2E, topology, images), `deploy-<service>.yml`, Bicep in [`infra/`](infra) | CI done; first deployment in stage 10 (#85) |
 | No secrets in the repository | user-secrets, Key Vault references; gitleaks scan of the whole history ([`.gitleaksignore`](.gitleaksignore)) | done |
 
@@ -195,9 +196,9 @@ The gateway keeps its key ring in a directory (`DataProtection:KeysDirectory`, l
 
 | Task | Command |
 |---|---|
-| **All checks, exactly as CI** (Docker running) | `tools/check.sh` — stale terms, locked restore, Release build with `-warnaserror`, format, check-model, vulnerable packages, tests with the coverage gate (≥ 70 % of business logic), integration tests, database verification |
+| **All checks, exactly as CI** (Docker running) | `tools/check.sh` — stale terms, locked restore, Release build with `-warnaserror` (including the SonarQube C# rules), format, duplication, check-model, vulnerable packages, tests with the coverage gate (≥ 70 % of business logic), integration tests, database verification |
 | Checks without Docker (the CI "Build and test" job) | `tools/check.sh fast` |
-| Selected checks | `tools/check.sh <step> ...` with steps `stale-terms restore vulnerabilities build format check-model test coverage integration database` |
+| Selected checks | `tools/check.sh <step> ...` with steps `stale-terms restore vulnerabilities build format duplication check-model test coverage integration database` |
 | End-to-end smoke test (Docker; installs Chromium) | `tools/check.sh restore build e2e` — Playwright signs in and out in Chromium; screenshots in `TestResults/e2e` |
 | Schema diff (Docker) | `tools/schema_diff.sh` — EF-built schema vs. the frozen V016 baseline |
 

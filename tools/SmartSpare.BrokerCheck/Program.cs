@@ -16,7 +16,7 @@ var configuration = new ConfigurationBuilder()
 var url = configuration.GetConnectionString("messaging");
 if (!Uri.TryCreate(url, UriKind.Absolute, out var amqp) || amqp.Scheme is not ("amqp" or "amqps"))
 {
-    Console.Error.WriteLine("Set ConnectionStrings:messaging to the broker's amqp:// or amqps:// URL (user-secrets id smartspare-brokercheck).");
+    await Console.Error.WriteLineAsync("Set ConnectionStrings:messaging to the broker's amqp:// or amqps:// URL (user-secrets id smartspare-brokercheck).");
     return 2;
 }
 
@@ -25,7 +25,8 @@ vhost = vhost.Length == 0 ? "/" : vhost;
 var userInfo = amqp.UserInfo.Split(':', 2);
 var (user, password) = (Uri.UnescapeDataString(userInfo[0]), userInfo.Length > 1 ? Uri.UnescapeDataString(userInfo[1]) : string.Empty);
 var results = new List<Check>();
-Console.WriteLine($"Broker check of {amqp.Scheme}://{amqp.Host}:{(amqp.IsDefaultPort ? (amqp.Scheme == "amqps" ? 5671 : 5672) : amqp.Port)} (vhost '{vhost}'), {DateTimeOffset.UtcNow:yyyy-MM-dd HH:mm} UTC");
+var defaultPort = amqp.Scheme == "amqps" ? 5671 : 5672;
+Console.WriteLine($"Broker check of {amqp.Scheme}://{amqp.Host}:{(amqp.IsDefaultPort ? defaultPort : amqp.Port)} (vhost '{vhost}'), {DateTimeOffset.UtcNow:yyyy-MM-dd HH:mm} UTC");
 
 await using var connection = await new ConnectionFactory { Uri = amqp, ClientProvidedName = "smartspare-brokercheck" }.CreateConnectionAsync();
 results.Add(new("AMQP(S) connection", true, "connected"));
@@ -151,4 +152,6 @@ static async Task<Check> Try(string name, Func<Task<string>> check)
     }
 }
 
+#pragma warning disable S3903 // A type of the console tool's top-level program, which has no namespace.
 internal sealed record Check(string Name, bool Ok, string Detail);
+#pragma warning restore S3903

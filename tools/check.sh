@@ -9,7 +9,7 @@
 #   tools/check.sh e2e             # optional: the Playwright smoke test (Docker and Chromium; CI job "End-to-end")
 #   tools/check.sh topology        # optional: gateway + services + PostgreSQL + RabbitMQ (Docker; CI job "Topology test")
 #
-# Steps: stale-terms deploy-paths restore vulnerabilities build format check-model test coverage integration database
+# Steps: stale-terms deploy-paths restore vulnerabilities build format duplication check-model test coverage integration database
 # coverage-combined; optional: e2e topology (they need a build first, e.g. tools/check.sh restore build e2e topology)
 # Everything runs in the Release configuration, like CI. Test results and coverage (XPlat Code Coverage, as in CI) go
 # to TestResults/: the unit tests' to TestResults/<run>/, the integration tests' to TestResults/integration/<run>/.
@@ -65,6 +65,11 @@ step_restore() { dotnet restore "$SOLUTION" --locked-mode; }
 step_build() { dotnet build "$SOLUTION" --no-restore --configuration "$CONFIGURATION" -warnaserror; }
 
 step_format() { dotnet format "$SOLUTION" --no-restore --verify-no-changes; }
+
+# Duplicated code (#61, STAGE_5_PLAN section 10): jscpd over src/ (C# and Razor; migrations and generated files
+# excluded, see .jscpd.json) fails above 3 % duplicated lines. The SonarQube C# rules run in the build itself.
+JSCPD_VERSION=5.4.3
+step_duplication() { npx --yes "jscpd@$JSCPD_VERSION" --config .jscpd.json --silent; }
 
 step_check_model() {
   dotnet run --project src/Bootstrapper/SmartSpare.MigrationRunner --no-build --configuration "$CONFIGURATION" -- check-model
@@ -187,7 +192,7 @@ report_containers() {
   fi
 }
 
-FAST=(stale-terms deploy-paths restore vulnerabilities build format check-model test coverage)
+FAST=(stale-terms deploy-paths restore vulnerabilities build format duplication check-model test coverage)
 ALL=("${FAST[@]}" integration database coverage-combined)
 OPTIONAL=(e2e topology)
 

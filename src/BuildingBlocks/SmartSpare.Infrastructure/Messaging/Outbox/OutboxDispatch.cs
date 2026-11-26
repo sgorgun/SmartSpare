@@ -206,12 +206,12 @@ public sealed class EfOutboxStore<TContext>(string schema) : IOutboxStore
         try
         {
             await using var command = connection.CreateCommand();
-#pragma warning disable CA2100 // The schema comes from the module's registration, never from input.
+#pragma warning disable CA2100, S2077 // The schema comes from the module's registration, never from input.
             command.CommandText = $"""
                 SELECT (SELECT count(*) FROM "{Schema}".outbox_message WHERE exhausted_at IS NOT NULL AND processed_at IS NULL),
                        (SELECT min(occurred_at) FROM "{Schema}".outbox_message WHERE processed_at IS NULL AND exhausted_at IS NULL)
                 """;
-#pragma warning restore CA2100
+#pragma warning restore CA2100, S2077
             await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
             await reader.ReadAsync(cancellationToken).ConfigureAwait(false);
             return new OutboxStatus(Schema, reader.GetInt64(0), reader.IsDBNull(1) ? null : reader.GetFieldValue<DateTimeOffset>(1));
@@ -229,9 +229,9 @@ public sealed class EfOutboxStore<TContext>(string schema) : IOutboxStore
     {
         var command = connection.CreateCommand();
         command.Transaction = transaction;
-#pragma warning disable CA2100 // The schema comes from the module's registration, never from input; values are parameters.
+#pragma warning disable CA2100, S2077 // The schema comes from the module's registration, never from input; values are parameters.
         command.CommandText = sql;
-#pragma warning restore CA2100
+#pragma warning restore CA2100, S2077
         foreach (var (name, value) in parameters)
         {
             command.Parameters.Add(new NpgsqlParameter(name, value));

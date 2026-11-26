@@ -5,6 +5,7 @@
 
   <ItemGroup Label="Messaging">
     <!-- Official RabbitMQ client (ADR 0017), used only by SmartSpare.Infrastructure.RabbitMq. -->
+    <PackageVersion Include="SonarAnalyzer.CSharp" Version="10.37.0.15768" />
     <PackageVersion Include="RabbitMQ.Client" Version="7.3.0" />
     <!-- Configuration of tools/SmartSpare.BrokerCheck (user-secrets and environment), on the .NET 10 runtime line. -->
     <PackageVersion Include="Microsoft.Extensions.Configuration.UserSecrets" Version="10.0.15" />
