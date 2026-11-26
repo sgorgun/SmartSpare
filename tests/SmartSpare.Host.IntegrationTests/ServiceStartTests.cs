@@ -71,6 +71,25 @@ public sealed class ServiceStartTests
         new Npgsql.NpgsqlConnectionStringBuilder(connectionString).MaxPoolSize.ShouldBe(4);
     }
 
+    [Theory]
+    [MemberData(nameof(Services))]
+    public void Only_the_reporting_image_runs_the_broker_metrics_job(string module)
+    {
+        using var factory = Create(module);
+        using var scope = factory.Services.CreateScope();
+
+        var jobs = scope.ServiceProvider.GetServices<SmartSpare.Infrastructure.Jobs.IJob>().Select(j => j.Name).ToList();
+
+        if (module == "reporting")
+        {
+            jobs.ShouldContain(SmartSpare.Infrastructure.RabbitMq.BrokerMetricsJob.JobName);
+        }
+        else
+        {
+            jobs.ShouldNotContain(SmartSpare.Infrastructure.RabbitMq.BrokerMetricsJob.JobName);
+        }
+    }
+
     private static IServiceFactory Create(string module, string? connectionString = null) => module switch
     {
         "identity" => new ServiceFactory<SmartSpare.Services.Identity.IdentityService>(connectionString),
