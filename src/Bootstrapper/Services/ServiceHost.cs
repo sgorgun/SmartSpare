@@ -44,12 +44,16 @@ internal static class ServiceHost
         builder.Services.AddModules(builder.Configuration, [module], Topology.Services);
         builder.Services.AddModuleDocuments([module]);
         builder.Services.AddServiceAuthentication();
+
+        // Endpoint rate limits of a module (the CSV import, STAGE_5_PLAN section 5), per user once authenticated.
+        builder.Services.AddRateLimiter(options => options.RejectionStatusCode = StatusCodes.Status429TooManyRequests);
         configure?.Invoke(builder.Services);
 
         var app = builder.Build();
         app.UseSmartSpareProblemDetails();
         app.UseAuthentication();
         app.UseAuthorization();
+        app.UseRateLimiter();
 
         app.MapDefaultEndpoints();
         app.MapModules([module]);
