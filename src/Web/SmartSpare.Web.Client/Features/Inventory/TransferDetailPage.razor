@@ -1,0 +1,189 @@
+@page "/inventory/transfers/{Id:long}"
+@attribute [Authorize(Policy = AppPolicies.ReadInventory)]
+@using System.Globalization
+@using SmartSpare.ApiContracts.Inventory
+@inject IStringLocalizer<SharedResource> Text
+@inject InventoryClient Inventory
+@inject ProblemMessages Messages
+@inject ISnackbar Snackbar
+
+<PageTitle>@(_transfer?.Order.Number ?? Text["Transfers.Title"].Value)</PageTitle>
+
+<MudText Typo="Typo.h4" HtmlTag="h1" Class="mb-2">@Text["Nav.Inventory"]</MudText>
+<InventoryTabs />
+
+@if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-3" data-testid="transfer-error">@_error</MudAlert>
+}
+
+@if (_transfer is null)
+{
+    @if (_error is null)
+    {
+        <MudProgressLinear Indeterminate="true" Class="my-4" aria-label="@Text["Transfer.Loading"]" />
+        <MudText>@Text["Transfer.Loading"]</MudText>
+    }
+}
+else
+{
+    var order = _transfer.Order;
+    <div class="d-flex align-center flex-wrap mb-1">
+        <MudText Typo="Typo.h5" HtmlTag="h2" Class="mr-3">@order.Number</MudText>
+        <span data-testid="transfer-status"><TransferStatusChip Status="@order.Status" /></span>
+        @if (order.IsUrgent)
+        {
+            <StatusChip Label="@Text["Transfers.Urgent"]" Icon="@Icons.Material.Filled.PriorityHigh" Color="Color.Error" />
+        }
+    </div>
+    <MudText Class="mb-3">@Text["Transfer.Route", order.FromWarehouseCode, order.ToWarehouseCode]</MudText>
+
+    @if (_transfer.AllowedActions.Count > 0)
+    {
+        <MudPaper Outlined="true" Class="pa-3 mb-3" data-testid="transfer-actions">
+            <div class="d-flex flex-wrap align-center">
+                @foreach (var action in _transfer.AllowedActions.Where(a => a != TransferActions.Cancel))
+                {
+                    <MudButton OnClick="() => Confirm(action)" Disabled="_busy" Variant="Variant.Filled" Color="Color.Primary" Class="mr-2 mb-1"
+                               StartIcon="@ActionIcon(action)" data-testid="@("action-" + action)">@Text["Transfer.Action." + action]</MudButton>
+                }
+                @if (_transfer.AllowedActions.Contains(TransferActions.Cancel))
+                {
+                    <MudButton OnClick="() => Confirm(TransferActions.Cancel)" Disabled="_busy" Variant="Variant.Outlined" Color="Color.Error"
+                               Class="mr-2 mb-1" StartIcon="@Icons.Material.Filled.Cancel" data-testid="action-cancel">@Text["Transfer.Action.cancel"]</MudButton>
+                }
+            </div>
+
+            @if (_pending is { } pending)
+            {
+                <MudDivider Class="my-3" />
+                <MudText Class="mb-2" data-testid="confirm-text">@Text["Transfer.Confirm." + pending, order.Number]</MudText>
+                @if (pending == TransferActions.Cancel)
+                {
+                    <MudTextField T="string" @bind-Value="_reason" Label="@Text["Transfer.CancelReason"]" Variant="Variant.Outlined"
+                                  Margin="Margin.Dense" MaxLength="TransferLimits.MaxReasonLength" Class="mb-2" data-testid="cancel-reason" />
+                }
+                @if (_actionError is not null)
+                {
+                    <MudText Color="Color.Error" Typo="Typo.body2" Class="mb-2" data-testid="action-error">@_actionError</MudText>
+                }
+                <MudButton OnClick="RunAsync" Disabled="_busy" Variant="Variant.Filled" Color="@(pending == TransferActions.Cancel ? Color.Error : Color.Primary)"
+                           Class="mr-2" data-testid="confirm">@Text["Transfer.Yes"]</MudButton>
+                <MudButton OnClick="() => _pending = null" Disabled="_busy" Variant="Variant.Text">@Text["Transfer.No"]</MudButton>
+            }
+        </MudPaper>
+    }
+
+    <MudGrid Spacing="3">
+        <MudItem xs="12" md="8">
+            <MudText Typo="Typo.h6" HtmlTag="h3" Class="mb-2">@Text["Transfers.Lines"]</MudText>
+            <MudSimpleTable Dense="true" Outlined="true" Elevation="0" data-testid="transfer-lines">
+                <thead>
+                    <tr>
+                        <th>@Text["Parts.OemPartNumber"]</th><th>@Text["Parts.Description"]</th><th>@Text["Position.Quantity"]</th>
+                        <th>@Text["Transfer.DonorAvailable"]</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var line in _transfer.Lines)
+                    {
+                        <tr>
+                            <td>@line.BrandCode @line.OemPartNumber</td>
+                            <td>@line.Description@(line.OverrideReason is { } reason ? $" ({reason})" : string.Empty)</td>
+                            <td>@Number(line.Quantity) @line.UnitOfMeasure</td>
+                            <td>@Number(line.DonorAvailable)</td>
+                        </tr>
+                    }
+                </tbody>
+            </MudSimpleTable>
+        </MudItem>
+        <MudItem xs="12" md="4">
+            <MudText Typo="Typo.h6" HtmlTag="h3" Class="mb-2">@Text["Transfer.Timeline"]</MudText>
+            <MudTimeline TimelinePosition="TimelinePosition.Start" data-testid="transfer-timeline">
+                @foreach (var step in _transfer.Timeline)
+                {
+                    <MudTimelineItem Size="Size.Small">
+                        <MudText Typo="Typo.body2"><b>@Text["Transfer.Step." + step.Step]</b></MudText>
+                        <MudText Typo="Typo.caption">@step.At?.ToLocalTime().ToString("g", CultureInfo.CurrentCulture)</MudText>
+                    </MudTimelineItem>
+                }
+            </MudTimeline>
+            @if (_transfer.CancelReason is { } cancelReason)
+            {
+                <MudText Typo="Typo.body2">@Text["Transfer.CancelledBecause", cancelReason]</MudText>
+            }
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    [Parameter]
+    public long Id { get; set; }
+
+    private TransferDetails? _transfer;
+    private string? _error;
+    private string? _pending;
+    private string? _reason;
+    private string? _actionError;
+    private bool _busy;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        var result = await Inventory.GetTransferAsync(Id);
+        _transfer = result.IsSuccess ? result.Value : null;
+        _error = result.IsSuccess ? null : Messages.Describe(result.Problem!);
+    }
+
+    private void Confirm(string action)
+    {
+        _pending = action;
+        _actionError = null;
+    }
+
+    private async Task RunAsync()
+    {
+        if (_pending is not { } action)
+        {
+            return;
+        }
+
+        if (action == TransferActions.Cancel)
+        {
+            var invalid = new CancelTransferRequestValidator().Validate(new CancelTransferRequest(_reason?.Trim() ?? string.Empty));
+            if (!invalid.IsValid)
+            {
+                _actionError = string.Join(" ", invalid.Errors.Select(e => e.ErrorMessage));
+                return;
+            }
+        }
+
+        _busy = true;
+        var result = await Inventory.TransferStepAsync(Id, action, _reason?.Trim());
+        _busy = false;
+        if (!result.IsSuccess)
+        {
+            // SS200/SS201 (stock), SS300 (state changed meanwhile), SS302 (wrong hub): the server's message, with its reference.
+            _actionError = Messages.Describe(result.Problem!);
+            return;
+        }
+
+        _transfer = result.Value;
+        _pending = null;
+        _reason = null;
+        Snackbar.Add(Text["Transfer.Done." + action, _transfer!.Order.Number], Severity.Success);
+    }
+
+    private static string ActionIcon(string action) => action switch
+    {
+        TransferActions.Approve => Icons.Material.Filled.ThumbUp,
+        TransferActions.Dispatch => Icons.Material.Filled.LocalShipping,
+        _ => Icons.Material.Filled.Inventory,
+    };
+
+    private static string Number(decimal value) => value.ToString("0.###", CultureInfo.CurrentCulture);
+}

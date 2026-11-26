@@ -71,4 +71,42 @@ public class InventoryClient(HttpClient http) : ApiClientBase(http)
     public virtual Task<ApiResult<StockAdjustmentResponse>> AdjustStockAsync(StockAdjustmentRequest request, CancellationToken cancellationToken = default) =>
         SendAsync<StockAdjustmentResponse>(
             new HttpRequestMessage(HttpMethod.Post, "api/v1/inventory/stock-adjustments") { Content = JsonContent.Create(request) }, cancellationToken);
+
+    public virtual Task<ApiResult<PagedResponse<TransferSummary>>> ListTransfersAsync(
+        string? status, short? warehouseId, int page, int pageSize, CancellationToken cancellationToken = default)
+    {
+        var query = string.Create(CultureInfo.InvariantCulture, $"page={page}&pageSize={pageSize}");
+        if (!string.IsNullOrEmpty(status))
+        {
+            query += "&status=" + Uri.EscapeDataString(status);
+        }
+
+        if (warehouseId is { } warehouse)
+        {
+            query += string.Create(CultureInfo.InvariantCulture, $"&warehouseId={warehouse}");
+        }
+
+        return SendAsync<PagedResponse<TransferSummary>>(new HttpRequestMessage(HttpMethod.Get, "api/v1/inventory/transfers?" + query), cancellationToken);
+    }
+
+    public virtual Task<ApiResult<TransferDetails>> GetTransferAsync(long id, CancellationToken cancellationToken = default) =>
+        SendAsync<TransferDetails>(
+            new HttpRequestMessage(HttpMethod.Get, string.Create(CultureInfo.InvariantCulture, $"api/v1/inventory/transfers/{id}")), cancellationToken);
+
+    public virtual Task<ApiResult<TransferDetails>> CreateTransferAsync(CreateTransferRequest request, CancellationToken cancellationToken = default) =>
+        SendAsync<TransferDetails>(
+            new HttpRequestMessage(HttpMethod.Post, "api/v1/inventory/transfers") { Content = JsonContent.Create(request) }, cancellationToken);
+
+    /// <summary>approve, dispatch or receive (no body), or cancel with <paramref name="reason"/>.</summary>
+    public virtual Task<ApiResult<TransferDetails>> TransferStepAsync(long id, string action, string? reason = null, CancellationToken cancellationToken = default)
+    {
+        var message = new HttpRequestMessage(
+            HttpMethod.Post, string.Create(CultureInfo.InvariantCulture, $"api/v1/inventory/transfers/{id}/{action}"));
+        if (action == TransferActions.Cancel)
+        {
+            message.Content = JsonContent.Create(new CancelTransferRequest(reason ?? string.Empty));
+        }
+
+        return SendAsync<TransferDetails>(message, cancellationToken);
+    }
 }

@@ -1,0 +1,28 @@
+@using SmartSpare.ApiContracts.Inventory
+@inject IStringLocalizer<SharedResource> Text
+
+@* A transfer status with its icon and text, never colour alone (WCAG 2.1 AA). *@
+<StatusChip Label="@Text["TransferStatus." + Status]" Icon="@Icon" Color="@Color" />
+
+@code {
+    [Parameter, EditorRequired]
+    public string Status { get; set; } = TransferStatuses.Proposed;
+
+    private string Icon => Status switch
+    {
+        TransferStatuses.Proposed => Icons.Material.Filled.EditNote,
+        TransferStatuses.Approved => Icons.Material.Filled.ThumbUp,
+        TransferStatuses.Dispatched => Icons.Material.Filled.LocalShipping,
+        TransferStatuses.Received => Icons.Material.Filled.Inventory,
+        _ => Icons.Material.Filled.Cancel,
+    };
+
+    private Color Color => Status switch
+    {
+        TransferStatuses.Proposed => Color.Default,
+        TransferStatuses.Approved => Color.Info,
+        TransferStatuses.Dispatched => Color.Warning,
+        TransferStatuses.Received => Color.Success,
+        _ => Color.Error,
+    };
+}
