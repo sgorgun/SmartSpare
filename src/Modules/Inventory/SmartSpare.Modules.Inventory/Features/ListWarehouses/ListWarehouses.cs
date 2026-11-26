@@ -15,18 +15,6 @@ namespace SmartSpare.Modules.Inventory.Features.ListWarehouses;
 /// <summary>Every warehouse, the central hub first.</summary>
 internal sealed record ListWarehousesQuery : IQuery<IReadOnlyList<WarehouseResponse>>;
 
-internal sealed class ListWarehousesQueryHandler(InventoryDbContext db) : IQueryHandler<ListWarehousesQuery, IReadOnlyList<WarehouseResponse>>
-{
-    public async Task<Result<IReadOnlyList<WarehouseResponse>>> Handle(ListWarehousesQuery query, CancellationToken cancellationToken)
-    {
-        var warehouses = await db.Set<Warehouse>().AsNoTracking()
-            .OrderByDescending(w => w.IsCentralHub).ThenBy(w => w.Code)
-            .Select(w => new WarehouseResponse(w.Id, w.Code, w.Name, w.City, w.IsCentralHub, w.IsActive))
-            .ToListAsync(cancellationToken).ConfigureAwait(false);
-        return Result.Success<IReadOnlyList<WarehouseResponse>>(warehouses);
-    }
-}
-
 internal static class ListWarehousesEndpoint
 {
     /// <summary>GET /api/v1/inventory/warehouses — the warehouses of the dealer network.</summary>

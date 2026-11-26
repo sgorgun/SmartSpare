@@ -10,8 +10,6 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Npgsql;
-using NpgsqlTypes;
 using SmartSpare.ApiContracts;
 using SmartSpare.ApiContracts.Authorization;
 using SmartSpare.ApiContracts.Inventory;
@@ -19,6 +17,7 @@ using SmartSpare.Infrastructure.Http;
 using SmartSpare.Infrastructure.Messaging;
 using SmartSpare.Infrastructure.Persistence;
 using SmartSpare.Modules.Inventory.Infrastructure.Persistence;
+using SmartSpare.Modules.Inventory.Infrastructure.Queries;
 using SmartSpare.SharedKernel;
 
 namespace SmartSpare.Modules.Inventory.Features.Imports;
@@ -53,7 +52,8 @@ internal sealed class ImportFileCommandValidator : AbstractValidator<ImportFileC
 /// with a binary COPY, call <c>staging.process_batch</c>. A file over the 5 % error threshold is a normal answer with
 /// status failed, not an error. Nothing is published yet: <c>PartCatalogChanged</c> follows with its first consumer (#12).
 /// </summary>
-internal sealed class ImportFileCommandHandler(InventoryDbContext db, IUnitOfWork<InventoryDbContext> unitOfWork, ICurrentUser user)
+internal sealed class ImportFileCommandHandler(
+    InventoryDbContext db, IUnitOfWork<InventoryDbContext> unitOfWork, ICurrentUser user, ImportStore store)
     : ICommandHandler<ImportFileCommand, ImportBatchDetails>
 {
     public async Task<Result<ImportBatchDetails>> Handle(ImportFileCommand command, CancellationToken cancellationToken)
@@ -94,43 +94,11 @@ internal sealed class ImportFileCommandHandler(InventoryDbContext db, IUnitOfWor
         db.Add(batch);
         await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-        await CopyRowsAsync(batch.Id, command.Source, parsed.Value, cancellationToken).ConfigureAwait(false);
-        await db.Database.ExecuteSqlAsync($"SELECT staging.process_batch({batch.Id})", cancellationToken).ConfigureAwait(false);
+        await store.CopyRowsAsync(batch.Id, command.Source, parsed.Value, cancellationToken).ConfigureAwait(false);
+        await store.ProcessBatchAsync(batch.Id, cancellationToken).ConfigureAwait(false);
 
         db.ChangeTracker.Clear();
         return (await ImportReader.ReadAsync(db, batch.Id, cancellationToken).ConfigureAwait(false))!;
-    }
-
-    /// <summary>A binary COPY on the context's connection, inside its transaction: 50,000 rows in well under a second.</summary>
-    private async Task CopyRowsAsync(long batchId, string source, CsvImportFile.Parsed parsed, CancellationToken cancellationToken)
-    {
-        var table = source == ImportSources.PartCatalog ? "raw.part_catalog_row" : "raw.demand_history_row";
-        var connection = (NpgsqlConnection)db.Database.GetDbConnection();
-        var writer = await connection.BeginBinaryImportAsync(
-            $"COPY {table} (import_batch_id, line_no, {string.Join(", ", parsed.Columns)}) FROM STDIN (FORMAT BINARY)", cancellationToken)
-            .ConfigureAwait(false);
-        await using (writer.ConfigureAwait(false))
-        {
-            foreach (var (lineNo, values) in parsed.Rows)
-            {
-                await writer.StartRowAsync(cancellationToken).ConfigureAwait(false);
-                await writer.WriteAsync(batchId, NpgsqlDbType.Bigint, cancellationToken).ConfigureAwait(false);
-                await writer.WriteAsync(lineNo, NpgsqlDbType.Integer, cancellationToken).ConfigureAwait(false);
-                foreach (var value in values)
-                {
-                    if (value is null)
-                    {
-                        await writer.WriteNullAsync(cancellationToken).ConfigureAwait(false);
-                    }
-                    else
-                    {
-                        await writer.WriteAsync(value, NpgsqlDbType.Text, cancellationToken).ConfigureAwait(false);
-                    }
-                }
-            }
-
-            await writer.CompleteAsync(cancellationToken).ConfigureAwait(false);
-        }
     }
 }
 
@@ -156,26 +124,6 @@ internal static class ImportMapping
         b.UploadedAt, b.ProcessedAt, b.Message);
 }
 
-/// <summary>Reads batches and their errors (CQRS-lite).</summary>
-internal static class ImportReader
-{
-    public static async Task<ImportBatchDetails?> ReadAsync(InventoryDbContext db, long id, CancellationToken cancellationToken)
-    {
-        var batch = await db.Set<ImportBatch>().AsNoTracking().SingleOrDefaultAsync(b => b.Id == id, cancellationToken).ConfigureAwait(false);
-        if (batch is null)
-        {
-            return null;
-        }
-
-        var errors = db.Set<ImportError>().AsNoTracking().Where(e => e.ImportBatchId == id);
-        var count = await errors.CountAsync(cancellationToken).ConfigureAwait(false);
-        var shown = await errors.OrderBy(e => e.LineNo).ThenBy(e => e.Id).Take(ImportLimits.MaxErrorsShown)
-            .Select(e => new ImportRowError(e.LineNo, e.ColumnName, e.ErrorCode, e.Message))
-            .ToListAsync(cancellationToken).ConfigureAwait(false);
-        return new ImportBatchDetails(ImportMapping.ToResponse(batch), shown, count);
-    }
-}
-
 internal sealed record ListImportsQuery(int Page, int PageSize) : IQuery<PagedResponse<ImportBatchResponse>>;
 
 internal sealed class ListImportsQueryValidator : AbstractValidator<ListImportsQuery>
@@ -187,31 +135,7 @@ internal sealed class ListImportsQueryValidator : AbstractValidator<ListImportsQ
     }
 }
 
-internal sealed class ListImportsQueryHandler(InventoryDbContext db) : IQueryHandler<ListImportsQuery, PagedResponse<ImportBatchResponse>>
-{
-    public async Task<Result<PagedResponse<ImportBatchResponse>>> Handle(ListImportsQuery query, CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(query);
-        var batches = db.Set<ImportBatch>().AsNoTracking();
-        var total = await batches.CountAsync(cancellationToken).ConfigureAwait(false);
-        var page = await batches.OrderByDescending(b => b.UploadedAt).ThenByDescending(b => b.Id)
-            .Skip((query.Page - 1) * query.PageSize).Take(query.PageSize)
-            .ToListAsync(cancellationToken).ConfigureAwait(false);
-        return Result.Success(new PagedResponse<ImportBatchResponse>([.. page.Select(ImportMapping.ToResponse)], query.Page, query.PageSize, total));
-    }
-}
-
 internal sealed record GetImportQuery(long Id) : IQuery<ImportBatchDetails>;
-
-internal sealed class GetImportQueryHandler(InventoryDbContext db) : IQueryHandler<GetImportQuery, ImportBatchDetails>
-{
-    public async Task<Result<ImportBatchDetails>> Handle(GetImportQuery query, CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(query);
-        var details = await ImportReader.ReadAsync(db, query.Id, cancellationToken).ConfigureAwait(false);
-        return details is null ? ImportErrors.NotFound : details;
-    }
-}
 
 internal static class ImportEndpoints
 {

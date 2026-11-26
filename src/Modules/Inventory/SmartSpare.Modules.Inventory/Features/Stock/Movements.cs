@@ -16,61 +16,6 @@ using SmartSpare.SharedKernel;
 
 namespace SmartSpare.Modules.Inventory.Features.Stock;
 
-/// <summary>The stock ledger read model: movements newest first, with their source document.</summary>
-internal static class Movements
-{
-    private const string FromClause =
-        """
-        FROM inventory.stock_movement m
-        JOIN inventory.warehouse w ON w.id = m.warehouse_id
-        JOIN catalog.part p ON p.id = m.part_id
-        JOIN ref.movement_type mt ON mt.code = m.movement_type_code
-        LEFT JOIN inventory.transfer_order_line l ON l.id = m.transfer_order_line_id
-        LEFT JOIN inventory.transfer_order o ON o.id = l.transfer_order_id
-        WHERE (@warehouse IS NULL OR m.warehouse_id = @warehouse)
-          AND (@part IS NULL OR m.part_id = @part)
-          AND (@type IS NULL OR m.movement_type_code = @type)
-          AND (@from IS NULL OR m.occurred_at >= @from)
-          AND (@to IS NULL OR m.occurred_at < @to)
-        """;
-
-    private const string PageSql =
-        """
-        SELECT m.id, m.occurred_at, m.warehouse_id, w.code AS warehouse_code, m.part_id, p.oem_part_number,
-               m.movement_type_code AS movement_type, mt.balance_sign * m.quantity AS quantity,
-               coalesce(o.number, m.external_doc_ref,
-                        CASE WHEN m.import_batch_id IS NOT NULL THEN 'Import ' || m.import_batch_id END,
-                        CASE WHEN m.service_order_line_id IS NOT NULL THEN 'Service order line ' || m.service_order_line_id END,
-                        CASE WHEN m.purchase_order_line_id IS NOT NULL THEN 'Purchase order line ' || m.purchase_order_line_id END) AS document,
-               m.note
-
-        """ + FromClause + "\nORDER BY m.occurred_at DESC, m.id DESC\nLIMIT @limit OFFSET @offset";
-
-    private const string CountSql = "SELECT count(*)::int AS \"Value\"\n" + FromClause;
-
-    public sealed record Filter(short? WarehouseId, long? PartId, string? MovementType, DateTimeOffset? From, DateTimeOffset? To);
-
-    public static Task<int> CountAsync(InventoryDbContext db, Filter filter, CancellationToken cancellationToken) =>
-        db.Database.SqlQueryRaw<int>(CountSql, Parameters(filter)).SingleAsync(cancellationToken);
-
-    public static async Task<IReadOnlyList<MovementRow>> PageAsync(
-        InventoryDbContext db, Filter filter, int page, int pageSize, CancellationToken cancellationToken) =>
-        await db.Database
-            .SqlQueryRaw<MovementRow>(
-                PageSql,
-                [.. Parameters(filter), new NpgsqlParameter<int>("limit", pageSize), new NpgsqlParameter<int>("offset", (page - 1) * pageSize)])
-            .ToListAsync(cancellationToken).ConfigureAwait(false);
-
-    private static NpgsqlParameter[] Parameters(Filter filter) =>
-    [
-        new("warehouse", NpgsqlDbType.Smallint) { Value = (object?)filter.WarehouseId ?? DBNull.Value },
-        new("part", NpgsqlDbType.Bigint) { Value = (object?)filter.PartId ?? DBNull.Value },
-        new("type", NpgsqlDbType.Text) { Value = (object?)filter.MovementType ?? DBNull.Value },
-        new("from", NpgsqlDbType.TimestampTz) { Value = (object?)filter.From?.ToUniversalTime() ?? DBNull.Value },
-        new("to", NpgsqlDbType.TimestampTz) { Value = (object?)filter.To?.ToUniversalTime() ?? DBNull.Value },
-    ];
-}
-
 /// <summary>Ledger movements filtered by hub, part, type and time, newest first.</summary>
 internal sealed record ListMovementsQuery(
     short? WarehouseId, long? PartId, string? MovementType, DateTimeOffset? From, DateTimeOffset? To, int Page, int PageSize)
@@ -85,22 +30,6 @@ internal sealed class ListMovementsQueryValidator : AbstractValidator<ListMoveme
             .WithMessage("'To' must be after 'From'.");
         RuleFor(q => q.Page).GreaterThanOrEqualTo(1);
         RuleFor(q => q.PageSize).InclusiveBetween(1, MovementSearch.MaxPageSize);
-    }
-}
-
-internal sealed class ListMovementsQueryHandler(InventoryDbContext db, TimeProvider clock)
-    : IQueryHandler<ListMovementsQuery, PagedResponse<MovementRow>>
-{
-    public async Task<Result<PagedResponse<MovementRow>>> Handle(ListMovementsQuery query, CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(query);
-
-        // A lower bound keeps the query on recent partitions of the ledger (partition pruning by occurred_at).
-        var from = query.From ?? clock.GetUtcNow().AddDays(-MovementSearch.DefaultDays);
-        var filter = new Movements.Filter(query.WarehouseId, query.PartId, query.MovementType, from, query.To);
-        var total = await Movements.CountAsync(db, filter, cancellationToken).ConfigureAwait(false);
-        var items = await Movements.PageAsync(db, filter, query.Page, query.PageSize, cancellationToken).ConfigureAwait(false);
-        return Result.Success(new PagedResponse<MovementRow>(items, query.Page, query.PageSize, total));
     }
 }
 

@@ -9,6 +9,7 @@ using SmartSpare.Infrastructure.Modules;
 using SmartSpare.Infrastructure.Persistence;
 using SmartSpare.Modules.Inventory.Contracts;
 using SmartSpare.Modules.Inventory.Infrastructure.Persistence;
+using SmartSpare.Modules.Inventory.Infrastructure.Queries;
 using SmartSpare.Modules.Inventory.Features.GetPart;
 using SmartSpare.Modules.Inventory.Features.Imports;
 using SmartSpare.Modules.Inventory.Features.ListWarehouses;
@@ -35,6 +36,8 @@ public sealed class InventoryModuleInstaller : IModuleInstaller
         services.AddScoped<IWarehouseQueries, WarehouseQueries>();
         services.AddScoped<TransferAccess>();
         services.AddScoped<TransferDetailsReader>();
+        services.AddScoped<TransferFunctions>();
+        services.AddScoped<ImportStore>();
         services.AddImportRateLimit();
         InventoryDatabase.Instance.AddTo(services, assembly, configuration.GetConnectionString(PersistenceRegistration.ConnectionStringName), InventoryDbContext.HistorySchema);
     }

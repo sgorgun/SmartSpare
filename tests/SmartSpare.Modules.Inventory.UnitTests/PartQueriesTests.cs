@@ -4,6 +4,8 @@ using SmartSpare.Modules.Inventory.Features.GetPart;
 using SmartSpare.Modules.Inventory.Features.SearchParts;
 using SmartSpare.SharedKernel;
 
+using SmartSpare.Modules.Inventory.Features;
+
 namespace SmartSpare.Modules.Inventory;
 
 /// <summary>
@@ -41,7 +43,7 @@ public sealed class PartQueriesTests
     [InlineData(@"C:\x", @"C:\\x")]
     [InlineData(@"\%_", @"\\\%\_")]
     public void Like_wildcards_in_the_search_text_are_escaped(string text, string escaped) =>
-        SearchPartsQueryHandler.EscapeLike(text).ShouldBe(escaped);
+        SearchText.Escape(text).ShouldBe(escaped);
 
     [Fact]
     public void An_unknown_part_is_a_not_found_error_with_a_stable_code()
