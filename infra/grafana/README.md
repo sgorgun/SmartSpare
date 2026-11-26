@@ -7,7 +7,7 @@ Grafana loads from [`infra/observability`](../observability):
 |---|---|
 | Folder `SmartSpare` | — |
 | 5 dashboards | `observability/dashboards/*.json` |
-| 8 alert rules in 3 groups | `observability/grafana/provisioning/alerting/rules.json` |
+| 7 alert rules in 3 groups | `observability/grafana/provisioning/alerting/rules.json` |
 | Contact point `SmartSpare`: e-mail, plus Telegram when a bot token is given | variables |
 | Notification policy: everything to that contact point | — |
 | Optional test rule `SmartSpare test alert`, firing at once | `test_alert = true` |

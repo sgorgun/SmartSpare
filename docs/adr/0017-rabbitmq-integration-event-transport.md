@@ -1,6 +1,6 @@
 # ADR 0017: RabbitMQ as the integration-event transport
 
-- Status: Accepted, amended by [ADR 0021](0021-queue-per-consumer-name.md) (2026-11-25)
+- Status: Accepted, amended by [ADR 0021](0021-queue-per-consumer-name.md) (2026-11-25) and [ADR 0023](0023-message-quota-watched-by-cloudamqp.md) (2026-11-26)
 - Date: 2026-11-24
 - Amends: [ADR 0003](0003-module-boundaries-and-integration-events.md)
 

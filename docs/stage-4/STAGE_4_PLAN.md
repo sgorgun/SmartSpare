@@ -238,7 +238,7 @@ The dispatcher, `EfOutboxStore`, inbox and handler registration don't change.
 | Channels | 2 per connection; shared plans allow 200 per connection ([FAQ](https://www.cloudamqp.com/docs/faq.html)) | — |
 | Queues | ≤ 45 subscription queues + 6 dead-letter queues; limit 100 | unit test counts declared queues across all modules |
 | Queued messages | alert > 5,000; limit 10,000 | broker metrics job |
-| Messages per month | alert at 70 %; limit 1 M, reset on the 1st | broker metrics job; CloudAMQP also mails at 70 % and 100 % ([FAQ](https://www.cloudamqp.com/docs/faq.html)) |
+| Messages per month | limit 1 M, reset on the 1st | CloudAMQP mails at 70 % and 100 % ([FAQ](https://www.cloudamqp.com/docs/faq.html)); no rule of our own ([ADR 0023](../adr/0023-message-quota-watched-by-cloudamqp.md)) |
 
 In stage 4 no module has a real event yet. The transport is proven with a **probe event**: Identity publishes it from a diagnostics endpoint, and a diagnostics consumer in Inventory receives it (6.5). Reporting, named here first, has no outbox or inbox, so the product owner chose Identity → Inventory (25 November 2026). Both are removed when the first pair of business events exists, at the latest with the stub endpoints before the defence (#55). The probe uses 1 queue.
 
@@ -314,11 +314,13 @@ Outcomes:
 ### 6.2 Broker metrics job
 
 A Container Apps cron job (every 15 minutes, in the Reporting image, `--job broker-metrics`; cron is five-field and in UTC, [jobs](https://learn.microsoft.com/azure/container-apps/jobs)):
-- reads the management API (queue depths, dead-letter counts, connections, monthly published count);
+- reads the management API (queue depths, dead-letter counts, connections, published count);
 - exports gauges over OTLP;
 - exits.
 
 If the management API isn't available (5.4), the job reports only what the AMQP client can see (queue depth through passive declare), and the monthly quota relies on CloudAMQP's own e-mails.
+
+**Changed on 26 November 2026 (product owner, [ADR 0023](../adr/0023-message-quota-watched-by-cloudamqp.md)):** the management API has no monthly published count, only one since the broker last reset its statistics. Instead of keeping a monthly baseline in a table, which would give the read-only Reporting module state of its own, the quota relies on CloudAMQP's e-mails in every case. The job exports the cumulative count; the monthly gauge, its panel and the quota rule are dropped.
 
 Cost: 96 runs a day × about 30 s, roughly 24 replica-hours a month, about 12 % of the free grant (8.6).
 
@@ -342,7 +344,7 @@ Cost: 96 runs a day × about 30 s, roughly 24 replica-hours a month, about 12 % 
 
 They are provisioned locally as files, and to Grafana Cloud with the Grafana Terraform provider (`grafana_rule_group`, contact points, dashboards; [Terraform provisioning](https://grafana.com/docs/grafana/latest/alerting/set-up/provision-alerting-resources/terraform-provisioning/)), run from the infra workflow.
 
-**Ruler limits:** 35 groups, 20 rules per group ([usage limits](https://grafana.com/docs/grafana-cloud/cost-management-and-billing/understand-your-invoice/usage-limits/)). The plan uses 8 rules in 3 groups.
+**Ruler limits:** 35 groups, 20 rules per group ([usage limits](https://grafana.com/docs/grafana-cloud/cost-management-and-billing/understand-your-invoice/usage-limits/)). The plan uses 7 rules in 3 groups (8 before ADR 0023).
 
 **Contact points:** e-mail and Telegram are both listed for Grafana Cloud ([contact points](https://grafana.com/docs/grafana-cloud/alerting-and-irm/alerting/configure-notifications/manage-contact-points/)); the docs say nothing about free-tier restrictions. PR 4j creates both on the free stack. If Telegram isn't offered, e-mail alone satisfies the rubric (ADR 0018 §4), and the result is recorded.
 

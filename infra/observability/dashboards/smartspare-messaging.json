@@ -141,7 +141,7 @@
     },
     {
       "type": "timeseries",
-      "title": "Published this month (of the 1 M quota)",
+      "title": "Published messages (since the broker last reset its statistics)",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -154,7 +154,7 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "percentunit"
+          "unit": "short"
         },
         "overrides": []
       },
@@ -165,10 +165,11 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "max(smartspare_broker_published_messages_month) / 1000000",
-          "legendFormat": "quota used"
+          "expr": "max(smartspare_broker_published_messages)",
+          "legendFormat": "published"
         }
-      ]
+      ],
+      "description": "Cumulative publish count of the vhost from the management API. The monthly quota of 1 M is watched by CloudAMQP, which e-mails at 70 % and 100 % (ADR 0023)."
     }
   ],
   "templating": {

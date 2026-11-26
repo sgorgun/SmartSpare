@@ -14,8 +14,8 @@ run "dashboards_and_rules_of_infra_observability" {
   }
 
   assert {
-    condition     = length(grafana_rule_group.smartspare) == 3 && sum([for g in grafana_rule_group.smartspare : length(g.rule)]) == 8
-    error_message = "The 8 rules in 3 groups of ADR 0018 §4."
+    condition     = length(grafana_rule_group.smartspare) == 3 && sum([for g in grafana_rule_group.smartspare : length(g.rule)]) == 7
+    error_message = "The 7 rules in 3 groups of ADR 0018 §4 and ADR 0023."
   }
 
   assert {

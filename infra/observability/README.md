@@ -16,10 +16,10 @@ folder with `--topology services`. The same dashboards and rules are provisioned
 **Dashboards**
 - `aspnetcore` and `aspnetcore-endpoint`: the .NET team's ASP.NET Core dashboards, grafana.com IDs 19924 and 19925, which [Microsoft's metrics docs](https://learn.microsoft.com/aspnet/core/metrics/overview) link to. They are stored with the data source fixed to the uid `prometheus`.
 - `smartspare-overview`: requests, 5xx rate and p95 per service and route.
-- `smartspare-messaging`: outbox lag and parked events per module, broker queue depth, dead letters and the monthly message count. The broker panels fill when the broker metrics job runs: locally, start the `broker-metrics` resource in the Aspire dashboard ([BROKER.md](../../docs/operations/BROKER.md#broker-metrics-job)).
+- `smartspare-messaging`: outbox lag and parked events per module, broker queue depth, dead letters and the broker's cumulative publish count. The broker panels fill when the broker metrics job runs: locally, start the `broker-metrics` resource in the Aspire dashboard ([BROKER.md](../../docs/operations/BROKER.md#broker-metrics-job)).
 - `smartspare-free-tier`: active series (Grafana Cloud's `grafanacloud_instance_active_series`, locally Prometheus' head series).
 
-**Alert rules** (ADR 0018 §4): 8 rules in 3 groups.
+**Alert rules** (ADR 0018 §4, ADR 0023): 7 rules in 3 groups. The monthly message quota has no rule: CloudAMQP e-mails at 70 % and 100 % of it ([ADR 0023](../../docs/adr/0023-message-quota-watched-by-cloudamqp.md)).
 
 | Group | Rule | Condition |
 |---|---|---|
@@ -28,7 +28,6 @@ folder with `--topology services`. The same dashboards and rules are provisioned
 | `smartspare-messaging` | Outbox lag | Oldest pending event older than 5 minutes |
 | | Dead letters | Any dead-lettered message |
 | | Queued messages | > 5,000 for 5 minutes |
-| | Monthly message quota | > 70 % of 1 M |
 | `smartspare-platform` | Active series | > 8,000 for 15 minutes |
 | | Warm-up failed | Any service not ready during a warm-up call |
 

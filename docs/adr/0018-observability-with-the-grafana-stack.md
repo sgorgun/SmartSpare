@@ -1,6 +1,6 @@
 # ADR 0018: Observability with the Grafana stack
 
-- Status: Accepted
+- Status: Accepted, amended by [ADR 0023](0023-message-quota-watched-by-cloudamqp.md) (2026-11-26)
 - Date: 2026-11-24
 - Amends: [ADR 0009](0009-azure-hosting-and-delivery.md) (Application Insights as the telemetry target)
 
