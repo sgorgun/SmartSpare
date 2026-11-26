@@ -107,10 +107,10 @@ With the planning horizon *P* (default **14 days**, query parameter) and the dra
 |---|---|
 | `Overdue` | R ≤ 0, or t_c ≤ today |
 | `DueSoon` | R ≤ 50 h, or t_due ≤ today + P |
-| `Planned` | an open service order (draft, parts_reserved, in_progress) already covers threshold D |
+| `Planned` | an open service order (draft, parts_reserved, in_progress) of the plan exists; it counts as served in L, so D is already the threshold after it |
 | `Ok` | otherwise |
 
-`Planned` takes precedence when an open order exists, so the due list shows what still needs an order. The due list (`GET /maintenance/due`) returns every active machine and plan with status `Overdue` or `DueSoon` by default, ordered by due date, with D, R, *u*, t_h, t_c, the trigger, and the open order if any.
+`Planned` takes precedence, so the due list shows what still needs an order. The due list (`GET /maintenance/due`) returns every active machine and plan with status `Overdue` or `DueSoon` by default, ordered by due date, with D, R, *u*, t_h, t_c, the trigger, and the open order if any.
 
 ### 2.6 Data access
 

@@ -64,11 +64,8 @@ internal sealed class MaintenancePlan : AggregateRoot<int>
     /// The interval under an operating condition: <c>round(interval_hours × factor, 1)</c>, exactly as
     /// <c>fleet.fn_maintenance_due</c> computes it (BA finding F5: severe dust, high load or non-OEM oil shorten it).
     /// </summary>
-    public decimal EffectiveInterval(decimal conditionFactor)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(conditionFactor);
-        return decimal.Round(IntervalHours * conditionFactor, 1, MidpointRounding.AwayFromZero);
-    }
+    public decimal EffectiveInterval(decimal conditionFactor) =>
+        MaintenanceDueCalculator.EffectiveInterval(IntervalHours, conditionFactor);
 }
 
 /// <summary>One part of a maintenance plan's service kit (<c>fleet.maintenance_plan_part</c>).</summary>
