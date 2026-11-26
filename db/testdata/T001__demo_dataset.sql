@@ -751,6 +751,12 @@ WHERE po.status = 'pending_approval' AND NOT po.is_urgent AND po.id % 3 <> 0;
 SELECT pg_temp.t001_act_as('00000000-0000-4000-8000-000000000011');
 SELECT iam.anonymise_user('00000000-0000-4000-8000-000000000012');
 
+-- Fleet's copy of the catalogue (STAGE_6_PLAN 5.2), as if every PartCatalogChanged had been delivered: the parts above
+-- were written by SQL, so no event exists for them.
+INSERT INTO fleet.part_snapshot (part_id, brand_code, oem_part_number, description, unit_of_measure, is_active, source_occurred_at)
+SELECT p.id, b.code, p.oem_part_number, p.description, u.code, p.is_active, now()
+FROM catalog.part p JOIN ref.brand b ON b.id = p.brand_id JOIN ref.unit_of_measure u ON u.id = p.uom_id;
+
 SELECT pg_temp.t001_act_as(NULL);
 CALL mart.refresh_all();
 COMMIT;
@@ -763,6 +769,7 @@ RESET client_min_messages;
 SELECT 'parts' AS item, count(*) FROM catalog.part
 UNION ALL SELECT 'warehouse_parts (series)', count(*) FROM inventory.warehouse_part
 UNION ALL SELECT 'stock movements', count(*) FROM inventory.stock_movement
+UNION ALL SELECT 'fleet part snapshots', count(*) FROM fleet.part_snapshot
 UNION ALL SELECT 'machines', count(*) FROM fleet.machine
 UNION ALL SELECT 'engine-hour readings', count(*) FROM fleet.engine_hours_reading
 UNION ALL SELECT 'service orders', count(*) FROM fleet.service_order

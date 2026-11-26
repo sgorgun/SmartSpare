@@ -239,10 +239,17 @@
         "type": "Project",
         "dependencies": {
           "SmartSpare.Infrastructure": "[1.0.0, )",
-          "SmartSpare.Modules.Fleet.Contracts": "[1.0.0, )"
+          "SmartSpare.Modules.Fleet.Contracts": "[1.0.0, )",
+          "SmartSpare.Modules.Inventory.Contracts": "[1.0.0, )"
         }
       },
       "smartspare.modules.fleet.contracts": {
+        "type": "Project",
+        "dependencies": {
+          "SmartSpare.SharedKernel": "[1.0.0, )"
+        }
+      },
+      "smartspare.modules.inventory.contracts": {
         "type": "Project",
         "dependencies": {
           "SmartSpare.SharedKernel": "[1.0.0, )"

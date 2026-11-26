@@ -8,6 +8,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\..\BuildingBlocks\SmartSpare.Infrastructure\SmartSpare.Infrastructure.csproj" />
     <ProjectReference Include="..\SmartSpare.Modules.Fleet.Contracts\SmartSpare.Modules.Fleet.Contracts.csproj" />
+    <ProjectReference Include="..\..\Inventory\SmartSpare.Modules.Inventory.Contracts\SmartSpare.Modules.Inventory.Contracts.csproj" />
   </ItemGroup>
 
 </Project>

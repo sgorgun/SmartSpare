@@ -738,6 +738,74 @@ namespace SmartSpare.Modules.Fleet.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("SmartSpare.Modules.Fleet.Infrastructure.Persistence.PartSnapshot", b =>
+                {
+                    b.Property<long>("PartId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("part_id")
+                        .HasColumnOrder(0)
+                        .HasComment("Inventory part id (catalog.part.id); no cross-module FK.");
+
+                    b.Property<string>("BrandCode")
+                        .IsRequired()
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("brand_code")
+                        .HasColumnOrder(1)
+                        .HasComment("Brand code (ref.brand.code).");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("description")
+                        .HasColumnOrder(3)
+                        .HasComment("Description.");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active")
+                        .HasColumnOrder(5)
+                        .HasComment("FALSE = deactivated in the catalogue.");
+
+                    b.Property<string>("OemPartNumber")
+                        .IsRequired()
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("oem_part_number")
+                        .HasColumnOrder(2)
+                        .HasComment("OEM part number.");
+
+                    b.Property<DateTimeOffset>("SourceOccurredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("source_occurred_at")
+                        .HasColumnOrder(6)
+                        .HasComment("OccurredAt of the event that wrote the row; older events are ignored.");
+
+                    b.Property<string>("UnitOfMeasure")
+                        .IsRequired()
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("unit_of_measure")
+                        .HasColumnOrder(4)
+                        .HasComment("Unit of measure code (ref.unit_of_measure.code).");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasColumnOrder(7)
+                        .HasDefaultValueSql("now()")
+                        .HasComment("Time of the last change.");
+
+                    b.HasKey("PartId")
+                        .HasName("pk_part_snapshot");
+
+                    b.HasIndex("BrandCode", "OemPartNumber")
+                        .HasDatabaseName("ix_part_snapshot_brand_oem");
+
+                    b.ToTable("part_snapshot", "fleet", t =>
+                        {
+                            t.HasComment("Read-only copy of the Inventory part catalogue for service kits, fed by PartCatalogChanged (MODULE_MAPPING 2.3). Written only by the event consumer.");
+                        });
+                });
+
             modelBuilder.Entity("SmartSpare.Modules.Fleet.Infrastructure.Persistence.RefBrand", b =>
                 {
                     b.Property<short>("Id")

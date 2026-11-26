@@ -1114,7 +1114,8 @@
         "type": "Project",
         "dependencies": {
           "SmartSpare.Infrastructure": "[1.0.0, )",
-          "SmartSpare.Modules.Fleet.Contracts": "[1.0.0, )"
+          "SmartSpare.Modules.Fleet.Contracts": "[1.0.0, )",
+          "SmartSpare.Modules.Inventory.Contracts": "[1.0.0, )"
         }
       },
       "smartspare.modules.fleet.contracts": {
