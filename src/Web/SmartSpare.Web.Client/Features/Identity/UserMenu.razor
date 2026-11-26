@@ -9,6 +9,7 @@
         <MudMenu Icon="@Icons.Material.Filled.AccountCircle" Color="Color.Inherit" AnchorOrigin="Origin.BottomRight"
                  TransformOrigin="Origin.TopRight" AriaLabel="@Text["UserMenu.Label", context.User.Identity?.Name ?? string.Empty].Value">
             <MudMenuItem Disabled="true">@context.User.Identity?.Name</MudMenuItem>
+            <MudMenuItem Icon="@Icons.Material.Filled.Password" Href="account/password">@Text["UserMenu.ChangePassword"]</MudMenuItem>
             <MudMenuItem Icon="@Icons.Material.Filled.Logout" OnClick="SignOutAsync">@Text["UserMenu.SignOut"]</MudMenuItem>
         </MudMenu>
     </Authorized>

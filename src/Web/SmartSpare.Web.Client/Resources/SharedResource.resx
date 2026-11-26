@@ -525,4 +525,136 @@
   <data name="Imports.Loaded" xml:space="preserve">
     <value>Loaded</value>
   </data>
+  <data name="Nav.Users" xml:space="preserve">
+    <value>Users</value>
+  </data>
+  <data name="Module.Users" xml:space="preserve">
+    <value>Manage users: roles, brands, home hubs, lockouts and GDPR erasure.</value>
+  </data>
+  <data name="UserMenu.ChangePassword" xml:space="preserve">
+    <value>Change password</value>
+  </data>
+  <data name="Users.Title" xml:space="preserve">
+    <value>Users</value>
+  </data>
+  <data name="Users.New" xml:space="preserve">
+    <value>New user</value>
+  </data>
+  <data name="Users.Search" xml:space="preserve">
+    <value>Search by user name</value>
+  </data>
+  <data name="Users.EditAccess" xml:space="preserve">
+    <value>Access of {0}</value>
+  </data>
+  <data name="Users.EditAccessShort" xml:space="preserve">
+    <value>Access</value>
+  </data>
+  <data name="Users.UserName" xml:space="preserve">
+    <value>User name</value>
+  </data>
+  <data name="Users.FullName" xml:space="preserve">
+    <value>Name</value>
+  </data>
+  <data name="Users.Email" xml:space="preserve">
+    <value>E-mail</value>
+  </data>
+  <data name="Users.InitialPassword" xml:space="preserve">
+    <value>Initial password</value>
+  </data>
+  <data name="Users.PasswordRule" xml:space="preserve">
+    <value>At least 12 characters, 4 different ones.</value>
+  </data>
+  <data name="Users.Roles" xml:space="preserve">
+    <value>Roles</value>
+  </data>
+  <data name="Users.Brands" xml:space="preserve">
+    <value>Brands (brand managers)</value>
+  </data>
+  <data name="Users.HomeHub" xml:space="preserve">
+    <value>Home hub</value>
+  </data>
+  <data name="Users.NoHub" xml:space="preserve">
+    <value>No home hub</value>
+  </data>
+  <data name="Users.Save" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="Users.Saved" xml:space="preserve">
+    <value>The user was saved.</value>
+  </data>
+  <data name="Users.Active" xml:space="preserve">
+    <value>Active</value>
+  </data>
+  <data name="Users.Inactive" xml:space="preserve">
+    <value>Deactivated</value>
+  </data>
+  <data name="Users.LockedOut" xml:space="preserve">
+    <value>Locked out</value>
+  </data>
+  <data name="Users.Anonymised" xml:space="preserve">
+    <value>Anonymised</value>
+  </data>
+  <data name="Users.Unlock" xml:space="preserve">
+    <value>Unlock</value>
+  </data>
+  <data name="Users.Deactivate" xml:space="preserve">
+    <value>Deactivate</value>
+  </data>
+  <data name="Users.Anonymise" xml:space="preserve">
+    <value>Anonymise</value>
+  </data>
+  <data name="Users.None" xml:space="preserve">
+    <value>No users match the search.</value>
+  </data>
+  <data name="Users.Loading" xml:space="preserve">
+    <value>Loading users…</value>
+  </data>
+  <data name="Users.Confirm.deactivate" xml:space="preserve">
+    <value>Deactivate {0}? The user cannot sign in any more; open sessions end at their next check.</value>
+  </data>
+  <data name="Users.Confirm.anonymise" xml:space="preserve">
+    <value>Anonymise {0}? Name, e-mail and phone are erased for good (GDPR); this cannot be undone.</value>
+  </data>
+  <data name="Users.Done.unlock" xml:space="preserve">
+    <value>{0} was unlocked.</value>
+  </data>
+  <data name="Users.Done.deactivate" xml:space="preserve">
+    <value>{0} was deactivated.</value>
+  </data>
+  <data name="Users.Done.anonymise" xml:space="preserve">
+    <value>{0} was anonymised.</value>
+  </data>
+  <data name="Role.ADMINISTRATOR" xml:space="preserve">
+    <value>Administrator</value>
+  </data>
+  <data name="Role.BRAND_MANAGER" xml:space="preserve">
+    <value>Brand manager</value>
+  </data>
+  <data name="Role.INVENTORY_PLANNER" xml:space="preserve">
+    <value>Inventory planner</value>
+  </data>
+  <data name="Role.SERVICE_ENGINEER" xml:space="preserve">
+    <value>Service engineer</value>
+  </data>
+  <data name="Role.SPONSOR" xml:space="preserve">
+    <value>Sponsor</value>
+  </data>
+  <data name="Role.WAREHOUSE_KEEPER" xml:space="preserve">
+    <value>Warehouse keeper</value>
+  </data>
+  <data name="Password.Title" xml:space="preserve">
+    <value>Change password</value>
+  </data>
+  <data name="Password.Current" xml:space="preserve">
+    <value>Current password</value>
+  </data>
+  <data name="Password.New" xml:space="preserve">
+    <value>New password</value>
+  </data>
+  <data name="Password.Change" xml:space="preserve">
+    <value>Change password</value>
+  </data>
+  <data name="Password.SignInAgain" xml:space="preserve">
+    <value>After the change you sign in again with the new password.</value>
+  </data>
 </root>
