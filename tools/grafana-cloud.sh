@@ -10,7 +10,7 @@
 #
 # Reads only environment variables, never prints them (infra/grafana/README.md):
 #   GRAFANA_URL         https://<stack>.grafana.net
-#   GRAFANA_AUTH        service account token of the stack (role Editor)
+#   GRAFANA_AUTH        service account token of the stack (role Admin, README §1)
 #   TF_VAR_alert_email  where alerts go
 #   TF_VAR_telegram_bot_token, TF_VAR_telegram_chat_id   optional
 set -euo pipefail

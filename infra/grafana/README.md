@@ -32,12 +32,11 @@ Two tokens, each allowed exactly one job:
 | # | Where | What | Scope or role | Used by |
 |---|---|---|---|---|
 | 1 | grafana.com → **My Account** → **Add stack** | A Free stack in an EU region | — | everything |
-| 2 | The stack's Grafana → **Administration** → **Users and access** → **Service accounts** → **Add service account** | Service account `smartspare-terraform`, then **Add service account token** with an expiry (for example 90 days) | Role **Editor**: folders, dashboards, alert rules, contact points and notification policies; no user or data source administration | `GRAFANA_AUTH` for Terraform |
+| 2 | The stack's Grafana → **Administration** → **Users and access** → **Service accounts** → **Add service account** | Service account `smartspare-terraform`, then **Add service account token** with an expiry (for example 90 days) | Role **Admin**. Editor was tried first and is not enough: applying answered 403 for `folders:read` (26 November 2026). The account can't log in, and its token expires | `GRAFANA_AUTH` for Terraform |
 | 3 | grafana.com → the stack → **OpenTelemetry** → **Configure** → **Generate now** | Access policy token for OTLP (the tile also shows the endpoint and the instance ID) | `metrics:write`, `logs:write`, `traces:write` only, for this stack only; no read scopes | the collector of the local services topology (`GrafanaCloud:*` user secrets) |
 | 4 (optional) | Telegram → **@BotFather** → `/newbot` | A bot token. Then add the bot to a chat, send it a message, and read the chat id from `https://api.telegram.org/bot<token>/getUpdates` | posts to one chat | `TF_VAR_telegram_bot_token`, `TF_VAR_telegram_chat_id` |
 
-If applying the notification policy answers 403 with the Editor role, give that one service account the **Admin**
-role, and record it. Nothing else needs more.
+Only this service account has the Admin role; the OTLP token (3) has write scopes only. Rotate the service account token before it expires, and after any time it was stored outside the password manager.
 
 The data sources' uids are listed under **Connections** → **Data sources**. Check that the Prometheus one is
 `grafanacloud-prom` and the usage one `grafanacloud-usage`.
@@ -75,3 +74,5 @@ tools/grafana-cloud.sh test-alert-off  # remove it again
 
 The test alert travels the same notification policy and contact point as the real rules, so its arrival proves the
 whole path, not just the contact point's settings.
+
+**Done on 26 November 2026:** the plan created 11 resources (folder, 5 dashboards, 3 rule groups with 7 rules, the contact point and the policy), and the test alert arrived by e-mail. It first landed in the spam folder; mark Grafana's sender as not spam so real alerts are seen.
