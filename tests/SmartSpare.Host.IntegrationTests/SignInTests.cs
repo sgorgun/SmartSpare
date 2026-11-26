@@ -148,8 +148,9 @@ public abstract class SignInMatrix(IdentityDatabaseFixture database) : IAsyncLif
         }
 
         // UserManager in ASP.NET Core 10 compares lockout_end with DateTimeOffset.UtcNow, not TimeProvider, so the
-        // test moves lockout_end into the past: the same effect as an early unlock by an administrator (#46).
-        await database.ExecuteAsync("UPDATE iam.app_user SET lockout_end = now() - interval '1 second' WHERE id = @id", ("id", id));
+        // test moves lockout_end into the past: the same effect as an early unlock by an administrator (#46). An hour, not a
+        // second, because the database clock and the host clock may drift apart locally (#75).
+        await database.ExecuteAsync("UPDATE iam.app_user SET lockout_end = now() - interval '1 hour' WHERE id = @id", ("id", id));
         using var unlocked = await browser.LoginAsync(U("it.lockout"), IdentityDatabaseFixture.Password, token: token);
         unlocked.StatusCode.ShouldBe(HttpStatusCode.NoContent);
     }
