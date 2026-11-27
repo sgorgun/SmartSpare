@@ -332,9 +332,9 @@ Work is done on the developer machine (.NET 10 SDK + Docker), where the code can
 
 *Schedule update (product owner, 26 November 2026):* stage 4 finished a week early, so stages 5–7 moved earlier and the gained days went to stage 8 (Forecasting), which produces the forecast metrics for the thesis. Stages 10 and 11 are unchanged.
 
-*Schedule update (product owner, 27 November 2026), replacing the windows above:*
+*Schedule update (product owner, 27 November 2026), replacing the windows above; its dates are superseded by the final schedule below (code freeze 15 December):*
 - **Everything is ready by 23 December 2026**: the application, the thesis and the presentation. 24 December – 2 January is reserve only, and the pre-defence is on **3 January 2027**. The defence stays on 16 February 2027.
-- **Code freeze on 12 December**, then a full review on 12–13 December. The freeze does not move.
+- ~~Code freeze on 12 December~~ (moved to **15 December** by the final schedule below), then a full review after the freeze. The freeze does not move again.
 - **Expert reviews from 2 to 10 December.** Fixes from them take priority over new scope.
 - **Timebox:** a late stage loses scope, to an issue in a later milestone or `future`. When cutting, stage 8 has priority over stages 9 and 10.
 
