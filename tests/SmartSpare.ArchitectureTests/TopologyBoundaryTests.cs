@@ -83,6 +83,30 @@ public sealed class TopologyBoundaryTests
         Read("SmartSpare.Gateway").ShouldBe(Read("SmartSpare.Host"));
     }
 
+    /// <summary>
+    /// Only the single host schedules jobs in process (Quartz, #30). The services topology runs each job once per
+    /// Container Apps cron trigger with <c>--job &lt;name&gt;</c>, so reservation expiry and outbox retention never run
+    /// twice in production. Lock files list transitive packages too, so a scheduler can't slip in through a dependency.
+    /// </summary>
+    [Fact]
+    public void Only_the_single_host_schedules_jobs_in_process()
+    {
+        var separator = Path.DirectorySeparatorChar;
+        var lockFiles = Directory
+            .EnumerateFiles(Path.Combine(Solution.RootDirectory, "src"), "packages.lock.json", SearchOption.AllDirectories)
+            .Where(p => !p.Contains($"{separator}obj{separator}", StringComparison.Ordinal)
+                        && !p.Contains($"{separator}bin{separator}", StringComparison.Ordinal))
+            .ToDictionary(p => Path.GetFileName(Path.GetDirectoryName(p)!), File.ReadAllText, StringComparer.Ordinal);
+
+        foreach (var module in Solution.Modules.Select(m => m.Name))
+        {
+            lockFiles.ShouldContainKey($"SmartSpare.Services.{module}");
+        }
+
+        lockFiles.Where(f => f.Value.Contains("\"Quartz", StringComparison.Ordinal)).Select(f => f.Key)
+            .ShouldBe(["SmartSpare.Host"]);
+    }
+
     [Fact]
     public void Infrastructure_KeepsTheBrokerAndTheGatewayOutOfModules()
     {
