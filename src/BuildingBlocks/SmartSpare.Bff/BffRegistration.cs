@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 using SmartSpare.ApiContracts.Authorization;
 using SmartSpare.Infrastructure.Http;
 using SmartSpare.Infrastructure.Security;
@@ -37,21 +38,31 @@ public static class BffRegistration
             options.Cookie.HttpOnly = true;
         });
 
+        services.AddOptions<LoginRateLimitOptions>()
+            .BindConfiguration(LoginRateLimitOptions.Section)
+            .Validate(limit => limit.PermitLimit > 0 && limit.Window > TimeSpan.Zero,
+                "Bff:LoginRateLimit needs a positive PermitLimit and Window.")
+            .ValidateOnStart();
+
         services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
             // Partitioned by client IP. Behind the platform's proxy the IP must come from forwarded headers of known
             // proxies (#48); the limiter is per instance (#49). Account brute force is stopped by lockout.
-            options.AddPolicy(BffDefaults.LoginRateLimitPolicy, http => RateLimitPartition.GetFixedWindowLimiter(
-                http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-                _ => new FixedWindowRateLimiterOptions
-                {
-                    PermitLimit = BffDefaults.LoginPermitsPerWindow,
-                    Window = BffDefaults.LoginWindow,
-                    QueueLimit = 0,
-                    AutoReplenishment = true,
-                }));
+            options.AddPolicy(BffDefaults.LoginRateLimitPolicy, http =>
+            {
+                var limit = http.RequestServices.GetRequiredService<IOptions<LoginRateLimitOptions>>().Value;
+                return RateLimitPartition.GetFixedWindowLimiter(
+                    http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = limit.PermitLimit,
+                        Window = limit.Window,
+                        QueueLimit = 0,
+                        AutoReplenishment = true,
+                    });
+            });
 
             // API documentation (ADR 0019 §4): public, so limited per client IP like sign-in, but generously.
             options.AddPolicy(ApiDocumentation.Policy, http => RateLimitPartition.GetFixedWindowLimiter(

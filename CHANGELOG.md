@@ -18,6 +18,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The schema diff against the V016 baseline is a CI gate (`tools/check.sh schema-diff`, closes [#126]).
 - An architecture test keeps Quartz in the single host only, so scheduled jobs never run twice in the services topology.
 
+### Fixed
+
+- The end-to-end suite failed with "Too many attempts" when it ran fast: its browsers sign in about 14 times from one
+  loopback address, over the sign-in limit of 10 a minute per IP. The limit is now the setting `Bff:LoginRateLimit`
+  (production default unchanged: 10 a minute), and the end-to-end host raises it.
+
 ## [0.6.0] - 2026-11-27
 
 Stage 6: Fleet ([STAGE_6_PLAN.md](docs/stage-6/STAGE_6_PLAN.md)). The core of the diploma topic: customer machines,

@@ -11,6 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Playwright;
 using Npgsql;
+using SmartSpare.Bff;
 using runner::SmartSpare.MigrationRunner;
 using Testcontainers.PostgreSql;
 
@@ -142,6 +143,10 @@ public sealed class E2EEnvironment : IAsyncLifetime
         {
             ArgumentNullException.ThrowIfNull(builder);
             builder.UseSetting("ConnectionStrings:smartspare", _connectionString);
+
+            // Every browser of the suite signs in from the same loopback address, about 14 times in a run that can take
+            // little more than a minute; the production limit (10 a minute per IP) made fast runs fail with 429.
+            builder.UseSetting($"{LoginRateLimitOptions.Section}:PermitLimit", "1000");
         }
 
         protected override void Dispose(bool disposing)
