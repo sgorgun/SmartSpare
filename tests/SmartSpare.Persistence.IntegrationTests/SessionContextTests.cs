@@ -109,7 +109,8 @@ public sealed class SessionContextTests(MigratedDatabaseFixture database)
     [MemberData(nameof(HubCases))]
     public async Task The_csharp_hub_rule_and_util_require_hub_agree(string role, string hubs, short hub)
     {
-        // ADR 0026 decision 5: ADMINISTRATOR is unrestricted; anyone else needs the hub in the list; no hub, no access.
+        // ADR 0026 decision 5 and ADR 0028: Organisation.Scope.AllHubs (the default ADMINISTRATOR role) is unrestricted;
+        // anyone else needs the hub in the list; no hub, no access. Until PR 7x2 the SQL side still checks the role code.
         short[] ids = hubs.Length == 0 ? [] : [.. hubs.Split(',').Select(h => short.Parse(h, System.Globalization.CultureInfo.InvariantCulture))];
         var request = Request("SmartSpare.Cookie", [role], ids);
         var expected = HubAccess.MayWrite(new ClaimsCurrentUser(new HttpContextAccessor { HttpContext = request }), hub);
@@ -149,6 +150,7 @@ public sealed class SessionContextTests(MigratedDatabaseFixture database)
     {
         var claims = new List<Claim> { new(AppClaimTypes.Subject, UserId.ToString()), new(AppClaimTypes.Name, "session.user") };
         claims.AddRange(roles.Select(r => new Claim(AppClaimTypes.Role, r)));
+        claims.AddRange(DefaultRoles.Of(roles).Select(p => new Claim(AppClaimTypes.Permission, p)));   // what the BFF adds (ADR 0028)
         claims.AddRange(warehouses.Select(w => new Claim(AppClaimTypes.Warehouse, w.ToString(System.Globalization.CultureInfo.InvariantCulture))));
 
         return new DefaultHttpContext
