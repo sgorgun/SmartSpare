@@ -109,6 +109,7 @@ Identity are described in full:
 | `fleet` | `POST /api/v1/fleet/service-orders/{id}/start` | `RecordServiceWork` | 200; 401; 403; 404; 409 `SS300` |
 | `fleet` | `POST /api/v1/fleet/service-orders/{id}/complete` with the engine hours; Inventory issues the kit (shortfall rule) | `RecordServiceWork` | 200 (an identical repeat is a safe retry); 400; 401; 403; 404; 409 `SS300`; 422 `Fleet.CompletionHoursTooLow` |
 | `fleet` | `POST /api/v1/fleet/service-orders/{id}/cancel` with a reason; Inventory releases the kit | `ManageServiceOrders` | 200; 400; 401; 403; 404; 409 `SS300` |
+| `fleet` | `PUT /api/v1/fleet/service-orders/{id}/lines`: the whole kit of an order that has not started; Inventory adjusts the holds | `ManageServiceOrders` | 200 (kit `reserving` when lines were added or changed); 400 (`Fleet.NoLines` for a repair without lines); 401; 403; 404; 409 `SS300`; 422 `Fleet.UnknownPart` |
 | `identity` | `GET /api/v1/identity/users?search=&page=&pageSize=`: the masked user directory | `Administration` | 200 `PagedResponse<UserSummary>`; 400; 401; 403 |
 | `identity` | `GET /api/v1/identity/users/form-options`: roles, brands, active hubs | `Administration` | 200; 401; 403 |
 | `identity` | `POST /api/v1/identity/users`: create a user with an initial password | `Administration` (writes as `app_admin`) | 201; 400; 401; 403; 409 `Identity.UserNameTaken` |

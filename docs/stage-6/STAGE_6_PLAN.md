@@ -334,6 +334,8 @@ Each PR passes the full `tools/check.sh` and `tools/check.sh restore build e2e t
 ### 6i: Kit line editing (#140)
 **Scope:** `PUT /service-orders/{id}/lines`, `ServiceOrderLinesChanged` and its consumer. **Acceptance:** added, changed and removed lines adjust the holds. First cut (section 10).
 
+**As built, 6i (not cut, 28 November 2026):** `PUT /service-orders/{id}/lines` takes the whole kit; `ServiceOrder.ReplaceLines` diffs it against the current lines: missing parts are removed, new parts added, and a **changed quantity replaces the line** (a new line id), so `inventory.reserve_service_kit` keeps its per-line idempotency without a new SQL function. With a new line the kit is reserving again (parts reserved → draft); removals alone can complete a partial kit (draft → parts reserved); the same kit again changes and publishes nothing. `ServiceOrderLinesChanged` (removed line ids, added lines with their ids) goes to Inventory in the same transaction; its consumer `inventory.change-service-kit` releases the removed lines and reserves the added ones, answering `ServiceKitReserved` for them. Each part once (400), a repair keeps a line (400 `Fleet.NoLines`), new parts must be active (422), fixed once started (409 SS300), policy `ManageServiceOrders`, `allowedActions` gains `editLines`. The order detail gets an "Edit parts" panel (quantities with the decimal keypad, remove, add from the catalogue) and follows the new reservation like a fresh draft. Tests: `KitLineEditingTests` (unit), `KitLineEditingApiTests` (holds released and reserved, oil 30 → 20 L, filter removed, new part held; no event for the same kit; 409 after start; repair and unknown part), bUnit for the editor. If edits overtake each other at Inventory, a hold of a line that no longer exists expires after its 7 days and Fleet ignores the unknown line.
+
 ### 6j: Machine screens
 **Scope:** machines list, machine card, engine-hours dialog; navigation entries; tablet layout.
 **Acceptance:** bUnit states, validation and tablet rendering; manual check in the single host with the demo dataset.
@@ -355,7 +357,7 @@ Each PR passes the full `tools/check.sh` and `tools/check.sh restore build e2e t
 
 **Order and dates:** 26–27 Nov 6a–6c; 28 Nov 6d–6e; 29 Nov 6f–6g; 30 Nov 6h–6i; 1 Dec 6j–6k; 2 Dec 6l–6m; 3–4 Dec 6n and buffer. The demo for 2 December needs 6b–6h and 6j; 6k–6l follow the same day.
 
-**Reordered (product owner, 27 November 2026):** after 6h the screens and the end-to-end scenario come first, so the expert reviews from 2 December see the Fleet UI: **6j → 6k → 6l**, then 6m (which also documents the manual lock-file procedure for Dependabot branches and closes #17: no GitHub App, no token) and 6n. **6i (#140) only if it can be merged green by 4 December without putting 6n at risk**; otherwise, during 6n, #140 moves to the next milestone, the cut is recorded here and the v0.6.0 release notes list it under "Deferred" (v0.6.0 is not released with #140 open in its milestone). Order of work: the demo-data and focus fix, then 6m, then 6n's documentation.
+**Reordered (product owner, 27 November 2026):** after 6h the screens and the end-to-end scenario come first, so the expert reviews from 2 December see the Fleet UI: **6j → 6k → 6l**, then 6m (which also documents the manual lock-file procedure for Dependabot branches and closes #17: no GitHub App, no token) and 6n. **6i (#140) only if it can be merged green by 4 December without putting 6n at risk** (it was: built in 6i, not cut); otherwise, during 6n, #140 moves to the next milestone, the cut is recorded here and the v0.6.0 release notes list it under "Deferred" (v0.6.0 is not released with #140 open in its milestone). Order of work: the demo-data and focus fix, then 6m, then 6n's documentation.
 
 **As built, demo-data and focus fix (before 6m):** T001 gives every plan of the generated machines without an order of its own an imported service history: one completed order at the last threshold the machine passed, dated across 107 % of the plan's calendar interval (spread by a hash, so the script's random sequence is unchanged), so about 7.7 % of those plans are calendar-overdue instead of almost all; the T001 check fails the load outside 5–10 %. The named machines are unchanged. Focus: page headings keep the programmatic focus of `FocusOnNavigate` (`tabindex="-1"`) for screen readers but draw no ring (`:focus:not(:focus-visible)`, `[tabindex="-1"]:focus`), on every page; the keyboard ring now also shows on MudBlazor buttons, which their own `outline: none` had hidden. The E2E scenario checks both. The owner walks through the demo manually after 6l.
 
@@ -382,7 +384,7 @@ Each PR passes the full `tools/check.sh` and `tools/check.sh restore build e2e t
 **Known limitation (27 November 2026), lifted by 6m.** Until #30 the expiry of service-kit holds ran only in the services topology (`--job inventory.reservation-expiry`), because the single host had no scheduler. Since 6m the single host runs it every 15 minutes from Quartz (`Jobs:Schedules`), as the same named system user (ADR 0024); production still runs it as a Container Apps cron job (stage 10).
 
 **Cut order if the stage runs late** (each cut becomes an issue in a later milestone; the later stages are not moved):
-1. 6i kit line editing, #140 (unplanned repair orders were built in 6h) → the next milestone.
+1. 6i kit line editing, #140 (unplanned repair orders were built in 6h) → the next milestone. *Not needed: 6i was built in time.*
 2. 6m housekeeping (#30, #82) → v0.10.0.
 3. The readings-history page and the maintenance-plans endpoint → v0.11.0.
 4. Calendar intervals (F3): the due list stays hours-based; the column and the formula section remain → v0.11.0.
@@ -391,7 +393,7 @@ Never cut: the domain, the due calculator with its documentation, the reading �
 
 ### 10.1 Evidence
 
-State on 27 November 2026 (6a–6m merged; 6i tracked in #140, decided by 4 December under the timebox).
+State on 28 November 2026 (6a–6n merged, 6i included).
 
 | # | Exit criterion | Evidence |
 |---|---|---|
