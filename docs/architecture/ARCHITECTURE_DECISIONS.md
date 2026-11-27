@@ -92,6 +92,8 @@ Every module has the same shape and consists of two projects: the implementation
 - **Features (vertical slices)** — one folder per use case: `ApproveTransfer/` holds the command, handler, validator and endpoint. Changing one use case touches one folder.
 - **Infrastructure** — the module's DbContext, EF configurations, migrations, handlers for incoming events, and the data access of the use cases: read models and query handlers that only read (raw SQL or EF projections), and the SQL behind commands (SECURITY DEFINER functions, bulk loads). Features call it but never run SQL themselves; the unit-test metric of business logic covers Domain and Features (#63, architecture test `CoverageDefinitionTests`).
 
+**Domain services.** A rule that is a calculation over several inputs, rather than a state change of one aggregate, is a pure domain service in `Domain/`, unit-tested on its own: Fleet's `MaintenanceDueCalculator` (next threshold, usage, projected and calendar due dates, status) is documented in [MAINTENANCE_PLANNING.md](MAINTENANCE_PLANNING.md) and agrees with `fleet.fn_maintenance_due` on the demo fleet.
+
 **CQRS-lite.** Commands go through aggregates and EF Core; queries read straight into DTOs (EF projections or database views). One database, no separate read stores.
 
 **Result pattern.** Expected business errors (insufficient stock, invalid status transition) are returned as `Result<T>` and mapped to ProblemDetails; exceptions are only for the unexpected. Database codes SS100–SS402 map to the same errors via the existing `DatabaseErrorMapper`.
@@ -123,6 +125,15 @@ Modules change each other only through **integration events** with guaranteed de
 3. Inventory creates a draft `TransferOrder` and reserves stock — all in its own transaction.
 4. After approval, Inventory publishes `TransferApproved`.
 5. Forecasting marks the recommendation as fulfilled. If the stock is gone, `TransferRejected` arrives and the recommendation goes back to open (compensating action).
+
+**Example: UC02 (service kit for a maintenance order, stage 6, #12).**
+
+1. The engineer logs engine hours; Fleet drafts the service order and writes `ServiceOrderDrafted` in the same transaction.
+2. Inventory reserves the kit at the machine's home hub (partially if stock is short, in `(part, hub)` lock order) and answers `ServiceKitReserved`; Fleet stores the held quantities. Until then the order shows "Reserving parts…".
+3. Completing the order writes `ServiceOrderCompleted`; Inventory issues the reserved quantities and what stock allows (the shortfall is reported, not refused) and answers `ServiceKitIssued`.
+4. Cancelling writes `ServiceOrderCancelled` and Inventory releases the holds; a reservation that arrives after the order was closed is released at once through `ServiceKitReleaseRequested`. Holds not used within 7 days expire (`ServiceKitReservationExpired`).
+
+Consumers act as the user who caused the event, for attribution only; authorization happened when the event was published, and jobs act as a named system user ([ADR 0024](../adr/0024-acting-user-of-integration-events-and-jobs.md)).
 
 Invariants within one module (stock never goes negative, statuses follow the rules) stay strict and transactional; eventual consistency applies only between modules.
 
