@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http;
 using SmartSpare.SharedKernel;
+using SmartSpare.SharedKernel.MasterData;
 
 namespace SmartSpare.Infrastructure.Http;
 
@@ -22,6 +23,11 @@ public static class ResultHttpExtensions
     {
         ArgumentNullException.ThrowIfNull(error);
         var extensions = new Dictionary<string, object?> { ["code"] = error.Code };
+        if (error is ArchiveBlockedError blocked)
+        {
+            extensions["reasons"] = blocked.Reasons;
+        }
+
 
         return error is ValidationError validation
             ? TypedResults.ValidationProblem(validation.Errors, error.Description, title: "Validation failed", extensions: extensions)
