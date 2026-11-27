@@ -99,7 +99,7 @@ public sealed class ReportingMigrationTests(MigratedDatabaseFixture db) : Module
             """)).ShouldBe(12);     // iam.v_app_user_masked moved to Identity in PR 3c (X18)
         await FunctionsShouldExistAsync("inventory.fn_in_transit_qty", "forecast.fn_stock_position", "mart.refresh_all");
         // InitialReporting, TransitionalCrossModuleObjects and DataQualityParkedOutboxEvents (#31).
-        (await Db.ScalarAsync<long>("SELECT count(*) FROM mart.__ef_migrations_history")).ShouldBe(5, "InitialReporting, the transitional objects, the data-quality outbox view, the one-time legacy access copy (STAGE_7_PLAN 1.6) and the audit actor from the employee");
+        (await Db.ScalarAsync<long>("SELECT count(*) FROM mart.__ef_migrations_history")).ShouldBe(6, "InitialReporting, the transitional objects, the data-quality outbox view, the one-time legacy access copy (STAGE_7_PLAN 1.6), the audit actor from the employee and the drop of the account's personal columns");
     }
 
     [Fact]

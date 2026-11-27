@@ -223,7 +223,12 @@
 +CREATE VIEW audit\.v_audit_log_masked AS .*iam\.employee
 +UPDATE iam\.app_user SET user_name = 'anon_' \|\| v_tag, password_hash = NULL
 
-# Follow-up of PR 7e (ADR 0026): iam.apply_responsibilities is the projection's only write path.
+# Follow-up of PR 7e (ADR 0026): iam.apply_responsibilities is the projection's only write path; the account's
+# emptied personal-data columns are dropped (with their column grants) after the privilege self-check is redefined
+# over the employee's columns (Reporting migration DropAccountPersonalColumns).
 +iam\.apply_responsibilities
 +BEGIN PERFORM util\.require_app_user\(\); +-- the consumer acts as the user who made the change
 +UPDATE iam\.app_user SET security_stamp = gen_random_uuid\(\) WHERE employee_id = ANY \(v_previous \|\| p_employee_ids\)
+-GRANT UPDATE\((full_name|phone)\) ON TABLE iam\.app_user TO app_write
+-CREATE VIEW util\.v_privilege_findings AS (?!.*iam\.employee)
++CREATE VIEW util\.v_privilege_findings AS .*iam\.employee

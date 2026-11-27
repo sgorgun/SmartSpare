@@ -82,8 +82,11 @@ public sealed class AccessMigrationTests : IAsyncLifetime
             await context.GetService<IMigrator>().MigrateAsync(BeforeStep3, Ct);
         }
 
-        await new DatabaseMigrator(_options, [.. ModuleCatalog.ModuleCatalog.Databases().Where(d => d.Name != "identity")], NullLogger<DatabaseMigrator>.Instance)
+        await new DatabaseMigrator(_options, [.. ModuleCatalog.ModuleCatalog.Databases().Where(d => d.Name is not ("identity" or "reporting"))], NullLogger<DatabaseMigrator>.Instance)
             .RunAsync(Ct);
+        // Reporting's migration LegacyAccessToAssignments runs exactly this script (a database deployed after PR 7d2a);
+        // the later Reporting migrations follow step 3, as the runner always applies Identity before Reporting.
+        await ExecuteAsync(await File.ReadAllTextAsync(Path.Combine(RepositoryRoot(), "db", "sql", "reporting", "0005_legacy_access_copy.sql"), Ct));
 
         var after = await RolesAsync(fromPositions: true);
         after.ShouldBe(before, "every account keeps exactly its roles");
@@ -126,8 +129,11 @@ public sealed class AccessMigrationTests : IAsyncLifetime
         (await ScalarAsync<bool>(
                 "SELECT to_regclass('iam.user_role') IS NULL AND to_regclass('iam.user_brand') IS NULL AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'iam' AND table_name = 'app_user' AND column_name = 'home_warehouse_id')"))
             .ShouldBeTrue();
-        (await ScalarAsync<long>("SELECT count(*) FROM iam.app_user WHERE email IS NOT NULL OR full_name IS NOT NULL OR phone IS NOT NULL"))
-            .ShouldBe(0, "the person's data lives on the employee only");
+        (await ScalarAsync<long>(
+                "SELECT count(*) FROM information_schema.columns WHERE table_schema = 'iam' AND table_name = 'app_user' AND column_name IN ('full_name', 'email', 'phone')"))
+            .ShouldBe(0, "the person's data lives on the employee only; the account's copy is dropped, not kept empty");
+        (await ScalarAsync<string>("SELECT pg_get_viewdef('audit.v_audit_log_masked'::regclass)"))
+            .ShouldContain("employee", Case.Insensitive, "the masked audit trail names actors from the employee");
         (await RolesAsync(fromPositions: true)).ShouldBe(before, "no account gained or lost a role on the way");
         (await ScalarAsync<long>("SELECT count(*) FROM iam.employee_responsibility")).ShouldBe(projection);
         await ExecuteAsync(copy);
