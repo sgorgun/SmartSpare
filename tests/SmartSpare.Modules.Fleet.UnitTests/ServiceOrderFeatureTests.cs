@@ -104,6 +104,6 @@ public sealed class ServiceOrderFeatureTests
 
         IReadOnlyCollection<string> ICurrentUser.Roles => roles;
 
-        public short? HomeWarehouseId => null;
+        public IReadOnlyCollection<short> WarehouseIds => [];
     }
 }

@@ -19,8 +19,8 @@ public interface ICurrentUser
     /// <summary>Role codes of the user (<c>role</c> claims); empty without a user.</summary>
     IReadOnlyCollection<string> Roles { get; }
 
-    /// <summary>Home warehouse of the user (<c>ss:warehouse</c> claim), if any.</summary>
-    short? HomeWarehouseId { get; }
+    /// <summary>Hubs the user may write at (<c>ss:warehouse</c> claims, ADR 0026); empty without a hub.</summary>
+    IReadOnlyCollection<short> WarehouseIds { get; }
 }
 
 /// <summary>No user: background jobs, and every process that serves no requests.</summary>
@@ -32,7 +32,7 @@ internal sealed class NoCurrentUser : ICurrentUser
 
     public IReadOnlyCollection<string> Roles => [];
 
-    public short? HomeWarehouseId => null;
+    public IReadOnlyCollection<short> WarehouseIds => [];
 }
 
 /// <summary>
@@ -84,14 +84,15 @@ public sealed class ActingUser
 /// <summary>
 /// Passes the session context to PostgreSQL at the start of every transaction of a module DbContext:
 ///   SELECT set_config('app.user_id', @user, true), set_config('app.reason', @reason, true),
-///          set_config('app.user_roles', @roles, true), set_config('app.home_warehouse_id', @warehouse, true)
-/// <c>app.user_roles</c> is the comma-separated list of role codes, <c>app.home_warehouse_id</c> the warehouse id.
+///          set_config('app.user_roles', @roles, true), set_config('app.warehouse_ids', @warehouses, true)
+/// <c>app.user_roles</c> is the comma-separated list of role codes, <c>app.warehouse_ids</c> the sorted hub ids the user may
+/// write at (ADR 0026).
 /// The third argument <c>true</c> makes the values transaction-local: they vanish at commit or
 /// rollback, so a pooled connection never carries them to the next request. An empty value means
 /// "none" (util.current_app_user() returns NULL, e.g. for background jobs).
 /// The database reads them in the audit triggers (audit.audit_log.user_id, reason), in the role checks of
-/// business functions (util.require_role reads app.user_roles) and in the warehouse checks of dispatch and receive
-/// (app.home_warehouse_id). Commands run inside a transaction opened by the transaction decorator, so every write is
+/// business functions (util.require_role reads app.user_roles) and in the hub checks of writes (util.require_hub reads
+/// app.warehouse_ids). Commands run inside a transaction opened by the transaction decorator, so every write is
 /// attributed. An <see cref="ActingUser"/> set in the scope takes precedence over <see cref="ICurrentUser"/>.
 /// Trust model: MODULE_MAPPING section 3.6.
 /// </summary>
@@ -99,7 +100,7 @@ public sealed class SessionContextInterceptor(ICurrentUser currentUser, ActingUs
 {
     private const string Sql =
         "SELECT set_config('app.user_id', @user, true), set_config('app.reason', @reason, true), "
-        + "set_config('app.user_roles', @roles, true), set_config('app.home_warehouse_id', @warehouse, true)";
+        + "set_config('app.user_roles', @roles, true), set_config('app.warehouse_ids', @warehouses, true)";
 
     public override DbTransaction TransactionStarted(DbConnection connection, TransactionEndEventData eventData, DbTransaction result)
     {
@@ -123,6 +124,10 @@ public sealed class SessionContextInterceptor(ICurrentUser currentUser, ActingUs
             .Distinct(StringComparer.Ordinal)
             .Order(StringComparer.Ordinal));
 
+    /// <summary>Hub ids, sorted and joined with ','.</summary>
+    internal static string WarehousesValue(IEnumerable<short> warehouses) =>
+        string.Join(',', warehouses.Distinct().Order().Select(w => w.ToString(CultureInfo.InvariantCulture)));
+
     private DbCommand CreateCommand(DbConnection connection, DbTransaction transaction)
     {
         var command = connection.CreateCommand();
@@ -134,8 +139,7 @@ public sealed class SessionContextInterceptor(ICurrentUser currentUser, ActingUs
         AddParameter(command, "user", (acting ? actingUser.UserId : currentUser.UserId)?.ToString() ?? string.Empty);
         AddParameter(command, "reason", (acting ? actingUser.Reason : currentUser.Reason) ?? string.Empty);
         AddParameter(command, "roles", acting ? string.Empty : RolesValue(currentUser.Roles));
-        AddParameter(command, "warehouse",
-            (acting ? null : currentUser.HomeWarehouseId)?.ToString(CultureInfo.InvariantCulture) ?? string.Empty);
+        AddParameter(command, "warehouses", acting ? string.Empty : WarehousesValue(currentUser.WarehouseIds));
         return command;
     }
 

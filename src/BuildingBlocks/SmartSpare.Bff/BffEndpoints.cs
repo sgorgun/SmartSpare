@@ -95,7 +95,7 @@ public static class BffEndpoints
                 UserName: ExampleUser,
                 Roles: [AppRoles.BrandManager],
                 BrandIds: [1, 5],
-                HomeWarehouseId: null));
+                HomeWarehouseIds: []));
 
         group.MapGet("/antiforgery", Antiforgery)
             .AllowAnonymous()
@@ -159,7 +159,7 @@ public static class BffEndpoints
             UserName: user.FindFirstValue(AppClaimTypes.Name),
             Roles: [.. user.FindAll(AppClaimTypes.Role).Select(c => c.Value).Order(StringComparer.Ordinal)],
             BrandIds: [.. user.FindAll(AppClaimTypes.Brand).Select(c => ParseShort(c.Value)).OfType<short>().Order()],
-            HomeWarehouseId: ParseShort(user.FindFirstValue(AppClaimTypes.Warehouse))));
+            HomeWarehouseIds: [.. user.FindAll(AppClaimTypes.Warehouse).Select(c => ParseShort(c.Value)).OfType<short>().Order()]));
     }
 
     /// <summary>A fresh request token for the current principal (fallback; normally it comes with the prerendered page).</summary>

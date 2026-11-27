@@ -152,6 +152,6 @@ public sealed class CompletionTests
 
         IReadOnlyCollection<string> ICurrentUser.Roles => roles;
 
-        public short? HomeWarehouseId => null;
+        public IReadOnlyCollection<short> WarehouseIds => [];
     }
 }

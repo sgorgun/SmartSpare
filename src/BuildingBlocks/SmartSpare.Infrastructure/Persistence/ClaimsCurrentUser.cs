@@ -25,10 +25,12 @@ public sealed class ClaimsCurrentUser(IHttpContextAccessor httpContextAccessor) 
     public IReadOnlyCollection<string> Roles =>
         User is { } user ? [.. user.FindAll(AppClaimTypes.Role).Select(c => c.Value)] : [];
 
-    public short? HomeWarehouseId =>
-        short.TryParse(User?.FindFirstValue(AppClaimTypes.Warehouse), NumberStyles.None, CultureInfo.InvariantCulture, out var id)
-            ? id
-            : null;
+    public IReadOnlyCollection<short> WarehouseIds =>
+        User is { } user
+            ? [.. user.FindAll(AppClaimTypes.Warehouse)
+                .Select(c => short.TryParse(c.Value, NumberStyles.None, CultureInfo.InvariantCulture, out var id) ? id : (short?)null)
+                .OfType<short>().Distinct().Order()]
+            : [];
 }
 
 /// <summary>Registration of the request-based session context in a host.</summary>

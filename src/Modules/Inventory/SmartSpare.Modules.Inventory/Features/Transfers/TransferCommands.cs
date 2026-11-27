@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using SmartSpare.ApiContracts.Authorization;
 using SmartSpare.ApiContracts.Inventory;
+using SmartSpare.Infrastructure.Security;
 using SmartSpare.Infrastructure.Http;
 using SmartSpare.Infrastructure.Messaging;
 using SmartSpare.Infrastructure.Persistence;
@@ -133,7 +134,7 @@ internal sealed class TransferTransitionHandler(
     public Task<Result<TransferDetails>> Handle(DispatchTransferCommand command, CancellationToken cancellationToken) =>
         TransitionAsync(command.Id, TransferActions.Dispatch, async (order, now, ct) =>
         {
-            var step = order.Dispatch(CurrentUserId(), user.HomeWarehouseId, now);
+            var step = order.Dispatch(CurrentUserId(), HubAccess.Of(user), now);
             if (step.IsFailure)
             {
                 return step;
@@ -146,7 +147,7 @@ internal sealed class TransferTransitionHandler(
     public Task<Result<TransferDetails>> Handle(ReceiveTransferCommand command, CancellationToken cancellationToken) =>
         TransitionAsync(command.Id, TransferActions.Receive, async (order, now, ct) =>
         {
-            var step = order.Receive(CurrentUserId(), user.HomeWarehouseId, now);
+            var step = order.Receive(CurrentUserId(), HubAccess.Of(user), now);
             if (step.IsFailure)
             {
                 return step;

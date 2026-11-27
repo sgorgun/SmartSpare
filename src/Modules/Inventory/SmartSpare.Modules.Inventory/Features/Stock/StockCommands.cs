@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using SmartSpare.ApiContracts.Authorization;
 using SmartSpare.ApiContracts.Inventory;
+using SmartSpare.Infrastructure.Security;
 using SmartSpare.Infrastructure.Http;
 using SmartSpare.Infrastructure.Messaging;
 using SmartSpare.Infrastructure.Persistence;
@@ -131,7 +132,7 @@ internal sealed class AdjustStockCommandHandler(
         ArgumentNullException.ThrowIfNull(command);
 
         // A keeper corrects the stock of the own hub only (the rule of SS302 for dispatch and receipt).
-        if (user.HomeWarehouseId is { } home && home != command.WarehouseId)
+        if (!HubAccess.MayWrite(user, command.WarehouseId))
         {
             return InventoryErrors.NotYourWarehouse;
         }

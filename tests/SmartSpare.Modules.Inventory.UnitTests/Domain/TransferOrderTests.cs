@@ -29,8 +29,18 @@ public sealed class TransferOrderTests
     private static TransferOrder Dispatched()
     {
         var order = Approved();
-        order.Dispatch(Keeper, Klp, Now.AddHours(1)).IsSuccess.ShouldBeTrue();
+        order.Dispatch(Keeper, HubRights.At(Klp), Now.AddHours(1)).IsSuccess.ShouldBeTrue();
         return order;
+    }
+
+    [Fact]
+    public void A_keeper_without_any_hub_may_neither_dispatch_nor_receive()
+    {
+        // ADR 0026: no hub means no write access, not access everywhere (least privilege).
+        var noHub = new HubRights(false, new HashSet<short>());
+        noHub.Allows(Klp).ShouldBeFalse();
+        HubRights.Everywhere.Allows(Klp).ShouldBeTrue();
+        HubRights.At(Klp, Pnv).Allows(Pnv).ShouldBeTrue();
     }
 
     [Fact]
@@ -159,8 +169,8 @@ public sealed class TransferOrderTests
     {
         var order = Approved();
 
-        order.Dispatch(Keeper, Pnv, Now).Error.ShouldBe(InventoryErrors.NotYourWarehouse);
-        order.Dispatch(Keeper, Klp, Now.AddHours(1)).IsSuccess.ShouldBeTrue();
+        order.Dispatch(Keeper, HubRights.At(Pnv), Now).Error.ShouldBe(InventoryErrors.NotYourWarehouse);
+        order.Dispatch(Keeper, HubRights.At(Klp), Now.AddHours(1)).IsSuccess.ShouldBeTrue();
 
         order.Status.ShouldBe(TransferStatus.Dispatched);
         order.DispatchedBy.ShouldBe(Keeper);
@@ -172,8 +182,8 @@ public sealed class TransferOrderTests
     {
         var order = Approved();
 
-        order.Dispatch(Keeper, null, Now).IsSuccess.ShouldBeTrue();
-        order.Receive(Keeper, null, Now.AddHours(2)).IsSuccess.ShouldBeTrue();
+        order.Dispatch(Keeper, HubRights.Everywhere, Now).IsSuccess.ShouldBeTrue();
+        order.Receive(Keeper, HubRights.Everywhere, Now.AddHours(2)).IsSuccess.ShouldBeTrue();
     }
 
     [Fact]
@@ -181,8 +191,8 @@ public sealed class TransferOrderTests
     {
         var order = Dispatched();
 
-        order.Receive(Keeper, Klp, Now).Error.ShouldBe(InventoryErrors.NotYourWarehouse);
-        order.Receive(Keeper, Pnv, Now).IsSuccess.ShouldBeTrue();
+        order.Receive(Keeper, HubRights.At(Klp), Now).Error.ShouldBe(InventoryErrors.NotYourWarehouse);
+        order.Receive(Keeper, HubRights.At(Pnv), Now).IsSuccess.ShouldBeTrue();
 
         order.Status.ShouldBe(TransferStatus.Received);
         order.ReceivedBy.ShouldBe(Keeper);
@@ -194,7 +204,7 @@ public sealed class TransferOrderTests
     {
         var order = Dispatched();
 
-        order.Receive(Keeper, Pnv, Now.AddDays(1)).IsSuccess.ShouldBeTrue();
+        order.Receive(Keeper, HubRights.At(Pnv), Now.AddDays(1)).IsSuccess.ShouldBeTrue();
 
         order.ReceivedAt.ShouldBe(Now.AddDays(1));
     }
@@ -257,8 +267,8 @@ public sealed class TransferOrderTests
         var result = step switch
         {
             "approve" => order.Approve(Planner, Now),
-            "dispatch" => order.Dispatch(Keeper, null, Now),
-            "receive" => order.Receive(Keeper, null, Now),
+            "dispatch" => order.Dispatch(Keeper, HubRights.Everywhere, Now),
+            "receive" => order.Receive(Keeper, HubRights.Everywhere, Now),
             _ => order.Cancel("reason", Now),
         };
 
@@ -297,7 +307,7 @@ public sealed class TransferOrderTests
                 return Dispatched();
             case TransferStatus.Received:
                 var received = Dispatched();
-                received.Receive(Keeper, null, Now.AddDays(1)).IsSuccess.ShouldBeTrue();
+                received.Receive(Keeper, HubRights.Everywhere, Now.AddDays(1)).IsSuccess.ShouldBeTrue();
                 return received;
             default:
                 var cancelled = Proposed();

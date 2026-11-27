@@ -100,6 +100,37 @@ public sealed class OrganisationRulesTests(DemoDatabaseFixture database) : IAsyn
         (await browser.MeAsync()).IsAuthenticated.ShouldBeFalse("the open session ends at the next session check");
     }
 
+    [Fact]
+    public async Task A_keeper_without_a_hub_writes_nowhere_and_a_keeper_of_two_hubs_writes_at_both()
+    {
+        // ADR 0026 decision 5, the one intended difference to the golden matrix: no hub means no write access.
+        var klp = await database.ScalarAsync<short>("SELECT id FROM inventory.warehouse WHERE code = 'KLP'");
+        var pnv = await database.ScalarAsync<short>("SELECT id FROM inventory.warehouse WHERE code = 'PNV'");
+        var part = await database.ScalarAsync<long>(
+            "SELECT part_id FROM inventory.warehouse_part WHERE warehouse_id IN (SELECT id FROM inventory.warehouse WHERE code IN ('KLP', 'PNV')) GROUP BY part_id HAVING count(*) = 2 ORDER BY part_id LIMIT 1");
+        using var browser = _host.NewBrowser();
+
+        var noHub = TestUser.Create("keeper.nohub", [AppRoles.WarehouseKeeper]);
+        using (var refused = await browser.PostAsync("/api/v1/inventory/stock-adjustments",
+                   new SmartSpare.ApiContracts.Inventory.StockAdjustmentRequest(klp, part, 1, "Hub access probe"), bearer: _host.Token(noHub.Principal())))
+        {
+            refused.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+            (await Problem.ReadAsync(refused)).Code.ShouldBe("SS302");
+        }
+
+        var twoHubs = new TestUser(Guid.NewGuid(), "keeper.two", "unused", [AppRoles.WarehouseKeeper], [], null);
+        var principal = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity(
+            [.. TestUser.ClaimsFor(twoHubs.Id, twoHubs.UserName, twoHubs.Roles, [], klp),
+             new System.Security.Claims.Claim(AppClaimTypes.Warehouse, pnv.ToString(System.Globalization.CultureInfo.InvariantCulture))],
+            "test", AppClaimTypes.Name, AppClaimTypes.Role));
+        foreach (var hub in new[] { klp, pnv })
+        {
+            using var allowed = await browser.PostAsync("/api/v1/inventory/stock-adjustments",
+                new SmartSpare.ApiContracts.Inventory.StockAdjustmentRequest(hub, part, 1, "Hub access probe"), bearer: _host.Token(principal));
+            allowed.StatusCode.ShouldBe(HttpStatusCode.Created, await allowed.Content.ReadAsStringAsync(Ct));
+        }
+    }
+
     private async Task<T> GetAsync<T>(string path)
     {
         using var browser = _host.NewBrowser();
