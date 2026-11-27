@@ -277,9 +277,9 @@ Common rules as in stage 5: **mobile-first** (the engineer's tablet at 768–102
 
 | Issue | What | PR |
 |---|---|---|
-| #30 | Outbox/inbox retention. Resolves the finding of stage 5 without DELETE grants to the application roles: each module's SQL gets `<schema>.purge_processed_messages(p_outbox_before, p_inbox_before, p_batch)`, `SECURITY DEFINER`, executable by `app_write` (functions as the write API, DATABASE_DESIGN 8.2); a Quartz job in the single host (daily; outbox 7 days, inbox 30 days, batches of 5,000) and `--job outbox-retention` for the services topology. | 6m |
-| #82 | `RabbitMQ.Client.OpenTelemetry`: adopted if a stable version is out; otherwise moved to v0.10.0. | 6m |
-| #17 | Lock-file refresh on Dependabot PRs: needs the owner's decision on a GitHub App or a fine-grained token (stage 5 finding). Asked in the stage report; without a decision it moves to v0.10.0. | — |
+| #30 | **Done in 6m.** Outbox/inbox retention. Resolves the finding of stage 5 without DELETE grants to the application roles: each module's SQL gets `<schema>.purge_processed_messages(p_outbox_before, p_inbox_before, p_batch)`, `SECURITY DEFINER`, executable by `app_write` (functions as the write API, DATABASE_DESIGN 8.2); a Quartz job in the single host (daily; outbox 7 days, inbox 30 days, batches of 5,000) and `--job outbox-retention` for the services topology. | 6m |
+| #82 | `RabbitMQ.Client.OpenTelemetry`: adopted if a stable version is out; otherwise moved to v0.10.0. **Moved in 6m:** still 1.0.0-rc.3 on 27 November 2026. | 6m |
+| #17 | Lock-file refresh on Dependabot PRs. **Decided by the product owner (27 November 2026): no GitHub App, no token**; the manual refresh from the maintainer's account is documented in CONTRIBUTING.md. Closed by 6m. | 6m |
 
 ---
 
@@ -346,7 +346,9 @@ Each PR passes the full `tools/check.sh` and `tools/check.sh restore build e2e t
 **Scope:** the Playwright scenario of section 6, desktop and tablet. **Acceptance:** green in CI.
 
 ### 6m: Housekeeping
-**Scope:** #30 and #82 (section 8). **Acceptance:** retention job tested per schema; #82 adopted or moved.
+**Scope:** #30, #82 and #17 (section 8). **Acceptance:** retention job tested per schema; #82 adopted or moved; #17 documented and closed.
+
+**As built, 6m:** `<schema>.purge_processed_messages(p_outbox_before, p_inbox_before, p_batch)` in each of the five schemas with an outbox (`iam`, `inventory`, `fleet`, `procurement`, `forecast`; migrations `MessageRetention`), `SECURITY DEFINER`, executable by `app_write`, deleting one batch of delivered outbox and handled inbox rows and never an undelivered or parked one. The platform job `outbox-retention` (`MessageRetentionJob`, registered with the outbox dispatcher) purges every outbox of its host until a batch comes back short; settings `Messaging:Retention` (outbox 7 days, inbox 30, batches of 5,000), validated at start-up: the inbox must outlive the outbox's redelivery window. The single host gets **Quartz** (in memory, `Jobs:Schedules`: reservation expiry every 15 minutes, retention daily at 03:30), whose runs go through `JobRunner` as the system user; integration tests switch it off with `Jobs:Enabled = false` and run jobs themselves. Quartz 3.22 (the 4.x line changed its API; a move is a Dependabot-sized change). Tests: the rules and the batching (unit), every schema purged and everything else kept, small batches repeating, `DELETE` refused to the application role, the scheduler planning only jobs that exist (integration). OUTBOX.md documents the settings. #82 moved to v0.10.0; #17 documented in CONTRIBUTING.md.
 
 ### 6n: Documentation and release
 **Scope:** ARCHITECTURE_DECISIONS (§3, §13), API_DOCUMENTATION, FRONTEND, BACKEND_REQUIREMENTS, MODULE_MAPPING (Fleet status, X5–X10), DATABASE_DESIGN (6.3, 6.4), CHANGELOG; exit-criteria evidence (section 10.1); tag `v0.6.0`, release, close the milestone.
@@ -377,7 +379,7 @@ Each PR passes the full `tools/check.sh` and `tools/check.sh restore build e2e t
 8. Unit coverage of business logic at or above the 70 % gate, with all three figures reported.
 9. #12 closed; #30, #82, #17 closed or explicitly moved by the timebox.
 
-**Known limitation (27 November 2026).** The expiry of service-kit holds runs only in the services topology, as `--job inventory.reservation-expiry` (a Container Apps cron job from stage 10): the single host has no scheduler until #30 adds Quartz. In the single host a soft hold therefore stays until the order is completed or cancelled. #30 is in milestone v0.6.0 (PR 6m); if 6m is cut by the timebox, #30 and this limitation move with it to v0.10.0. The job acts as the named system user (ADR 0024).
+**Known limitation (27 November 2026), lifted by 6m.** Until #30 the expiry of service-kit holds ran only in the services topology (`--job inventory.reservation-expiry`), because the single host had no scheduler. Since 6m the single host runs it every 15 minutes from Quartz (`Jobs:Schedules`), as the same named system user (ADR 0024); production still runs it as a Container Apps cron job (stage 10).
 
 **Cut order if the stage runs late** (each cut becomes an issue in a later milestone; the later stages are not moved):
 1. 6i kit line editing, #140 (unplanned repair orders were built in 6h) → the next milestone.
