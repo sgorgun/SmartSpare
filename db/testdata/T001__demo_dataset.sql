@@ -561,6 +561,107 @@ WITH so AS (
 INSERT INTO fleet.service_order_line (service_order_id, part_id, qty_required)
 SELECT so.id, p.id, 8 FROM so, catalog.part p WHERE p.oem_part_number = 'CP-4821';
 
+-- Fleet screens (STAGE_6_PLAN 6j/6k): every service-order state and both due edge cases exist after "Load demo data".
+-- The chopper rebuild above stays "reserving": its ServiceOrderDrafted was never sent, so Inventory never answered.
+-- Overdue: a John Deere 6R 150 in Vilnius, 80 h past its 2,500 h engine service, with no open order.
+INSERT INTO fleet.machine (vin, model_id, customer_id, operating_condition_id, home_warehouse_id, manufacture_year, commissioned_on)
+SELECT 'JD6R150VLN2019OVD', mm.id, c.id, oc.id, w.id, 2019, DATE '2019-04-01'
+FROM fleet.machine_model mm, inventory.warehouse w, ref.operating_condition oc,
+     LATERAL (SELECT id FROM fleet.customer WHERE region_warehouse_id = w.id ORDER BY id LIMIT 1) c
+WHERE mm.model_name = '6R 150' AND w.code = 'VLN' AND oc.code = 'NORMAL';
+-- Due in a few hours (the end-to-end scenario, 6l): a Fendt 724 Vario in Klaipėda, commissioned ten months ago and
+-- 8 h before its first 750 h engine service (due by hours: the yearly calendar interval ends about six weeks later).
+INSERT INTO fleet.machine (vin, model_id, customer_id, operating_condition_id, home_warehouse_id, manufacture_year, commissioned_on)
+SELECT 'FT724KLP2024DEMO', mm.id, c.id, oc.id, w.id, 2025, current_date - 310
+FROM fleet.machine_model mm, inventory.warehouse w, ref.operating_condition oc,
+     LATERAL (SELECT id FROM fleet.customer WHERE region_warehouse_id = w.id ORDER BY id LIMIT 1) c
+WHERE mm.model_name = '724 Vario' AND w.code = 'KLP' AND oc.code = 'NORMAL';
+INSERT INTO fleet.engine_hours_reading (machine_id, reading_hours, read_at, source)
+SELECT m.id, r.hours, ((current_date - r.days_ago) + time '09:00') AT TIME ZONE 'Europe/Vilnius', r.source::fleet.reading_source
+FROM fleet.machine m
+JOIN (VALUES ('JD6R150VLN2019OVD', 300, 2300.0, 'import'), ('JD6R150VLN2019OVD', 200, 2420.0, 'import'),
+             ('JD6R150VLN2019OVD', 100, 2560.0, 'import'), ('JD6R150VLN2019OVD', 20, 2580.0, 'import'),
+             ('FT724KLP2024DEMO', 300, 60.0, 'import'), ('FT724KLP2024DEMO', 200, 300.0, 'import'),
+             ('FT724KLP2024DEMO', 100, 520.0, 'import'), ('FT724KLP2024DEMO', 1, 742.0, 'telematics')) AS r (vin, days_ago, hours, source)
+  ON r.vin = m.vin
+ORDER BY m.id, r.days_ago DESC;
+
+-- Reserves an order's kit and stores the answer, as the consumers of ServiceOrderDrafted and ServiceKitReserved do.
+CREATE FUNCTION pg_temp.t001_reserve_kit(p_order bigint) RETURNS void LANGUAGE sql AS $$
+    UPDATE fleet.service_order_line l SET qty_reserved = k.reserved_qty
+    FROM inventory.reserve_service_kit(
+             (SELECT warehouse_id FROM fleet.service_order WHERE id = p_order),
+             (SELECT array_agg(id ORDER BY part_id) FROM fleet.service_order_line WHERE service_order_id = p_order),
+             (SELECT array_agg(part_id ORDER BY part_id) FROM fleet.service_order_line WHERE service_order_id = p_order),
+             (SELECT array_agg(qty_required ORDER BY part_id) FROM fleet.service_order_line WHERE service_order_id = p_order),
+             now() + interval '7 days') k
+    WHERE l.id = k.service_order_line_id;
+    UPDATE fleet.service_order SET kit_reserved_at = now() WHERE id = p_order;
+$$;
+
+-- An unplanned repair needing more than the hub holds: `p_extra` units above what is available of a part that is in no kit.
+CREATE FUNCTION pg_temp.t001_short_repair(p_offset int, p_extra numeric) RETURNS bigint LANGUAGE sql AS $$
+    WITH pick AS (
+        SELECT b.warehouse_id, b.part_id, b.on_hand_qty - b.reserved_qty AS available
+        FROM inventory.stock_balance b
+        WHERE b.on_hand_qty - b.reserved_qty BETWEEN 1 AND 4
+          AND NOT EXISTS (SELECT 1 FROM fleet.maintenance_plan_part k WHERE k.part_id = b.part_id)
+          AND b.part_id <> (SELECT id FROM catalog.part WHERE oem_part_number = 'CP-4821')   -- the UC01 scenario stays as it is
+          AND EXISTS (SELECT 1 FROM fleet.machine m WHERE m.home_warehouse_id = b.warehouse_id)
+        ORDER BY b.part_id, b.warehouse_id OFFSET p_offset LIMIT 1
+    ), so AS (
+        INSERT INTO fleet.service_order (machine_id, warehouse_id, created_by)
+        SELECT (SELECT id FROM fleet.machine WHERE home_warehouse_id = pick.warehouse_id ORDER BY id LIMIT 1),
+               pick.warehouse_id, '00000000-0000-4000-8000-000000000004'
+        FROM pick
+        RETURNING id
+    ), line AS (
+        INSERT INTO fleet.service_order_line (service_order_id, part_id, qty_required)
+        SELECT so.id, pick.part_id, pick.available + p_extra FROM so, pick
+        RETURNING service_order_id
+    )
+    SELECT service_order_id FROM line;
+$$;
+
+SELECT pg_temp.t001_act_as('00000000-0000-4000-8000-000000000004');   -- Mantas, service engineer
+-- In progress: the first full kit of the other machines is started.
+UPDATE fleet.service_order SET status = 'in_progress'
+WHERE id = (SELECT so.id FROM fleet.service_order so JOIN fleet.machine m ON m.id = so.machine_id
+            WHERE so.status = 'parts_reserved' AND m.vin <> 'LX901PNV2026' ORDER BY so.id LIMIT 1);
+-- Cancelled: the next one, and Inventory releases its holds (ServiceOrderCancelled, PR 6h3).
+SELECT fleet.cancel_service_order(x.id, 'Customer postponed the service to after the harvest'),
+       inventory.release_service_kit(ARRAY(SELECT id FROM fleet.service_order_line WHERE service_order_id = x.id))
+FROM (SELECT so.id FROM fleet.service_order so JOIN fleet.machine m ON m.id = so.machine_id
+      WHERE so.status = 'parts_reserved' AND m.vin <> 'LX901PNV2026' ORDER BY so.id LIMIT 1) x;
+-- Partial kit: an open repair of which the hub holds all it has, 3 units short.
+SELECT pg_temp.t001_reserve_kit(pg_temp.t001_short_repair(0, 3));
+-- Completed with a shortfall (F7): a repair 2 units short is completed; Inventory issues what it has.
+SELECT pg_temp.t001_short_repair(1, 2) AS short_order \gset
+SELECT pg_temp.t001_reserve_kit(:short_order);
+SELECT fleet.complete_service_order(:short_order, m.current_engine_hours)
+FROM fleet.service_order so JOIN fleet.machine m ON m.id = so.machine_id WHERE so.id = :short_order;
+UPDATE fleet.service_order_line l SET qty_issued = k.issued_qty, qty_reserved = 0
+FROM inventory.issue_service_kit(
+         (SELECT warehouse_id FROM fleet.service_order WHERE id = :short_order),
+         (SELECT array_agg(id ORDER BY part_id) FROM fleet.service_order_line WHERE service_order_id = :short_order),
+         (SELECT array_agg(part_id ORDER BY part_id) FROM fleet.service_order_line WHERE service_order_id = :short_order),
+         (SELECT array_agg(qty_required ORDER BY part_id) FROM fleet.service_order_line WHERE service_order_id = :short_order)) k
+WHERE l.id = k.service_order_line_id;
+
+-- The Fleet screens need every state: fail the load rather than demo an empty tab.
+DO $$
+BEGIN
+    IF (SELECT count(DISTINCT status) FROM fleet.service_order) < 5
+       OR NOT EXISTS (SELECT 1 FROM fleet.service_order WHERE status = 'draft' AND kit_reserved_at IS NULL)
+       OR NOT EXISTS (SELECT 1 FROM fleet.service_order so JOIN fleet.service_order_line l ON l.service_order_id = so.id
+                      WHERE so.status = 'draft' AND so.kit_reserved_at IS NOT NULL AND l.qty_reserved BETWEEN 0.001 AND l.qty_required - 0.001)
+       OR NOT EXISTS (SELECT 1 FROM fleet.service_order so JOIN fleet.service_order_line l ON l.service_order_id = so.id
+                      WHERE so.status = 'completed' AND l.qty_issued < l.qty_required)
+       OR NOT EXISTS (SELECT 1 FROM fleet.machine WHERE vin IN ('JD6R150VLN2019OVD', 'FT724KLP2024DEMO') HAVING count(*) = 2) THEN
+        RAISE EXCEPTION 'T001: a Fleet demo state is missing (statuses, reserving, partial kit, shortfall or the named machines)';
+    END IF;
+END $$;
+
 -- Exceptional demand: planner flags the strongest 3-sigma outliers (US08)
 SELECT pg_temp.t001_act_as('00000000-0000-4000-8000-000000000009');
 SELECT inventory.flag_exceptional_demand(c.movement_id, c.occurred_at,
