@@ -518,6 +518,7 @@ BEGIN
                  (SELECT array_agg(qty_required ORDER BY part_id) FROM fleet.service_order_line WHERE service_order_id = v_so.id),
                  now() + interval '7 days') k
         WHERE l.id = k.service_order_line_id;
+        UPDATE fleet.service_order SET kit_reserved_at = now() WHERE id = v_so.id;
         UPDATE fleet.service_order SET status = 'parts_reserved'
         WHERE id = v_so.id
           AND EXISTS (SELECT 1 FROM fleet.service_order_line WHERE service_order_id = v_so.id)

@@ -23,7 +23,7 @@ internal sealed partial class ApplyKitReservedConsumer(FleetDbContext db, ILogge
         ArgumentNullException.ThrowIfNull(integrationEvent);
         var order = await db.Set<ServiceOrder>().Include(o => o.Lines)
             .SingleOrDefaultAsync(o => o.Id == integrationEvent.ServiceOrderId, cancellationToken).ConfigureAwait(false);
-        if (order is null || !order.ApplyKitReserved(integrationEvent.Lines.ToDictionary(l => l.LineId, l => l.ReservedQty)))
+        if (order is null || !order.ApplyKitReserved(integrationEvent.Lines.ToDictionary(l => l.LineId, l => l.ReservedQty), integrationEvent.OccurredAt))
         {
             LogIgnored(integrationEvent.ServiceOrderId);
         }

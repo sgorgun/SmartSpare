@@ -62,7 +62,7 @@ public sealed class KitReservationTests
     {
         var order = Draft();
 
-        order.ApplyKitReserved(new Dictionary<long, decimal> { [71] = 30, [72] = 1 }).ShouldBeTrue();
+        order.ApplyKitReserved(new Dictionary<long, decimal> { [71] = 30, [72] = 1 }, Now).ShouldBeTrue();
 
         order.Status.ShouldBe(ServiceOrderStatus.PartsReserved);
         order.Lines.Select(l => (l.QtyReserved, l.QtyMissing)).ShouldBe([(30m, 0m), (1m, 0m)]);
@@ -73,7 +73,7 @@ public sealed class KitReservationTests
     {
         var order = Draft();
 
-        order.ApplyKitReserved(new Dictionary<long, decimal> { [71] = 12, [72] = 1 }).ShouldBeTrue();
+        order.ApplyKitReserved(new Dictionary<long, decimal> { [71] = 12, [72] = 1 }, Now).ShouldBeTrue();
 
         order.Status.ShouldBe(ServiceOrderStatus.Draft);
         order.Lines[0].QtyReserved.ShouldBe(12);
@@ -85,7 +85,7 @@ public sealed class KitReservationTests
     {
         var order = Draft();
 
-        order.ApplyKitReserved(new Dictionary<long, decimal> { [71] = 99, [72] = -1 });
+        order.ApplyKitReserved(new Dictionary<long, decimal> { [71] = 99, [72] = -1 }, Now);
 
         order.Lines.Select(l => l.QtyReserved).ShouldBe([30m, 0m]);
     }
@@ -96,7 +96,7 @@ public sealed class KitReservationTests
         var order = Draft();
         order.Start().IsSuccess.ShouldBeTrue();
 
-        order.ApplyKitReserved(new Dictionary<long, decimal> { [71] = 30, [72] = 1 }).ShouldBeTrue();
+        order.ApplyKitReserved(new Dictionary<long, decimal> { [71] = 30, [72] = 1 }, Now).ShouldBeTrue();
 
         order.Status.ShouldBe(ServiceOrderStatus.InProgress);
         order.Lines[0].QtyReserved.ShouldBe(30);
@@ -108,7 +108,7 @@ public sealed class KitReservationTests
         var order = Draft();
         order.Cancel("Customer sold the machine", Now).IsSuccess.ShouldBeTrue();
 
-        order.ApplyKitReserved(new Dictionary<long, decimal> { [71] = 30 }).ShouldBeFalse();
+        order.ApplyKitReserved(new Dictionary<long, decimal> { [71] = 30 }, Now).ShouldBeFalse();
 
         order.Status.ShouldBe(ServiceOrderStatus.Cancelled);
         order.Lines[0].QtyReserved.ShouldBe(0);
@@ -118,7 +118,7 @@ public sealed class KitReservationTests
     public void Expired_holds_clear_the_copy_and_reopen_a_parts_reserved_order()
     {
         var order = Draft();
-        order.ApplyKitReserved(new Dictionary<long, decimal> { [71] = 30, [72] = 1 });
+        order.ApplyKitReserved(new Dictionary<long, decimal> { [71] = 30, [72] = 1 }, Now);
 
         order.ApplyKitReservationExpired(new HashSet<long> { 71 }).ShouldBeTrue();
 
@@ -130,7 +130,7 @@ public sealed class KitReservationTests
     public void Expiry_of_other_lines_changes_nothing_and_a_closed_order_is_left_alone()
     {
         var order = Draft();
-        order.ApplyKitReserved(new Dictionary<long, decimal> { [71] = 30, [72] = 1 });
+        order.ApplyKitReserved(new Dictionary<long, decimal> { [71] = 30, [72] = 1 }, Now);
         order.ApplyKitReservationExpired(new HashSet<long> { 999 }).ShouldBeTrue();
         order.Status.ShouldBe(ServiceOrderStatus.PartsReserved);
 

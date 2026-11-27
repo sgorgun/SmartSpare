@@ -60,6 +60,12 @@ internal static class FleetErrors
     public static readonly Error ServiceOrderNotFound = Error.NotFound(
         "Fleet.ServiceOrderNotFound", "The service order does not exist.");
 
+    public static readonly Error ServiceOrderExists = Error.Conflict(
+        "Fleet.ServiceOrderExists", "The plan already has an open service order for this machine.");
+
+    public static readonly Error UnknownPart = Error.BusinessRule(
+        "Fleet.UnknownPart", "A part of the repair is not an active part of the catalogue.");
+
     public static readonly Error MaintenancePlanNotFound = Error.NotFound(
         "Fleet.MaintenancePlanNotFound", "The maintenance plan does not exist or does not belong to the machine's model.");
 

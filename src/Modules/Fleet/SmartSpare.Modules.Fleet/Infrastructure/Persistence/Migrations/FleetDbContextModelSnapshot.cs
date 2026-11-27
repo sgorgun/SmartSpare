@@ -479,6 +479,12 @@ namespace SmartSpare.Modules.Fleet.Infrastructure.Persistence.Migrations
                         .HasColumnOrder(6)
                         .HasComment("Engine-hour threshold this planned service covers (e.g. 500, 1000, 1500 ...).");
 
+                    b.Property<DateTimeOffset?>("KitReservedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("kit_reserved_at")
+                        .HasColumnOrder(14)
+                        .HasComment("When Inventory answered ServiceOrderDrafted (ServiceKitReserved); NULL while the kit reservation is pending.");
+
                     b.Property<long>("MachineId")
                         .HasColumnType("bigint")
                         .HasColumnName("machine_id")
