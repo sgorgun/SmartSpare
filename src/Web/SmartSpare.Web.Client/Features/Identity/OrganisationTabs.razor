@@ -1,0 +1,27 @@
+@inject IStringLocalizer<SharedResource> Text
+@inject NavigationManager Navigation
+
+@* The pages of the Organisation area (ADR 0026): who is who, the role templates, and the accounts with their derived rights. *@
+<nav class="d-flex flex-wrap mb-3" aria-label="@Text["Organisation.Pages"]">
+    @foreach (var (href, key, icon) in Pages)
+    {
+        var current = IsCurrent(href);
+        <MudButton Href="@href" Variant="@(current ? Variant.Filled : Variant.Text)" Color="Color.Primary" StartIcon="@icon"
+                   Class="mr-2 mb-1 touch-target" aria-current="@(current ? "page" : null)">@Text[key]</MudButton>
+    }
+</nav>
+
+@code {
+    private static readonly (string Href, string Key, string Icon)[] Pages =
+    [
+        ("admin/employees", "Organisation.Tab.Employees", Icons.Material.Filled.Badge),
+        ("admin/positions", "Organisation.Tab.Positions", Icons.Material.Filled.WorkOutline),
+        ("admin/users", "Organisation.Tab.Users", Icons.Material.Filled.ManageAccounts),
+    ];
+
+    private bool IsCurrent(string href)
+    {
+        var path = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?')[0].TrimEnd('/');
+        return path == href || path.StartsWith(href + "/", StringComparison.Ordinal);
+    }
+}
