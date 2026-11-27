@@ -24,7 +24,9 @@ public sealed class ClaimsPrincipalFactoryTests(IdentityDatabaseFixture database
             VALUES ('{id}', '{id}', 'claims.user', 'claims.user@dealer.example', 'Claims Person', '+370 600 00000',
                     'AQAAAAIAA1tgAAAAE{new string('A', 67)}', 3);
             INSERT INTO iam.user_role (user_id, role_id) SELECT '{id}', id FROM iam.role WHERE code IN ('BRAND_MANAGER', 'SPONSOR');
-            INSERT INTO iam.user_brand (user_id, brand_id) SELECT '{id}', id FROM ref.brand WHERE code IN ('CLAAS', 'LEMKEN');
+            INSERT INTO iam.employee_responsibility (record_kind, record_id, employee_id, assignment_role)
+            SELECT 'brand', id, '{id}'::uuid, 'BRAND_MANAGER' FROM ref.brand WHERE code IN ('CLAAS', 'LEMKEN')
+            UNION ALL SELECT 'warehouse', 3, '{id}'::uuid, 'KEEPER';
             """);
 
         var services = new ServiceCollection().AddLogging();
