@@ -2,6 +2,31 @@ using SmartSpare.SharedKernel;
 
 namespace SmartSpare.Modules.Fleet.Domain.ServiceOrders;
 
+/// <summary>Where the kit of a service order stands, as screens show it (STAGE_6_PLAN 6).</summary>
+internal enum KitStatus
+{
+    /// <summary>Drafted; Inventory has not answered ServiceOrderDrafted yet.</summary>
+    Reserving,
+
+    /// <summary>Every line is held.</summary>
+    Reserved,
+
+    /// <summary>Some lines are held, some are short.</summary>
+    Partial,
+
+    /// <summary>Inventory answered and holds nothing (no stock, or the holds expired).</summary>
+    NotHeld,
+
+    /// <summary>The order is completed; its parts were issued.</summary>
+    Issued,
+
+    /// <summary>The order is cancelled.</summary>
+    Released,
+
+    /// <summary>The order has no parts.</summary>
+    NoParts,
+}
+
 /// <summary>PostgreSQL enum <c>fleet.service_order_status</c>.</summary>
 internal enum ServiceOrderStatus
 {
@@ -76,6 +101,9 @@ internal sealed class ServiceOrder : AggregateRoot<long>
     public DateTimeOffset? CompletedAt { get; private set; }
 
     public string? CancelReason { get; private set; }
+
+    /// <summary>When Inventory's answer to <c>ServiceOrderDrafted</c> arrived; null while the reservation is pending.</summary>
+    public DateTimeOffset? KitReservedAt { get; private set; }
 
     /// <summary>Maintained by the <c>updated_at</c> trigger.</summary>
     public DateTimeOffset UpdatedAt { get; private set; }
@@ -186,13 +214,15 @@ internal sealed class ServiceOrder : AggregateRoot<long>
     /// a draft whose every line is fully held to parts reserved. A reservation that arrives after the order was completed or
     /// cancelled is ignored (returns false); Inventory's holds of such an order are released by their expiry (5.5).
     /// </summary>
-    public bool ApplyKitReserved(IReadOnlyDictionary<long, decimal> reservedByLine)
+    public bool ApplyKitReserved(IReadOnlyDictionary<long, decimal> reservedByLine, DateTimeOffset answeredAt)
     {
         ArgumentNullException.ThrowIfNull(reservedByLine);
         if (!IsOpen)
         {
             return false;
         }
+
+        KitReservedAt ??= answeredAt;
 
         foreach (var line in _lines)
         {
@@ -235,6 +265,21 @@ internal sealed class ServiceOrder : AggregateRoot<long>
 
         return true;
     }
+
+    /// <summary>Where the kit stands (STAGE_6_PLAN 6): reserving until Inventory answered, then by the held quantities.</summary>
+    public KitStatus Kit => KitOf(Status, KitReservedAt, _lines.Count, _lines.Count(l => l.QtyMissing > 0), _lines.Count(l => l.QtyReserved > 0));
+
+    /// <summary>The kit rule, also used by lists that count lines in SQL.</summary>
+    public static KitStatus KitOf(ServiceOrderStatus status, DateTimeOffset? kitReservedAt, int lines, int shortLines, int heldLines) => status switch
+    {
+        ServiceOrderStatus.Completed => KitStatus.Issued,
+        ServiceOrderStatus.Cancelled => KitStatus.Released,
+        _ when lines == 0 => KitStatus.NoParts,
+        _ when kitReservedAt is null => KitStatus.Reserving,
+        _ when shortLines == 0 => KitStatus.Reserved,
+        _ when heldLines > 0 => KitStatus.Partial,
+        _ => KitStatus.NotHeld,
+    };
 
     /// <summary>The engineer starts the work.</summary>
     public Result Start()

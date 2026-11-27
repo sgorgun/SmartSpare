@@ -41,7 +41,7 @@ SELECT * FROM inventory.reserve_service_kit(
     (SELECT array_agg(qty_required ORDER BY part_id) FROM fleet.service_order_line WHERE service_order_id = (SELECT service_order_id FROM t_so)),
     now() + interval '7 days');
 UPDATE fleet.service_order_line l SET qty_reserved = k.reserved_qty FROM t_uc02_kit k WHERE l.id = k.service_order_line_id;
-UPDATE fleet.service_order SET status = 'parts_reserved' WHERE id = (SELECT service_order_id FROM t_so);
+UPDATE fleet.service_order SET status = 'parts_reserved', kit_reserved_at = now() WHERE id = (SELECT service_order_id FROM t_so);
 SELECT pg_temp.ok((SELECT current_engine_hours = 512 FROM fleet.machine WHERE id = (SELECT id FROM t_m)),
                   'Trigger: machine odometer updated from the reading');
 SELECT pg_temp.ok((SELECT count(*) = 5 AND bool_and(r.status = 'soft') AND bool_and(r.expires_at > now() + interval '6 days')

@@ -42,6 +42,7 @@ internal sealed class ServiceOrderConfiguration : IEntityTypeConfiguration<Servi
         builder.Property(x => x.CreatedAt).HasColumnName("created_at").HasColumnOrder(10).HasColumnType("timestamp with time zone").HasDefaultValueSql("now()").HasComment("Time the record was created.");
         builder.Property(x => x.CompletedAt).HasColumnName("completed_at").HasColumnOrder(11).HasColumnType("timestamp with time zone").HasComment("Time of the completed event.");
         builder.Property(x => x.CancelReason).HasColumnName("cancel_reason").HasColumnOrder(12).HasColumnType("character varying(300)");
+        builder.Property(x => x.KitReservedAt).HasColumnName("kit_reserved_at").HasColumnOrder(14).HasColumnType("timestamp with time zone").HasComment("When Inventory answered ServiceOrderDrafted (ServiceKitReserved); NULL while the kit reservation is pending.");
         builder.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasColumnOrder(13).HasColumnType("timestamp with time zone").HasDefaultValueSql("now()").HasComment("Time of the last change (maintained by trigger).");
         // fk_service_order_created_by -> iam.app_user removed: cross-module FK (ADR 0011, MODULE_MAPPING section 2).
         // fk_service_order_warehouse -> inventory.warehouse removed: cross-module FK (ADR 0011, MODULE_MAPPING section 2).
@@ -66,6 +67,7 @@ internal sealed class ServiceOrderConfiguration : IEntityTypeConfiguration<Servi
         builder.Ignore(x => x.DomainEvents);
         builder.Ignore(x => x.IsPlanned);
         builder.Ignore(x => x.IsOpen);
+        builder.Ignore(x => x.Kit);
 
         builder.HasIndex(x => x.CreatedBy).HasDatabaseName("ix_service_order_created_by");
         builder.HasIndex(x => new { x.WarehouseId, x.Status }).HasDatabaseName("ix_service_order_open").HasFilter("(status = ANY (ARRAY['draft'::fleet.service_order_status, 'parts_reserved'::fleet.service_order_status, 'in_progress'::fleet.service_order_status]))");

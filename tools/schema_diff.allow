@@ -140,3 +140,8 @@
 -PROCEDURE inventory\.expire_soft_reservations\(
 +FUNCTION inventory\.expire_soft_reservations\(p_now timestamp with time zone\)
 +^-- Lock the overdue holds in \(part_id, warehouse_id\) order first
+
+# PR 6h1 (STAGE_6_PLAN 6): service_order.kit_reserved_at tells a pending kit reservation ("reserving") from one that found
+# no stock; the consumer of ServiceKitReserved sets it (Fleet migration ServiceOrderKitReservedAt, db/sql/fleet/0007).
+-CREATE TABLE fleet\.service_order \(
++kit_reserved_at

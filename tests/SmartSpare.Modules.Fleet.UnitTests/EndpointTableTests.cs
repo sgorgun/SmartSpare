@@ -27,6 +27,10 @@ public sealed class EndpointTableTests
             "GET /api/v1/fleet/maintenance/due",
             "GET /api/v1/fleet/maintenance-plans",
             "POST /api/v1/fleet/machines/{id:long}/readings",
+            "GET /api/v1/fleet/service-orders",
+            "GET /api/v1/fleet/service-orders/{id:long}",
+            "POST /api/v1/fleet/service-orders",
+            "POST /api/v1/fleet/service-orders/{id:long}/start",
         ], ignoreOrder: true);
 
     [Theory]
@@ -38,7 +42,12 @@ public sealed class EndpointTableTests
         endpoint.Metadata.GetMetadata<IEndpointNameMetadata>().ShouldNotBeNull(route);
         endpoint.Metadata.GetMetadata<IEndpointSummaryMetadata>()!.Summary.ShouldNotBeNullOrWhiteSpace(route);
         endpoint.Metadata.GetMetadata<IEndpointDescriptionMetadata>()!.Description.ShouldNotBeNullOrWhiteSpace(route);
-        var expected = route.StartsWith("GET ", StringComparison.Ordinal) ? AppPolicies.ReadFleet : AppPolicies.RecordServiceWork;
+        var expected = route switch
+        {
+            _ when route.StartsWith("GET ", StringComparison.Ordinal) => AppPolicies.ReadFleet,
+            "POST /api/v1/fleet/service-orders" => AppPolicies.ManageServiceOrders,
+            _ => AppPolicies.RecordServiceWork,
+        };
         endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>().ShouldHaveSingleItem().Policy.ShouldBe(expected, route);
         endpoint.Metadata.GetOrderedMetadata<IProducesResponseTypeMetadata>().Select(p => p.StatusCode)
             .ShouldContain(StatusCodes.Status401Unauthorized, route);
