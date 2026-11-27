@@ -3,10 +3,20 @@ html, body {
     height: 100%;
 }
 
-/* Keyboard focus must stay visible (WCAG 2.1 AA, 2.4.7). */
-:focus-visible {
+/* Keyboard focus must stay visible (WCAG 2.1 AA, 2.4.7). ":root" raises the specificity above MudBlazor's own
+   ".mud-button-root { outline: none }", which otherwise hid the ring on buttons and button links. */
+:root :focus-visible {
     outline: 3px solid #0D47A1;
     outline-offset: 2px;
+}
+
+/* Focus set by the app, not by the keyboard, shows no ring: FocusOnNavigate moves focus to the page heading so a screen
+   reader announces the new page, and Blazor makes the heading focusable with tabindex="-1" for that. Such an element
+   is never reached with Tab, so it needs no ring; Chromium would draw one for a programmatic focus. Everything the
+   keyboard reaches keeps the ring above. Applies to every page. */
+:focus:not(:focus-visible),
+[tabindex="-1"]:focus {
+    outline: none;
 }
 
 /* Touch targets of at least 44 px on the engineer's tablet (STAGE_6_PLAN section 6, WCAG 2.5.5). */

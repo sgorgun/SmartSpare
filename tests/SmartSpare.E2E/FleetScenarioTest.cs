@@ -54,6 +54,7 @@ public sealed partial class FleetScenarioTest(E2EEnvironment app)
         await Assertions.Expect(page.Locator("[data-testid=machine-vin]")).ToHaveTextAsync(vin, new() { Timeout = 15_000 });
         await Assertions.Expect(page.Locator("[data-testid=machine-due]")).ToContainTextAsync("Due soon");
         await Assertions.Expect(page.Locator("[data-testid=machine-plans]")).ToContainTextAsync("Next service at 750 h · 8 h to go");
+        await ExpectHeadingFocusWithoutRingAsync(page);
         await page.ScreenshotAsync(new PageScreenshotOptions { Path = Artifact($"fleet-1-card-{name}.png"), FullPage = true });
 
         // Log 751 h: the dialog opens the decimal keypad, the reading drafts the engine service (UC02 steps 2–7).
@@ -94,6 +95,22 @@ public sealed partial class FleetScenarioTest(E2EEnvironment app)
         // Nothing on the screen ran off its edge (the tabs, the tables and the action bar fit the viewport).
         var overflow = await page.EvaluateAsync<int>("() => document.documentElement.scrollWidth - document.documentElement.clientWidth");
         overflow.ShouldBeLessThanOrEqualTo(0, $"the page scrolls sideways at {width} px");
+    }
+
+    /// <summary>
+    /// After navigation the page heading has focus for screen readers (FocusOnNavigate, tabindex="-1") but draws no ring;
+    /// the next Tab reaches a control that does.
+    /// </summary>
+    private static async Task ExpectHeadingFocusWithoutRingAsync(IPage page)
+    {
+        var heading = await page.EvaluateAsync<string[]>(
+            "() => { const e = document.activeElement; return [e.tagName, e.getAttribute('tabindex') ?? '', getComputedStyle(e).outlineStyle]; }");
+        heading.ShouldBe(["H1", "-1", "none"]);
+
+        await page.Keyboard.PressAsync("Tab");
+        var next = await page.EvaluateAsync<string[]>("() => { const e = document.activeElement; return [e.tagName, getComputedStyle(e).outlineStyle]; }");
+        next[0].ShouldNotBe("H1");
+        next[1].ShouldBe("solid", "keyboard focus keeps its ring");
     }
 
     private static Task WaitUntilInteractiveAsync(IPage page) =>
