@@ -61,7 +61,7 @@ SmartSpare.Web.Client/
 
 **API services.** Each module gets one typed client, `<Module>Client`, which calls only relative URLs. Today there are
 two:
-- `IdentityClient` for `/bff/login`, `/bff/logout`, `/bff/me`, `/api/v1/identity/users/...` and `/api/v1/identity/me/password`;
+- `IdentityClient` for `/bff/login`, `/bff/logout`, `/bff/me`, `/api/v1/identity/users/...`, `/positions`, `/employees` and `/api/v1/identity/me/password`;
 - `InventoryClient` for `/api/v1/inventory/parts`, `/warehouses`, `/stock`, `/stock-adjustments`, `/transfers` and `/imports`.
 
 The clients share one handler chain, built per DI scope in `ClientServices.CreateHttpClient`:
