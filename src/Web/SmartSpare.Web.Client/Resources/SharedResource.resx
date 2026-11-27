@@ -1188,4 +1188,163 @@
   <data name="Users.Right.Hub.WarehouseAssignment" xml:space="preserve">
     <value>Hub {0}: from {1}</value>
   </data>
+  <data name="Nav.Organisation" xml:space="preserve">
+    <value>Organisation</value>
+  </data>
+  <data name="Module.Organisation" xml:space="preserve">
+    <value>Employees, positions and user accounts. Rights follow from positions and assignments.</value>
+  </data>
+  <data name="Organisation.Pages" xml:space="preserve">
+    <value>Organisation pages</value>
+  </data>
+  <data name="Organisation.Tab.Employees" xml:space="preserve">
+    <value>Employees</value>
+  </data>
+  <data name="Organisation.Tab.Positions" xml:space="preserve">
+    <value>Positions</value>
+  </data>
+  <data name="Organisation.Tab.Users" xml:space="preserve">
+    <value>User accounts</value>
+  </data>
+  <data name="Catalog.ShowArchived" xml:space="preserve">
+    <value>Show archived</value>
+  </data>
+  <data name="Catalog.Edit" xml:space="preserve">
+    <value>Edit</value>
+  </data>
+  <data name="Catalog.Archive" xml:space="preserve">
+    <value>Archive</value>
+  </data>
+  <data name="Catalog.Restore" xml:space="preserve">
+    <value>Restore</value>
+  </data>
+  <data name="Catalog.Done.archive" xml:space="preserve">
+    <value>{0} archived.</value>
+  </data>
+  <data name="Catalog.Done.restore" xml:space="preserve">
+    <value>{0} restored.</value>
+  </data>
+  <data name="Positions.Title" xml:space="preserve">
+    <value>Positions</value>
+  </data>
+  <data name="Positions.New" xml:space="preserve">
+    <value>New position</value>
+  </data>
+  <data name="Positions.Edit" xml:space="preserve">
+    <value>Position {0}</value>
+  </data>
+  <data name="Positions.Intro" xml:space="preserve">
+    <value>A position's role template gives every employee in it exactly these roles. A change applies to all of them within 30 seconds.</value>
+  </data>
+  <data name="Positions.Search" xml:space="preserve">
+    <value>Search by code or name</value>
+  </data>
+  <data name="Positions.Code" xml:space="preserve">
+    <value>Code</value>
+  </data>
+  <data name="Positions.CodeHelp" xml:space="preserve">
+    <value>For example PARTS_ADVISOR; it never changes.</value>
+  </data>
+  <data name="Positions.Name" xml:space="preserve">
+    <value>Name</value>
+  </data>
+  <data name="Positions.Description" xml:space="preserve">
+    <value>Description</value>
+  </data>
+  <data name="Positions.Template" xml:space="preserve">
+    <value>Role template</value>
+  </data>
+  <data name="Positions.TemplateHelp" xml:space="preserve">
+    <value>Employees in this position get these roles. Leave all unchecked for staff who do not work in SmartSpare.</value>
+  </data>
+  <data name="Positions.NoRoles" xml:space="preserve">
+    <value>No roles</value>
+  </data>
+  <data name="Positions.Employees" xml:space="preserve">
+    <value>Active employees</value>
+  </data>
+  <data name="Positions.None" xml:space="preserve">
+    <value>No positions.</value>
+  </data>
+  <data name="Positions.Saved" xml:space="preserve">
+    <value>Position saved.</value>
+  </data>
+  <data name="Employees.Title" xml:space="preserve">
+    <value>Employees</value>
+  </data>
+  <data name="Employees.New" xml:space="preserve">
+    <value>New employee</value>
+  </data>
+  <data name="Employees.Edit" xml:space="preserve">
+    <value>Employee {0}</value>
+  </data>
+  <data name="Employees.Intro" xml:space="preserve">
+    <value>Employees are the only place where people and their positions are edited. A user account is created from an employee; not every employee needs one.</value>
+  </data>
+  <data name="Employees.Search" xml:space="preserve">
+    <value>Search by number or name</value>
+  </data>
+  <data name="Employees.AllPositions" xml:space="preserve">
+    <value>All positions</value>
+  </data>
+  <data name="Employees.ShowLeft" xml:space="preserve">
+    <value>Show employees who left</value>
+  </data>
+  <data name="Employees.Code" xml:space="preserve">
+    <value>Number</value>
+  </data>
+  <data name="Employees.Phone" xml:space="preserve">
+    <value>Phone</value>
+  </data>
+  <data name="Employees.HiredOn" xml:space="preserve">
+    <value>Hired on</value>
+  </data>
+  <data name="Employees.PositionHelp" xml:space="preserve">
+    <value>The position gives the account its roles.</value>
+  </data>
+  <data name="Employees.Account" xml:space="preserve">
+    <value>Account</value>
+  </data>
+  <data name="Employees.NoAccount" xml:space="preserve">
+    <value>No account</value>
+  </data>
+  <data name="Employees.CreateAccount" xml:space="preserve">
+    <value>Create account</value>
+  </data>
+  <data name="Employees.CreateAccountFor" xml:space="preserve">
+    <value>Account for {0}</value>
+  </data>
+  <data name="Employees.AccountRolesFrom" xml:space="preserve">
+    <value>The account gets the roles of the position {0}. The user changes the initial password at the first opportunity.</value>
+  </data>
+  <data name="Employees.AccountCreated" xml:space="preserve">
+    <value>Account {0} created.</value>
+  </data>
+  <data name="Employees.Leave" xml:space="preserve">
+    <value>Left the company</value>
+  </data>
+  <data name="Employees.ConfirmLeave" xml:space="preserve">
+    <value>{0} left the company. The account can no longer sign in, and open sessions end within 30 seconds.</value>
+  </data>
+  <data name="Employees.LeftOn" xml:space="preserve">
+    <value>Leaving date</value>
+  </data>
+  <data name="Employees.LeftOnDate" xml:space="preserve">
+    <value>Left on {0}</value>
+  </data>
+  <data name="Employees.Left" xml:space="preserve">
+    <value>{0} archived as left.</value>
+  </data>
+  <data name="Employees.ConfirmAnonymise" xml:space="preserve">
+    <value>Erase the personal data of {0} and of the account for good? This cannot be undone.</value>
+  </data>
+  <data name="Employees.Anonymised" xml:space="preserve">
+    <value>Personal data erased.</value>
+  </data>
+  <data name="Employees.None" xml:space="preserve">
+    <value>No employees.</value>
+  </data>
+  <data name="Employees.Saved" xml:space="preserve">
+    <value>Employee saved.</value>
+  </data>
 </root>

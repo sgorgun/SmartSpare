@@ -1,0 +1,449 @@
+@page "/admin/employees"
+@attribute [Authorize(Policy = AppPolicies.Administration)]
+@using System.Globalization
+@using SmartSpare.ApiContracts.Identity
+@inject IStringLocalizer<SharedResource> Text
+@inject IdentityClient Identity
+@inject ProblemMessages Messages
+@inject ISnackbar Snackbar
+@inject TimeProvider Clock
+
+<PageTitle>@Text["Employees.Title"]</PageTitle>
+
+<OrganisationTabs />
+<div class="d-flex align-center flex-wrap mb-1">
+    <MudText Typo="Typo.h4" HtmlTag="h1" Class="mr-auto">@Text["Employees.Title"]</MudText>
+    <MudButton OnClick="StartCreate" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd"
+               Class="touch-target" data-testid="new-employee">@Text["Employees.New"]</MudButton>
+</div>
+<MudText Typo="Typo.body2" Class="mb-3">@Text["Employees.Intro"]</MudText>
+
+<div class="d-flex flex-wrap align-center mb-3">
+    <MudTextField T="string" @bind-Value="_search" Label="@Text["Employees.Search"]" Variant="Variant.Outlined" Margin="Margin.Dense"
+                  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Clearable="true" DebounceInterval="400"
+                  OnDebounceIntervalElapsed="SearchAsync" OnClearButtonClick="ClearAsync" InputMode="InputMode.search" Class="mr-3" />
+    <MudSelect T="short?" Value="_positionFilter" ValueChanged="FilterAsync" Label="@Text["Users.Position"]" Variant="Variant.Outlined" Dense="true" Class="mr-3" Style="min-width:12rem" data-testid="position-filter">
+        <MudSelectItem T="short?" Value="null">@Text["Employees.AllPositions"]</MudSelectItem>
+        @foreach (var position in _positions)
+        {
+            <MudSelectItem T="short?" Value="position.Id">@position.Name</MudSelectItem>
+        }
+    </MudSelect>
+    <MudSwitch T="bool" Value="_archived" ValueChanged="ShowArchivedAsync" Color="Color.Primary" Label="@Text["Employees.ShowLeft"]" data-testid="show-archived" />
+</div>
+
+@if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-3" data-testid="employees-error">@_error</MudAlert>
+}
+
+@if (_editing is not null)
+{
+    <MudPaper Outlined="true" Class="pa-4 mb-4" data-testid="employee-form">
+        <MudText Typo="Typo.h6" HtmlTag="h2" Class="mb-2">@(_editing.Id is null ? Text["Employees.New"] : Text["Employees.Edit", _editing.Code ?? string.Empty])</MudText>
+        <MudGrid Spacing="2">
+            <MudItem xs="12" sm="3">
+                <MudTextField T="string" @bind-Value="_editing.Code" Label="@Text["Employees.Code"]" Variant="Variant.Outlined" Margin="Margin.Dense"
+                              Disabled="_editing.Id is not null" HelperText="E0042" data-testid="employee-code" />
+            </MudItem>
+            <MudItem xs="12" sm="9">
+                <MudTextField T="string" @bind-Value="_editing.FullName" Label="@Text["Users.FullName"]" Variant="Variant.Outlined" Margin="Margin.Dense" data-testid="employee-name" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField T="string" @bind-Value="_editing.Email" Label="@Text["Users.Email"]" Variant="Variant.Outlined" Margin="Margin.Dense" InputType="InputType.Email" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField T="string" @bind-Value="_editing.Phone" Label="@Text["Employees.Phone"]" Variant="Variant.Outlined" Margin="Margin.Dense" InputType="InputType.Telephone" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudSelect T="short" @bind-Value="_editing.PositionId" Label="@Text["Users.Position"]" Variant="Variant.Outlined" Dense="true"
+                           HelperText="@Text["Employees.PositionHelp"]" data-testid="employee-position">
+                    @foreach (var position in _positions)
+                    {
+                        <MudSelectItem T="short" Value="position.Id">@position.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField T="DateOnly?" @bind-Value="_editing.HiredOn" Label="@Text["Employees.HiredOn"]" Variant="Variant.Outlined" Margin="Margin.Dense" InputType="InputType.Date" Format="yyyy-MM-dd" />
+            </MudItem>
+        </MudGrid>
+        @if (_formError is not null)
+        {
+            <MudText Color="Color.Error" Typo="Typo.body2" Class="mt-2" role="alert" data-testid="employee-form-error">@_formError</MudText>
+        }
+        <div class="mt-3">
+            <MudButton OnClick="SaveAsync" Disabled="_busy" Variant="Variant.Filled" Color="Color.Primary" Class="touch-target" data-testid="save-employee">@Text["Users.Save"]</MudButton>
+            <MudButton OnClick="() => _editing = null" Disabled="_busy" Variant="Variant.Text" Class="ml-2 touch-target">@Text["Transfer.No"]</MudButton>
+        </div>
+    </MudPaper>
+}
+
+@if (_account is { } account)
+{
+    <MudPaper Outlined="true" Class="pa-4 mb-4" data-testid="account-form">
+        <MudText Typo="Typo.h6" HtmlTag="h2" Class="mb-1">@Text["Employees.CreateAccountFor", account.Employee.FullName]</MudText>
+        <MudText Typo="Typo.body2" Class="mb-2">@Text["Employees.AccountRolesFrom", account.Employee.PositionName]</MudText>
+        <MudGrid Spacing="2">
+            <MudItem xs="12" sm="6"><MudTextField T="string" @bind-Value="account.UserName" Label="@Text["Users.UserName"]" Variant="Variant.Outlined" Margin="Margin.Dense" data-testid="account-user-name" /></MudItem>
+            <MudItem xs="12" sm="6"><MudTextField T="string" @bind-Value="account.Password" Label="@Text["Users.InitialPassword"]" Variant="Variant.Outlined" Margin="Margin.Dense" InputType="InputType.Password" HelperText="@Text["Users.PasswordRule"]" data-testid="account-password" /></MudItem>
+        </MudGrid>
+        @if (_formError is not null)
+        {
+            <MudText Color="Color.Error" Typo="Typo.body2" Class="mt-2" role="alert" data-testid="account-form-error">@_formError</MudText>
+        }
+        <div class="mt-3">
+            <MudButton OnClick="CreateAccountAsync" Disabled="_busy" Variant="Variant.Filled" Color="Color.Primary" Class="touch-target" data-testid="save-account">@Text["Employees.CreateAccount"]</MudButton>
+            <MudButton OnClick="() => _account = null" Disabled="_busy" Variant="Variant.Text" Class="ml-2 touch-target">@Text["Transfer.No"]</MudButton>
+        </div>
+    </MudPaper>
+}
+
+@if (_leaving is { } leaving)
+{
+    <MudPaper Outlined="true" Class="pa-4 mb-4" data-testid="leave-form">
+        <MudText Class="mb-2">@Text["Employees.ConfirmLeave", leaving.Employee.FullName]</MudText>
+        <MudTextField T="DateOnly?" @bind-Value="leaving.LeftOn" Label="@Text["Employees.LeftOn"]" Variant="Variant.Outlined" Margin="Margin.Dense" InputType="InputType.Date" Format="yyyy-MM-dd" data-testid="left-on" />
+        <div class="mt-3">
+            <MudButton OnClick="LeaveAsync" Disabled="_busy || leaving.LeftOn is null" Variant="Variant.Filled" Color="Color.Warning" Class="touch-target" data-testid="confirm-leave">@Text["Employees.Leave"]</MudButton>
+            <MudButton OnClick="() => _leaving = null" Variant="Variant.Text" Class="ml-2 touch-target">@Text["Transfer.No"]</MudButton>
+        </div>
+    </MudPaper>
+}
+
+@if (_anonymising is { } anonymising)
+{
+    <MudPaper Outlined="true" Class="pa-4 mb-4" data-testid="anonymise-confirm">
+        <MudText Class="mb-2">@Text["Employees.ConfirmAnonymise", anonymising.FullName]</MudText>
+        <MudButton OnClick="AnonymiseAsync" Disabled="_busy" Variant="Variant.Filled" Color="Color.Error" Class="touch-target" data-testid="confirm-anonymise">@Text["Transfer.Yes"]</MudButton>
+        <MudButton OnClick="() => _anonymising = null" Variant="Variant.Text" Class="ml-2 touch-target">@Text["Transfer.No"]</MudButton>
+    </MudPaper>
+}
+
+<MudDataGrid @ref="_grid" T="EmployeeSummary" ServerData="LoadAsync" RowsPerPage="UserLimits.DefaultPageSize" Dense="true" Outlined="true" Elevation="0"
+             Breakpoint="Breakpoint.Sm" SortMode="SortMode.None" Filterable="false" data-testid="employees-grid">
+    <Columns>
+        <PropertyColumn Property="e => e.Code" Title="@Text["Employees.Code"]" />
+        <PropertyColumn Property="e => e.FullName" Title="@Text["Users.FullName"]" />
+        <PropertyColumn Property="e => e.PositionName" Title="@Text["Users.Position"]" />
+        <TemplateColumn Title="@Text["Employees.Account"]">
+            <CellTemplate>
+                @if (context.Item.AccountUserName is { } userName)
+                {
+                    <span data-testid="employee-account">@userName</span>
+                }
+                else
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">@Text["Employees.NoAccount"]</MudText>
+                }
+            </CellTemplate>
+        </TemplateColumn>
+        <TemplateColumn Title="" CellClass="text-right">
+            <CellTemplate>
+                @if (context.Item.IsAnonymised)
+                {
+                    <StatusChip Label="@Text["Users.Anonymised"]" Icon="@Icons.Material.Filled.PersonOff" Color="Color.Default" />
+                }
+                else if (context.Item.IsArchived)
+                {
+                    <MudText Typo="Typo.body2" Class="mr-2" Style="display:inline">@Text["Employees.LeftOnDate", context.Item.LeftOn?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? string.Empty]</MudText>
+                    <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="() => RestoreAsync(context.Item)" data-testid="restore-employee">@Text["Catalog.Restore"]</MudButton>
+                    <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error" OnClick="() => _anonymising = context.Item" data-testid="anonymise-employee">@Text["Users.Anonymise"]</MudButton>
+                }
+                else
+                {
+                    <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="() => StartEdit(context.Item)" data-testid="edit-employee">@Text["Catalog.Edit"]</MudButton>
+                    @if (context.Item.AccountUserName is null)
+                    {
+                        <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="() => StartAccount(context.Item)" data-testid="create-account">@Text["Employees.CreateAccount"]</MudButton>
+                    }
+                    <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Warning" OnClick="() => StartLeave(context.Item)" data-testid="leave-employee">@Text["Employees.Leave"]</MudButton>
+                }
+            </CellTemplate>
+        </TemplateColumn>
+    </Columns>
+    <NoRecordsContent><MudText>@Text["Employees.None"]</MudText></NoRecordsContent>
+    <LoadingContent><MudText>@Text["Users.Loading"]</MudText></LoadingContent>
+    <PagerContent><MudDataGridPager T="EmployeeSummary" /></PagerContent>
+</MudDataGrid>
+
+@code {
+    private MudDataGrid<EmployeeSummary>? _grid;
+    private IReadOnlyList<PositionSummary> _positions = [];
+    private string? _search;
+    private short? _positionFilter;
+    private bool _archived;
+    private string? _error;
+    private string? _formError;
+    private bool _busy;
+    private EmployeeForm? _editing;
+    private AccountForm? _account;
+    private LeaveForm? _leaving;
+    private EmployeeSummary? _anonymising;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        var positions = await Identity.ListPositionsAsync(null, archived: false, page: 1, pageSize: UserLimits.MaxPageSize);
+        _positions = positions.IsSuccess ? positions.Value!.Items : [];
+        _error = positions.IsSuccess ? null : Messages.Describe(positions.Problem!);
+    }
+
+    private async Task<GridData<EmployeeSummary>> LoadAsync(GridState<EmployeeSummary> state, CancellationToken cancellationToken)
+    {
+        if (!RendererInfo.IsInteractive)
+        {
+            return new GridData<EmployeeSummary> { Items = [], TotalItems = 0 };
+        }
+
+        var result = await Identity.ListEmployeesAsync(_search, _positionFilter, _archived, state.Page + 1, state.PageSize, cancellationToken);
+        if (!result.IsSuccess)
+        {
+            _error = Messages.Describe(result.Problem!);
+            StateHasChanged();
+            return new GridData<EmployeeSummary> { Items = [], TotalItems = 0 };
+        }
+
+        return new GridData<EmployeeSummary> { Items = result.Value!.Items, TotalItems = result.Value.TotalCount };
+    }
+
+    private void StartCreate()
+    {
+        CloseForms();
+        _editing = new EmployeeForm { PositionId = _positions.FirstOrDefault()?.Id ?? 0 };
+    }
+
+    private void StartEdit(EmployeeSummary employee)
+    {
+        CloseForms();
+        _editing = new EmployeeForm
+        {
+            Id = employee.Id,
+            Code = employee.Code,
+            FullName = employee.FullName,
+            Email = employee.Email,
+            Phone = employee.Phone,
+            PositionId = employee.PositionId,
+            HiredOn = employee.HiredOn,
+            Version = employee.Version,
+        };
+    }
+
+    private void StartAccount(EmployeeSummary employee)
+    {
+        CloseForms();
+        _account = new AccountForm(employee);
+    }
+
+    private void StartLeave(EmployeeSummary employee)
+    {
+        CloseForms();
+        _leaving = new LeaveForm(employee) { LeftOn = DateOnly.FromDateTime(Clock.GetLocalNow().DateTime) };
+    }
+
+    private void CloseForms()
+    {
+        _formError = null;
+        _editing = null;
+        _account = null;
+        _leaving = null;
+        _anonymising = null;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_editing is not { } form)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            if (form.Id is { } id)
+            {
+                var request = new UpdateEmployeeRequest(form.FullName ?? string.Empty, form.Email, form.Phone, form.PositionId, form.HiredOn);
+                _formError = Validate(new UpdateEmployeeRequestValidator(), request);
+                if (_formError is null)
+                {
+                    var result = await Identity.UpdateEmployeeAsync(id, request, form.Version!);
+                    _formError = result.IsSuccess ? null : Messages.Describe(result.Problem!);
+                }
+            }
+            else
+            {
+                var request = new CreateEmployeeRequest(form.Code ?? string.Empty, form.FullName ?? string.Empty, form.Email, form.Phone, form.PositionId, form.HiredOn);
+                _formError = Validate(new CreateEmployeeRequestValidator(), request);
+                if (_formError is null)
+                {
+                    var result = await Identity.CreateEmployeeAsync(request);
+                    _formError = result.IsSuccess ? null : Messages.Describe(result.Problem!);
+                }
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+
+        if (_formError is null)
+        {
+            Snackbar.Add(Text["Employees.Saved"], Severity.Success);
+            _editing = null;
+            await ReloadAsync();
+        }
+    }
+
+    private async Task CreateAccountAsync()
+    {
+        if (_account is not { } form)
+        {
+            return;
+        }
+
+        var request = new CreateAccountRequest(form.UserName ?? string.Empty, form.Password ?? string.Empty);
+        _formError = Validate(new CreateAccountRequestValidator(), request);
+        if (_formError is not null)
+        {
+            return;
+        }
+
+        _busy = true;
+        var result = await Identity.CreateAccountAsync(form.Employee.Id, request);
+        _busy = false;
+        if (!result.IsSuccess)
+        {
+            _formError = Messages.Describe(result.Problem!);
+            return;
+        }
+
+        Snackbar.Add(Text["Employees.AccountCreated", request.UserName], Severity.Success);
+        _account = null;
+        await ReloadAsync();
+    }
+
+    private async Task LeaveAsync()
+    {
+        if (_leaving is not { LeftOn: { } leftOn } form)
+        {
+            return;
+        }
+
+        _busy = true;
+        var result = await Identity.ArchiveEmployeeAsync(form.Employee.Id, new ArchiveEmployeeRequest(leftOn), form.Employee.Version);
+        _busy = false;
+        _leaving = null;
+        Report(result, Text["Employees.Left", form.Employee.FullName]);
+        await ReloadAsync();
+    }
+
+    private async Task RestoreAsync(EmployeeSummary employee)
+    {
+        _busy = true;
+        var result = await Identity.RestoreEmployeeAsync(employee.Id, employee.Version);
+        _busy = false;
+        Report(result, Text["Catalog.Done.restore", employee.FullName]);
+        await ReloadAsync();
+    }
+
+    private async Task AnonymiseAsync()
+    {
+        if (_anonymising is not { } employee)
+        {
+            return;
+        }
+
+        _busy = true;
+        var result = await Identity.AnonymiseEmployeeAsync(employee.Id);
+        _busy = false;
+        _anonymising = null;
+        Report(result, Text["Employees.Anonymised"]);
+        await ReloadAsync();
+    }
+
+    private void Report(ApiResult<EmployeeSummary> result, string success)
+    {
+        if (result.IsSuccess)
+        {
+            Snackbar.Add(success, Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add(Messages.Describe(result.Problem!), Severity.Error);
+        }
+    }
+
+    private Task SearchAsync(string? _) => ReloadAsync();
+
+    private Task ClearAsync(MouseEventArgs _)
+    {
+        _search = null;
+        return ReloadAsync();
+    }
+
+    private Task FilterAsync(short? positionId)
+    {
+        _positionFilter = positionId;
+        return ReloadAsync();
+    }
+
+    private Task ShowArchivedAsync(bool archived)
+    {
+        _archived = archived;
+        return ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        if (_grid is not null)
+        {
+            await _grid.ReloadServerData();
+        }
+    }
+
+    /// <summary>The shared ApiContracts validator, so the form and the server agree.</summary>
+    private static string? Validate<T>(FluentValidation.IValidator<T> validator, T request)
+    {
+        var result = validator.Validate(request);
+        return result.IsValid ? null : string.Join(" ", result.Errors.Select(e => e.ErrorMessage));
+    }
+
+    private sealed class EmployeeForm
+    {
+        public Guid? Id { get; init; }
+
+        public string? Code { get; set; }
+
+        public string? FullName { get; set; }
+
+        public string? Email { get; set; }
+
+        public string? Phone { get; set; }
+
+        public short PositionId { get; set; }
+
+        public DateOnly? HiredOn { get; set; }
+
+        public string? Version { get; init; }
+    }
+
+    private sealed class AccountForm(EmployeeSummary employee)
+    {
+        public EmployeeSummary Employee { get; } = employee;
+
+        public string? UserName { get; set; }
+
+        public string? Password { get; set; }
+    }
+
+    private sealed class LeaveForm(EmployeeSummary employee)
+    {
+        public EmployeeSummary Employee { get; } = employee;
+
+        public DateOnly? LeftOn { get; set; }
+    }
+}

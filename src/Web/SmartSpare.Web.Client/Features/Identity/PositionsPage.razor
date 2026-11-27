@@ -1,0 +1,264 @@
+@page "/admin/positions"
+@attribute [Authorize(Policy = AppPolicies.Administration)]
+@using SmartSpare.ApiContracts.Identity
+@inject IStringLocalizer<SharedResource> Text
+@inject IdentityClient Identity
+@inject ProblemMessages Messages
+@inject ISnackbar Snackbar
+
+<PageTitle>@Text["Positions.Title"]</PageTitle>
+
+<OrganisationTabs />
+<div class="d-flex align-center flex-wrap mb-1">
+    <MudText Typo="Typo.h4" HtmlTag="h1" Class="mr-auto">@Text["Positions.Title"]</MudText>
+    <MudButton OnClick="StartCreate" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+               Class="touch-target" data-testid="new-position">@Text["Positions.New"]</MudButton>
+</div>
+<MudText Typo="Typo.body2" Class="mb-3">@Text["Positions.Intro"]</MudText>
+
+<div class="d-flex flex-wrap align-center mb-3">
+    <MudTextField T="string" @bind-Value="_search" Label="@Text["Positions.Search"]" Variant="Variant.Outlined" Margin="Margin.Dense"
+                  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Clearable="true" DebounceInterval="400"
+                  OnDebounceIntervalElapsed="SearchAsync" OnClearButtonClick="ClearAsync" InputMode="InputMode.search" Class="mr-3" />
+    <MudSwitch T="bool" Value="_archived" ValueChanged="ShowArchivedAsync" Color="Color.Primary" Label="@Text["Catalog.ShowArchived"]" data-testid="show-archived" />
+</div>
+
+@if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-3" data-testid="positions-error">@_error</MudAlert>
+}
+
+@if (_editing is not null)
+{
+    <MudPaper Outlined="true" Class="pa-4 mb-4" data-testid="position-form">
+        <MudText Typo="Typo.h6" HtmlTag="h2" Class="mb-2">@(_editing.Id is null ? Text["Positions.New"] : Text["Positions.Edit", _editing.Code ?? string.Empty])</MudText>
+        <MudGrid Spacing="2">
+            <MudItem xs="12" sm="4">
+                <MudTextField T="string" @bind-Value="_editing.Code" Label="@Text["Positions.Code"]" Variant="Variant.Outlined" Margin="Margin.Dense"
+                              Disabled="_editing.Id is not null" HelperText="@Text["Positions.CodeHelp"]" data-testid="position-code" />
+            </MudItem>
+            <MudItem xs="12" sm="8">
+                <MudTextField T="string" @bind-Value="_editing.Name" Label="@Text["Positions.Name"]" Variant="Variant.Outlined" Margin="Margin.Dense" data-testid="position-name" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField T="string" @bind-Value="_editing.Description" Label="@Text["Positions.Description"]" Variant="Variant.Outlined" Margin="Margin.Dense" Lines="2" />
+            </MudItem>
+        </MudGrid>
+        <fieldset class="mt-3" style="border:none; padding:0; margin:0;">
+            <legend><MudText Typo="Typo.subtitle2">@Text["Positions.Template"]</MudText></legend>
+            <MudText Typo="Typo.body2" Class="mb-1">@Text["Positions.TemplateHelp"]</MudText>
+            <div class="d-flex flex-wrap" data-testid="role-template">
+                @foreach (var role in AppRoles.All)
+                {
+                    <MudCheckBox T="bool" Value="_editing.Roles.Contains(role)" ValueChanged="@(on => Toggle(_editing.Roles, role, on))" Label="@Text["Role." + role]" />
+                }
+            </div>
+        </fieldset>
+
+        @if (_formError is not null)
+        {
+            <MudText Color="Color.Error" Typo="Typo.body2" Class="mt-2" role="alert" data-testid="position-form-error">@_formError</MudText>
+        }
+
+        <div class="mt-3">
+            <MudButton OnClick="SaveAsync" Disabled="_busy" Variant="Variant.Filled" Color="Color.Primary" Class="touch-target" data-testid="save-position">@Text["Users.Save"]</MudButton>
+            <MudButton OnClick="() => _editing = null" Disabled="_busy" Variant="Variant.Text" Class="ml-2 touch-target">@Text["Transfer.No"]</MudButton>
+        </div>
+    </MudPaper>
+}
+
+<MudDataGrid @ref="_grid" T="PositionSummary" ServerData="LoadAsync" RowsPerPage="UserLimits.DefaultPageSize" Dense="true" Outlined="true" Elevation="0"
+             Breakpoint="Breakpoint.Sm" SortMode="SortMode.None" Filterable="false" data-testid="positions-grid">
+    <Columns>
+        <PropertyColumn Property="p => p.Code" Title="@Text["Positions.Code"]" />
+        <PropertyColumn Property="p => p.Name" Title="@Text["Positions.Name"]" />
+        <TemplateColumn Title="@Text["Positions.Template"]">
+            <CellTemplate>
+                <span data-testid="position-roles">@(context.Item.Roles.Count == 0 ? Text["Positions.NoRoles"].Value : string.Join(", ", context.Item.Roles.Select(r => Text["Role." + r].Value)))</span>
+            </CellTemplate>
+        </TemplateColumn>
+        <PropertyColumn Property="p => p.ActiveEmployees" Title="@Text["Positions.Employees"]" />
+        <TemplateColumn Title="" CellClass="text-right">
+            <CellTemplate>
+                @if (context.Item.IsArchived)
+                {
+                    <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="() => ActAsync(context.Item, RestoreAction)" data-testid="restore-position">@Text["Catalog.Restore"]</MudButton>
+                }
+                else
+                {
+                    <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="() => StartEdit(context.Item)" data-testid="edit-position">@Text["Catalog.Edit"]</MudButton>
+                    <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Warning" OnClick="() => ActAsync(context.Item, ArchiveAction)" data-testid="archive-position">@Text["Catalog.Archive"]</MudButton>
+                }
+            </CellTemplate>
+        </TemplateColumn>
+    </Columns>
+    <NoRecordsContent><MudText>@Text["Positions.None"]</MudText></NoRecordsContent>
+    <LoadingContent><MudText>@Text["Users.Loading"]</MudText></LoadingContent>
+    <PagerContent><MudDataGridPager T="PositionSummary" /></PagerContent>
+</MudDataGrid>
+
+@code {
+    private const string ArchiveAction = "archive";
+    private const string RestoreAction = "restore";
+
+    private MudDataGrid<PositionSummary>? _grid;
+    private string? _search;
+    private bool _archived;
+    private string? _error;
+    private string? _formError;
+    private bool _busy;
+    private PositionForm? _editing;
+
+    private async Task<GridData<PositionSummary>> LoadAsync(GridState<PositionSummary> state, CancellationToken cancellationToken)
+    {
+        if (!RendererInfo.IsInteractive)
+        {
+            return new GridData<PositionSummary> { Items = [], TotalItems = 0 };
+        }
+
+        var result = await Identity.ListPositionsAsync(_search, _archived, state.Page + 1, state.PageSize, cancellationToken);
+        if (!result.IsSuccess)
+        {
+            _error = Messages.Describe(result.Problem!);
+            StateHasChanged();
+            return new GridData<PositionSummary> { Items = [], TotalItems = 0 };
+        }
+
+        _error = null;
+        return new GridData<PositionSummary> { Items = result.Value!.Items, TotalItems = result.Value.TotalCount };
+    }
+
+    private void StartCreate()
+    {
+        _formError = null;
+        _editing = new PositionForm();
+    }
+
+    private void StartEdit(PositionSummary position)
+    {
+        _formError = null;
+        _editing = new PositionForm
+        {
+            Id = position.Id,
+            Code = position.Code,
+            Name = position.Name,
+            Description = position.Description,
+            Roles = [.. position.Roles],
+            Version = position.Version,
+        };
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_editing is not { } form)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            if (form.Id is { } id)
+            {
+                var request = new UpdatePositionRequest(form.Name ?? string.Empty, form.Description, [.. form.Roles]);
+                _formError = Validate(new UpdatePositionRequestValidator(), request);
+                if (_formError is null)
+                {
+                    var result = await Identity.UpdatePositionAsync(id, request, form.Version!);
+                    _formError = result.IsSuccess ? null : Messages.Describe(result.Problem!);
+                }
+            }
+            else
+            {
+                var request = new CreatePositionRequest(form.Code ?? string.Empty, form.Name ?? string.Empty, form.Description, [.. form.Roles]);
+                _formError = Validate(new CreatePositionRequestValidator(), request);
+                if (_formError is null)
+                {
+                    var result = await Identity.CreatePositionAsync(request);
+                    _formError = result.IsSuccess ? null : Messages.Describe(result.Problem!);
+                }
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+
+        if (_formError is null)
+        {
+            Snackbar.Add(Text["Positions.Saved"], Severity.Success);
+            _editing = null;
+            await ReloadAsync();
+        }
+    }
+
+    private async Task ActAsync(PositionSummary position, string action)
+    {
+        _busy = true;
+        var result = await Identity.PositionActionAsync(position.Id, action, position.Version);
+        _busy = false;
+        if (result.IsSuccess)
+        {
+            Snackbar.Add(Text["Catalog.Done." + action, position.Name], Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add(Messages.Describe(result.Problem!), Severity.Error);
+        }
+
+        await ReloadAsync();
+    }
+
+    private Task SearchAsync(string? _) => ReloadAsync();
+
+    private Task ClearAsync(MouseEventArgs _)
+    {
+        _search = null;
+        return ReloadAsync();
+    }
+
+    private Task ShowArchivedAsync(bool archived)
+    {
+        _archived = archived;
+        return ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        if (_grid is not null)
+        {
+            await _grid.ReloadServerData();
+        }
+    }
+
+    private static void Toggle(List<string> values, string value, bool on)
+    {
+        values.Remove(value);
+        if (on)
+        {
+            values.Add(value);
+        }
+    }
+
+    /// <summary>The shared ApiContracts validator, so the form and the server agree.</summary>
+    private static string? Validate<T>(FluentValidation.IValidator<T> validator, T request)
+    {
+        var result = validator.Validate(request);
+        return result.IsValid ? null : string.Join(" ", result.Errors.Select(e => e.ErrorMessage));
+    }
+
+    private sealed class PositionForm
+    {
+        public short? Id { get; init; }
+
+        public string? Code { get; set; }
+
+        public string? Name { get; set; }
+
+        public string? Description { get; set; }
+
+        public List<string> Roles { get; init; } = [];
+
+        public string? Version { get; init; }
+    }
+}

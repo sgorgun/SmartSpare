@@ -44,6 +44,78 @@ public class IdentityClient(HttpClient http) : ApiClientBase(http)
     public virtual Task<ApiResult<UserSummary>> UserActionAsync(Guid id, string action, CancellationToken cancellationToken = default) =>
         SendAsync<UserSummary>(new HttpRequestMessage(HttpMethod.Post, $"api/v1/identity/users/{id}/{action}"), cancellationToken);
 
+    // ---- Organisation (ADR 0026): positions and employees; writes send the version read as If-Match --------------
+
+    public virtual Task<ApiResult<PagedResponse<PositionSummary>>> ListPositionsAsync(
+        string? search, bool archived, int page, int pageSize, CancellationToken cancellationToken = default) =>
+        SendAsync<PagedResponse<PositionSummary>>(
+            new HttpRequestMessage(HttpMethod.Get, "api/v1/identity/positions?" + Query(search, archived, page, pageSize)), cancellationToken);
+
+    public virtual Task<ApiResult<PositionSummary>> CreatePositionAsync(CreatePositionRequest request, CancellationToken cancellationToken = default) =>
+        SendAsync<PositionSummary>(
+            new HttpRequestMessage(HttpMethod.Post, "api/v1/identity/positions") { Content = System.Net.Http.Json.JsonContent.Create(request) }, cancellationToken);
+
+    public virtual Task<ApiResult<PositionSummary>> UpdatePositionAsync(
+        short id, UpdatePositionRequest request, string version, CancellationToken cancellationToken = default) =>
+        SendAsync<PositionSummary>(
+            WithVersion(new HttpRequestMessage(HttpMethod.Put, $"api/v1/identity/positions/{id}") { Content = System.Net.Http.Json.JsonContent.Create(request) }, version),
+            cancellationToken);
+
+    /// <summary>archive or restore.</summary>
+    public virtual Task<ApiResult<PositionSummary>> PositionActionAsync(short id, string action, string version, CancellationToken cancellationToken = default) =>
+        SendAsync<PositionSummary>(WithVersion(new HttpRequestMessage(HttpMethod.Post, $"api/v1/identity/positions/{id}/{action}"), version), cancellationToken);
+
+    public virtual Task<ApiResult<PagedResponse<EmployeeSummary>>> ListEmployeesAsync(
+        string? search, short? positionId, bool archived, int page, int pageSize, CancellationToken cancellationToken = default)
+    {
+        var query = Query(search, archived, page, pageSize);
+        if (positionId is { } position)
+        {
+            query += string.Create(System.Globalization.CultureInfo.InvariantCulture, $"&positionId={position}");
+        }
+
+        return SendAsync<PagedResponse<EmployeeSummary>>(new HttpRequestMessage(HttpMethod.Get, "api/v1/identity/employees?" + query), cancellationToken);
+    }
+
+    public virtual Task<ApiResult<EmployeeSummary>> CreateEmployeeAsync(CreateEmployeeRequest request, CancellationToken cancellationToken = default) =>
+        SendAsync<EmployeeSummary>(
+            new HttpRequestMessage(HttpMethod.Post, "api/v1/identity/employees") { Content = System.Net.Http.Json.JsonContent.Create(request) }, cancellationToken);
+
+    public virtual Task<ApiResult<EmployeeSummary>> UpdateEmployeeAsync(
+        Guid id, UpdateEmployeeRequest request, string version, CancellationToken cancellationToken = default) =>
+        SendAsync<EmployeeSummary>(
+            WithVersion(new HttpRequestMessage(HttpMethod.Put, $"api/v1/identity/employees/{id}") { Content = System.Net.Http.Json.JsonContent.Create(request) }, version),
+            cancellationToken);
+
+    public virtual Task<ApiResult<EmployeeSummary>> ArchiveEmployeeAsync(
+        Guid id, ArchiveEmployeeRequest request, string version, CancellationToken cancellationToken = default) =>
+        SendAsync<EmployeeSummary>(
+            WithVersion(new HttpRequestMessage(HttpMethod.Post, $"api/v1/identity/employees/{id}/archive") { Content = System.Net.Http.Json.JsonContent.Create(request) }, version),
+            cancellationToken);
+
+    public virtual Task<ApiResult<EmployeeSummary>> RestoreEmployeeAsync(Guid id, string version, CancellationToken cancellationToken = default) =>
+        SendAsync<EmployeeSummary>(WithVersion(new HttpRequestMessage(HttpMethod.Post, $"api/v1/identity/employees/{id}/restore"), version), cancellationToken);
+
+    public virtual Task<ApiResult<EmployeeSummary>> CreateAccountAsync(Guid id, CreateAccountRequest request, CancellationToken cancellationToken = default) =>
+        SendAsync<EmployeeSummary>(
+            new HttpRequestMessage(HttpMethod.Post, $"api/v1/identity/employees/{id}/account") { Content = System.Net.Http.Json.JsonContent.Create(request) },
+            cancellationToken);
+
+    public virtual Task<ApiResult<EmployeeSummary>> AnonymiseEmployeeAsync(Guid id, CancellationToken cancellationToken = default) =>
+        SendAsync<EmployeeSummary>(new HttpRequestMessage(HttpMethod.Post, $"api/v1/identity/employees/{id}/anonymise"), cancellationToken);
+
+    private static string Query(string? search, bool archived, int page, int pageSize)
+    {
+        var query = string.Create(System.Globalization.CultureInfo.InvariantCulture, $"page={page}&pageSize={pageSize}&archived={(archived ? "true" : "false")}");
+        return string.IsNullOrWhiteSpace(search) ? query : query + "&search=" + Uri.EscapeDataString(search.Trim());
+    }
+
+    private static HttpRequestMessage WithVersion(HttpRequestMessage message, string version)
+    {
+        message.Headers.TryAddWithoutValidation("If-Match", $"\"{version}\"");
+        return message;
+    }
+
     public virtual Task<ApiResult<NoContent>> ChangeOwnPasswordAsync(ChangePasswordRequest request, CancellationToken cancellationToken = default) =>
         SendAsync<NoContent>(
             new HttpRequestMessage(HttpMethod.Post, "api/v1/identity/me/password") { Content = System.Net.Http.Json.JsonContent.Create(request) }, cancellationToken);
