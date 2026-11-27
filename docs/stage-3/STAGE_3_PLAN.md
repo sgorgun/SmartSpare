@@ -429,7 +429,7 @@ All new tests follow the pyramid (ARCHITECTURE_DECISIONS section 11). Testcontai
 - `PasswordHasher<AppUser>` output decodes to V3 / HMAC-SHA512 / 220,000 iterations (prefix `AQAAAAIAA1tg`). A 100,000-iteration hash verifies with `SuccessRehashNeeded`.
 - `LoginRequestValidator` (ApiContracts).
 - `AppPolicies` evaluated with `DefaultAuthorizationService` for each role. Read policies never consider brands.
-- **Policy ↔ SQL role parity** (`PolicySqlRoleParityTests` in `tests/SmartSpare.ArchitectureTests`, no database). The test reads the repository like the other architecture tests:
+- **Policy ↔ SQL role parity** (`PolicySqlPermissionParityTests` in `tests/SmartSpare.ArchitectureTests`, no database). The test reads the repository like the other architecture tests:
   - It holds the table of 3.2, mapping each policy to the SQL functions it fronts.
   - For each function it extracts the role list from the `util.require_role(...)` call in its `CREATE FUNCTION` body under `db/sql/`, and compares it as a set with the policy's roles in `AppPolicies`.
   - For each brand-scoped policy it also checks that the requirement's unscoped roles plus its scoped role equal the policy's roles.
@@ -518,7 +518,7 @@ Acceptance:
 - Integration tests 9.2: sign-in and cookie flags, uniform failures, lockout, antiforgery, logout, security stamp, 401 vs 403 and brand scope, rate limiting.
 - Internal-token and BFF-independence tests (9.2, ADR 0016): module endpoints behave the same with the cookie and with an internal token, and invalid tokens are rejected.
 - The BFF references no module implementation, only `Identity.Contracts` (architecture test).
-- Unit tests for the stores, the principal factory, the policies and `BrandScopedActionHandler`; `PolicySqlRoleParityTests` green.
+- Unit tests for the stores, the principal factory, the policies and `BrandScopedActionHandler`; `PolicySqlPermissionParityTests` green.
 - The implementation matches ADR 0014 and ADR 0016 (accepted). Any deviation needs a new ADR.
 
 Closes **#60** (trace id in every ProblemDetails; the client snackbar and the walkthrough moved to #72). It implements ADR 0014 on the server, and the single-host half of ADR 0016.

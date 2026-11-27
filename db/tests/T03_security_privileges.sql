@@ -76,14 +76,23 @@ SELECT pg_temp.ok((SELECT count(*) = 11 AND bool_and(coalesce(pg_temp.identity_v
                   'app_write: reads the Identity V3 hashes of the demo users for login (PBKDF2-HMAC-SHA512, >= 220,000 iterations)');
 SELECT pg_temp.act_as('jonas.balciunas');
 SELECT pg_temp.expect_error($$SELECT procurement.approve_purchase_order(1)$$, 'SS301', 'DB-level RBAC: a service engineer cannot approve POs');
--- X1 (#11): util.require_role trusts the session roles set by SessionContextInterceptor, not iam (MODULE_MAPPING 3.6).
+-- X1 (#11), ADR 0028: util.require_permission trusts the session permissions set by SessionContextInterceptor, not
+-- iam (MODULE_MAPPING 3.6), and never a role code.
 SELECT pg_temp.act_as('vida.mockute');                    -- SPONSOR in iam
-SELECT set_config('app.user_roles', '', false);
-SELECT pg_temp.expect_error($$SELECT util.require_role('SPONSOR')$$, 'SS301',
-                            'DB-level RBAC reads the session roles: no role in app.user_roles, no access (#11)');
-SELECT set_config('app.user_roles', 'SPONSOR', false);
-SELECT pg_temp.ok(util.require_role('SPONSOR') = util.current_app_user(),
-                  'DB-level RBAC: a role in app.user_roles passes util.require_role (#11)');
+SELECT set_config('app.user_permissions', '', false);
+SELECT pg_temp.expect_error($$SELECT util.require_permission('Procurement.PurchaseOrder.Approve')$$, 'SS301',
+                            'DB-level permissions read the session: no permission in app.user_permissions, no access (#11)');
+SELECT set_config('app.user_permissions', 'Procurement.PurchaseOrder.Approve', false);
+SELECT pg_temp.ok(util.require_permission('Procurement.PurchaseOrder.Approve') = util.current_app_user(),
+                  'DB-level permissions: a permission in app.user_permissions passes util.require_permission (#11)');
+SELECT set_config('app.user_roles', 'ADMINISTRATOR', false);
+SELECT set_config('app.user_permissions', '', false);
+SELECT pg_temp.expect_error($$SELECT util.require_hub(1::smallint)$$, 'SS302',
+                            'ADR 0028: the ADMINISTRATOR role code alone opens no hub; Organisation.Scope.AllHubs does');
+SELECT pg_temp.ok((SELECT count(*) = 0 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+                   WHERE n.nspname IN ('iam', 'inventory', 'fleet', 'procurement', 'forecast') AND p.prokind = 'f'
+                     AND pg_get_functiondef(p.oid) LIKE '%util.require_role(%'),
+                  'ADR 0028: no business function checks a role code any more');
 -- Only Identity and Reporting SQL reads iam (MODULE_MAPPING 3.6, STAGE_3_PLAN exit criterion 4): no function outside
 -- iam names it (the suite's own pg_temp helpers aside), and the only views on it are Reporting's masked audit view,
 -- Reporting's data-quality view (it counts parked events in iam.outbox_message, #31) and two TRANSITIONAL views (#13, #14).

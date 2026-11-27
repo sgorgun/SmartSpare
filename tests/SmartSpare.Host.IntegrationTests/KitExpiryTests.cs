@@ -120,7 +120,7 @@ public sealed class KitExpiryTests(IdentityDatabaseFixture database) : IAsyncLif
         await connection.OpenAsync(Ct);
         await using var transaction = await connection.BeginTransactionAsync(Ct);
         await using (var context = new NpgsqlCommand(
-                         "SELECT set_config('app.user_id', @user, true), set_config('app.user_roles', 'SERVICE_ENGINEER', true)", connection, transaction))
+                         "SELECT set_config('app.user_id', @user, true), set_config('app.user_roles', 'SERVICE_ENGINEER', true), set_config('app.user_permissions', '" + string.Join(',', SmartSpare.ApiContracts.Authorization.DefaultRoles.Bundles["SERVICE_ENGINEER"]) + "', true)", connection, transaction))
         {
             context.Parameters.AddWithValue("user", Engineer.Id.ToString());
             await context.ExecuteNonQueryAsync(Ct);

@@ -531,8 +531,9 @@ FROM fleet.machine WHERE vin = 'LX901PNV2026';
 -- 8. Live operations after go-live, executed through the business functions
 -- ---------------------------------------------------------------------------
 -- Acts as a signed-in user the way SessionContextInterceptor does (MODULE_MAPPING 3.6): app.user_id,
--- app.user_roles and app.warehouse_ids (ADR 0026). The application takes roles and warehouse from the user's claims;
--- this script reads them from iam: roles from the employee's position (ADR 0026). NULL clears the session user.
+-- app.user_roles, app.user_permissions (ADR 0028) and app.warehouse_ids (ADR 0026). The application takes them from the
+-- user's claims; this script reads them from iam: roles and their permissions from the employee's position. NULL clears
+-- the session user.
 CREATE FUNCTION pg_temp.t001_act_as(p_user uuid) RETURNS void LANGUAGE sql AS $$
     SELECT set_config('app.user_id', coalesce(p_user::text, ''), false),
            set_config('app.user_roles', coalesce((SELECT string_agg(r.code, ',' ORDER BY r.code)
@@ -540,6 +541,11 @@ CREATE FUNCTION pg_temp.t001_act_as(p_user uuid) RETURNS void LANGUAGE sql AS $$
                                                    JOIN iam.position_role pr ON pr.position_id = e.position_id
                                                    JOIN iam.role r ON r.id = pr.role_id
                                                    WHERE u.id = p_user AND u.is_active AND NOT e.is_archived), ''), false),
+           set_config('app.user_permissions', coalesce((SELECT string_agg(DISTINCT rp.permission, ',' ORDER BY rp.permission)
+                                                         FROM iam.app_user u JOIN iam.employee e ON e.id = u.employee_id
+                                                         JOIN iam.position_role pr ON pr.position_id = e.position_id
+                                                         JOIN iam.role_permission rp ON rp.role_id = pr.role_id
+                                                         WHERE u.id = p_user AND u.is_active AND NOT e.is_archived), ''), false),
            set_config('app.warehouse_ids', coalesce((SELECT string_agg(DISTINCT r.record_id::text, ',')
                                                      FROM iam.app_user u
                                                      JOIN iam.employee_responsibility r ON r.employee_id = u.employee_id AND r.record_kind = 'warehouse'
