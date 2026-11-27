@@ -16,6 +16,10 @@ public static class OrganisationLimits
     public const string PositionCodePattern = "^[A-Za-z0-9_]{2,30}$";
 
     public const string EmployeeCodePattern = "^[Ee][0-9]{4,6}$";
+
+    public const string RoleCodePattern = "^[A-Z_]{3,30}$";
+
+    public const int MaxRoleNameLength = 80;
 }
 
 /// <summary>A job position and its role template.</summary>
@@ -56,7 +60,9 @@ public sealed class CreatePositionRequestValidator : AbstractValidator<CreatePos
         RuleFor(r => r.Roles).NotNull().Must(KnownRoles).WithMessage("Unknown role.");
     }
 
-    internal static bool KnownRoles(IReadOnlyList<string>? roles) => roles is null || roles.All(AppRoles.All.Contains);
+    /// <summary>Well-formed role codes; whether each role exists is the server's check (roles are data, ADR 0028).</summary>
+    internal static bool KnownRoles(IReadOnlyList<string>? roles) =>
+        roles is null || roles.All(r => r is { Length: >= 3 and <= 30 } && r.All(c => c is (>= 'A' and <= 'Z') or '_'));
 }
 
 public sealed class UpdatePositionRequestValidator : AbstractValidator<UpdatePositionRequest>

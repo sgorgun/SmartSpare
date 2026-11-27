@@ -57,7 +57,7 @@ internal sealed record RestorePositionCommand(short Id, uint? Version) : IComman
 /// </summary>
 internal sealed class PositionAdministration(
     IdentityDbContext db, IUnitOfWork<IdentityDbContext> unitOfWork, AdminSession admin, AccountStamps stamps, AdministratorGuard administrators,
-    ICurrentUser currentUser, TimeProvider clock, IQueryHandler<GetPositionQuery, PositionSummary> reader)
+    RightsGuard guard, ICurrentUser currentUser, TimeProvider clock, IQueryHandler<GetPositionQuery, PositionSummary> reader)
     : ICommandHandler<CreatePositionCommand, PositionSummary>,
       ICommandHandler<UpdatePositionCommand, PositionSummary>,
       ICommandHandler<ArchivePositionCommand, PositionSummary>,
@@ -70,6 +70,11 @@ internal sealed class PositionAdministration(
         if (roles.IsFailure)
         {
             return roles.Error;
+        }
+
+        if (await guard.ConflictAsync(roles.Value, cancellationToken).ConfigureAwait(false) is { } pair)
+        {
+            return RoleErrors.DutyConflict(pair);
         }
 
         var created = Position.Create(command.Request.Code, command.Request.Name, command.Request.Description, roles.Value);
@@ -100,6 +105,17 @@ internal sealed class PositionAdministration(
 
         return await ChangeAsync(command.Id, command.Version, async position =>
         {
+            // ADR 0028: nobody changes the role template of their own position.
+            if (await guard.CurrentEmployeeAsync(cancellationToken).ConfigureAwait(false) is { } me && me.PositionId == position.Id)
+            {
+                return RoleErrors.OwnPosition;
+            }
+
+            if (await guard.ConflictAsync(roles.Value, cancellationToken).ConfigureAwait(false) is { } pair)
+            {
+                return RoleErrors.DutyConflict(pair);
+            }
+
             var wasAdministrator = await administrators.GrantsAdministratorAsync(position.RoleIds, cancellationToken).ConfigureAwait(false);
             var staysAdministrator = await administrators.GrantsAdministratorAsync(roles.Value, cancellationToken).ConfigureAwait(false);
             if (wasAdministrator && !staysAdministrator
@@ -173,7 +189,13 @@ internal sealed class PositionAdministration(
     private async Task<Result<IReadOnlySet<short>>> RoleIdsAsync(IReadOnlyList<string> codes, CancellationToken cancellationToken)
     {
         var distinct = codes.Distinct(StringComparer.Ordinal).ToArray();
-        var ids = await db.Set<Role>().AsNoTracking().Where(r => distinct.Contains(r.Code)).Select(r => r.Id).ToListAsync(cancellationToken).ConfigureAwait(false);
-        return ids.Count == distinct.Length ? ids.ToHashSet() : OrganisationErrors.UnknownRole;
+        var found = await db.Set<Role>().AsNoTracking().Where(r => distinct.Contains(r.Code)).Select(r => new { r.Id, r.IsArchived })
+            .ToListAsync(cancellationToken).ConfigureAwait(false);
+        if (found.Count != distinct.Length)
+        {
+            return OrganisationErrors.UnknownRole;
+        }
+
+        return found.Any(r => r.IsArchived) ? RoleErrors.Archived : found.Select(r => r.Id).ToHashSet();
     }
 }

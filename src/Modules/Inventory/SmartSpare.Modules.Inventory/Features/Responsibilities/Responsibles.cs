@@ -20,6 +20,9 @@ namespace SmartSpare.Modules.Inventory.Features.Responsibilities;
 
 internal static class ResponsibilityErrors
 {
+    public static readonly Error OwnAssignments = Error.Forbidden(
+        "SS301", "You cannot change your own brand or hub assignments: someone else must grant you rights.");
+
     public static readonly Error RecordNotFound = Error.NotFound("Inventory.RecordNotFound", "The brand or warehouse does not exist.");
 
     public static readonly Error UnknownRole = Error.Validation("Inventory.UnknownAssignmentRole", "An assignment role does not exist for this kind of record.");
@@ -72,6 +75,16 @@ internal sealed class ReplaceResponsiblesCommandHandler(
 
         var current = await CurrentAsync(command, cancellationToken).ConfigureAwait(false);
         var change = ResponsibilityRules.Replace([.. current.Select(r => new ResponsibleEmployee(r.EmployeeId, r.Role))], requested, role => roles[role]);
+        // ADR 0028: nobody changes their own rights-bearing assignments (someone else must grant rights).
+        if (change.RightsChanged && user.UserId is { } me)
+        {
+            var own = (await employees.FindAccountOwnersAsync([me], cancellationToken).ConfigureAwait(false)).Select(o => o.EmployeeId).ToHashSet();
+            if (change.Added.Concat(change.Removed).Any(r => roles[r.Role] && own.Contains(r.EmployeeId)))
+            {
+                return ResponsibilityErrors.OwnAssignments;
+            }
+        }
+
         var added = change.Added.Select(a => a.EmployeeId).Distinct().ToList();
         if (added.Count > 0)
         {

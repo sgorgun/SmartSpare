@@ -67,6 +67,7 @@ public sealed class PermissionBitsetTests
         [53] = "Forecasting.Recommendation.Decide",
         [54] = "Forecasting.Recommendation.DecideAnyBrand",
         [55] = "Audit.Log.View",
+        [56] = "Procurement.Supplier.Edit",
     };
 
     [Fact]

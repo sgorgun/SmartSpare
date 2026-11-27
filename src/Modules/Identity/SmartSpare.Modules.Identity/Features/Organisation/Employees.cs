@@ -109,6 +109,12 @@ internal sealed class EmployeeAdministration(
             var request = command.Request;
             if (request.PositionId != employee.PositionId)
             {
+                // ADR 0028: nobody moves their own employee to another position (someone else must grant rights).
+                if (account is not null && account.Id == currentUser.UserId)
+                {
+                    return RoleErrors.OwnPosition;
+                }
+
                 if (await PositionErrorAsync(request.PositionId, cancellationToken).ConfigureAwait(false) is { } positionError)
                 {
                     return positionError;

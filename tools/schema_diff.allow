@@ -263,3 +263,9 @@
 +CREATE FUNCTION (iam|inventory|fleet|procurement|forecast)\.[a-z_]+\(.*util\.require_permission\('
 +util\.(current_app_permissions|require_permission)\b
 +BEGIN IF NOT \(p_permission = ANY \(util\.current_app_permissions\(\)\)\) THEN RAISE EXCEPTION 'User % lacks the permission %'
+
+# PR 7x3a (ADR 0028): roles are data. iam.role gains is_locked and is_archived and is audited.
+-CREATE TABLE iam\.role \( (?!.*is_locked)
++CREATE TABLE iam\.role \( .*is_locked
++COMMENT ON COLUMN iam\.role\.(is_archived|is_locked) IS
++CREATE TRIGGER trg_audit AFTER INSERT OR DELETE OR UPDATE ON iam\.role FOR EACH ROW

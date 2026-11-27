@@ -230,7 +230,7 @@ public sealed class UserAdministrationTests(IdentityDatabaseFixture database) : 
     {
         var options = await GetAsync<UserFormOptions>("/api/v1/identity/users/form-options");
 
-        options.Roles.ShouldBe(AppRoles.All, ignoreOrder: true);
+        AppRoles.All.ShouldAllBe(r => options.Roles.Contains(r), "roles are data (ADR 0028): the seeded ones and any created since");
         options.Brands.ShouldContain("JD");
         options.Hubs.Count.ShouldBe(7);
     }
