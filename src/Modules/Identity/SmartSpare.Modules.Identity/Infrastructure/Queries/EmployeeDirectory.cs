@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using SmartSpare.Modules.Identity.Contracts;
+using SmartSpare.Modules.Identity.Domain;
 using SmartSpare.Modules.Identity.Domain.Organisation;
 using SmartSpare.Modules.Identity.Infrastructure.Persistence;
 
@@ -17,6 +18,15 @@ internal sealed class EmployeeDirectory(IdentityDbContext db) : IEmployeeDirecto
                 .Where(e => ids.Contains(e.Id))
                 .OrderBy(e => e.FullName)
                 .Select(e => new EmployeeInfo(e.Id, e.Code, e.FullName, !e.IsArchived && e.AnonymisedAt == null))
+                .ToListAsync(cancellationToken).ConfigureAwait(false);
+
+    public async Task<IReadOnlyList<AccountOwner>> FindAccountOwnersAsync(IReadOnlyCollection<Guid> userIds, CancellationToken cancellationToken) =>
+        userIds.Count == 0
+            ? []
+            : await (from u in db.Set<AppUser>().AsNoTracking()
+                     join e in db.Set<Employee>().AsNoTracking() on u.EmployeeId equals e.Id
+                     where userIds.Contains(u.Id)
+                     select new AccountOwner(u.Id, e.Id, e.FullName))
                 .ToListAsync(cancellationToken).ConfigureAwait(false);
 
     public async Task<IReadOnlyList<EmployeeInfo>> SearchAsync(string? search, int limit, CancellationToken cancellationToken)

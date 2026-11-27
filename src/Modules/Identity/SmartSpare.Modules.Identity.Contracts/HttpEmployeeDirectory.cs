@@ -16,14 +16,22 @@ public sealed class HttpEmployeeDirectory(HttpClient client) : IEmployeeDirector
     public Task<IReadOnlyList<EmployeeInfo>> SearchAsync(string? search, int limit, CancellationToken cancellationToken) =>
         LookupAsync(new EmployeeLookupRequest([], search, limit), cancellationToken);
 
-    private async Task<IReadOnlyList<EmployeeInfo>> LookupAsync(EmployeeLookupRequest request, CancellationToken cancellationToken)
+    public Task<IReadOnlyList<AccountOwner>> FindAccountOwnersAsync(IReadOnlyCollection<Guid> userIds, CancellationToken cancellationToken) =>
+        userIds.Count == 0
+            ? Task.FromResult<IReadOnlyList<AccountOwner>>([])
+            : PostAsync<AccountOwner>(IdentityInternalApi.AccountOwners, userIds.ToArray(), cancellationToken);
+
+    private Task<IReadOnlyList<EmployeeInfo>> LookupAsync(EmployeeLookupRequest request, CancellationToken cancellationToken) =>
+        PostAsync<EmployeeInfo>(IdentityInternalApi.EmployeeLookup, request, cancellationToken);
+
+    private async Task<IReadOnlyList<T>> PostAsync<T>(string path, object request, CancellationToken cancellationToken)
     {
         try
         {
-            using var response = await client.PostAsJsonAsync(new Uri(IdentityInternalApi.EmployeeLookup, UriKind.Relative), request, cancellationToken)
+            using var response = await client.PostAsJsonAsync(new Uri(path, UriKind.Relative), request, cancellationToken)
                 .ConfigureAwait(false);
             response.EnsureSuccessStatusCode();
-            return await response.Content.ReadFromJsonAsync<List<EmployeeInfo>>(cancellationToken).ConfigureAwait(false)
+            return await response.Content.ReadFromJsonAsync<List<T>>(cancellationToken).ConfigureAwait(false)
                 ?? throw Unavailable("The Identity service answered the employee lookup without a body.");
         }
         catch (Exception ex) when (ex is HttpRequestException || (ex is OperationCanceledException && !cancellationToken.IsCancellationRequested)

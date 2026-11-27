@@ -16,6 +16,9 @@ public static class IdentityInternalApi
 
     /// <summary>Employee lookups of <see cref="IEmployeeDirectory"/> for other services (any signed-in caller, with the caller's token).</summary>
     public const string EmployeeLookup = Prefix + "/employee-lookups";
+
+    /// <summary>POST, body: the account ids; answer: the <c>AccountOwner</c> list (<c>IEmployeeDirectory.FindAccountOwnersAsync</c>).</summary>
+    public const string AccountOwners = Prefix + "/account-owners";
 }
 
 /// <summary>Body of <see cref="IdentityInternalApi.CredentialChecks"/>.</summary>
