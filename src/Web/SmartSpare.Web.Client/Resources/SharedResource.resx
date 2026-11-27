@@ -1347,4 +1347,55 @@
   <data name="Employees.Saved" xml:space="preserve">
     <value>Employee saved.</value>
   </data>
+  <data name="Organisation.Tab.Responsibilities" xml:space="preserve">
+    <value>Responsibilities</value>
+  </data>
+  <data name="Responsibilities.Title" xml:space="preserve">
+    <value>Brand and hub responsibilities</value>
+  </data>
+  <data name="Responsibilities.Intro" xml:space="preserve">
+    <value>Brand managers of a brand get its approval scope; keepers and service bases of a hub may post stock there. Choose a brand or a hub.</value>
+  </data>
+  <data name="Responsibilities.Brands" xml:space="preserve">
+    <value>Brands</value>
+  </data>
+  <data name="Responsibilities.Hubs" xml:space="preserve">
+    <value>Hubs</value>
+  </data>
+  <data name="Responsibilities.Choose" xml:space="preserve">
+    <value>Choose a brand or a hub to see and change its responsible employees.</value>
+  </data>
+  <data name="Responsibles.Title" xml:space="preserve">
+    <value>Responsible employees of {0}</value>
+  </data>
+  <data name="Responsibles.Intro" xml:space="preserve">
+    <value>Roles marked as giving rights change the employee's rights within 30 seconds; the others only say who is responsible.</value>
+  </data>
+  <data name="Responsibles.None" xml:space="preserve">
+    <value>No responsible employees yet.</value>
+  </data>
+  <data name="Responsibles.GivesRights" xml:space="preserve">
+    <value>Gives rights</value>
+  </data>
+  <data name="Responsibles.Left" xml:space="preserve">
+    <value>Left the company</value>
+  </data>
+  <data name="Responsibles.Remove" xml:space="preserve">
+    <value>Remove {0} as {1}</value>
+  </data>
+  <data name="Responsibles.Employee" xml:space="preserve">
+    <value>Employee</value>
+  </data>
+  <data name="Responsibles.Role" xml:space="preserve">
+    <value>Role</value>
+  </data>
+  <data name="Responsibles.RightsMark" xml:space="preserve">
+    <value>(gives rights)</value>
+  </data>
+  <data name="Responsibles.Add" xml:space="preserve">
+    <value>Add</value>
+  </data>
+  <data name="Responsibles.Saved" xml:space="preserve">
+    <value>Responsible employees saved.</value>
+  </data>
 </root>

@@ -1,0 +1,158 @@
+@using SmartSpare.ApiContracts.Identity
+@using SmartSpare.ApiContracts.Inventory
+@using SmartSpare.Web.Client.Features.Identity
+@using SmartSpare.Web.Client.Features.Inventory
+@inject IStringLocalizer<SharedResource> Text
+@inject InventoryClient Inventory
+@inject IdentityClient Identity
+@inject ProblemMessages Messages
+@inject ISnackbar Snackbar
+
+@* The responsible employees of one record (STAGE_7_PLAN 3.7, ADR 0026): who has which assignment role. Roles that grant
+   scope give rights (brand approval scope, hub access); a change applies to the employee's sessions within 30 seconds.
+   Shared by every record kind that has responsible employees. *@
+<section aria-labelledby="@_headingId" data-testid="responsibles-panel">
+    <MudText Typo="Typo.h6" HtmlTag="h2" id="@_headingId" Class="mb-1">@Text["Responsibles.Title", RecordName]</MudText>
+    <MudText Typo="Typo.body2" Class="mb-2">@Text["Responsibles.Intro"]</MudText>
+
+    @if (_error is not null)
+    {
+        <MudAlert Severity="Severity.Error" Class="mb-2" role="alert" data-testid="responsibles-error">@_error</MudAlert>
+    }
+
+    @if (_entries.Count == 0)
+    {
+        <MudText Typo="Typo.body2" Class="mb-2" data-testid="responsibles-none">@Text["Responsibles.None"]</MudText>
+    }
+    else
+    {
+        <ul class="mb-2" style="list-style:none; padding:0" data-testid="responsibles-list">
+            @foreach (var entry in _entries)
+            {
+                <li class="d-flex align-center flex-wrap mb-1">
+                    <MudText Typo="Typo.body1" Class="mr-2">@entry.Name</MudText>
+                    <MudText Typo="Typo.body2" Class="mr-2">@entry.RoleName</MudText>
+                    @if (entry.GrantsScope)
+                    {
+                        <StatusChip Label="@Text["Responsibles.GivesRights"]" Icon="@Icons.Material.Filled.Key" Color="Color.Info" />
+                    }
+                    @if (!entry.Active)
+                    {
+                        <StatusChip Label="@Text["Responsibles.Left"]" Icon="@Icons.Material.Filled.PersonOff" Color="Color.Default" />
+                    }
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Class="touch-target" aria-label="@Text["Responsibles.Remove", entry.Name, entry.RoleName]"
+                                   OnClick="() => Remove(entry)" data-testid="remove-responsible" />
+                </li>
+            }
+        </ul>
+    }
+
+    <div class="d-flex flex-wrap align-end mb-2">
+        <MudAutocomplete T="EmployeeSummary" @bind-Value="_employee" SearchFunc="SearchAsync" ToStringFunc="@(e => e is null ? string.Empty : $"{e.FullName} ({e.Code})")"
+                         Label="@Text["Responsibles.Employee"]" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mr-2" Style="min-width:16rem"
+                         DebounceInterval="300" ResetValueOnEmptyText="true" data-testid="responsible-employee" />
+        <MudSelect T="string" @bind-Value="_role" Label="@Text["Responsibles.Role"]" Variant="Variant.Outlined" Dense="true" Class="mr-2" Style="min-width:12rem" data-testid="responsible-role">
+            @foreach (var role in _roles)
+            {
+                <MudSelectItem T="string" Value="role.Code">@role.Name@(role.GrantsScope ? " " + Text["Responsibles.RightsMark"] : string.Empty)</MudSelectItem>
+            }
+        </MudSelect>
+        <MudButton OnClick="Add" Disabled="_employee is null || _role is null" Variant="Variant.Outlined" Color="Color.Primary" Class="touch-target" data-testid="add-responsible">@Text["Responsibles.Add"]</MudButton>
+    </div>
+
+    <MudButton OnClick="SaveAsync" Disabled="_busy || !_changed" Variant="Variant.Filled" Color="Color.Primary" Class="touch-target" data-testid="save-responsibles">@Text["Users.Save"]</MudButton>
+</section>
+
+@code {
+    private readonly string _headingId = "responsibles-" + Guid.NewGuid().ToString("N");
+    private List<Entry> _entries = [];
+    private IReadOnlyList<AssignmentRoleDto> _roles = [];
+    private EmployeeSummary? _employee;
+    private string? _role;
+    private string? _error;
+    private bool _busy;
+    private bool _changed;
+
+    /// <summary><c>brands</c> or <c>warehouses</c> (the API segment).</summary>
+    [Parameter, EditorRequired]
+    public string Segment { get; set; } = null!;
+
+    /// <summary><c>brand</c> or <c>warehouse</c> (the record kind of the assignment roles).</summary>
+    [Parameter, EditorRequired]
+    public string Kind { get; set; } = null!;
+
+    [Parameter, EditorRequired]
+    public short RecordId { get; set; }
+
+    [Parameter, EditorRequired]
+    public string RecordName { get; set; } = null!;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        _changed = false;
+        var roles = await Inventory.ListAssignmentRolesAsync(Kind);
+        _roles = roles.IsSuccess ? roles.Value! : [];
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        var result = await Inventory.GetResponsiblesAsync(Segment, RecordId);
+        _error = result.IsSuccess ? null : Messages.Describe(result.Problem!);
+        _entries = result.IsSuccess
+            ? [.. result.Value!.Select(r => new Entry(r.EmployeeId, r.EmployeeName, r.EmployeeActive, r.Role, r.RoleName, r.GrantsScope))]
+            : [];
+    }
+
+    private async Task<IEnumerable<EmployeeSummary>> SearchAsync(string? search, CancellationToken cancellationToken)
+    {
+        var result = await Identity.ListEmployeesAsync(search, positionId: null, archived: false, page: 1, pageSize: 20, cancellationToken);
+        return result.IsSuccess ? result.Value!.Items : [];
+    }
+
+    private void Add()
+    {
+        if (_employee is not { } employee || _roles.FirstOrDefault(r => r.Code == _role) is not { } role)
+        {
+            return;
+        }
+
+        if (!_entries.Exists(e => e.EmployeeId == employee.Id && e.Role == role.Code))
+        {
+            _entries.Add(new Entry(employee.Id, employee.FullName, true, role.Code, role.Name, role.GrantsScope));
+            _changed = true;
+        }
+
+        _employee = null;
+    }
+
+    private void Remove(Entry entry)
+    {
+        _entries.Remove(entry);
+        _changed = true;
+    }
+
+    private async Task SaveAsync()
+    {
+        _busy = true;
+        var result = await Inventory.ReplaceResponsiblesAsync(Segment, RecordId, new ResponsiblesRequest([.. _entries.Select(e => new ResponsibleEntry(e.EmployeeId, e.Role))]));
+        _busy = false;
+        if (!result.IsSuccess)
+        {
+            _error = Messages.Describe(result.Problem!);
+            return;
+        }
+
+        _error = null;
+        _changed = false;
+        _entries = [.. result.Value!.Select(r => new Entry(r.EmployeeId, r.EmployeeName, r.EmployeeActive, r.Role, r.RoleName, r.GrantsScope))];
+        Snackbar.Add(Text["Responsibles.Saved"], Severity.Success);
+    }
+
+    private sealed record Entry(Guid EmployeeId, string Name, bool Active, string Role, string RoleName, bool GrantsScope);
+}

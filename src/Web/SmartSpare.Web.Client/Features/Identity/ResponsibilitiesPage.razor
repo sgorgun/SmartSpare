@@ -1,0 +1,80 @@
+@page "/admin/responsibilities"
+@attribute [Authorize(Policy = AppPolicies.Administration)]
+@using SmartSpare.ApiContracts.Inventory
+@using SmartSpare.Web.Client.Features.Inventory
+@using SmartSpare.Web.Client.Features.MasterData
+@inject IStringLocalizer<SharedResource> Text
+@inject InventoryClient Inventory
+@inject ProblemMessages Messages
+
+<PageTitle>@Text["Responsibilities.Title"]</PageTitle>
+
+<OrganisationTabs />
+<MudText Typo="Typo.h4" HtmlTag="h1" Class="mb-1">@Text["Responsibilities.Title"]</MudText>
+<MudText Typo="Typo.body2" Class="mb-3">@Text["Responsibilities.Intro"]</MudText>
+
+@if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-3" data-testid="responsibilities-error">@_error</MudAlert>
+}
+
+<MudGrid Spacing="3">
+    <MudItem xs="12" md="4">
+        <MudText Typo="Typo.subtitle1" HtmlTag="h2">@Text["Responsibilities.Brands"]</MudText>
+        <MudList T="string" Dense="true" data-testid="brand-records">
+            @foreach (var brand in _brands)
+            {
+                <MudListItem T="string" OnClick="() => Select(Brand, brand.Id, brand.Name)" Class="@(IsSelected(Brand, brand.Id) ? "mud-selected-item" : null)">@brand.Code · @brand.Name</MudListItem>
+            }
+        </MudList>
+        <MudText Typo="Typo.subtitle1" HtmlTag="h2" Class="mt-3">@Text["Responsibilities.Hubs"]</MudText>
+        <MudList T="string" Dense="true" data-testid="hub-records">
+            @foreach (var hub in _hubs)
+            {
+                <MudListItem T="string" OnClick="() => Select(Warehouse, hub.Id, hub.Code + ' ' + hub.Name)" Class="@(IsSelected(Warehouse, hub.Id) ? "mud-selected-item" : null)">@hub.Code · @hub.Name</MudListItem>
+            }
+        </MudList>
+    </MudItem>
+    <MudItem xs="12" md="8">
+        @if (_selected is { } selected)
+        {
+            <MudPaper Outlined="true" Class="pa-4">
+                <ResponsiblesPanel Segment="@selected.Segment" Kind="@selected.Kind" RecordId="@selected.Id" RecordName="@selected.Name" />
+            </MudPaper>
+        }
+        else
+        {
+            <MudText Typo="Typo.body2" data-testid="choose-record">@Text["Responsibilities.Choose"]</MudText>
+        }
+    </MudItem>
+</MudGrid>
+
+@code {
+    private static readonly (string Segment, string Kind) Brand = ("brands", "brand");
+    private static readonly (string Segment, string Kind) Warehouse = ("warehouses", "warehouse");
+
+    private IReadOnlyList<BrandDto> _brands = [];
+    private IReadOnlyList<WarehouseResponse> _hubs = [];
+    private Selection? _selected;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        var brands = await Inventory.ListBrandsAsync();
+        var hubs = await Inventory.ListWarehousesAsync();
+        _brands = brands.IsSuccess ? brands.Value! : [];
+        _hubs = hubs.IsSuccess ? [.. hubs.Value!.Where(h => h.IsActive)] : [];
+        _error = brands.IsSuccess && hubs.IsSuccess ? null : Messages.Describe((brands.Problem ?? hubs.Problem)!);
+    }
+
+    private void Select((string Segment, string Kind) kind, short id, string name) => _selected = new Selection(kind.Segment, kind.Kind, id, name);
+
+    private bool IsSelected((string Segment, string Kind) kind, short id) => _selected is { } s && s.Kind == kind.Kind && s.Id == id;
+
+    private sealed record Selection(string Segment, string Kind, short Id, string Name);
+}

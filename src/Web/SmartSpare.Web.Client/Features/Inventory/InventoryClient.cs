@@ -25,6 +25,29 @@ public class InventoryClient(HttpClient http) : ApiClientBase(http)
         SendAsync<PartDetails>(
             new HttpRequestMessage(HttpMethod.Get, string.Create(CultureInfo.InvariantCulture, $"api/v1/inventory/parts/{id}")), cancellationToken);
 
+    // ---- Responsible employees of brands and warehouses (ADR 0026) ---------------------------------------------------
+
+    public virtual Task<ApiResult<IReadOnlyList<BrandDto>>> ListBrandsAsync(CancellationToken cancellationToken = default) =>
+        SendAsync<IReadOnlyList<BrandDto>>(new HttpRequestMessage(HttpMethod.Get, "api/v1/inventory/brands"), cancellationToken);
+
+    public virtual Task<ApiResult<IReadOnlyList<AssignmentRoleDto>>> ListAssignmentRolesAsync(string kind, CancellationToken cancellationToken = default) =>
+        SendAsync<IReadOnlyList<AssignmentRoleDto>>(
+            new HttpRequestMessage(HttpMethod.Get, "api/v1/inventory/assignment-roles?kind=" + Uri.EscapeDataString(kind)), cancellationToken);
+
+    /// <summary><paramref name="segment"/> is <c>brands</c> or <c>warehouses</c>.</summary>
+    public virtual Task<ApiResult<IReadOnlyList<ResponsibleDto>>> GetResponsiblesAsync(string segment, short id, CancellationToken cancellationToken = default) =>
+        SendAsync<IReadOnlyList<ResponsibleDto>>(
+            new HttpRequestMessage(HttpMethod.Get, string.Create(CultureInfo.InvariantCulture, $"api/v1/inventory/{segment}/{id}/responsibles")), cancellationToken);
+
+    public virtual Task<ApiResult<IReadOnlyList<ResponsibleDto>>> ReplaceResponsiblesAsync(
+        string segment, short id, ResponsiblesRequest request, CancellationToken cancellationToken = default) =>
+        SendAsync<IReadOnlyList<ResponsibleDto>>(
+            new HttpRequestMessage(HttpMethod.Put, string.Create(CultureInfo.InvariantCulture, $"api/v1/inventory/{segment}/{id}/responsibles"))
+            {
+                Content = JsonContent.Create(request),
+            },
+            cancellationToken);
+
     public virtual Task<ApiResult<IReadOnlyList<WarehouseResponse>>> ListWarehousesAsync(CancellationToken cancellationToken = default) =>
         SendAsync<IReadOnlyList<WarehouseResponse>>(new HttpRequestMessage(HttpMethod.Get, "api/v1/inventory/warehouses"), cancellationToken);
 
