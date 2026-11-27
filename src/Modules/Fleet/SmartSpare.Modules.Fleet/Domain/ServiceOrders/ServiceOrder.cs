@@ -212,7 +212,8 @@ internal sealed class ServiceOrder : AggregateRoot<long>
     /// <summary>
     /// Inventory reserved the kit (<c>ServiceKitReserved</c>, STAGE_6_PLAN 5.3): stores the held quantity per line and moves
     /// a draft whose every line is fully held to parts reserved. A reservation that arrives after the order was completed or
-    /// cancelled is ignored (returns false); Inventory's holds of such an order are released by their expiry (5.5).
+    /// cancelled changes nothing (returns false); the consumer then asks Inventory to release those holds at once
+    /// (<c>ServiceKitReleaseRequested</c>, 5.5, PR 6h3).
     /// </summary>
     public bool ApplyKitReserved(IReadOnlyDictionary<long, decimal> reservedByLine, DateTimeOffset answeredAt)
     {

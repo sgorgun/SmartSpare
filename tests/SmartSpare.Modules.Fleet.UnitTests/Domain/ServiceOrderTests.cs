@@ -200,6 +200,44 @@ public sealed class ServiceOrderTests
         Draft().Cancel(new string('x', 300), Now).IsSuccess.ShouldBeTrue();
     }
 
+    /// <summary>The whole state machine at once, as <c>fleet.trg_service_order_status_guard</c> allows it.</summary>
+    [Theory]
+    [InlineData("draft", true, true, true)]
+    [InlineData("partsReserved", true, true, true)]
+    [InlineData("inProgress", false, true, true)]
+    [InlineData("completed", false, false, false)]
+    [InlineData("cancelled", false, false, false)]
+    public void Each_status_allows_exactly_its_steps(string status, bool start, bool complete, bool cancel)
+    {
+        Reach(status).Start().IsSuccess.ShouldBe(start, "start");
+        Reach(status).Complete(600, 512, Now).IsSuccess.ShouldBe(complete, "complete");
+        Reach(status).Cancel("no longer needed", Now).IsSuccess.ShouldBe(cancel, "cancel");
+    }
+
+    /// <summary>An order in the given status, reached through the domain's own steps.</summary>
+    private static ServiceOrder Reach(string status)
+    {
+        var order = ServiceOrder.DraftFromPlan(1, 5, Pnv, 500, 512, Engineer, [new(101, 1)]).Value;
+        switch (status)
+        {
+            case "partsReserved":
+                order.ApplyKitReserved(new Dictionary<long, decimal> { [order.Lines[0].Id] = 1 }, Now).ShouldBeTrue();
+                break;
+            case "inProgress":
+                order.Start();
+                break;
+            case "completed":
+                order.Complete(512, 512, Now);
+                break;
+            case "cancelled":
+                order.Cancel("duplicate", Now);
+                break;
+        }
+
+        order.Status.ToString().ShouldBe(status, StringCompareShould.IgnoreCase);
+        return order;
+    }
+
     [Fact]
     public void Closed_orders_accept_no_further_step()
     {
