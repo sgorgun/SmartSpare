@@ -21,6 +21,9 @@ public sealed class AccessMigrationTests : IAsyncLifetime
 {
     private const string LastStage6Migration = "20261127033447_MessageRetention";
 
+    /// <summary>The last Identity migration before step 3 drops the legacy access data.</summary>
+    private const string BeforeStep3 = "20261127154522_ResponsibilityProjection";
+
     private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:17").Build();
     private string _migrator = null!;
     private MigrationRunnerOptions _options = null!;
@@ -72,9 +75,15 @@ public sealed class AccessMigrationTests : IAsyncLifetime
             """);
         var before = await RolesAsync(fromPositions: false);
 
-        // Every module, as the migration runner applies them: Identity's step 1, Inventory's assignment tables, and the
-        // Reporting copy of step 2, which runs last.
-        await new DatabaseMigrator(_options, ModuleCatalog.ModuleCatalog.Databases(), NullLogger<DatabaseMigrator>.Instance).RunAsync(Ct);
+        // The path of a database that was migrated PR by PR: Identity's step 1 and the projection, then every other module
+        // (Inventory's assignment tables and the Reporting copy of step 2, which runs last), and only then step 3.
+        await using (var context = IdentityDatabase.Instance.CreateContext(_migrator))
+        {
+            await context.GetService<IMigrator>().MigrateAsync(BeforeStep3, Ct);
+        }
+
+        await new DatabaseMigrator(_options, [.. ModuleCatalog.ModuleCatalog.Databases().Where(d => d.Name != "identity")], NullLogger<DatabaseMigrator>.Instance)
+            .RunAsync(Ct);
 
         var after = await RolesAsync(fromPositions: true);
         after.ShouldBe(before, "every account keeps exactly its roles");
@@ -92,6 +101,11 @@ public sealed class AccessMigrationTests : IAsyncLifetime
             .ShouldBe("Legacy Manager m@dealer.example +370 600 00001");
         (await ScalarAsync<long>("SELECT count(DISTINCT code) FROM iam.employee")).ShouldBe(7);
 
+        var employees = await ScalarAsync<long>("SELECT count(*) FROM iam.employee");
+        var script = await File.ReadAllTextAsync(Path.Combine(RepositoryRoot(), "db", "sql", "identity", "0007_organisation.sql"), Ct);
+        await ExecuteAsync(DataStep(script));
+        (await ScalarAsync<long>("SELECT count(*) FROM iam.employee")).ShouldBe(employees, "a second run finds every user already an employee");
+
         // Step 2: brand lists become brand-manager assignments, home hubs keeper (keepers) or service-base assignments,
         // and Identity's projection holds the rights-bearing ones; the anonymised user is not copied.
         (await ScalarAsync<long>("SELECT count(*) FROM catalog.brand_responsible WHERE assignment_role = 'BRAND_MANAGER'")).ShouldBe(4);
@@ -107,10 +121,38 @@ public sealed class AccessMigrationTests : IAsyncLifetime
         (await ScalarAsync<long>("SELECT count(*) FROM iam.employee_responsibility")).ShouldBe(projection, "the copy is idempotent");
         (await ScalarAsync<long>("SELECT count(*) FROM catalog.brand_responsible")).ShouldBe(4);
 
-        var employees = await ScalarAsync<long>("SELECT count(*) FROM iam.employee");
-        var script = await File.ReadAllTextAsync(Path.Combine(RepositoryRoot(), "db", "sql", "identity", "0007_organisation.sql"), Ct);
-        await ExecuteAsync(DataStep(script));
-        (await ScalarAsync<long>("SELECT count(*) FROM iam.employee")).ShouldBe(employees, "a second run finds every user already an employee");
+        // Step 3: the drift guard finds nothing to complain about, the legacy access data goes, and every account keeps its roles.
+        await new DatabaseMigrator(_options, ModuleCatalog.ModuleCatalog.Databases(), NullLogger<DatabaseMigrator>.Instance).RunAsync(Ct);
+        (await ScalarAsync<bool>(
+                "SELECT to_regclass('iam.user_role') IS NULL AND to_regclass('iam.user_brand') IS NULL AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'iam' AND table_name = 'app_user' AND column_name = 'home_warehouse_id')"))
+            .ShouldBeTrue();
+        (await ScalarAsync<long>("SELECT count(*) FROM iam.app_user WHERE email IS NOT NULL OR full_name IS NOT NULL OR phone IS NOT NULL"))
+            .ShouldBe(0, "the person's data lives on the employee only");
+        (await RolesAsync(fromPositions: true)).ShouldBe(before, "no account gained or lost a role on the way");
+        (await ScalarAsync<long>("SELECT count(*) FROM iam.employee_responsibility")).ShouldBe(projection);
+        await ExecuteAsync(copy);
+        (await ScalarAsync<long>("SELECT count(*) FROM iam.employee_responsibility")).ShouldBe(projection, "the copy is skipped once the legacy data is gone");
+
+    }
+
+    [Fact]
+    public async Task A_database_that_skipped_the_copy_of_step_2_is_refused_by_the_drift_guard()
+    {
+        // A stage 6 database migrated in one pass: Identity's step 3 runs before the Reporting copy of step 2, so the legacy
+        // brand list has no assignment yet. The guard stops the migration with a clear message instead of losing rights.
+        await ExecuteAsync(
+            """
+            INSERT INTO iam.app_user (id, user_name, email, full_name, password_hash)
+            VALUES ('00000000-0000-4000-8000-0000000000b1', 'legacy.skipper', 's@dealer.example', 'Legacy Skipper', 'AQAAAAIAA1tgAAAAE' || repeat('A', 67));
+            INSERT INTO iam.user_role (user_id, role_id) SELECT '00000000-0000-4000-8000-0000000000b1', id FROM iam.role WHERE code = 'BRAND_MANAGER';
+            INSERT INTO iam.user_brand (user_id, brand_id) SELECT '00000000-0000-4000-8000-0000000000b1', id FROM ref.brand WHERE code = 'CLAAS';
+            """);
+
+        var error = await Should.ThrowAsync<Exception>(() =>
+            new DatabaseMigrator(_options, ModuleCatalog.ModuleCatalog.Databases(), NullLogger<DatabaseMigrator>.Instance).RunAsync(Ct));
+
+        error.ToString().ShouldContain("Access drift");
+        (await ScalarAsync<bool>("SELECT to_regclass('iam.user_brand') IS NOT NULL")).ShouldBeTrue("nothing was dropped");
     }
 
     /// <summary>Sections 1 and 2 of the script (seed and data step), which are written to run more than once.</summary>

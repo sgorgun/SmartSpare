@@ -19,7 +19,7 @@ public sealed class AppUserStoreTests : IDisposable
     private readonly IdentityDbContext _db = IdentityDatabase.Instance.CreateContext("Host=localhost;Database=unused");
 
     private static AppUser NewUser() => AppUser.Create(
-        Guid.NewGuid(), Guid.NewGuid(), UserName.Create("tomas.r").Value, EmailAddress.Create("t@dealer.example").Value, "T R", null, Hash);
+        Guid.NewGuid(), Guid.NewGuid(), UserName.Create("tomas.r").Value, Hash);
 
     [Fact]
     public async Task A_proposed_base32_stamp_is_replaced_by_a_new_guid()

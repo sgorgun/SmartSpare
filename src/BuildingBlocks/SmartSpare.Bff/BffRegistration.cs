@@ -38,6 +38,12 @@ public static class BffRegistration
             options.Cookie.HttpOnly = true;
         });
 
+        services.AddOptions<SessionCheckOptions>()
+            .BindConfiguration(SessionCheckOptions.Section)
+            .Validate(session => session.CheckInterval > TimeSpan.Zero && session.CheckInterval <= TimeSpan.FromMinutes(5),
+                "Bff:Session:CheckInterval must be positive and at most 5 minutes (ADR 0026).")
+            .ValidateOnStart();
+
         services.AddOptions<LoginRateLimitOptions>()
             .BindConfiguration(LoginRateLimitOptions.Section)
             .Validate(limit => limit.PermitLimit > 0 && limit.Window > TimeSpan.Zero,

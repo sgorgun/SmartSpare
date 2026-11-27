@@ -72,8 +72,10 @@ public sealed class IdentityMigrationTests(MigratedDatabaseFixture db) : ModuleM
     [Fact]
     public async Task Structure_MatchesV016()
     {
-        await TablesShouldExistAsync("iam.app_user", "iam.role", "iam.user_role", "iam.user_brand");
-        await TriggersShouldExistAsync("app_user.trg_app_user_updated_at", "app_user.trg_audit", "user_role.trg_audit", "user_brand.trg_audit");
+        // ADR 0026: iam.user_role and iam.user_brand are gone; roles come from positions, scope from assignments.
+        await TablesShouldExistAsync("iam.app_user", "iam.role", "iam.position", "iam.position_role", "iam.employee", "iam.employee_responsibility");
+        await TriggersShouldExistAsync("app_user.trg_app_user_updated_at", "app_user.trg_audit", "position.trg_audit", "employee.trg_audit");
+        (await Db.ScalarAsync<bool>("SELECT to_regclass('iam.user_role') IS NULL AND to_regclass('iam.user_brand') IS NULL")).ShouldBeTrue();
         await FunctionsShouldExistAsync("iam.user_has_role", "iam.anonymise_user");
     }
 
@@ -88,8 +90,8 @@ public sealed class IdentityMigrationTests(MigratedDatabaseFixture db) : ModuleM
             await ExecuteAsync(connection, transaction, $"""
                 WITH e AS (INSERT INTO iam.employee (code, full_name, position_id)
                            SELECT 'E999901', 'Audit Probe', id FROM iam.position WHERE code = 'INVENTORY_PLANNER' RETURNING id)
-                INSERT INTO iam.app_user (employee_id, user_name, email, full_name, password_hash)
-                SELECT e.id, 'audit.probe', 'audit.probe@dealer.example', 'Audit Probe', 'AQAAAA{new string('A', 76)}' FROM e
+                INSERT INTO iam.app_user (employee_id, user_name, password_hash)
+                SELECT e.id, 'audit.probe', 'AQAAAA{new string('A', 76)}' FROM e
                 """);
 
             await using var check = new NpgsqlCommand("""
@@ -101,14 +103,13 @@ public sealed class IdentityMigrationTests(MigratedDatabaseFixture db) : ModuleM
         });
 
     [Fact]
-    public async Task The_masked_user_directory_is_module_local_with_the_warehouse_id()
+    public async Task The_masked_user_directory_is_module_local_and_has_no_home_hub()
     {
-        // X18 (#11): created by Identity, returns home_warehouse_id and depends on no other module's schema.
+        // X18 (#11): created by Identity and depends on no other module's schema. Since ADR 0026 it has no home hub
+        // (hubs come from warehouse assignments) and reads the person's data from the employee.
         (await Db.ScalarAsync<bool>("""
-            SELECT EXISTS (SELECT 1 FROM information_schema.columns
-                           WHERE table_schema = 'iam' AND table_name = 'v_app_user_masked' AND column_name = 'home_warehouse_id')
-               AND NOT EXISTS (SELECT 1 FROM information_schema.columns
-                               WHERE table_schema = 'iam' AND table_name = 'v_app_user_masked' AND column_name = 'home_warehouse_code')
+            SELECT NOT EXISTS (SELECT 1 FROM information_schema.columns
+                               WHERE table_schema = 'iam' AND table_name = 'v_app_user_masked' AND column_name IN ('home_warehouse_id', 'home_warehouse_code'))
             """)).ShouldBeTrue();
         (await Db.ScalarAsync<string[]>("""
             SELECT coalesce(array_agg(DISTINCT n.nspname::text ORDER BY n.nspname::text), '{}')
@@ -118,8 +119,6 @@ public sealed class IdentityMigrationTests(MigratedDatabaseFixture db) : ModuleM
             JOIN pg_namespace n ON n.oid = c.relnamespace
             WHERE r.ev_class = 'iam.v_app_user_masked'::regclass AND d.refobjid <> r.ev_class
             """)).ShouldBe(["iam"]);
-        (await Db.ScalarAsync<long>("SELECT count(*) FROM iam.__ef_migrations_history WHERE migration_id LIKE '%_ModuleLocalMaskedUserView'"))
-            .ShouldBe(1);
     }
 
     [Fact]
@@ -147,8 +146,8 @@ public sealed class IdentityMigrationTests(MigratedDatabaseFixture db) : ModuleM
             var error = await Should.ThrowAsync<PostgresException>(() => ExecuteAsync(connection, transaction, $"""
                 WITH e AS (INSERT INTO iam.employee (code, full_name, position_id)
                            SELECT 'E999902', 'Upper Case', id FROM iam.position WHERE code = 'INVENTORY_PLANNER' RETURNING id)
-                INSERT INTO iam.app_user (employee_id, user_name, email, full_name, password_hash)
-                SELECT e.id, 'Upper.Case', 'upper.case@dealer.example', 'Upper Case', 'AQAAAA{new string('A', 76)}' FROM e
+                INSERT INTO iam.app_user (employee_id, user_name, password_hash)
+                SELECT e.id, 'Upper.Case', 'AQAAAA{new string('A', 76)}' FROM e
                 """));
             error.SqlState.ShouldBe(PostgresErrorCodes.CheckViolation);
             error.ConstraintName.ShouldBe("ck_app_user_user_name");

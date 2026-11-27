@@ -179,10 +179,7 @@ internal sealed class EmployeeAdministration(
             return restored;
         }, cancellationToken);
 
-    /// <summary>
-    /// Creates the employee's account. The account's roles come from the position; the legacy name and e-mail columns of
-    /// <c>iam.app_user</c> are written once from the employee and dropped in PR 7e.
-    /// </summary>
+    /// <summary>Creates the employee's account; its roles come from the position, the person's data stays on the employee.</summary>
     public async Task<Result<EmployeeSummary>> Handle(CreateAccountCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
@@ -208,14 +205,13 @@ internal sealed class EmployeeAdministration(
             return userName.Error;
         }
 
-        var email = employee.Email ?? EmailAddress.Create($"{userName.Value.Value}@accounts.invalid").Value;
-        if (await db.Set<AppUser>().AsNoTracking().AnyAsync(u => u.UserName == userName.Value || u.Email == email, cancellationToken).ConfigureAwait(false))
+        if (await db.Set<AppUser>().AsNoTracking().AnyAsync(u => u.UserName == userName.Value, cancellationToken).ConfigureAwait(false))
         {
             return UserErrors.UserNameTaken;
         }
 
         // A placeholder hash satisfies the format CHECK while the password validators run on the new user.
-        var user = AppUser.Create(Guid.NewGuid(), employee.Id, userName.Value, email, employee.FullName, employee.Phone, hasher.HashPassword(null!, command.Request.Password));
+        var user = AppUser.Create(Guid.NewGuid(), employee.Id, userName.Value, hasher.HashPassword(null!, command.Request.Password));
         if (await PasswordChecks.ValidateAsync(users, user, command.Request.Password).ConfigureAwait(false) is { } rejected)
         {
             return rejected;

@@ -25,8 +25,11 @@ public static class BffDefaults
     /// <summary>One work shift; the expiry slides.</summary>
     public static readonly TimeSpan SessionLifetime = TimeSpan.FromHours(8);
 
-    /// <summary>How often the session is re-validated through <c>ICredentialVerifier</c> (section 2.5).</summary>
-    public static readonly TimeSpan SessionCheckInterval = TimeSpan.FromMinutes(5);
+    /// <summary>
+    /// Default of <see cref="SessionCheckOptions.CheckInterval"/>: how often the session is re-validated through
+    /// <c>ICredentialVerifier</c>. 30 seconds since stage 7, the accepted window for a rights change (ADR 0026); 5 minutes before.
+    /// </summary>
+    public static readonly TimeSpan SessionCheckInterval = TimeSpan.FromSeconds(30);
 
     /// <summary>Key of the session id in the cookie's authentication properties (carried into internal tokens as <c>sid</c>).</summary>
     public const string SessionIdItem = ".ss.sid";

@@ -138,7 +138,6 @@ public sealed class OrganisationTests
     public void An_account_belongs_to_an_employee()
     {
         Should.Throw<ArgumentException>(() => Domain.AppUser.Create(
-            Guid.NewGuid(), Guid.Empty, Domain.UserName.Create("abc").Value, Domain.EmailAddress.Create("a@b.c").Value, "A B", null,
-            "AQAAAAIAA1tgAAAAE" + new string('A', 67)));
+            Guid.NewGuid(), Guid.Empty, Domain.UserName.Create("abc").Value, "AQAAAAIAA1tgAAAAE" + new string('A', 67)));
     }
 }

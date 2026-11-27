@@ -205,3 +205,20 @@
 # PR 7d2 (STAGE_7_PLAN 1.1, 1.3 and 3.7, ADR 0026 decision 3): responsible employees of brands and warehouses with their
 # assignment roles (ref.assignment_role, seeded), and Identity's projection of the rights-bearing ones with its watermark.
 +(catalog\.brand_responsible|inventory\.warehouse_responsible|iam\.employee_responsibility|iam\.responsibility_source|ref\.assignment_role|(brand|warehouse)_responsible_id_seq|_(brand|warehouse)_responsible\b|uq_(brand|warehouse)_responsible|ix_(brand|warehouse)_responsible_employee)
+
+# PR 7e (STAGE_7_PLAN 1.6 step 3, ADR 0026): the legacy access data is gone. iam.user_role, iam.user_brand and
+# iam.app_user.home_warehouse_id are dropped; the account's personal-data columns are emptied (kept only because the
+# applied InitialReporting script reads full_name, #152); iam.anonymise_user no longer touches them; the masked audit
+# trail names the actor from the employee.
+-\biam\.(user_role|user_brand)\b
+-ALTER TABLE ONLY iam\.app_user ADD CONSTRAINT uq_app_user_email UNIQUE
+-COMMENT ON COLUMN iam\.app_user\.(email|full_name|phone|home_warehouse_id) IS
+-CREATE INDEX ix_app_user_home_warehouse
+-GRANT SELECT\(home_warehouse_id\) ON TABLE iam\.app_user
+-COMMENT ON VIEW audit\.v_audit_log_masked IS 'Audit trail for the sponsor / auditors with the actor''s name masked\.'
+-CREATE VIEW audit\.v_audit_log_masked AS (?!.*iam\.employee)
+-UPDATE iam\.app_user SET user_name = 'anon_' \|\| v_tag, email =
++COMMENT ON COLUMN iam\.app_user\.(email|full_name|phone) IS 'Always empty since stage 7
++COMMENT ON VIEW audit\.v_audit_log_masked IS 'Audit trail for the sponsor / auditors with the actor''s name \(from the employee\)
++CREATE VIEW audit\.v_audit_log_masked AS .*iam\.employee
++UPDATE iam\.app_user SET user_name = 'anon_' \|\| v_tag, password_hash = NULL

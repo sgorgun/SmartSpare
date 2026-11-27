@@ -12,9 +12,6 @@ public sealed class AppUserTests
     private static AppUser NewUser() => AppUser.Create(
         Guid.NewGuid(), Guid.NewGuid(),
         UserName.Create("tomas.radzevicius").Value,
-        EmailAddress.Create("tomas.radzevicius@dealer.example").Value,
-        "Tomas Radzevičius",
-        "+370 612 10001",
         Hash);
 
     [Fact]
@@ -36,17 +33,17 @@ public sealed class AppUserTests
     public void Only_identity_v3_hashes_are_accepted(string hash)
     {
         Should.Throw<ArgumentException>(() => AppUser.Create(
-            Guid.NewGuid(), Guid.NewGuid(), UserName.Create("abc").Value, EmailAddress.Create("a@b.c").Value, "A B", null, hash));
+            Guid.NewGuid(), Guid.NewGuid(), UserName.Create("abc").Value, hash));
         Should.Throw<ArgumentException>(() => NewUser().ChangePasswordHash(hash));
     }
 
     [Fact]
-    public void A_user_needs_an_identifier_and_a_name()
+    public void A_user_needs_an_identifier_and_an_employee()
     {
         Should.Throw<ArgumentException>(() => AppUser.Create(
-            Guid.Empty, Guid.NewGuid(), UserName.Create("abc").Value, EmailAddress.Create("a@b.c").Value, "A B", null, Hash));
+            Guid.Empty, Guid.NewGuid(), UserName.Create("abc").Value, Hash));
         Should.Throw<ArgumentException>(() => AppUser.Create(
-            Guid.NewGuid(), Guid.NewGuid(), UserName.Create("abc").Value, EmailAddress.Create("a@b.c").Value, " ", null, Hash));
+            Guid.NewGuid(), Guid.Empty, UserName.Create("abc").Value, Hash), "an account belongs to an employee (ADR 0026)");
     }
 
     [Fact]
@@ -176,54 +173,4 @@ public sealed class AppUserTests
         user.SecurityStamp.ShouldNotBe(stamp);
     }
 
-    [Fact]
-    public void Role_changes_rotate_the_stamp_and_repeats_change_nothing()
-    {
-        var user = NewUser();
-        var grantedBy = Guid.NewGuid();
-        var stamp = user.SecurityStamp;
-
-        user.AssignRole(1, Now, grantedBy);
-        user.SecurityStamp.ShouldNotBe(stamp);
-        var role = user.Roles.ShouldHaveSingleItem();
-        role.RoleId.ShouldBe((short)1);
-        role.GrantedAt.ShouldBe(Now);
-        role.GrantedBy.ShouldBe(grantedBy);
-
-        stamp = user.SecurityStamp;
-        user.AssignRole(1, Now.AddDays(1), null);
-        user.SecurityStamp.ShouldBe(stamp);
-        user.Roles.Count.ShouldBe(1);
-
-        user.RevokeRole(1);
-        user.Roles.ShouldBeEmpty();
-        user.SecurityStamp.ShouldNotBe(stamp);
-
-        stamp = user.SecurityStamp;
-        user.RevokeRole(1);
-        user.SecurityStamp.ShouldBe(stamp);
-    }
-
-    [Fact]
-    public void Brand_changes_rotate_the_stamp_and_repeats_change_nothing()
-    {
-        var user = NewUser();
-        var stamp = user.SecurityStamp;
-
-        user.AssignBrand(3);
-        user.Brands.ShouldHaveSingleItem().BrandId.ShouldBe((short)3);
-        user.SecurityStamp.ShouldNotBe(stamp);
-
-        stamp = user.SecurityStamp;
-        user.AssignBrand(3);
-        user.SecurityStamp.ShouldBe(stamp);
-
-        user.RemoveBrand(3);
-        user.Brands.ShouldBeEmpty();
-        user.SecurityStamp.ShouldNotBe(stamp);
-
-        stamp = user.SecurityStamp;
-        user.RemoveBrand(3);
-        user.SecurityStamp.ShouldBe(stamp);
-    }
 }

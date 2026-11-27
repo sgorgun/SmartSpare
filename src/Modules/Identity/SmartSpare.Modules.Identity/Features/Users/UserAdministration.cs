@@ -117,8 +117,7 @@ internal sealed class UserAdministration(
 
     private async Task<Result<UserSummary>> ChangeAsync(Guid id, Action<AppUser> change, CancellationToken cancellationToken)
     {
-        var user = await db.Set<AppUser>().Include(u => u.Roles).Include(u => u.Brands)
-            .SingleOrDefaultAsync(u => u.Id == id, cancellationToken).ConfigureAwait(false);
+        var user = await db.Set<AppUser>().SingleOrDefaultAsync(u => u.Id == id, cancellationToken).ConfigureAwait(false);
         if (user is null)
         {
             return UserErrors.NotFound;

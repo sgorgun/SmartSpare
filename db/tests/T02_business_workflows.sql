@@ -247,15 +247,16 @@ SELECT pg_temp.ok((SELECT a.record_id = (SELECT part_id || '|' || warehouse_id F
                    ORDER BY a.id DESC LIMIT 1),
                   'Audit: an UPDATE row of a composite key carries its key columns (#71)');
 SELECT pg_temp.act_as('admin.smartspare');
-UPDATE iam.app_user SET full_name = 'Rasa Kazlauskienė-Test', email = 'rasa.test@dealer.example' WHERE user_name = 'rasa.kazlauskiene';
+UPDATE iam.employee SET full_name = 'Rasa Kazlauskienė-Test', email = 'rasa.test@dealer.example' WHERE code = 'E0002';
 SELECT pg_temp.ok((SELECT NOT (coalesce(new_values, '{}') ? 'email') AND NOT (coalesce(new_values, '{}') ? 'full_name')
-                   FROM audit.audit_log WHERE table_name = 'iam.app_user' ORDER BY id DESC LIMIT 1) IS NOT FALSE,
+                   FROM audit.audit_log WHERE table_name = 'iam.employee' ORDER BY id DESC LIMIT 1) IS NOT FALSE,
                   'GDPR: personal data columns are never copied into the audit trail');
-SELECT pg_temp.ok((SELECT count(*) FROM audit.audit_log WHERE table_name = 'iam.app_user' AND (new_values ? 'email' OR old_values ? 'email')) = 0,
+SELECT pg_temp.ok((SELECT count(*) FROM audit.audit_log WHERE table_name IN ('iam.app_user', 'iam.employee') AND (new_values ? 'email' OR old_values ? 'email')) = 0,
                   'GDPR: no e-mail address anywhere in the audit trail');
-SELECT pg_temp.ok((SELECT email LIKE 'anon-%@anonymised.invalid' AND password_hash IS NULL AND NOT is_active AND phone IS NULL
-                   FROM iam.app_user WHERE id = '00000000-0000-4000-8000-000000000012'),
-                  'GDPR Art. 17: former employee anonymised, row kept');
+SELECT pg_temp.ok((SELECT u.password_hash IS NULL AND NOT u.is_active AND u.anonymised_at IS NOT NULL
+                          AND e.full_name = 'Anonymised Employee' AND e.email IS NULL AND e.phone IS NULL AND e.is_archived
+                   FROM iam.app_user u JOIN iam.employee e ON e.id = u.employee_id WHERE u.id = '00000000-0000-4000-8000-000000000012'),
+                  'GDPR Art. 17: former employee and account anonymised, rows kept');
 SELECT pg_temp.ok((SELECT count(*) > 0 FROM audit.audit_log WHERE user_id IS NOT NULL), 'Audit references stay valid after anonymisation');
 
 CREATE TEMP TABLE t_parts AS SELECT count(*) AS n FROM pg_inherits WHERE inhparent = 'audit.audit_log'::regclass;

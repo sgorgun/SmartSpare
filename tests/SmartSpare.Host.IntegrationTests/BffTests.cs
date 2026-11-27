@@ -147,7 +147,7 @@ public sealed class BffTests(FakeIdentityHostFactory factory) : IClassFixture<Fa
     }
 
     [Fact]
-    public async Task The_session_is_checked_every_five_minutes_and_a_revoked_one_ends()
+    public async Task The_session_is_checked_every_30_seconds_and_a_revoked_one_ends()
     {
         var user = factory.Users.Add(TestUser.Create("tomas.revoked", [AppRoles.BrandManager]));
         using var browser = factory.NewBrowser();
@@ -155,11 +155,12 @@ public sealed class BffTests(FakeIdentityHostFactory factory) : IClassFixture<Fa
         var checks = factory.Users.SessionChecks;
 
         user.Stamp = Guid.NewGuid().ToString("N");     // e.g. password changed or user deactivated
-        factory.Time.Advance(TimeSpan.FromMinutes(4));
+        factory.Time.Advance(TimeSpan.FromSeconds(29));
         (await browser.MeAsync()).IsAuthenticated.ShouldBeTrue("the stamp is not checked before the interval");
         factory.Users.SessionChecks.ShouldBe(checks);
 
-        factory.Time.Advance(TimeSpan.FromMinutes(1));
+        // ADR 0026 decision 4: a revoked right or an employee who left reaches an open session within 30 seconds.
+        factory.Time.Advance(TimeSpan.FromSeconds(1));
         using var response = await browser.GetAsync("/api/identity/ping");
 
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);

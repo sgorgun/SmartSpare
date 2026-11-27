@@ -458,6 +458,8 @@ Effort: **S** ≈ a quarter day, **M** ≈ half a day, **L** ≈ a full day, at 
 
 **7d2 is split again (28 November 2026):** **7d2a** the backend (assignment roles in `ref.assignment_role`, `catalog.brand_responsible`, `inventory.warehouse_responsible`, `IEmployeeDirectory`, `ResponsibilitiesChanged` with Identity's projection and watermark, the `inventory.responsibility-publish` job, migration step 2 in Reporting, T001, the topology round trip; the legacy brand and home-hub editing on users is removed because it no longer has any effect); **7d2b** the screen for brand and hub responsibilities.
 
+**As built, 7e:** the drift guard of migration step 3 refuses to run unless every account's legacy roles equal its position's template and every legacy brand and home hub has a projected assignment (tested: a database that skipped the copy of step 2 is refused and keeps its tables). Then `iam.user_role`, `iam.user_brand` and `app_user.home_warehouse_id` are dropped. **Deviation from 1.6:** the account's `full_name`, `email` and `phone` are **emptied, not dropped**: the applied script of InitialReporting creates `audit.v_audit_log_masked` over `app_user.full_name`, and on a fresh database Identity migrates before Reporting, so dropping the column would break an applied script (#152). Reporting's migration `AuditActorFromEmployee` now reads the employee; nothing writes the three columns. The session check is the setting `Bff:Session:CheckInterval` (default 30 s, at most 5 minutes). `RightsSourceTests` prove that only the consumer writes the projection and no code writes roles, brands or hubs onto an account; the README has the demo users table.
+
 Total: 3 S, 12 M, 8 L ≈ 14.75 PR-days of nominal effort in 9 calendar days.
 
 ---

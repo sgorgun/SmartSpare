@@ -19,9 +19,9 @@ public sealed class DemoPasswordTests(IdentityDatabaseFixture database)
         "INSERT INTO iam.employee (id, code, full_name, position_id) "
         + "SELECT format('00000000-0000-4000-8000-%s', lpad(n::text, 12, '0'))::uuid, 'E' || lpad(n::text, 4, '0'), 'Demo User', p.id "
         + "FROM generate_series(1, 12) AS n, iam.position p WHERE p.code = 'INVENTORY_PLANNER'; "
-        + "INSERT INTO iam.app_user (id, employee_id, user_name, email, full_name, password_hash) "
+        + "INSERT INTO iam.app_user (id, employee_id, user_name, password_hash) "
         + "SELECT format('00000000-0000-4000-8000-%s', lpad(n::text, 12, '0'))::uuid, format('00000000-0000-4000-8000-%s', lpad(n::text, 12, '0'))::uuid, "
-        + "'demo.user' || n, 'demo.user' || n || '@dealer.example', 'Demo User', "
+        + "'demo.user' || n, "
         + "translate(encode('\\x010000000200035b6000000010'::bytea || gen_random_bytes(48), 'base64'), E'\\n', '') "
         + "FROM generate_series(1, 12) AS n";
 

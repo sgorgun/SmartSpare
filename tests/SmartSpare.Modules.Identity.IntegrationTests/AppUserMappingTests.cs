@@ -13,26 +13,15 @@ public sealed class AppUserMappingTests(IdentityDatabaseFixture database)
     private static readonly string Hash = "AQAAAAIAA1tgAAAAE" + new string('A', 67);
 
     [Fact]
-    public async Task A_user_with_roles_and_brands_round_trips()
+    public async Task An_account_of_an_employee_round_trips()
     {
         var ct = TestContext.Current.CancellationToken;
         var id = Guid.NewGuid();
-        short brandManager, sponsor;
-        short[] brands;
 
         await using (var context = database.CreateContext())
         {
-            brandManager = await RoleIdAsync(context, "BRAND_MANAGER");
-            sponsor = await RoleIdAsync(context, "SPONSOR");
-            brands = await context.Database.SqlQuery<short>($"SELECT id AS \"Value\" FROM ref.brand ORDER BY id LIMIT 2").ToArrayAsync(ct);
-
-            var user = NewUser(id);
-            user.AssignRole(brandManager, Now, null);
-            user.AssignRole(sponsor, Now, null);
-            user.AssignBrand(brands[0]);
-            user.AssignBrand(brands[1]);
             context.Add(await EmployeeAsync(context, id));
-            context.Add(user);
+            context.Add(NewUser(id));
             await context.SaveChangesAsync(ct);
         }
 
@@ -40,24 +29,17 @@ public sealed class AppUserMappingTests(IdentityDatabaseFixture database)
         {
             var user = await LoadAsync(context, id);
             user.UserName.Value.ShouldBe($"u{id:N}"[..20]);
-            user.Email.Value.ShouldBe($"{id:N}@dealer.example");
+            user.EmployeeId.ShouldBe(id);
             user.IsActive.ShouldBeTrue();
             user.CreatedAt.ShouldNotBe(default);
-            user.Roles.Select(r => r.RoleId).ShouldBe([brandManager, sponsor], ignoreOrder: true);
-            user.Brands.Select(b => b.BrandId).ShouldBe(brands, ignoreOrder: true);
 
-            user.RevokeRole(sponsor);
-            user.RemoveBrand(brands[1]);
             user.RecordFailedSignIn();
             await context.SaveChangesAsync(ct);
         }
 
         await using (var context = database.CreateContext())
         {
-            var user = await LoadAsync(context, id);
-            user.Roles.ShouldHaveSingleItem().RoleId.ShouldBe(brandManager);
-            user.Brands.ShouldHaveSingleItem().BrandId.ShouldBe(brands[0]);
-            user.FailedLoginCount.ShouldBe((short)1);
+            (await LoadAsync(context, id)).FailedLoginCount.ShouldBe((short)1);
         }
     }
 
@@ -95,7 +77,7 @@ public sealed class AppUserMappingTests(IdentityDatabaseFixture database)
         {
             context.Add(await EmployeeAsync(context, id));
             context.Add(AppUser.Create(
-                id, id, UserName.Create(mixed).Value, EmailAddress.Create($"{id:N}@dealer.example").Value, "Mapping Test", null, Hash));
+                id, id, UserName.Create(mixed).Value, Hash));
             await context.SaveChangesAsync(ct);
         }
 
@@ -113,7 +95,7 @@ public sealed class AppUserMappingTests(IdentityDatabaseFixture database)
     }
 
     private static AppUser NewUser(Guid id) => AppUser.Create(
-        id, id, UserName.Create($"u{id:N}"[..20]).Value, EmailAddress.Create($"{id:N}@dealer.example").Value, "Mapping Test", null, Hash);
+        id, id, UserName.Create($"u{id:N}"[..20]).Value, Hash);
 
     /// <summary>The employee every account belongs to (ADR 0026), with the same id as the account.</summary>
     private static async Task<Employee> EmployeeAsync(DbContext context, Guid id)
@@ -124,8 +106,5 @@ public sealed class AppUserMappingTests(IdentityDatabaseFixture database)
     }
 
     private static Task<AppUser> LoadAsync(DbContext context, Guid id) =>
-        context.Set<AppUser>().Include(u => u.Roles).Include(u => u.Brands).SingleAsync(u => u.Id == id, TestContext.Current.CancellationToken);
-
-    private static Task<short> RoleIdAsync(DbContext context, string code) =>
-        context.Set<Role>().Where(r => r.Code == code).Select(r => r.Id).SingleAsync(TestContext.Current.CancellationToken);
+        context.Set<AppUser>().SingleAsync(u => u.Id == id, TestContext.Current.CancellationToken);
 }
