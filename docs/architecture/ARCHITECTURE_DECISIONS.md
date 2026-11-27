@@ -1,6 +1,6 @@
 # SmartSpare — Architecture Decisions
 
-Status: **approved** (16 November 2026). **Amended** 24 November 2026 by the topology decisions D1–D4 of the product owner (ADRs 0015–0019). Stages 1–5 are implemented (release v0.5.0, 27 November 2026; see the [CHANGELOG](../../CHANGELOG.md)); stage 4 built and tested the services topology locally and in CI, and its first Azure deployment is stage 10 (#85).
+Status: **approved** (16 November 2026). **Amended** 24 November 2026 by the topology decisions D1–D4 of the product owner (ADRs 0015–0019). Stages 1–6 are implemented (release v0.6.0, 27 November 2026; see the [CHANGELOG](../../CHANGELOG.md)); stage 4 built and tested the services topology locally and in CI, and its first Azure deployment is stage 10 (#85).
 
 This is the architecture of SmartSpare. It superseded the database-stage architecture note, which was removed (it remains in the Git history). Individual decisions are recorded as ADRs in [`docs/adr/`](../adr/README.md).
 
@@ -337,7 +337,7 @@ Work is done on the developer machine (.NET 10 SDK + Docker), where the code can
 3. **Identity and BFF.** Cookie sign-in, roles, policies, internal-token validation (ADR 0016); Blazor client skeleton with MudBlazor and the sign-in page. **Done:** v0.3.0, PRs 3a–3e ([STAGE_3_PLAN.md](../stage-3/STAGE_3_PLAN.md), section 10).
 4. **Topology** (25 Nov – 3 Dec 2026). Service hosts, YARP gateway, RabbitMQ transport, Grafana stack, per-service images, pipelines and Bicep (ADRs 0015–0020), built and tested locally and in CI; CloudAMQP and Grafana Cloud are used from the local services topology. Nothing is deployed to Azure in this stage (product owner, 25 November 2026). Forwarded headers (#48) are configured here and verified behind the real ingress in stage 10. Coverage and vulnerability gates (#63, #64) land before the first per-service pipeline. Plan: [STAGE_4_PLAN.md](../stage-4/STAGE_4_PLAN.md) (#67). **Done:** v0.4.0, PRs 4a–4k; exit criteria with evidence in STAGE_4_PLAN section 12.
 5. **Inventory** (26–30 Nov). Stock, movements, reservations, transfers, file import + screens. The read-only parts catalogue and warehouses (API and page) were pulled forward into stage 4 for the API review. Plan: [STAGE_5_PLAN.md](../stage-5/STAGE_5_PLAN.md) (#103). **Done:** v0.5.0, PRs 5a–5l; exit criteria with evidence in STAGE_5_PLAN section 12.1.
-6. **Fleet** (26 Nov – 4 Dec; started early after stage 5). Machines, engine hours, the maintenance due calculation, service orders with kits as integration events (UC02, #12) + mobile card. Plan: [STAGE_6_PLAN.md](../stage-6/STAGE_6_PLAN.md) (#118).
+6. **Fleet** (26 Nov – 4 Dec; started early after stage 5). Machines, engine hours, the maintenance due calculation, service orders with kits as integration events (UC02, #12) + mobile card. Plan: [STAGE_6_PLAN.md](../stage-6/STAGE_6_PLAN.md) (#118). **Done:** v0.6.0, PRs 6a–6n with 6i built in time; exit criteria with evidence in STAGE_6_PLAN section 10.1.
 7. **Procurement** (5–7 Dec). Purchase orders with the four-eyes rule.
 8. **Forecasting** (8–18 Dec). ML.NET models and benchmark, recommendations and UC01 events between modules. The forecast metrics are needed for the thesis (3 January).
 9. **Reporting** (19–21 Dec). Dashboards and KPIs on the marts.

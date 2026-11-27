@@ -1,6 +1,6 @@
 # SmartSpare — Stage 6 Plan: Fleet (Machines, Engine Hours, Maintenance Planning, Service Orders)
 
-Status: **proposed** (26 November 2026). Stage 6 of the work plan ([ARCHITECTURE_DECISIONS.md, section 13](../architecture/ARCHITECTURE_DECISIONS.md#13-work-plan)), tracked in #118. Stage 6 is the core of the diploma topic, maintenance planning for agricultural machinery dealers (UC02). It turns the Fleet module from the stage 2 table port into a business module:
+Status: **done** (27 November 2026, v0.6.0; proposed 26 November 2026). Stage 6 of the work plan ([ARCHITECTURE_DECISIONS.md, section 13](../architecture/ARCHITECTURE_DECISIONS.md#13-work-plan)), tracked in #118. Stage 6 is the core of the diploma topic, maintenance planning for agricultural machinery dealers (UC02). It turns the Fleet module from the stage 2 table port into a business module:
 - the Fleet domain model of [ADR 0013](../adr/0013-domain-model-and-persistence.md): customer machines, engine-hour readings, maintenance plans by engine hours and by calendar, service orders with their state machine and kits;
 - the **maintenance due calculation** as a documented, unit-tested domain service (section 2);
 - the service-kit flow between Fleet and Inventory as integration events, which removes the last cross-module writes of Fleet (#12), with Fleet as the first consumer of `PartCatalogChanged`;
@@ -334,7 +334,7 @@ Each PR passes the full `tools/check.sh` and `tools/check.sh restore build e2e t
 ### 6i: Kit line editing (#140)
 **Scope:** `PUT /service-orders/{id}/lines`, `ServiceOrderLinesChanged` and its consumer. **Acceptance:** added, changed and removed lines adjust the holds. First cut (section 10).
 
-**As built, 6i (not cut, 28 November 2026):** `PUT /service-orders/{id}/lines` takes the whole kit; `ServiceOrder.ReplaceLines` diffs it against the current lines: missing parts are removed, new parts added, and a **changed quantity replaces the line** (a new line id), so `inventory.reserve_service_kit` keeps its per-line idempotency without a new SQL function. With a new line the kit is reserving again (parts reserved → draft); removals alone can complete a partial kit (draft → parts reserved); the same kit again changes and publishes nothing. `ServiceOrderLinesChanged` (removed line ids, added lines with their ids) goes to Inventory in the same transaction; its consumer `inventory.change-service-kit` releases the removed lines and reserves the added ones, answering `ServiceKitReserved` for them. Each part once (400), a repair keeps a line (400 `Fleet.NoLines`), new parts must be active (422), fixed once started (409 SS300), policy `ManageServiceOrders`, `allowedActions` gains `editLines`. The order detail gets an "Edit parts" panel (quantities with the decimal keypad, remove, add from the catalogue) and follows the new reservation like a fresh draft. Tests: `KitLineEditingTests` (unit), `KitLineEditingApiTests` (holds released and reserved, oil 30 → 20 L, filter removed, new part held; no event for the same kit; 409 after start; repair and unknown part), bUnit for the editor. If edits overtake each other at Inventory, a hold of a line that no longer exists expires after its 7 days and Fleet ignores the unknown line.
+**As built, 6i (not cut, 27 November 2026):** `PUT /service-orders/{id}/lines` takes the whole kit; `ServiceOrder.ReplaceLines` diffs it against the current lines: missing parts are removed, new parts added, and a **changed quantity replaces the line** (a new line id), so `inventory.reserve_service_kit` keeps its per-line idempotency without a new SQL function. With a new line the kit is reserving again (parts reserved → draft); removals alone can complete a partial kit (draft → parts reserved); the same kit again changes and publishes nothing. `ServiceOrderLinesChanged` (removed line ids, added lines with their ids) goes to Inventory in the same transaction; its consumer `inventory.change-service-kit` releases the removed lines and reserves the added ones, answering `ServiceKitReserved` for them. Each part once (400), a repair keeps a line (400 `Fleet.NoLines`), new parts must be active (422), fixed once started (409 SS300), policy `ManageServiceOrders`, `allowedActions` gains `editLines`. The order detail gets an "Edit parts" panel (quantities with the decimal keypad, remove, add from the catalogue) and follows the new reservation like a fresh draft. Tests: `KitLineEditingTests` (unit), `KitLineEditingApiTests` (holds released and reserved, oil 30 → 20 L, filter removed, new part held; no event for the same kit; 409 after start; repair and unknown part), bUnit for the editor. If edits overtake each other at Inventory, a hold of a line that no longer exists expires after its 7 days and Fleet ignores the unknown line.
 
 ### 6j: Machine screens
 **Scope:** machines list, machine card, engine-hours dialog; navigation entries; tablet layout.
@@ -393,7 +393,7 @@ Never cut: the domain, the due calculator with its documentation, the reading �
 
 ### 10.1 Evidence
 
-State on 28 November 2026 (6a–6n merged, 6i included).
+State on 27 November 2026, release v0.6.0 (6a–6n merged, 6i included).
 
 | # | Exit criterion | Evidence |
 |---|---|---|
@@ -404,7 +404,7 @@ State on 28 November 2026 (6a–6n merged, 6i included).
 | 5 | `PartCatalogChanged` in the catalogue transaction, applied idempotently | `PartCatalogPublicationTests` (written with the catalogue change, one transaction), `ImportApiTests`, `PartSnapshotConsumerTests` (idempotent, out-of-order safe), `PartCatalogPublishJobTests` |
 | 6 | Every Fleet endpoint documented; parity of the policies; `ReadFleet` | `ApiDocumentationTests` (every response with an example and the code), [API_DOCUMENTATION.md](../architecture/API_DOCUMENTATION.md); `PolicySqlRoleParityTests` including EXECUTE grants |
 | 7 | Mobile-first screens with loading and error states and Reference; bUnit; Playwright on desktop and tablet | bUnit 109 tests (`MachinePagesTests`, `ServiceOrderPagesTests`, `EngineHoursInputTests`, `KitRefreshTests`); `FleetScenarioTest` at 1280 × 800, 820 × 1180 and 390 × 844, no sideways scroll, focus checks; [FRONTEND.md](../architecture/FRONTEND.md) 3.8 and 7 |
-| 8 | Unit coverage of business logic ≥ 70 %, three figures reported | 80.6 % (gate 70 %), reported in every stage 6 PR and in the stage log on #118; unit+integration reported by the CI coverage job |
+| 8 | Unit coverage of business logic ≥ 70 %, three figures reported | 80.1 % at the release (gate 70 %), reported in every stage 6 PR and in the stage log on #118; unit+integration reported by the CI coverage job |
 | 9 | #12 closed; #30, #82, #17 closed or moved | #12 closed (#136); #30 closed (#142); #17 closed with the documented decision (#142); #82 moved to v0.10.0 (still a prerelease) |
 
 ---
