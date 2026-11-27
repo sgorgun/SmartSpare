@@ -1,3 +1,4 @@
+using SmartSpare.Infrastructure.Http;
 using System.Net;
 using System.Text;
 using FluentValidation.TestHelper;

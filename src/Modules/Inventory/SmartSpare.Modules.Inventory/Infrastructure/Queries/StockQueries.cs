@@ -4,6 +4,7 @@ using Npgsql;
 using NpgsqlTypes;
 using SmartSpare.ApiContracts;
 using SmartSpare.ApiContracts.Inventory;
+using SmartSpare.Infrastructure.Http;
 using SmartSpare.Infrastructure.Messaging;
 using SmartSpare.Modules.Inventory.Contracts;
 using SmartSpare.Modules.Inventory.Domain;
