@@ -1,8 +1,8 @@
 name: Quality gates
 description: >-
   The gates every pipeline runs before anything is built for release (STAGE_4_PLAN 8.2, 8.3; #63, #64): stale
-  architecture terms, locked restore, vulnerable packages, build, formatting, pending model changes, tests and the
-  coverage gate of business logic. A composite action, not a reusable workflow, so the "Build and test" check of the
+  architecture terms, locked restore, vulnerable packages, build, formatting, pending model changes, tests (the architecture
+  tests in Debug as well) and the coverage gate of business logic. A composite action, not a reusable workflow, so the "Build and test" check of the
   main ruleset keeps its name. Every step is a tools/check.sh step, as locally.
 
 runs:
@@ -57,6 +57,11 @@ runs:
     - name: Test
       shell: bash
       run: tools/check.sh test
+
+    # The architecture tests again in Debug, where the compiler emits different IL (#124, #125).
+    - name: Architecture tests (Debug)
+      shell: bash
+      run: tools/check.sh architecture-debug
 
     # Line coverage of business logic (#63: Domain and Features of the modules, SharedKernel, handler pipeline,
     # ApiContracts; not Infrastructure) must be at least 70 %. All code is reported next to it.
