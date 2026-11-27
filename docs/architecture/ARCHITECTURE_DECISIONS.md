@@ -328,9 +328,15 @@ Folders inside a module: `Domain/`, `Features/<UseCase>/`, `Infrastructure/` (Db
 
 Work is done on the developer machine (.NET 10 SDK + Docker), where the code can be built and tested. Each stage ends with a green build and a commit.
 
-**Deadlines** (product owner, 25 November 2026): the written thesis is due on **3 January 2027**, and the defence is on **16 February 2027**. Each stage has a target window and a GitHub milestone (`v0.<stage>.0`). **If a stage runs late, its scope is cut; the later stages are not moved.** Cut scope becomes an issue in a later milestone, or `future`.
+**Deadlines** (product owner, 25 November 2026, updated 27 November 2026): the application, the thesis and the presentation are ready by **23 December 2026**, the pre-defence is on **3 January 2027**, and the defence is on **16 February 2027**. Each stage has a target window and a GitHub milestone (`v0.<stage>.0`). **If a stage runs late, its scope is cut; the later stages are not moved.** Cut scope becomes an issue in a later milestone, or `future`.
 
 *Schedule update (product owner, 26 November 2026):* stage 4 finished a week early, so stages 5–7 moved earlier and the gained days went to stage 8 (Forecasting), which produces the forecast metrics for the thesis. Stages 10 and 11 are unchanged.
+
+*Schedule update (product owner, 27 November 2026), replacing the windows above:*
+- **Everything is ready by 23 December 2026**: the application, the thesis and the presentation. 24 December – 2 January is reserve only, and the pre-defence is on **3 January 2027**. The defence stays on 16 February 2027.
+- **Code freeze on 12 December**, then a full review on 12–13 December. The freeze does not move.
+- **Expert reviews from 2 to 10 December.** Fixes from them take priority over new scope.
+- **Timebox:** a late stage loses scope, to an issue in a later milestone or `future`. When cutting, stage 8 has priority over stages 9 and 10.
 
 1. **Skeleton.** Solution, `Directory.*.props`, BuildingBlocks, host, Aspire, empty modules, architecture tests, CI build.
 2. **Data layer.** DbContexts and Fluent configurations for all modules, initial migrations with SQL parts from V001–V016, Outbox/Inbox. Check: schema matches the current one, 97 SQL tests green.
@@ -338,11 +344,11 @@ Work is done on the developer machine (.NET 10 SDK + Docker), where the code can
 4. **Topology** (25 Nov – 3 Dec 2026). Service hosts, YARP gateway, RabbitMQ transport, Grafana stack, per-service images, pipelines and Bicep (ADRs 0015–0020), built and tested locally and in CI; CloudAMQP and Grafana Cloud are used from the local services topology. Nothing is deployed to Azure in this stage (product owner, 25 November 2026). Forwarded headers (#48) are configured here and verified behind the real ingress in stage 10. Coverage and vulnerability gates (#63, #64) land before the first per-service pipeline. Plan: [STAGE_4_PLAN.md](../stage-4/STAGE_4_PLAN.md) (#67). **Done:** v0.4.0, PRs 4a–4k; exit criteria with evidence in STAGE_4_PLAN section 12.
 5. **Inventory** (26–30 Nov). Stock, movements, reservations, transfers, file import + screens. The read-only parts catalogue and warehouses (API and page) were pulled forward into stage 4 for the API review. Plan: [STAGE_5_PLAN.md](../stage-5/STAGE_5_PLAN.md) (#103). **Done:** v0.5.0, PRs 5a–5l; exit criteria with evidence in STAGE_5_PLAN section 12.1.
 6. **Fleet** (26 Nov – 4 Dec; started early after stage 5). Machines, engine hours, the maintenance due calculation, service orders with kits as integration events (UC02, #12) + mobile card. Plan: [STAGE_6_PLAN.md](../stage-6/STAGE_6_PLAN.md) (#118). **Done:** v0.6.0, PRs 6a–6n with 6i built in time; exit criteria with evidence in STAGE_6_PLAN section 10.1.
-7. **Procurement** (5–7 Dec). Purchase orders with the four-eyes rule.
-8. **Forecasting** (8–18 Dec). ML.NET models and benchmark, recommendations and UC01 events between modules. The forecast metrics are needed for the thesis (3 January).
-9. **Reporting** (19–21 Dec). Dashboards and KPIs on the marts.
-10. **Azure production** (4–15 Jan 2027). First deployment of the services topology (#85): infrastructure, all services through their pipelines, KEDA scaling, forwarded headers behind the ingress, measured cold start. Then Entra logins per service and per-module roles (#16), Key Vault keys and rotation, alerting live, backups, and cost monitoring against the ADR 0009 estimate.
-11. **Defence polish** (16 Jan – 14 Feb 2027). Playwright scenarios, updated diagrams and documentation.
+7. **Procurement** (29 Nov – 1 Dec). Purchase orders with the four-eyes rule.
+8. **Forecasting** (2–7 Dec). ML.NET models and benchmark, recommendations and UC01 events between modules. The forecast metrics are needed for the thesis; this stage has priority over 9 and 10 when scope is cut.
+9. **Reporting** (8–9 Dec). Dashboards and KPIs on the marts.
+10. **Azure production** (10–11 Dec). First deployment of the services topology (#85): infrastructure, all services through their pipelines, KEDA scaling, forwarded headers behind the ingress, measured cold start. Then, as time allows before the freeze, Entra logins per service and per-module roles (#16), Key Vault keys and rotation, alerting live, backups, and cost monitoring against the ADR 0009 estimate; what doesn't fit is cut first.
+11. **Review fixes** (from the freeze on 12 Dec to 23 Dec). Only fixes found in the full review (12–13 Dec) or by the expert reviews (2–10 Dec); no new scope. The thesis and the presentation are finished in the same window.
 
 Stages 5–9 follow the same pattern: domain → use cases → endpoints → tests → screens. Until stage 10 they are verified in the single host, the local services topology and the CI topology job; from stage 10 on, every change deploys through the stage 4 pipelines. The target windows above follow the deadlines; scope is cut rather than stages moved.
 
