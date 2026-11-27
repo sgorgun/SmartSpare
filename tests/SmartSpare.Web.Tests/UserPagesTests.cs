@@ -44,6 +44,7 @@ public sealed class UserPagesTests : ClientTestContext
         page.WaitForAssertion(() => page.Find("[data-testid=new-user]"));
 
         page.Find("[data-testid=new-user]").Click();
+        page.WaitForAssertion(() => page.Find("[data-testid=save-user]"));   // the form renders after its options load
         page.Find("[data-testid=save-user]").Click();
 
         page.WaitForAssertion(() => page.Find("[data-testid=user-form-error]").TextContent.ShouldContain("Choose at least one role."));
