@@ -264,6 +264,60 @@ public sealed class ServiceOrderPagesTests : ClientTestContext
             .ShouldBe("The plan already has an open service order for this machine. Reference: 9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b"));
     }
 
+    [Fact]
+    public void Editing_the_kit_sends_the_whole_kit_and_follows_the_new_reservation()
+    {
+        _fleet.OrderAnswers.Enqueue(ApiResult.Success(FakeFleetClient.Order(ServiceOrderStatuses.PartsReserved, KitStatuses.Reserved,
+            [ServiceOrderActions.Start, ServiceOrderActions.Cancel, ServiceOrderActions.EditLines])));
+        _fleet.OrderAnswers.Enqueue(ApiResult.Success(FakeFleetClient.Order(ServiceOrderStatuses.PartsReserved, KitStatuses.Reserved, [ServiceOrderActions.EditLines])));
+        var page = RenderOrder();
+        page.WaitForAssertion(() => page.Find("[data-testid=action-editLines]"));
+
+        page.Find("[data-testid=action-editLines]").Click();
+        page.Find("input[data-testid=kit-qty-1203]").Change("25");
+        page.Find("[data-testid=kit-remove-1210]").Click();
+        page.Find("[data-testid=kit-save]").Click();
+
+        page.WaitForAssertion(() => _fleet.KitEdits.ShouldHaveSingleItem().Lines.ShouldBe([new CreateServiceOrderLine(1203, 25)]));
+        page.WaitForAssertion(() => page.FindAll("[aria-label='Status: Reserving parts…']").ShouldHaveSingleItem());
+        page.FindAll("[data-testid=kit-editor]").ShouldBeEmpty();
+        _time.Advance(KitRefresh.Interval);
+        page.WaitForAssertion(() => page.FindAll("[aria-label='Status: Kit reserved']").ShouldHaveSingleItem());
+    }
+
+    [Fact]
+    public void A_kit_quantity_must_be_positive_and_a_refusal_reads_as_the_servers_sentence()
+    {
+        _fleet.OrderAnswers.Enqueue(ApiResult.Success(FakeFleetClient.Order(ServiceOrderStatuses.Draft, KitStatuses.Reserved, [ServiceOrderActions.EditLines])));
+        var page = RenderOrder();
+        page.WaitForAssertion(() => page.Find("[data-testid=action-editLines]"));
+        page.Find("[data-testid=action-editLines]").Click();
+
+        page.Find("input[data-testid=kit-qty-1203]").Change("0");
+        page.Find("[data-testid=kit-save]").Click();
+        page.Find("[data-testid=kit-error]").TextContent.ShouldStartWith("Enter a quantity greater than zero");
+        _fleet.KitEdits.ShouldBeEmpty();
+
+        _fleet.NextKitEdit = ApiResult.Failure<ServiceOrderDetails>(new ProblemInfo(
+            409, "SS300", "Conflict", "A service order that is in progress cannot be changed.", "aa11bb22cc33dd44ee55ff6677889900"));
+        page.Find("input[data-testid=kit-qty-1203]").Change("2");
+        page.Find("[data-testid=kit-save]").Click();
+
+        page.WaitForAssertion(() => page.Find("[data-testid=kit-error]").TextContent
+            .ShouldBe("A service order that is in progress cannot be changed. Reference: aa11bb22cc33dd44ee55ff6677889900"));
+    }
+
+    [Fact]
+    public void Without_edit_lines_the_kit_cannot_be_edited()
+    {
+        _fleet.OrderAnswers.Enqueue(ApiResult.Success(FakeFleetClient.Order(ServiceOrderStatuses.InProgress, KitStatuses.Reserved, [ServiceOrderActions.Complete])));
+
+        var page = RenderOrder();
+
+        page.WaitForAssertion(() => page.Find("[data-testid=action-complete]"));
+        page.FindAll("[data-testid=action-editLines]").ShouldBeEmpty();
+    }
+
     private IRenderedComponent<ServiceOrderPage> RenderOrder() =>
         Render<ServiceOrderPage>(p => p.Add(x => x.Id, 501L).AddCascadingValue(State(User("engineer", AppRoles.ServiceEngineer))));
 }

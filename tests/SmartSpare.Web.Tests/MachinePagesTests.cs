@@ -335,6 +335,17 @@ public sealed class FakeFleetClient() : FleetClient(new HttpClient())
             [])));
     }
 
+    public List<(long Id, IReadOnlyList<CreateServiceOrderLine> Lines)> KitEdits { get; } = [];
+
+    public ApiResult<ServiceOrderDetails>? NextKitEdit { get; set; }
+
+    public override Task<ApiResult<ServiceOrderDetails>> ChangeServiceOrderLinesAsync(
+        long id, IReadOnlyList<CreateServiceOrderLine> lines, CancellationToken cancellationToken = default)
+    {
+        KitEdits.Add((id, lines));
+        return Task.FromResult(NextKitEdit ?? ApiResult.Success(Order(ServiceOrderStatuses.Draft, KitStatuses.Reserving, [ServiceOrderActions.EditLines])));
+    }
+
     public override Task<ApiResult<ServiceOrderDetails>> CreateServiceOrderAsync(CreateServiceOrderRequest request, CancellationToken cancellationToken = default)
     {
         Created.Add(request);

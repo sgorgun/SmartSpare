@@ -61,10 +61,15 @@ else
         @* One-hand actions: on phones and tablets the bar stays at the bottom of the screen. *@
         <MudPaper Outlined="true" Class="pa-3 mb-3 bottom-action" data-testid="order-actions">
             <div class="d-flex flex-wrap align-center">
-                @foreach (var action in _order.AllowedActions.Where(a => a != ServiceOrderActions.Cancel))
+                @foreach (var action in _order.AllowedActions.Where(a => a is not ServiceOrderActions.Cancel and not ServiceOrderActions.EditLines))
                 {
                     <MudButton OnClick="() => Choose(action)" Disabled="_busy" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large"
                                Class="mr-2 mb-1 touch-target" StartIcon="@ActionIcon(action)" data-testid="@("action-" + action)">@Text["Order.Action." + action]</MudButton>
+                }
+                @if (_order.AllowedActions.Contains(ServiceOrderActions.EditLines))
+                {
+                    <MudButton OnClick="EditKit" Disabled="_busy" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Large"
+                               Class="mr-2 mb-1 touch-target" StartIcon="@Icons.Material.Filled.Edit" data-testid="action-editLines">@Text["Order.Action.editLines"]</MudButton>
                 }
                 @if (_order.AllowedActions.Contains(ServiceOrderActions.Cancel))
                 {
@@ -73,7 +78,12 @@ else
                 }
             </div>
 
-            @if (_pending is { } pending)
+            @if (_editingKit)
+            {
+                <MudDivider Class="my-3" />
+                <KitEditor Order="_order" OnSaved="KitSavedAsync" OnClose="() => _editingKit = false" />
+            }
+            else if (_pending is { } pending)
             {
                 <MudDivider Class="my-3" />
                 <MudText Class="mb-2" data-testid="confirm-text">@Text["Order.Confirm." + pending, order.Number]</MudText>
@@ -184,6 +194,7 @@ else
     private bool _busy;
     private bool _refreshing;
     private bool _stalled;
+    private bool _editingKit;
 
     [Parameter]
     public long Id { get; set; }
@@ -251,8 +262,25 @@ else
         await InvokeAsync(StateHasChanged);
     }
 
+    private void EditKit()
+    {
+        _pending = null;
+        _editingKit = true;
+    }
+
+    /// <summary>The edited kit is being reserved again: follow it like a fresh draft.</summary>
+    private Task KitSavedAsync(ServiceOrderDetails order)
+    {
+        _order = order;
+        _editingKit = false;
+        Snackbar.Add(Text["KitEditor.Saved", order.Order.Number], Severity.Success);
+        _ = RefreshWhilePendingAsync();
+        return Task.CompletedTask;
+    }
+
     private async Task Choose(string action)
     {
+        _editingKit = false;
         _pending = action;
         _actionError = null;
         if (action == ServiceOrderActions.Complete && _order is not null)

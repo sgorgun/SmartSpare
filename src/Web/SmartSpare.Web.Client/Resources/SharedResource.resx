@@ -1146,4 +1146,22 @@
   <data name="Order.ReservedIssued" xml:space="preserve">
     <value>{0} reserved · {1} issued</value>
   </data>
+  <data name="Order.Action.editLines" xml:space="preserve">
+    <value>Edit parts</value>
+  </data>
+  <data name="KitEditor.Title" xml:space="preserve">
+    <value>Parts of the order</value>
+  </data>
+  <data name="KitEditor.QuantityOf" xml:space="preserve">
+    <value>Quantity of {0}</value>
+  </data>
+  <data name="KitEditor.QuantityInvalid" xml:space="preserve">
+    <value>Enter a quantity greater than zero for {0}.</value>
+  </data>
+  <data name="KitEditor.Save" xml:space="preserve">
+    <value>Save parts</value>
+  </data>
+  <data name="KitEditor.Saved" xml:space="preserve">
+    <value>Parts of {0} saved; the hub is reserving the changes.</value>
+  </data>
 </root>
