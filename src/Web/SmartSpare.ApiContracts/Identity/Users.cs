@@ -53,24 +53,6 @@ public sealed record HubOption(
     [property: Description("Hub code.")] string Code,
     [property: Description("Hub name.")] string Name);
 
-/// <summary>
-/// Brands and home hub of a user. Roles are not part of it: they come from the employee's position (ADR 0026). Brands
-/// and hub move to responsibility assignments on the brand and warehouse records in PR 7d.
-/// </summary>
-[Description("Brands and home hub of a user; roles come from the employee's position.")]
-public sealed record UserAccessRequest(
-    [property: Description("Brand codes for a brand manager; empty for other users.")] IReadOnlyList<string> Brands,
-    [property: Description("Home hub id; empty for no hub.")] short? HomeWarehouseId);
-
-public sealed class UserAccessRequestValidator : AbstractValidator<UserAccessRequest>
-{
-    public UserAccessRequestValidator()
-    {
-        RuleFor(r => r.Brands).NotNull();
-        RuleFor(r => r.HomeWarehouseId).GreaterThan((short)0).When(r => r.HomeWarehouseId is not null);
-    }
-}
-
 /// <summary>A user's own password change.</summary>
 [Description("A user's own password change.")]
 public sealed record ChangePasswordRequest(

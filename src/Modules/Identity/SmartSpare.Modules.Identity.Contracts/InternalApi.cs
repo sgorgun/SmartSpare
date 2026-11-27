@@ -13,6 +13,9 @@ public static class IdentityInternalApi
     public const string CredentialChecks = Prefix + "/credential-checks";
 
     public const string SessionChecks = Prefix + "/session-checks";
+
+    /// <summary>Employee lookups of <see cref="IEmployeeDirectory"/> for other services (any signed-in caller, with the caller's token).</summary>
+    public const string EmployeeLookup = Prefix + "/employee-lookups";
 }
 
 /// <summary>Body of <see cref="IdentityInternalApi.CredentialChecks"/>.</summary>

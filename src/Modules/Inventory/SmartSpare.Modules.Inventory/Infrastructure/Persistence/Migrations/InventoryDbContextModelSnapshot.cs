@@ -137,6 +137,126 @@ namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("SmartSpare.Modules.Inventory.Domain.Responsibilities.BrandResponsible", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<short>("BrandId")
+                        .HasColumnType("smallint")
+                        .HasColumnName("brand_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by")
+                        .HasComment("User who assigned it.");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("employee_id")
+                        .HasComment("Employee (iam.employee); no FK across modules.");
+
+                    b.Property<string>("RecordKind")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("brand")
+                        .HasColumnName("record_kind")
+                        .HasComment("Always the record kind of this table; part of the FK to ref.assignment_role.");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("assignment_role")
+                        .HasComment("ref.assignment_role.code for this record kind.");
+
+                    b.HasKey("Id")
+                        .HasName("pk_brand_responsible");
+
+                    b.HasIndex("EmployeeId")
+                        .HasDatabaseName("ix_brand_responsible_employee");
+
+                    b.HasIndex("BrandId", "EmployeeId", "Role")
+                        .IsUnique()
+                        .HasDatabaseName("uq_brand_responsible");
+
+                    b.ToTable("brand_responsible", "catalog", t =>
+                        {
+                            t.HasComment("Responsible employees of a brand with their assignment role (ADR 0026); the employee is an id of the Identity module.");
+
+                            t.HasCheckConstraint("ck_brand_responsible_kind", "record_kind = 'brand'");
+                        });
+                });
+
+            modelBuilder.Entity("SmartSpare.Modules.Inventory.Domain.Responsibilities.WarehouseResponsible", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by")
+                        .HasComment("User who assigned it.");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("employee_id")
+                        .HasComment("Employee (iam.employee); no FK across modules.");
+
+                    b.Property<string>("RecordKind")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("warehouse")
+                        .HasColumnName("record_kind")
+                        .HasComment("Always the record kind of this table; part of the FK to ref.assignment_role.");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("assignment_role")
+                        .HasComment("ref.assignment_role.code for this record kind.");
+
+                    b.Property<short>("WarehouseId")
+                        .HasColumnType("smallint")
+                        .HasColumnName("warehouse_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_warehouse_responsible");
+
+                    b.HasIndex("EmployeeId")
+                        .HasDatabaseName("ix_warehouse_responsible_employee");
+
+                    b.HasIndex("WarehouseId", "EmployeeId", "Role")
+                        .IsUnique()
+                        .HasDatabaseName("uq_warehouse_responsible");
+
+                    b.ToTable("warehouse_responsible", "inventory", t =>
+                        {
+                            t.HasComment("Responsible employees of a warehouse with their assignment role (ADR 0026); the employee is an id of the Identity module.");
+
+                            t.HasCheckConstraint("ck_warehouse_responsible_kind", "record_kind = 'warehouse'");
+                        });
+                });
+
             modelBuilder.Entity("SmartSpare.Modules.Inventory.Domain.Stock.StockBalance", b =>
                 {
                     b.Property<short>("WarehouseId")
@@ -1371,6 +1491,34 @@ namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("SmartSpare.Modules.Inventory.Infrastructure.Persistence.RefAssignmentRole", b =>
+                {
+                    b.Property<string>("RecordKind")
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("record_kind");
+
+                    b.Property<string>("Code")
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("code");
+
+                    b.Property<bool>("GrantsScope")
+                        .HasColumnType("boolean")
+                        .HasColumnName("grants_scope");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("name");
+
+                    b.HasKey("RecordKind", "Code")
+                        .HasName("ak_ref_assignment_role_record_kind_code");
+
+                    b.ToTable("assignment_role", "ref", t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
+                });
+
             modelBuilder.Entity("SmartSpare.Modules.Inventory.Infrastructure.Persistence.RefBrand", b =>
                 {
                     b.Property<short>("Id")
@@ -1557,6 +1705,38 @@ namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("ck_warehouse_route_transit", "((transit_hours > (0)::numeric) AND (transit_hours <= (240)::numeric))");
                         });
+                });
+
+            modelBuilder.Entity("SmartSpare.Modules.Inventory.Domain.Responsibilities.BrandResponsible", b =>
+                {
+                    b.HasOne("SmartSpare.Modules.Inventory.Infrastructure.Persistence.RefBrand", null)
+                        .WithMany()
+                        .HasForeignKey("BrandId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_brand_responsible_brand");
+
+                    b.HasOne("SmartSpare.Modules.Inventory.Infrastructure.Persistence.RefAssignmentRole", null)
+                        .WithMany()
+                        .HasForeignKey("RecordKind", "Role")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_brand_responsible_role");
+                });
+
+            modelBuilder.Entity("SmartSpare.Modules.Inventory.Domain.Responsibilities.WarehouseResponsible", b =>
+                {
+                    b.HasOne("SmartSpare.Modules.Inventory.Infrastructure.Persistence.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("WarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_warehouse_responsible_warehouse");
+
+                    b.HasOne("SmartSpare.Modules.Inventory.Infrastructure.Persistence.RefAssignmentRole", null)
+                        .WithMany()
+                        .HasForeignKey("RecordKind", "Role")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_warehouse_responsible_role");
                 });
 
             modelBuilder.Entity("SmartSpare.Modules.Inventory.Domain.Stock.StockBalance", b =>

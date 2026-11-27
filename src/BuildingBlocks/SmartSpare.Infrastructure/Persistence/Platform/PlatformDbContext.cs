@@ -46,6 +46,7 @@ internal sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> opti
 
         ConfigureUnitOfMeasure(modelBuilder.Entity<UnitOfMeasure>());
         ConfigureBrand(modelBuilder.Entity<Brand>());
+        ConfigureAssignmentRole(modelBuilder.Entity<AssignmentRole>());
         ConfigureMachineType(modelBuilder.Entity<MachineType>());
         ConfigurePartCategory(modelBuilder.Entity<PartCategory>());
         ConfigureOperatingCondition(modelBuilder.Entity<OperatingCondition>());
@@ -71,6 +72,21 @@ internal sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> opti
         e.Property(x => x.Name).HasMaxLength(50).HasComment("Display name.");
         e.Property(x => x.IsFractional).HasDefaultValue(false)
             .HasComment("TRUE if quantities may be fractional (litres of oil); FALSE for pieces.");
+    }
+
+    private static void ConfigureAssignmentRole(EntityTypeBuilder<AssignmentRole> e)
+    {
+        e.ToTable("assignment_role", "ref", t =>
+        {
+            t.HasComment("Roles of responsible employees per record kind (ADR 0026); grants_scope marks the roles that give rights.");
+            t.HasCheckConstraint("ck_assignment_role_kind", "record_kind IN ('brand', 'warehouse', 'manufacturer', 'part', 'supplier')");
+            t.HasCheckConstraint("ck_assignment_role_code", "code ~ '^[A-Z_]{3,30}$'");
+        });
+        e.HasKey(x => new { x.RecordKind, x.Code }).HasName("pk_assignment_role");
+        e.Property(x => x.RecordKind).HasMaxLength(20).HasComment("Kind of record the role applies to.");
+        e.Property(x => x.Code).HasMaxLength(30).HasComment("Business code, e.g. BRAND_MANAGER.");
+        e.Property(x => x.Name).HasMaxLength(80).HasComment("Display name.");
+        e.Property(x => x.GrantsScope).HasComment("TRUE if the assignment gives a right: brand approval scope or hub access.");
     }
 
     private static void ConfigureBrand(EntityTypeBuilder<Brand> e)

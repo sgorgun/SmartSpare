@@ -9,10 +9,13 @@ namespace SmartSpare.Modules.Identity.Infrastructure.Identity;
 /// <summary>The organisation facts behind an account's rights: the employee's status, position and role template.</summary>
 internal sealed record EmployeeRights(bool EmployeeActive, string PositionCode, string PositionName, string[] Roles);
 
+/// <summary>A rights-bearing assignment of an employee from the projection.</summary>
+internal sealed record ScopeRow(string RecordKind, short RecordId, string AssignmentRole, string RoleName);
+
 /// <summary>
-/// Reads what <see cref="EffectiveRightsCalculator"/> needs (ADR 0026) and builds the rights of an account. Until PR 7d
-/// the brand scope and the hub still come from the account's own brand list and home hub; 7d replaces both with the
-/// responsibility assignments of the brand and warehouse records.
+/// Reads what <see cref="EffectiveRightsCalculator"/> needs (ADR 0026) and builds the rights of an account: the
+/// employee's position and template, and the rights-bearing responsibility assignments of brands and warehouses from
+/// the projection fed by <c>ResponsibilitiesChanged</c>.
 /// </summary>
 internal sealed class OrganisationReader(IdentityDbContext db)
 {
@@ -34,14 +37,25 @@ internal sealed class OrganisationReader(IdentityDbContext db)
     {
         ArgumentNullException.ThrowIfNull(user);
         var employee = await EmployeeAsync(user.EmployeeId, cancellationToken).ConfigureAwait(false);
-        var brands = user.Brands.Select(b => new ScopeFact(b.BrandId, b.BrandId.ToString(System.Globalization.CultureInfo.InvariantCulture), "Brand list of the account"));
-        var hubs = user.HomeWarehouseId is { } hub
-            ? [new ScopeFact(hub, hub.ToString(System.Globalization.CultureInfo.InvariantCulture), "Home hub of the account")]
-            : Array.Empty<ScopeFact>();
+        var scope = await ScopeAsync(user.EmployeeId, cancellationToken).ConfigureAwait(false);
+        static ScopeFact Fact(ScopeRow r) => new(r.RecordId, r.RecordId.ToString(System.Globalization.CultureInfo.InvariantCulture), r.RoleName);
         return EffectiveRightsCalculator.Calculate(new RightsInput(
             user.IsActive && user.AnonymisedAt is null, employee.EmployeeActive, employee.PositionCode, employee.PositionName,
-            employee.Roles, [.. brands], hubs));
+            employee.Roles, [.. scope.Where(r => r.RecordKind == "brand").Select(Fact)], [.. scope.Where(r => r.RecordKind == "warehouse").Select(Fact)]));
     }
+
+    /// <summary>The employee's rights-bearing assignments (brand manager of a brand; keeper or service base of a warehouse).</summary>
+    public async Task<IReadOnlyList<ScopeRow>> ScopeAsync(Guid employeeId, CancellationToken cancellationToken) =>
+        await db.Database.SqlQueryRaw<ScopeRow>(
+                """
+                SELECT r.record_kind::text AS record_kind, r.record_id, r.assignment_role::text AS assignment_role, ar.name::text AS role_name
+                FROM iam.employee_responsibility r
+                JOIN ref.assignment_role ar ON ar.record_kind = r.record_kind AND ar.code = r.assignment_role AND ar.grants_scope
+                WHERE r.employee_id = @employee
+                ORDER BY r.record_kind, r.record_id
+                """,
+                new NpgsqlParameter<Guid>("employee", employeeId))
+            .ToListAsync(cancellationToken).ConfigureAwait(false);
 
     /// <summary>Whether an employee may use an account: not left and not anonymised.</summary>
     public Task<bool> EmployeeIsActiveAsync(Guid employeeId, CancellationToken cancellationToken) =>

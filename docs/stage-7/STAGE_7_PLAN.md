@@ -456,6 +456,8 @@ Effort: **S** ≈ a quarter day, **M** ≈ half a day, **L** ≈ a full day, at 
 **As built, 7c3:** ADR 0026 (with the 30-second trade-off and the reason the one-time copy of 7d goes through Reporting); superseded parts marked in STAGE_3_PLAN 3.1, ADR 0016, MODULE_MAPPING 2.2 and 3.6, DATABASE_DESIGN 8.3 and 8.5. The Organisation area (`/admin/employees`, `/admin/positions`, `/admin/users` as tabs; menu entry Organisation): employees with position filter, leaving date, restore, account creation and anonymisation; positions with the role-template editor; every write sends the version read. bUnit: `OrganisationPagesTests`.
 **7d is split into two PRs (28 November 2026),** each green and merged before the next: **7d1** hub access as a list for writes only (`app.warehouse_ids`, `util.require_hub`, `HubRights`/`HubAccess` with C#/SQL parity, a keeper without a hub writes nowhere), still fed by the legacy home hub; **7d2** the shared assignment pattern, `catalog.brand_responsible`, `inventory.warehouse_responsible`, `ResponsibilitiesChanged`, the Identity projection, migration step 2 and the topology round trip. Both belong to #157.
 
+**7d2 is split again (28 November 2026):** **7d2a** the backend (assignment roles in `ref.assignment_role`, `catalog.brand_responsible`, `inventory.warehouse_responsible`, `IEmployeeDirectory`, `ResponsibilitiesChanged` with Identity's projection and watermark, the `inventory.responsibility-publish` job, migration step 2 in Reporting, T001, the topology round trip; the legacy brand and home-hub editing on users is removed because it no longer has any effect); **7d2b** the screen for brand and hub responsibilities.
+
 Total: 3 S, 12 M, 8 L ≈ 14.75 PR-days of nominal effort in 9 calendar days.
 
 ---

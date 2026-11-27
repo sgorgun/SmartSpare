@@ -15,6 +15,22 @@ internal sealed class UnitOfMeasure
     public bool IsFractional { get; set; }
 }
 
+/// <summary>
+/// An assignment role of a responsible employee per record kind (ADR 0026, STAGE_7_PLAN 1.1), e.g. BRAND_MANAGER of a brand
+/// or KEEPER of a warehouse. <see cref="GrantsScope"/> marks the roles that give rights (brand scope, hub access). Seeded
+/// reference data: what a role means is defined by code, not edited.
+/// </summary>
+internal sealed class AssignmentRole
+{
+    public string RecordKind { get; set; } = null!;
+
+    public string Code { get; set; } = null!;
+
+    public string Name { get; set; } = null!;
+
+    public bool GrantsScope { get; set; }
+}
+
 internal sealed class Brand
 {
     public short Id { get; set; }

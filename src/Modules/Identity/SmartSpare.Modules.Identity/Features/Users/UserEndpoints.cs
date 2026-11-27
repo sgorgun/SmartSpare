@@ -57,28 +57,6 @@ internal static class UserEndpoints
                 [AppRoles.BrandManager, AppRoles.InventoryPlanner], ["CLAAS", "JD"], [new HubOption(3, "KLP", "Klaipėda")]))
             .WithResponseExample(StatusCodes.Status401Unauthorized, Problem(Error.Failure(ProblemCodes.Unauthenticated, "Unauthorized"), 401));
 
-        users.MapPut("/{id:guid}/access", async (
-                [Description("User id.")] Guid id, UserAccessRequest request,
-                ICommandHandler<UpdateUserAccessCommand, UserSummary> handler, CancellationToken cancellationToken) =>
-                (await handler.Handle(new UpdateUserAccessCommand(id, request), cancellationToken).ConfigureAwait(false)).ToHttpResult())
-            .WithName("UpdateUserAccess")
-            .WithSummary("Sets the brands and home hub of a user (until PR 7d).")
-            .WithDescription(
-                "Replaces the user's brands and home hub; every change rotates the security stamp, so the user's sessions pick up "
-                + "the new claims at their next check. Roles are not set here: they come from the employee's position. Brands give "
-                + "an approval scope only while the position grants BRAND_MANAGER. Policy Administration; written as app_admin.")
-            .Accepts<UserAccessRequest>("application/json")
-            .Produces<UserSummary>()
-            .ProducesValidationProblem()
-            .ProducesProblem(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status403Forbidden)
-            .ProducesProblem(StatusCodes.Status404NotFound)
-            .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
-            .WithRequestExample(new UserAccessRequest(["CLAAS"], null))
-            .WithResponseExample(StatusCodes.Status200OK, Example)
-            .WithResponseExample(StatusCodes.Status404NotFound, Problem(UserErrors.NotFound, 404))
-            .WithResponseExample(StatusCodes.Status422UnprocessableEntity, Problem(UserErrors.OwnAdministration, 422));
-
         MapAction<UnlockUserCommand>(users, "unlock", id => new UnlockUserCommand(id), "UnlockUser", "Unlocks a locked-out user.",
             "Ends a lockout after failed sign-ins and resets the failure counter. Policy Administration.");
         MapAction<DeactivateUserCommand>(users, "deactivate", id => new DeactivateUserCommand(id), "DeactivateUser", "Deactivates a user.",

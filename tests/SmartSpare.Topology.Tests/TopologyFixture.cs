@@ -17,6 +17,7 @@ using Npgsql;
 using SmartSpare.ApiContracts.Identity;
 using SmartSpare.Infrastructure.Security;
 using SmartSpare.Modules.Identity;
+using SmartSpare.Modules.Identity.Contracts;
 using SmartSpare.Modules.Inventory.Contracts;
 using SmartSpare.Services.Fleet;
 using SmartSpare.Services.Identity;
@@ -87,7 +88,9 @@ public sealed class TopologyFixture : IAsyncLifetime
 
         // Each service on its own login (ADR 0015 §5): the tests also prove those logins' privileges are enough.
         Identity = new ServiceFactory<IdentityService>(Login("smartspare_identity", passwords.Identity!), _rabbit.GetConnectionString());
-        Inventory = new ServiceFactory<InventoryService>(Login("smartspare_inventory", passwords.Inventory!), _rabbit.GetConnectionString());
+        // Inventory validates and names responsible employees through Identity's /internal/v1 (IEmployeeDirectory, ADR 0026).
+        Inventory = new ServiceFactory<InventoryService>(Login("smartspare_inventory", passwords.Inventory!), _rabbit.GetConnectionString(), services =>
+            services.AddHttpClient<IEmployeeDirectory, HttpEmployeeDirectory>().ConfigurePrimaryHttpMessageHandler(() => Identity.Server.CreateHandler()));
 
         // Fleet asks Inventory for hub codes over /internal/v1 (IWarehouseQueries): here the in-memory Inventory host.
         Fleet = new ServiceFactory<FleetService>(Login("smartspare_fleet", passwords.Fleet!), _rabbit.GetConnectionString(), services =>

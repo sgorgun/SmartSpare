@@ -36,10 +36,20 @@ internal sealed class ListUsersQueryHandler(IdentityDbContext db, IWarehouseQuer
         SELECT v.id, v.user_name, v.full_name_masked, v.email_masked, v.is_active,
                coalesce(u.lockout_end > now(), false) AS is_locked_out, v.is_anonymised, v.home_warehouse_id,
                coalesce(v.roles::text[], ARRAY[]::text[]) AS roles,
-               coalesce((SELECT array_agg(b.code::text ORDER BY b.code) FROM iam.user_brand ub JOIN ref.brand b ON b.id = ub.brand_id
-                         WHERE ub.user_id = v.id), ARRAY[]::text[]) AS brands,
-               coalesce((SELECT array_agg(b.id ORDER BY b.code) FROM iam.user_brand ub JOIN ref.brand b ON b.id = ub.brand_id
-                         WHERE ub.user_id = v.id), ARRAY[]::smallint[]) AS brand_ids,
+               coalesce((SELECT array_agg(b.code::text ORDER BY b.code) FROM iam.employee_responsibility r
+                         JOIN ref.assignment_role ar ON ar.record_kind = r.record_kind AND ar.code = r.assignment_role AND ar.grants_scope
+                         JOIN ref.brand b ON b.id = r.record_id
+                         WHERE r.employee_id = e.id AND r.record_kind = 'brand'), ARRAY[]::text[]) AS brands,
+               coalesce((SELECT array_agg(b.id ORDER BY b.code) FROM iam.employee_responsibility r
+                         JOIN ref.assignment_role ar ON ar.record_kind = r.record_kind AND ar.code = r.assignment_role AND ar.grants_scope
+                         JOIN ref.brand b ON b.id = r.record_id
+                         WHERE r.employee_id = e.id AND r.record_kind = 'brand'), ARRAY[]::smallint[]) AS brand_ids,
+               coalesce((SELECT array_agg(r.record_id ORDER BY r.record_id, r.assignment_role) FROM iam.employee_responsibility r
+                         JOIN ref.assignment_role ar ON ar.record_kind = r.record_kind AND ar.code = r.assignment_role AND ar.grants_scope
+                         WHERE r.employee_id = e.id AND r.record_kind = 'warehouse'), ARRAY[]::smallint[]) AS hub_ids,
+               coalesce((SELECT array_agg(ar.name::text ORDER BY r.record_id, r.assignment_role) FROM iam.employee_responsibility r
+                         JOIN ref.assignment_role ar ON ar.record_kind = r.record_kind AND ar.code = r.assignment_role AND ar.grants_scope
+                         WHERE r.employee_id = e.id AND r.record_kind = 'warehouse'), ARRAY[]::text[]) AS hub_roles,
                v.last_login_at, e.id AS employee_id, e.code::text AS employee_code, p.name::text AS position_name, p.code::text AS position_code,
                (NOT e.is_archived AND e.anonymised_at IS NULL) AS employee_active
 
@@ -78,6 +88,8 @@ internal sealed record UserRow(
     string[] Roles,
     string[] Brands,
     short[] BrandIds,
+    short[] HubIds,
+    string[] HubRoles,
     DateTimeOffset? LastLoginAt,
     Guid EmployeeId,
     string EmployeeCode,
@@ -87,14 +99,16 @@ internal sealed record UserRow(
 {
     public UserSummary ToDto(IReadOnlyDictionary<short, string> hubCodes)
     {
-        var brands = BrandIds.Zip(Brands, (id, code) => new ScopeFact(id, code, $"Brand list of the account ({code})"));
-        var hubs = HomeWarehouseId is { } hub
-            ? [new ScopeFact(hub, hubCodes.GetValueOrDefault(hub, $"#{hub}"), "Home hub of the account")]
-            : Array.Empty<ScopeFact>();
+        var brands = BrandIds.Zip(Brands, (id, code) => new ScopeFact(id, code, $"Brand manager of {code}"));
+        var hubs = HubIds.Zip(HubRoles, (id, role) =>
+        {
+            var code = hubCodes.GetValueOrDefault(id, $"#{id}");
+            return new ScopeFact(id, code, $"{role} of {code}");
+        });
         var rights = EffectiveRightsCalculator.Calculate(new RightsInput(
-            IsActive && !IsAnonymised, EmployeeActive, PositionCode, PositionName, Roles, [.. brands], hubs));
+            IsActive && !IsAnonymised, EmployeeActive, PositionCode, PositionName, Roles, [.. brands], [.. hubs]));
         return new UserSummary(
-            Id, UserName, FullNameMasked, EmailMasked, IsActive, IsLockedOut, IsAnonymised, HomeWarehouseId,
+            Id, UserName, FullNameMasked, EmailMasked, IsActive, IsLockedOut, IsAnonymised, HubIds.Length > 0 ? HubIds[0] : null,
             [.. rights.Rights.Where(r => r.Kind == RightKind.Role).Select(r => r.Value)],
             [.. rights.Rights.Where(r => r.Kind == RightKind.Brand).Select(r => r.Value)],
             LastLoginAt, EmployeeId, EmployeeCode, PositionName,

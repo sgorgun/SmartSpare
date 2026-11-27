@@ -69,7 +69,10 @@ LANGUAGE sql AS $$
                                                   JOIN iam.position_role pr ON pr.position_id = e.position_id
                                                   JOIN iam.role r ON r.id = pr.role_id
                                                   WHERE u.user_name = p_user_name AND u.is_active AND NOT e.is_archived), ''), false),
-           set_config('app.warehouse_ids', coalesce((SELECT home_warehouse_id::text FROM iam.app_user
-                                                         WHERE user_name = p_user_name), ''), false);
+           set_config('app.warehouse_ids', coalesce((SELECT string_agg(DISTINCT r.record_id::text, ',')
+                                                         FROM iam.app_user u
+                                                         JOIN iam.employee_responsibility r ON r.employee_id = u.employee_id AND r.record_kind = 'warehouse'
+                                                         JOIN ref.assignment_role ar ON ar.record_kind = r.record_kind AND ar.code = r.assignment_role AND ar.grants_scope
+                                                         WHERE u.user_name = p_user_name), ''), false);
     SELECT set_config('app.user_id', (SELECT id::text FROM iam.app_user WHERE user_name = p_user_name), false)::uuid
 $$;

@@ -81,11 +81,11 @@ public sealed class IdentityModuleInstaller : IModuleInstaller
         // User administration (#46).
         services.AddScoped<Infrastructure.Persistence.AdminSession>();
         services.AddScoped<Infrastructure.Persistence.IdentityFunctions>();
-        services.AddScoped<Features.Users.AccessResolver>();
         services.AddScoped<Features.Users.UserReader>();
         services.AddScoped<Infrastructure.Identity.OrganisationReader>();
         services.AddScoped<Infrastructure.Identity.AccountStamps>();
         services.AddScoped<Infrastructure.Identity.AdministratorGuard>();
+        services.AddScoped<IEmployeeDirectory, Infrastructure.Queries.EmployeeDirectory>();
     }
 
     /// <summary>
@@ -128,5 +128,9 @@ public sealed class IdentityModuleInstaller : IModuleInstaller
         Features.Organisation.EmployeeEndpoints.Map(v1);
     }
 
-    public void MapInternalEndpoints(IEndpointRouteBuilder endpoints) => Features.InternalChecks.InternalCheckEndpoints.Map(endpoints);
+    public void MapInternalEndpoints(IEndpointRouteBuilder endpoints)
+    {
+        Features.InternalChecks.InternalCheckEndpoints.Map(endpoints);
+        Features.InternalChecks.EmployeeLookupEndpoint.Map(endpoints);
+    }
 }

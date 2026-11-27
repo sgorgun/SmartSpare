@@ -45,6 +45,7 @@ public sealed class InventoryModuleInstaller : IModuleInstaller
         services.AddImportRateLimit();
         services.AddJob<PartCatalogPublishJob>();
         services.AddJob<ReservationExpiryJob>();
+        services.AddJob<Features.Responsibilities.ResponsibilityPublishJob>();
         InventoryDatabase.Instance.AddTo(services, assembly, configuration.GetConnectionString(PersistenceRegistration.ConnectionStringName), InventoryDbContext.HistorySchema);
     }
 
@@ -66,6 +67,7 @@ public sealed class InventoryModuleInstaller : IModuleInstaller
         TransferQueryEndpoints.Map(v1);
         TransferCommandEndpoints.Map(v1);
         ImportEndpoints.Map(v1);
+        Features.Responsibilities.ResponsibleEndpoints.Map(v1);
     }
 
     public void MapInternalEndpoints(IEndpointRouteBuilder endpoints) => WarehouseQueriesEndpoint.Map(endpoints);

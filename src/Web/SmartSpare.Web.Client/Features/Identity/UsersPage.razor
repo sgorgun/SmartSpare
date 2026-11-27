@@ -21,39 +21,6 @@
     <MudAlert Severity="Severity.Error" Class="mb-3" data-testid="users-error">@_error</MudAlert>
 }
 
-@if (_editing is not null && _options is not null)
-{
-    <MudPaper Outlined="true" Class="pa-4 mb-4" data-testid="user-form">
-        <MudText Typo="Typo.h6" HtmlTag="h2" Class="mb-2">@Text["Users.EditAccess", _editing.UserName ?? string.Empty]</MudText>
-        <MudText Typo="Typo.body2" Class="mb-2">@Text["Users.BrandsUntilAssignments"]</MudText>
-        <MudText Typo="Typo.subtitle2" Class="mt-2">@Text["Users.Brands"]</MudText>
-        <div class="d-flex flex-wrap" data-testid="brand-choices">
-            @foreach (var brand in _options.Brands)
-            {
-                <MudCheckBox T="bool" Value="_editing.Brands.Contains(brand)" ValueChanged="@(on => Toggle(_editing.Brands, brand, on))" Label="@brand" />
-            }
-        </div>
-
-        <MudSelect T="short?" @bind-Value="_editing.HomeWarehouseId" Label="@Text["Users.HomeHub"]" Variant="Variant.Outlined" Dense="true" Class="mt-2" data-testid="home-hub">
-            <MudSelectItem T="short?" Value="null">@Text["Users.NoHub"]</MudSelectItem>
-            @foreach (var hub in _options.Hubs)
-            {
-                <MudSelectItem T="short?" Value="hub.Id">@hub.Code · @hub.Name</MudSelectItem>
-            }
-        </MudSelect>
-
-        @if (_formError is not null)
-        {
-            <MudText Color="Color.Error" Typo="Typo.body2" Class="mt-2" data-testid="user-form-error">@_formError</MudText>
-        }
-
-        <div class="mt-3">
-            <MudButton OnClick="SaveAsync" Disabled="_busy" Variant="Variant.Filled" Color="Color.Primary" data-testid="save-user">@Text["Users.Save"]</MudButton>
-            <MudButton OnClick="() => _editing = null" Disabled="_busy" Variant="Variant.Text" Class="ml-2">@Text["Transfer.No"]</MudButton>
-        </div>
-    </MudPaper>
-}
-
 <MudDataGrid @ref="_grid" T="UserSummary" ServerData="LoadAsync" RowsPerPage="UserLimits.DefaultPageSize" Dense="true" Outlined="true" Elevation="0"
              Breakpoint="Breakpoint.Sm" SortMode="SortMode.None" Filterable="false" data-testid="users-grid">
     <Columns>
@@ -102,7 +69,6 @@
             <CellTemplate>
                 @if (!context.Item.IsAnonymised)
                 {
-                    <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="() => StartEdit(context.Item)" data-testid="edit-user">@Text["Users.EditAccessShort"]</MudButton>
                     @if (context.Item.IsLockedOut)
                     {
                         <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="() => ActAsync(context.Item, UnlockAction)">@Text["Users.Unlock"]</MudButton>
@@ -136,25 +102,10 @@
     private const string AnonymiseAction = "anonymise";
 
     private MudDataGrid<UserSummary>? _grid;
-    private UserFormOptions? _options;
     private string? _search;
     private string? _error;
-    private string? _formError;
     private bool _busy;
-    private UserForm? _editing;
     private (UserSummary User, string Action)? _confirm;
-
-    protected override async Task OnInitializedAsync()
-    {
-        if (!RendererInfo.IsInteractive)
-        {
-            return;
-        }
-
-        var options = await Identity.GetUserFormOptionsAsync();
-        _options = options.IsSuccess ? options.Value : null;
-        _error = options.IsSuccess ? null : Messages.Describe(options.Problem!);
-    }
 
     private async Task<GridData<UserSummary>> LoadAsync(GridState<UserSummary> state, CancellationToken cancellationToken)
     {
@@ -172,49 +123,6 @@
         }
 
         return new GridData<UserSummary> { Items = result.Value!.Items, TotalItems = result.Value.TotalCount };
-    }
-
-    private void StartEdit(UserSummary user)
-    {
-        _formError = null;
-        _editing = new UserForm
-        {
-            Id = user.Id,
-            UserName = user.UserName,
-            Brands = [.. user.Brands],
-            HomeWarehouseId = user.HomeWarehouseId,
-        };
-    }
-
-    private async Task SaveAsync()
-    {
-        if (_editing is not { } form)
-        {
-            return;
-        }
-
-        var access = new UserAccessRequest([.. form.Brands], form.HomeWarehouseId);
-        _busy = true;
-        try
-        {
-            _formError = Validate(new UserAccessRequestValidator(), access);
-            if (_formError is null && form.Id is { } id)
-            {
-                var result = await Identity.UpdateUserAccessAsync(id, access);
-                _formError = result.IsSuccess ? null : Messages.Describe(result.Problem!);
-            }
-        }
-        finally
-        {
-            _busy = false;
-        }
-
-        if (_formError is null)
-        {
-            Snackbar.Add(Text["Users.Saved"], Severity.Success);
-            _editing = null;
-            await ReloadAsync();
-        }
     }
 
     private void Confirm(UserSummary user, string action) => _confirm = (user, action);
@@ -257,32 +165,5 @@
     {
         var value = right.Kind == "Role" ? Text["Role." + right.Value].Value : right.Value;
         return Text["Users.Right." + right.Kind + "." + right.Origin, value, right.OriginName];
-    }
-
-    private static void Toggle(List<string> values, string value, bool on)
-    {
-        values.Remove(value);
-        if (on)
-        {
-            values.Add(value);
-        }
-    }
-
-    /// <summary>The shared ApiContracts validator, so the form and the server agree.</summary>
-    private static string? Validate<T>(FluentValidation.IValidator<T> validator, T request)
-    {
-        var result = validator.Validate(request);
-        return result.IsValid ? null : string.Join(" ", result.Errors.Select(e => e.ErrorMessage));
-    }
-
-    private sealed class UserForm
-    {
-        public Guid? Id { get; init; }
-
-        public string? UserName { get; set; }
-
-        public List<string> Brands { get; init; } = [];
-
-        public short? HomeWarehouseId { get; set; }
     }
 }

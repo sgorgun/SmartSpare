@@ -41,6 +41,12 @@ public sealed class EndpointTableTests
             "GET /api/v1/inventory/imports",
             "GET /api/v1/inventory/imports/{id:long}",
             "GET /internal/v1/inventory/warehouses",
+            "GET /api/v1/inventory/assignment-roles",
+            "GET /api/v1/inventory/brands",
+            "GET /api/v1/inventory/brands/{id:int}/responsibles",
+            "PUT /api/v1/inventory/brands/{id:int}/responsibles",
+            "GET /api/v1/inventory/warehouses/{id:int}/responsibles",
+            "PUT /api/v1/inventory/warehouses/{id:int}/responsibles",
         ], ignoreOrder: true);
 
     [Theory]

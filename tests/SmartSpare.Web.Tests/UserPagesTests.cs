@@ -33,7 +33,7 @@ public sealed class UserPagesTests : ClientTestContext
         page.WaitForAssertion(() => page.FindAll("tbody tr.mud-table-row").Count.ShouldBe(2));
         page.Markup.ShouldContain("egle.stankeviciute");
         page.FindAll("[data-testid=user-rights]")[0].TextContent.ShouldContain("Role Warehouse keeper: from position Warehouse keeper");
-        page.FindAll("[data-testid=user-rights]")[0].TextContent.ShouldContain("Hub KLP: from Home hub of the account");
+        page.FindAll("[data-testid=user-rights]")[0].TextContent.ShouldContain("Hub KLP: from Keeper of KLP");
         page.FindAll("[aria-label='Status: Locked out']").ShouldHaveSingleItem();
     }
 
@@ -44,22 +44,8 @@ public sealed class UserPagesTests : ClientTestContext
         page.WaitForAssertion(() => page.FindAll("tbody tr.mud-table-row").Count.ShouldBe(2));
 
         page.FindAll("[data-testid=new-user]").ShouldBeEmpty("accounts are created from employees (ADR 0026)");
-        page.FindAll("[data-testid=edit-user]")[0].Click();
-        page.FindAll("[data-testid=role-choices]").ShouldBeEmpty("roles come from the employee's position");
+        page.FindAll("[data-testid=edit-user]").ShouldBeEmpty("rights come from positions and assignments, never from the account");
         page.Find("[data-testid=rights-origin-note]").TextContent.ShouldContain("Roles come from the employee's position");
-    }
-
-    [Fact]
-    public void Changing_access_sends_the_brands_and_hub_of_the_form()
-    {
-        var page = Render<UsersPage>();
-        page.WaitForAssertion(() => page.FindAll("[data-testid=edit-user]").Count.ShouldBe(2));
-
-        page.FindAll("[data-testid=edit-user]")[0].Click();
-        page.Find("[data-testid=save-user]").Click();
-
-        page.WaitForAssertion(() => _identity.AccessChanges.ShouldHaveSingleItem().Access
-            .ShouldBe(new UserAccessRequest([], 3), new AccessComparer()));
     }
 
     [Fact]
@@ -104,20 +90,11 @@ public sealed class UserPagesTests : ClientTestContext
         _identity.PasswordChanges.ShouldBe(0);
     }
 
-    private sealed class AccessComparer : IEqualityComparer<UserAccessRequest>
-    {
-        public bool Equals(UserAccessRequest? x, UserAccessRequest? y) =>
-            x is not null && y is not null && x.Brands.SequenceEqual(y.Brands) && x.HomeWarehouseId == y.HomeWarehouseId;
-
-        public int GetHashCode(UserAccessRequest obj) => 0;
-    }
 }
 
 /// <summary>An <see cref="IdentityClient"/> with two users.</summary>
 public sealed class FakeUsersClient() : IdentityClient(new HttpClient())
 {
-    public List<(Guid Id, UserAccessRequest Access)> AccessChanges { get; } = [];
-
     public List<(Guid Id, string Action)> Actions { get; } = [];
 
     public int PasswordChanges { get; private set; }
@@ -126,7 +103,7 @@ public sealed class FakeUsersClient() : IdentityClient(new HttpClient())
 
     private static readonly UserSummary Keeper = new(Guid.NewGuid(), "egle.stankeviciute", "E. S.", "e***@dealer.example", true, false, false, 3,
         [AppRoles.WarehouseKeeper], [], null, Guid.NewGuid(), "E0006", "Warehouse keeper",
-        [new EffectiveRightDto("Role", AppRoles.WarehouseKeeper, "Position", "Warehouse keeper"), new EffectiveRightDto("Hub", "KLP", "WarehouseAssignment", "Home hub of the account")],
+        [new EffectiveRightDto("Role", AppRoles.WarehouseKeeper, "Position", "Warehouse keeper"), new EffectiveRightDto("Hub", "KLP", "WarehouseAssignment", "Keeper of KLP")],
         [], null);
 
     private static readonly UserSummary Locked = new(Guid.NewGuid(), "jonas.balciunas", "J. B.", "j***@dealer.example", true, true, false, null,
@@ -138,12 +115,6 @@ public sealed class FakeUsersClient() : IdentityClient(new HttpClient())
 
     public override Task<ApiResult<UserFormOptions>> GetUserFormOptionsAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(ApiResult.Success(new UserFormOptions(AppRoles.All, ["CLAAS", "JD"], [new HubOption(3, "KLP", "Klaipėda")])));
-
-    public override Task<ApiResult<UserSummary>> UpdateUserAccessAsync(Guid id, UserAccessRequest request, CancellationToken cancellationToken = default)
-    {
-        AccessChanges.Add((id, request));
-        return Task.FromResult(ApiResult.Success(Keeper));
-    }
 
     public override Task<ApiResult<UserSummary>> UserActionAsync(Guid id, string action, CancellationToken cancellationToken = default)
     {
