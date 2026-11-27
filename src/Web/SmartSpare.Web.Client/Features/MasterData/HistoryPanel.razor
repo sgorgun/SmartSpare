@@ -1,0 +1,99 @@
+@using System.Globalization
+@using SmartSpare.ApiContracts.MasterData
+@inject IStringLocalizer<SharedResource> Text
+@inject CatalogClient Catalog
+@inject ProblemMessages Messages
+
+@* "Who, what, when" of one catalogue record (ADR 0025), newest first, in plain words. *@
+<MudPaper Outlined="true" Class="pa-3 mb-3" data-testid="history-panel" role="region" aria-label="@Text["History.Title", Name]">
+    <MudText Typo="Typo.subtitle1" HtmlTag="h3" Class="mb-1">@Text["History.Title", Name]</MudText>
+    @if (_error is not null)
+    {
+        <MudText Color="Color.Error" Typo="Typo.body2" role="alert">@_error</MudText>
+    }
+    else if (_entries.Count == 0 && _loaded)
+    {
+        <MudText Typo="Typo.body2">@Text["History.None"]</MudText>
+    }
+    <ol class="history-list" style="list-style:none; padding-left:0; margin:0;">
+        @foreach (var entry in _entries)
+        {
+            <li class="mb-2" data-testid="history-entry">
+                <MudText Typo="Typo.body2">
+                    <strong>@Sentence(entry)</strong>
+                    <span class="mud-text-secondary"> · <time datetime="@entry.At.ToString("o", CultureInfo.InvariantCulture)">@entry.At.ToLocalTime().ToString("g", CultureInfo.CurrentCulture)</time></span>
+                </MudText>
+                @foreach (var change in entry.Changes)
+                {
+                    <MudText Typo="Typo.body2" Class="ml-3" data-testid="history-change">@Change(change)</MudText>
+                }
+                @if (!string.IsNullOrWhiteSpace(entry.Reason))
+                {
+                    <MudText Typo="Typo.body2" Class="ml-3">@Text["History.Reason", entry.Reason]</MudText>
+                }
+            </li>
+        }
+    </ol>
+    @if (_entries.Count < _total)
+    {
+        <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="MoreAsync" Class="touch-target" data-testid="history-more">@Text["History.More"]</MudButton>
+    }
+</MudPaper>
+
+@code {
+    private readonly List<RecordHistoryEntry> _entries = [];
+    private int _page;
+    private int _total;
+    private bool _loaded;
+    private string? _error;
+    private long _shownId;
+
+    [Parameter, EditorRequired]
+    public string Route { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public long Id { get; set; }
+
+    [Parameter, EditorRequired]
+    public string Name { get; set; } = string.Empty;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Id == _shownId || !RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        _shownId = Id;
+        _entries.Clear();
+        _page = 0;
+        await MoreAsync();
+    }
+
+    private async Task MoreAsync()
+    {
+        var result = await Catalog.HistoryAsync(Route, Id, _page + 1);
+        _loaded = true;
+        if (!result.IsSuccess)
+        {
+            _error = Messages.Describe(result.Problem!);
+            return;
+        }
+
+        _error = null;
+        _page++;
+        _total = result.Value!.TotalCount;
+        _entries.AddRange(result.Value.Items);
+    }
+
+    /// <summary>"Rasa K. changed it" or "The system archived it".</summary>
+    private string Sentence(RecordHistoryEntry entry) =>
+        Text["History.Action." + entry.Action, entry.Actor ?? Text["History.System"].Value].Value;
+
+    private string Change(RecordChange change) => (change.From, change.To) switch
+    {
+        (null, var to) => Text["History.Set", change.Field, to ?? Text["History.Empty"].Value].Value,
+        (var from, null) => Text["History.Cleared", change.Field, from].Value,
+        var (from, to) => Text["History.Changed", change.Field, from, to].Value,
+    };
+}

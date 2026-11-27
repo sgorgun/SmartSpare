@@ -1,0 +1,159 @@
+@typeparam TItem
+@inject IStringLocalizer<SharedResource> Text
+@inject CatalogClient Catalog
+@inject ProblemMessages Messages
+
+@* The list every catalogue shares (ADR 0025): search as you type, the archived switch, paging, and per row Edit,
+   Archive or Restore and History. The grid turns into stacked cards below the sm breakpoint (phones). *@
+<div class="d-flex align-center flex-wrap mb-1">
+    <MudText Typo="Typo.h4" HtmlTag="h1" Class="mr-auto">@Title</MudText>
+    @if (MayEdit)
+    {
+        <MudButton OnClick="() => OnEdit.InvokeAsync(default)" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                   Class="touch-target" data-testid="catalog-new">@NewLabel</MudButton>
+    }
+</div>
+@if (Intro is not null)
+{
+    <MudText Typo="Typo.body2" Class="mb-3">@Intro</MudText>
+}
+
+<div class="d-flex flex-wrap align-center mb-3">
+    <MudTextField T="string" @bind-Value="_search" Label="@Text["Catalog.Search"]" Variant="Variant.Outlined" Margin="Margin.Dense"
+                  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Clearable="true" DebounceInterval="400"
+                  OnDebounceIntervalElapsed="SearchAsync" OnClearButtonClick="ClearAsync" InputMode="InputMode.search" Class="mr-3"
+                  data-testid="catalog-search" />
+    <MudSwitch T="bool" Value="_archived" ValueChanged="ShowArchivedAsync" Color="Color.Primary" Label="@Text["Catalog.ShowArchived"]" data-testid="catalog-show-archived" />
+</div>
+
+@if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-3" data-testid="catalog-error">@_error</MudAlert>
+}
+
+@Editor
+
+@if (_history is { } shown)
+{
+    <HistoryPanel Route="@Route" Id="IdOf(shown)" Name="@NameOf(shown)" />
+}
+
+<MudDataGrid @ref="_grid" T="TItem" ServerData="LoadAsync" RowsPerPage="25" Dense="true" Outlined="true" Elevation="0"
+             Breakpoint="Breakpoint.Sm" SortMode="SortMode.None" Filterable="false" data-testid="catalog-grid">
+    <Columns>
+        @Columns
+        <TemplateColumn Title="" CellClass="text-right">
+            <CellTemplate>
+                <div class="d-flex flex-wrap justify-end align-center">
+                    @if (MayEdit && !IsArchivedOf(context.Item))
+                    {
+                        <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="() => OnEdit.InvokeAsync(context.Item)" Class="touch-target" data-testid="catalog-edit">@Text["Catalog.Edit"]</MudButton>
+                    }
+                    @if (MayEdit)
+                    {
+                        <ArchiveAction Route="@Route" Id="IdOf(context.Item)" Name="@NameOf(context.Item)" Version="@VersionOf(context.Item)"
+                                       IsArchived="IsArchivedOf(context.Item)" OnChanged="ReloadAsync" />
+                    }
+                    <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="() => ToggleHistory(context.Item)" Class="touch-target"
+                               aria-expanded="@(_history is not null && IdOf(_history) == IdOf(context.Item) ? "true" : "false")" data-testid="catalog-history">@Text["Catalog.History"]</MudButton>
+                </div>
+            </CellTemplate>
+        </TemplateColumn>
+    </Columns>
+    <NoRecordsContent><MudText>@Text["Catalog.None"]</MudText></NoRecordsContent>
+    <LoadingContent><MudText>@Text["Catalog.Loading"]</MudText></LoadingContent>
+    <PagerContent><MudDataGridPager T="TItem" /></PagerContent>
+</MudDataGrid>
+
+@code {
+    private MudDataGrid<TItem>? _grid;
+    private string? _search;
+    private bool _archived;
+    private string? _error;
+    private TItem? _history;
+
+    /// <summary>The catalogue's API route, e.g. <c>api/v1/inventory/adjustment-reasons</c>.</summary>
+    [Parameter, EditorRequired]
+    public string Route { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Intro { get; set; }
+
+    [Parameter]
+    public string NewLabel { get; set; } = string.Empty;
+
+    /// <summary>The catalogue's own columns (code, name and its fields).</summary>
+    [Parameter, EditorRequired]
+    public RenderFragment Columns { get; set; } = default!;
+
+    /// <summary>The editing panel the page shows while a record is edited (a <c>CatalogEditor</c>), or nothing.</summary>
+    [Parameter]
+    public RenderFragment? Editor { get; set; }
+
+    /// <summary>Whether the user may change the catalogue (UX only; the server checks the policy).</summary>
+    [Parameter]
+    public bool MayEdit { get; set; }
+
+    /// <summary>Edit a record, or create one (default).</summary>
+    [Parameter]
+    public EventCallback<TItem?> OnEdit { get; set; }
+
+    [Parameter, EditorRequired]
+    public Func<TItem, long> IdOf { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public Func<TItem, string> NameOf { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public Func<TItem, string> VersionOf { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public Func<TItem, bool> IsArchivedOf { get; set; } = default!;
+
+    public async Task ReloadAsync()
+    {
+        if (_grid is not null)
+        {
+            await _grid.ReloadServerData();
+        }
+    }
+
+    private async Task<GridData<TItem>> LoadAsync(GridState<TItem> state, CancellationToken cancellationToken)
+    {
+        if (!RendererInfo.IsInteractive)
+        {
+            return new GridData<TItem> { Items = [], TotalItems = 0 };
+        }
+
+        var result = await Catalog.ListAsync<TItem>(Route, _search, _archived, state.Page + 1, state.PageSize, cancellationToken);
+        if (!result.IsSuccess)
+        {
+            _error = Messages.Describe(result.Problem!);
+            StateHasChanged();
+            return new GridData<TItem> { Items = [], TotalItems = 0 };
+        }
+
+        _error = null;
+        return new GridData<TItem> { Items = result.Value!.Items, TotalItems = result.Value.TotalCount };
+    }
+
+    private void ToggleHistory(TItem item) =>
+        _history = _history is not null && IdOf(_history) == IdOf(item) ? default : item;
+
+    private Task SearchAsync(string? _) => ReloadAsync();
+
+    private Task ClearAsync(MouseEventArgs _)
+    {
+        _search = null;
+        return ReloadAsync();
+    }
+
+    private Task ShowArchivedAsync(bool archived)
+    {
+        _archived = archived;
+        return ReloadAsync();
+    }
+}

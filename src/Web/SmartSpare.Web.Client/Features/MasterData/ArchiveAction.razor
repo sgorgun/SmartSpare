@@ -1,0 +1,91 @@
+@inject IStringLocalizer<SharedResource> Text
+@inject CatalogClient Catalog
+@inject ProblemMessages Messages
+@inject ISnackbar Snackbar
+
+@* Archive (with a confirmation) or restore one catalogue record (ADR 0025). An SS501 refusal lists what still uses it. *@
+@if (IsArchived)
+{
+    <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="RestoreAsync" Disabled="_busy" Class="touch-target" data-testid="catalog-restore">@Text["Catalog.Restore"]</MudButton>
+}
+else if (_confirming)
+{
+    <span role="group" aria-label="@Text["Catalog.ArchiveConfirm", Name]" data-testid="catalog-archive-confirm">
+        <MudText Typo="Typo.body2" Inline="true" Class="mr-1">@Text["Catalog.ArchiveConfirm", Name]</MudText>
+        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Warning" OnClick="ArchiveAsync" Disabled="_busy" Class="touch-target" data-testid="catalog-archive-yes">@Text["Catalog.Archive"]</MudButton>
+        <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="() => _confirming = false" Disabled="_busy" Class="touch-target">@Text["Catalog.Cancel"]</MudButton>
+    </span>
+}
+else
+{
+    <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Warning" OnClick="() => { _confirming = true; _reasons = null; }" Class="touch-target" data-testid="catalog-archive">@Text["Catalog.Archive"]</MudButton>
+}
+@if (_reasons is { Count: > 0 })
+{
+    <div role="alert" data-testid="catalog-archive-blocked" class="mt-1 text-left">
+        <MudText Typo="Typo.body2" Color="Color.Error">@Text["Catalog.ArchiveBlocked", Name]</MudText>
+        <ul class="ml-4">
+            @foreach (var reason in _reasons)
+            {
+                <li><MudText Typo="Typo.body2">@reason</MudText></li>
+            }
+        </ul>
+    </div>
+}
+
+@code {
+    private bool _confirming;
+    private bool _busy;
+    private IReadOnlyList<string>? _reasons;
+
+    /// <summary>The catalogue's API route, e.g. <c>api/v1/inventory/adjustment-reasons</c>.</summary>
+    [Parameter, EditorRequired]
+    public string Route { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public long Id { get; set; }
+
+    [Parameter, EditorRequired]
+    public string Name { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string Version { get; set; } = string.Empty;
+
+    [Parameter]
+    public bool IsArchived { get; set; }
+
+    /// <summary>Called after a successful archive or restore, so the list reloads.</summary>
+    [Parameter]
+    public EventCallback OnChanged { get; set; }
+
+    private Task ArchiveAsync() => RunAsync("archive");
+
+    private Task RestoreAsync() => RunAsync("restore");
+
+    private async Task RunAsync(string action)
+    {
+        _busy = true;
+        var result = await Catalog.ActionAsync(Route, Id, action, Version);
+        _busy = false;
+        _confirming = false;
+        if (result.IsSuccess)
+        {
+            _reasons = null;
+            Snackbar.Add(Text["Catalog.Done." + action, Name], Severity.Success);
+            await OnChanged.InvokeAsync();
+            return;
+        }
+
+        if (result.Problem!.Reasons is { Count: > 0 } reasons)
+        {
+            _reasons = reasons;
+            return;
+        }
+
+        Snackbar.Add(Messages.Describe(result.Problem), Severity.Error);
+        if (result.Problem.Status == 409)
+        {
+            await OnChanged.InvokeAsync();       // a stale version: the reload shows the current state
+        }
+    }
+}

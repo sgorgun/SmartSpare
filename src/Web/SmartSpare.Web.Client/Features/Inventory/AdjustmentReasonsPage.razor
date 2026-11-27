@@ -1,0 +1,144 @@
+@page "/inventory/adjustment-reasons"
+@attribute [Authorize(Policy = AppPolicies.ReadInventory)]
+@using SmartSpare.ApiContracts.Inventory
+@using SmartSpare.Web.Client.Features.MasterData
+@inject IStringLocalizer<SharedResource> Text
+@inject CatalogClient Catalog
+@inject ProblemMessages Messages
+@inject ISnackbar Snackbar
+@inject IAuthorizationService Authorization
+
+<PageTitle>@Text["Reasons.Title"]</PageTitle>
+
+<InventoryTabs />
+<CatalogPage @ref="_page" TItem="AdjustmentReasonDto" Route="@Route" Title="@Text["Reasons.Title"]" Intro="@Text["Reasons.Intro"]"
+             NewLabel="@Text["Reasons.New"]" MayEdit="_mayEdit" OnEdit="StartEdit"
+             IdOf="r => r.Id" NameOf="r => r.Name" VersionOf="r => r.Version" IsArchivedOf="r => r.IsArchived">
+    <Columns>
+        <PropertyColumn T="AdjustmentReasonDto" TProperty="string" Property="r => r.Code" Title="@Text["Reasons.Code"]" />
+        <PropertyColumn T="AdjustmentReasonDto" TProperty="string" Property="r => r.Name" Title="@Text["Reasons.Name"]" />
+        <TemplateColumn T="AdjustmentReasonDto" Title="@Text["Reasons.Direction"]">
+            <CellTemplate><span data-testid="reason-direction">@Text["Reasons.Direction." + context.Item.Direction]</span></CellTemplate>
+        </TemplateColumn>
+        <TemplateColumn T="AdjustmentReasonDto" Title="@Text["Reasons.RequiresNote"]">
+            <CellTemplate>@(context.Item.RequiresNote ? Text["Reasons.Yes"] : Text["Reasons.No"])</CellTemplate>
+        </TemplateColumn>
+    </Columns>
+    <Editor>
+        @if (_form is not null)
+        {
+            <CatalogEditor Title="@(_form.Id is null ? Text["Reasons.New"] : Text["Reasons.Edit", _form.Code ?? string.Empty])"
+                           Error="@_formError" Notice="@_notice" Busy="_busy" OnSave="SaveAsync" OnCancel="() => _form = null">
+                <MudGrid Spacing="2">
+                    <MudItem xs="12" sm="4">
+                        <MudTextField T="string" @bind-Value="_form.Code" Label="@Text["Reasons.Code"]" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                      Disabled="_form.Id is not null" HelperText="@Text["Reasons.CodeHelp"]" data-testid="reason-code" />
+                    </MudItem>
+                    <MudItem xs="12" sm="8">
+                        <MudTextField T="string" @bind-Value="_form.Name" Label="@Text["Reasons.Name"]" Variant="Variant.Outlined" Margin="Margin.Dense" data-testid="reason-name" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudSelect T="string" @bind-Value="_form.Direction" Label="@Text["Reasons.Direction"]" Variant="Variant.Outlined" Margin="Margin.Dense" data-testid="reason-direction-select">
+                            @foreach (var direction in AdjustmentDirections.All)
+                            {
+                                <MudSelectItem T="string" Value="direction">@Text["Reasons.Direction." + direction]</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudCheckBox T="bool" @bind-Value="_form.RequiresNote" Label="@Text["Reasons.RequiresNote"]" data-testid="reason-requires-note" />
+                    </MudItem>
+                </MudGrid>
+            </CatalogEditor>
+        }
+    </Editor>
+</CatalogPage>
+
+@code {
+    private const string Route = "api/v1/inventory/adjustment-reasons";
+
+    private CatalogPage<AdjustmentReasonDto>? _page;
+    private ReasonForm? _form;
+    private string? _formError;
+    private string? _notice;
+    private bool _busy;
+    private bool _mayEdit;
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationState { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (AuthenticationState is not null)
+        {
+            _mayEdit = (await Authorization.AuthorizeAsync((await AuthenticationState).User, AppPolicies.ManageCatalog)).Succeeded;
+        }
+    }
+
+    private void StartEdit(AdjustmentReasonDto? reason)
+    {
+        _formError = null;
+        _notice = null;
+        _form = reason is null ? new ReasonForm() : ReasonForm.From(reason);
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_form is not { } form)
+        {
+            return;
+        }
+
+        var body = new AdjustmentReasonWrite(form.Code ?? string.Empty, form.Name ?? string.Empty, form.Direction, form.RequiresNote);
+        var validation = new AdjustmentReasonWriteValidator().Validate(body);
+        if (!validation.IsValid)
+        {
+            _formError = string.Join(" ", validation.Errors.Select(e => e.ErrorMessage));
+            return;
+        }
+
+        _busy = true;
+        var result = form.Id is { } id
+            ? await Catalog.UpdateAsync<AdjustmentReasonWrite, AdjustmentReasonDto>(Route, id, body, form.Version!)
+            : await Catalog.CreateAsync<AdjustmentReasonWrite, AdjustmentReasonDto>(Route, body);
+        _busy = false;
+        if (result.IsSuccess)
+        {
+            Snackbar.Add(Text["Reasons.Saved", result.Value!.Name], Severity.Success);
+            _form = null;
+            await _page!.ReloadAsync();
+            return;
+        }
+
+        // 409 on an edit: someone changed the reason since it was read. Show their version and say so; the user decides.
+        if (result.Problem!.Status == 409 && form.Id is { } changedId && await Catalog.GetAsync<AdjustmentReasonDto>(Route, changedId) is { IsSuccess: true } current)
+        {
+            _form = ReasonForm.From(current.Value!);
+            _formError = null;
+            _notice = Text["Catalog.ChangedMeanwhile"];
+            return;
+        }
+
+        _formError = Messages.Describe(result.Problem);
+    }
+
+    private sealed class ReasonForm
+    {
+        public short? Id { get; init; }
+
+        public string? Code { get; set; }
+
+        public string? Name { get; set; }
+
+        public string Direction { get; set; } = AdjustmentDirections.Out;
+
+        public bool RequiresNote { get; set; }
+
+        public string? Version { get; init; }
+
+        public static ReasonForm From(AdjustmentReasonDto reason) => new()
+        {
+            Id = reason.Id, Code = reason.Code, Name = reason.Name, Direction = reason.Direction, RequiresNote = reason.RequiresNote, Version = reason.Version,
+        };
+    }
+}

@@ -37,6 +37,7 @@ public static class ClientServices
         // once) and NavigationManager would be different, uninitialised instances.
         services.AddScoped(sp => new IdentityClient(CreateHttpClient(sp)));
         services.AddScoped(sp => new InventoryClient(CreateHttpClient(sp)));
+        services.AddScoped(sp => new Features.MasterData.CatalogClient(CreateHttpClient(sp)));
         services.AddScoped(sp => new FleetClient(CreateHttpClient(sp)));
         return services;
     }
