@@ -46,9 +46,16 @@ internal sealed class Browser(HttpClient client) : IDisposable
     }
 
     /// <summary>An unsafe request; with <paramref name="token"/> = <see langword="null"/> it carries no antiforgery header.</summary>
-    public async Task<HttpResponseMessage> PostAsync(string path, object? body = null, string? token = null, string? bearer = null)
+    public Task<HttpResponseMessage> PostAsync(string path, object? body = null, string? token = null, string? bearer = null) =>
+        SendAsync(HttpMethod.Post, path, body, token, bearer);
+
+    /// <summary>An unsafe PUT, like <see cref="PostAsync"/>.</summary>
+    public Task<HttpResponseMessage> PutAsync(string path, object? body = null, string? token = null, string? bearer = null) =>
+        SendAsync(HttpMethod.Put, path, body, token, bearer);
+
+    private async Task<HttpResponseMessage> SendAsync(HttpMethod method, string path, object? body, string? token, string? bearer)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(path, UriKind.Relative))
+        using var request = new HttpRequestMessage(method, new Uri(path, UriKind.Relative))
         {
             Content = body is null ? null : JsonContent.Create(body, body.GetType()),
         };

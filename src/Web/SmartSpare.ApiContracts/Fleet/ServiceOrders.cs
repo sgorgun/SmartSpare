@@ -46,6 +46,9 @@ public static class ServiceOrderActions
     public const string Start = "start";
     public const string Complete = "complete";
     public const string Cancel = "cancel";
+
+    /// <summary>Change the kit lines (PUT /service-orders/{id}/lines), while the work has not started.</summary>
+    public const string EditLines = "editLines";
 }
 
 /// <summary>One service order in a list.</summary>
@@ -151,4 +154,27 @@ public sealed class CancelServiceOrderRequestValidator : AbstractValidator<Cance
     public CancelServiceOrderRequestValidator() =>
         RuleFor(r => r.Reason).Must(r => !string.IsNullOrWhiteSpace(r)).WithMessage("A cancellation needs a reason.")
             .MaximumLength(MaxReasonLength);
+}
+
+/// <summary>The kit an open service order should have from now on.</summary>
+[Description("The kit an open service order should have from now on: every part once with its quantity.")]
+public sealed record ChangeServiceOrderLinesRequest(
+    [property: Description("All lines of the kit. Missing parts are removed, new parts added, changed quantities replaced; empty is allowed for a planned service only.")] IReadOnlyList<CreateServiceOrderLine> Lines);
+
+/// <summary>Rules of <see cref="ChangeServiceOrderLinesRequest"/>, shared by the form and the server.</summary>
+public sealed class ChangeServiceOrderLinesRequestValidator : AbstractValidator<ChangeServiceOrderLinesRequest>
+{
+    public ChangeServiceOrderLinesRequestValidator()
+    {
+        RuleFor(r => r.Lines).NotNull();
+        RuleFor(r => r.Lines.Count).LessThanOrEqualTo(CreateServiceOrderRequestValidator.MaxLines).When(r => r.Lines is not null).WithName("Lines");
+        RuleForEach(r => r.Lines).ChildRules(line =>
+        {
+            line.RuleFor(l => l.PartId).GreaterThan(0);
+            line.RuleFor(l => l.Quantity).GreaterThan(0).LessThanOrEqualTo(999_999_999.999m)
+                .Must(q => decimal.Round(q, 3) == q).WithMessage("A quantity has at most three decimals.");
+        });
+        RuleFor(r => r.Lines).Must(l => l.Select(x => x.PartId).Distinct().Count() == l.Count).When(r => r.Lines is not null)
+            .WithMessage("Each part appears only once.");
+    }
 }

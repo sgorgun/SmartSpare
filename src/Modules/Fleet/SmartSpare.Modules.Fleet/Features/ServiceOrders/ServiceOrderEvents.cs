@@ -31,4 +31,19 @@ internal static class ServiceOrderEvents
         ArgumentNullException.ThrowIfNull(order);
         return new ServiceOrderCancelled(order.Id, order.Number, [.. order.Lines.Select(l => l.Id).Order()], reason, actorId, cancelledAt);
     }
+
+
+    /// <summary>The edited kit: removed line ids and the new lines with the ids they got when saved.</summary>
+    public static ServiceOrderLinesChanged LinesChanged(ServiceOrder order, KitLineChange change, Guid actorId, DateTimeOffset changedAt)
+    {
+        ArgumentNullException.ThrowIfNull(order);
+        ArgumentNullException.ThrowIfNull(change);
+        return new ServiceOrderLinesChanged(
+            order.Id,
+            order.WarehouseId,
+            [.. change.AddedLines.OrderBy(l => l.PartId).Select(l => new ServiceOrderKitLine(l.Id, l.PartId, l.QtyRequired))],
+            [.. change.RemovedLineIds.Order()],
+            actorId,
+            changedAt);
+    }
 }
