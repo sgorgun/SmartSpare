@@ -31,6 +31,7 @@ public sealed class EndpointTableTests
             "GET /api/v1/fleet/service-orders/{id:long}",
             "POST /api/v1/fleet/service-orders",
             "POST /api/v1/fleet/service-orders/{id:long}/start",
+            "POST /api/v1/fleet/service-orders/{id:long}/complete",
         ], ignoreOrder: true);
 
     [Theory]

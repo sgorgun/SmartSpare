@@ -152,6 +152,7 @@ public sealed partial class ApiDocumentationTests : IAsyncLifetime
             ("/api/v1/fleet/service-orders/{id}", "get", ["200", "401", "403", "404"]),
             ("/api/v1/fleet/service-orders", "post", ["201", "400", "401", "403", "404", "409", "422"]),
             ("/api/v1/fleet/service-orders/{id}/start", "post", ["200", "401", "403", "404", "409"]),
+            ("/api/v1/fleet/service-orders/{id}/complete", "post", ["200", "400", "401", "403", "404", "409"]),
         })
         {
             var operation = paths.GetProperty(path).GetProperty(method);
@@ -181,7 +182,7 @@ public sealed partial class ApiDocumentationTests : IAsyncLifetime
         }
 
         var schemas = root.GetProperty("components").GetProperty("schemas");
-        foreach (var name in new[] { "ServiceOrderSummary", "ServiceOrderDetails", "ServiceOrderLineResponse", "CreateServiceOrderRequest", "CreateServiceOrderLine",
+        foreach (var name in new[] { "CompleteServiceOrderRequest", "ServiceOrderSummary", "ServiceOrderDetails", "ServiceOrderLineResponse", "CreateServiceOrderRequest", "CreateServiceOrderLine",
                      "RecordReadingRequest", "RecordReadingResponse", "DraftedServiceOrder", "MachineSummary", "MachineDetails", "MaintenancePlanDue", "ReadingRow", "DueMaintenanceRow", "MaintenancePlanResponse", "KitPart" })
         {
             schemas.GetProperty(name).GetProperty("properties").EnumerateObject()

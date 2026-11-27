@@ -266,6 +266,35 @@ internal sealed class ServiceOrder : AggregateRoot<long>
         return true;
     }
 
+    /// <summary>
+    /// Inventory issued the kit of this completed order (<c>ServiceKitIssued</c>, STAGE_6_PLAN 5.4): the issued quantity per
+    /// line; what is still missing is the shortfall (F7). Ignored for an order that is not completed (returns false).
+    /// </summary>
+    public bool ApplyKitIssued(IReadOnlyDictionary<long, decimal> issuedByLine)
+    {
+        ArgumentNullException.ThrowIfNull(issuedByLine);
+        if (Status != ServiceOrderStatus.Completed)
+        {
+            return false;
+        }
+
+        foreach (var line in _lines)
+        {
+            if (issuedByLine.TryGetValue(line.Id, out var quantity))
+            {
+                line.ApplyIssued(quantity);
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// A completion request repeated with the same engine hours after it succeeded: the client retried, nothing to do
+    /// (STAGE_6_PLAN 6h, idempotent repeat). Different hours on a completed order stay a conflict.
+    /// </summary>
+    public bool IsSameCompletion(decimal engineHours) => Status == ServiceOrderStatus.Completed && CompletedEngineHours == engineHours;
+
     /// <summary>Where the kit stands (STAGE_6_PLAN 6): reserving until Inventory answered, then by the held quantities.</summary>
     public KitStatus Kit => KitOf(Status, KitReservedAt, _lines.Count, _lines.Count(l => l.QtyMissing > 0), _lines.Count(l => l.QtyReserved > 0));
 

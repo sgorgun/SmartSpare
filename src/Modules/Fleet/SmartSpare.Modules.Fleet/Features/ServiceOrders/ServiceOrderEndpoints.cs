@@ -133,6 +133,71 @@ internal sealed class StartServiceOrderCommandHandler(ServiceOrderStore store) :
     }
 }
 
+/// <summary>Completes an order at the given engine hours (STAGE_6_PLAN 3.2, 5.4).</summary>
+internal sealed record CompleteServiceOrderCommand(long Id, decimal EngineHours) : ICommand<long>;
+
+internal sealed class CompleteServiceOrderCommandValidator : AbstractValidator<CompleteServiceOrderCommand>
+{
+    public CompleteServiceOrderCommandValidator() =>
+        RuleFor(c => c.EngineHours).InclusiveBetween(0, RecordReadingRequestValidator.MaxHours)
+            .Must(h => decimal.Round(h, 1) == h).WithMessage("Engine hours have at most one decimal.");
+}
+
+/// <summary>
+/// Completes an open order: the aggregate checks the state and the hours, <c>fleet.complete_service_order</c> closes it
+/// (role check and state guard in the database), and <c>ServiceOrderCompleted</c> goes to Inventory in the same transaction,
+/// which issues the kit (shortfall rule F7, also while the reservation is still pending). Hours above the machine's current
+/// hours are recorded first as a service-visit reading, which may draft further services. An identical repeat of a
+/// completion that succeeded is a retry: nothing happens again (STAGE_6_PLAN 6h).
+/// </summary>
+internal sealed class CompleteServiceOrderCommandHandler(
+    ServiceOrderStore store, ReadingStore readings, IUnitOfWork<FleetDbContext> unitOfWork, ICurrentUser user, TimeProvider time)
+    : ICommandHandler<CompleteServiceOrderCommand, long>
+{
+    public async Task<Result<long>> Handle(CompleteServiceOrderCommand command, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        if (!await store.ExistsAsync(command.Id, cancellationToken).ConfigureAwait(false))
+        {
+            return FleetErrors.ServiceOrderNotFound;
+        }
+
+        var order = await store.ReadAsync(command.Id, cancellationToken).ConfigureAwait(false);
+        if (order.IsSameCompletion(command.EngineHours))
+        {
+            return order.Id;
+        }
+
+        var machine = (await store.MachineAsync(order.MachineId, cancellationToken).ConfigureAwait(false))!;
+        var now = time.GetUtcNow();
+        var completed = order.Complete(command.EngineHours, machine.CurrentEngineHours, now);
+        if (completed.IsFailure)
+        {
+            return completed.Error;
+        }
+
+        var actor = user.UserId ?? Guid.Empty;
+        if (command.EngineHours > machine.CurrentEngineHours)
+        {
+            var drafted = await readings.LogAsync(machine.Id, command.EngineHours, now, Domain.Machines.ReadingSource.ServiceVisit, cancellationToken)
+                .ConfigureAwait(false);
+            foreach (var draft in await readings.OrdersAsync([.. drafted.Select(d => d.ServiceOrderId)], cancellationToken).ConfigureAwait(false))
+            {
+                unitOfWork.AddIntegrationEvent(ServiceOrderEvents.Drafted(draft, actor, now));
+            }
+        }
+
+        await store.CompleteAsync(order.Id, command.EngineHours, cancellationToken).ConfigureAwait(false);
+        var kit = ServiceOrderEvents.Completed(order, actor, now);
+        if (kit.Lines.Count > 0)
+        {
+            unitOfWork.AddIntegrationEvent(kit);
+        }
+
+        return order.Id;
+    }
+}
+
 internal static class ServiceOrderEndpoints
 {
     public static void Map(IEndpointRouteBuilder group)
@@ -251,5 +316,43 @@ internal static class ServiceOrderEndpoints
             .WithResponseExample(StatusCodes.Status403Forbidden, FleetExamples.Forbidden)
             .WithResponseExample(StatusCodes.Status404NotFound, OpenApiConventions.Problem(FleetErrors.ServiceOrderNotFound))
             .WithResponseExample(StatusCodes.Status409Conflict, OpenApiConventions.Problem(FleetErrors.InvalidTransition(ServiceOrderStatus.Cancelled, "started")));
+
+        group.MapPost("/service-orders/{id:long}/complete", async (
+                [Description("Service order id.")] long id,
+                CompleteServiceOrderRequest request,
+                ICommandHandler<CompleteServiceOrderCommand, long> handler,
+                IQueryHandler<GetServiceOrderQuery, ServiceOrderDetails> details,
+                CancellationToken cancellationToken) =>
+            {
+                var completed = await handler.Handle(new CompleteServiceOrderCommand(id, request.EngineHours), cancellationToken).ConfigureAwait(false);
+                return completed.IsFailure
+                    ? completed.ToHttpResult()
+                    : (await details.Handle(new GetServiceOrderQuery(id), cancellationToken).ConfigureAwait(false)).ToHttpResult();
+            })
+            .RequireAuthorization(AppPolicies.RecordServiceWork)
+            .WithName("CompleteServiceOrder")
+            .WithSummary("Completes a service order; Inventory then issues its kit.")
+            .WithDescription(
+                "An open order (draft, partsReserved or inProgress) is completed at the given engine hours, which may not be below "
+                + "the hours that triggered it or the machine's current hours (400); higher hours are recorded as a service-visit "
+                + "reading first. Inventory then issues the kit: the reserved quantities, and the unreserved rest up to the stock at "
+                + "the hub; lines show what was issued and what is missing (the shortfall). This also applies while the kit is "
+                + "still being reserved. Posting the same completion again returns the completed order (a safe retry); other "
+                + "hours on a completed order, or completing a cancelled order, are a 409 with code SS300. Policy RecordServiceWork, "
+                + "the roles of fleet.complete_service_order.")
+            .Accepts<CompleteServiceOrderRequest>("application/json")
+            .Produces<ServiceOrderDetails>()
+            .ProducesValidationProblem()
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .WithRequestExample(new CompleteServiceOrderRequest(515))
+            .WithResponseExample(StatusCodes.Status200OK, FleetExamples.CompletedServiceOrder)
+            .WithResponseExample(StatusCodes.Status400BadRequest, OpenApiConventions.Problem(FleetErrors.CompletionHoursTooLow))
+            .WithResponseExample(StatusCodes.Status401Unauthorized, FleetExamples.Unauthorized)
+            .WithResponseExample(StatusCodes.Status403Forbidden, FleetExamples.Forbidden)
+            .WithResponseExample(StatusCodes.Status404NotFound, OpenApiConventions.Problem(FleetErrors.ServiceOrderNotFound))
+            .WithResponseExample(StatusCodes.Status409Conflict, OpenApiConventions.Problem(FleetErrors.InvalidTransition(ServiceOrderStatus.Completed, "completed")));
     }
 }

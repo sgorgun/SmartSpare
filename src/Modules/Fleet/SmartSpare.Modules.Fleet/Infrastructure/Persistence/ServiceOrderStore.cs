@@ -15,6 +15,9 @@ internal sealed class ServiceOrderStore(FleetDbContext db)
     public Task<ServiceOrder?> TrackedAsync(long id, CancellationToken cancellationToken) =>
         db.Set<ServiceOrder>().Include(o => o.Lines).SingleOrDefaultAsync(o => o.Id == id, cancellationToken);
 
+    public Task<bool> ExistsAsync(long id, CancellationToken cancellationToken) =>
+        db.Set<ServiceOrder>().AnyAsync(o => o.Id == id, cancellationToken);
+
     public Task<ServiceOrder> ReadAsync(long id, CancellationToken cancellationToken) =>
         db.Set<ServiceOrder>().AsNoTracking().Include(o => o.Lines).SingleAsync(o => o.Id == id, cancellationToken);
 
@@ -35,6 +38,13 @@ internal sealed class ServiceOrderStore(FleetDbContext db)
                 "SELECT fleet.create_service_order_draft(@machine, @plan, @due) AS \"Value\"",
                 new NpgsqlParameter<long>("machine", machineId), new NpgsqlParameter<int>("plan", planId), new NpgsqlParameter<decimal>("due", due))
             .ToListAsync(cancellationToken).ConfigureAwait(false)).Single();
+
+    /// <summary><c>fleet.complete_service_order</c>: closes the order (role check and state guard in the database).</summary>
+    public Task CompleteAsync(long id, decimal engineHours, CancellationToken cancellationToken) =>
+        db.Database.ExecuteSqlRawAsync(
+            "SELECT fleet.complete_service_order(@order, @hours)",
+            [new NpgsqlParameter<long>("order", id), new NpgsqlParameter<decimal>("hours", engineHours)],
+            cancellationToken);
 
     public void Add(ServiceOrder order) => db.Add(order);
 }

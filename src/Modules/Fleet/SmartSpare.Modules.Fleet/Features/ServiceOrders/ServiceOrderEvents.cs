@@ -14,4 +14,14 @@ internal static class ServiceOrderEvents
             [.. order.Lines.OrderBy(l => l.PartId).Select(l => new ServiceOrderKitLine(l.Id, l.PartId, l.QtyOpen))],
             actorId, draftedAt);
     }
+
+    /// <summary>The completed order with what is still to be issued per line.</summary>
+    public static ServiceOrderCompleted Completed(ServiceOrder order, Guid actorId, DateTimeOffset completedAt)
+    {
+        ArgumentNullException.ThrowIfNull(order);
+        return new ServiceOrderCompleted(
+            order.Id, order.Number, order.WarehouseId,
+            [.. order.Lines.Where(l => l.QtyOpen > 0).OrderBy(l => l.PartId).Select(l => new ServiceOrderKitLine(l.Id, l.PartId, l.QtyOpen))],
+            actorId, completedAt);
+    }
 }

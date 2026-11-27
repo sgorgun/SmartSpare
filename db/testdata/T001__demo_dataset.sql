@@ -532,6 +532,25 @@ FROM fleet.service_order so JOIN fleet.machine m ON m.id = so.machine_id
 WHERE so.status = 'parts_reserved' AND m.vin <> 'LX901PNV2026'
 ORDER BY so.id LIMIT 10;
 
+-- Inventory issues the completed kits as its consumer of ServiceOrderCompleted does (STAGE_6_PLAN 5.4, PR 6h2), and Fleet
+-- stores the issued quantities as its consumer of ServiceKitIssued does.
+DO $$
+DECLARE
+    v_so record;
+BEGIN
+    FOR v_so IN SELECT so.id, so.warehouse_id FROM fleet.service_order so
+                WHERE so.status = 'completed' AND EXISTS (SELECT 1 FROM fleet.service_order_line l WHERE l.service_order_id = so.id AND l.qty_issued < l.qty_required)
+                ORDER BY so.id LOOP
+        UPDATE fleet.service_order_line l SET qty_issued = k.issued_qty, qty_reserved = 0
+        FROM inventory.issue_service_kit(
+                 v_so.warehouse_id,
+                 (SELECT array_agg(id ORDER BY part_id) FROM fleet.service_order_line WHERE service_order_id = v_so.id),
+                 (SELECT array_agg(part_id ORDER BY part_id) FROM fleet.service_order_line WHERE service_order_id = v_so.id),
+                 (SELECT array_agg(qty_required - qty_issued ORDER BY part_id) FROM fleet.service_order_line WHERE service_order_id = v_so.id)) k
+        WHERE l.id = k.service_order_line_id;
+    END LOOP;
+END $$;
+
 -- An unplanned chopper rebuild at Panevėžys needs 8 x CP-4821 (no stock reserved yet) — UC01 maintenance demand
 SELECT pg_temp.t001_act_as('00000000-0000-4000-8000-000000000004');
 WITH so AS (

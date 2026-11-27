@@ -66,7 +66,7 @@ public sealed class ServiceOrderFeatureTests
 
         access.AllowedActions(draft).Contains(ServiceOrderActions.Start).ShouldBe(offered);
         draft.Start();
-        access.AllowedActions(draft).ShouldBeEmpty();
+        access.AllowedActions(draft).ShouldNotContain(ServiceOrderActions.Start);
     }
 
     [Fact]
