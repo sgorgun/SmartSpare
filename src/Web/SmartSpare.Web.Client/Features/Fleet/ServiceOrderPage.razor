@@ -1,0 +1,342 @@
+@page "/fleet/service-orders/{Id:long}"
+@attribute [Authorize(Policy = AppPolicies.ReadFleet)]
+@implements IDisposable
+@using System.Globalization
+@using SmartSpare.ApiContracts.Fleet
+@inject IStringLocalizer<SharedResource> Text
+@inject FleetClient Fleet
+@inject ProblemMessages Messages
+@inject ISnackbar Snackbar
+@inject TimeProvider Time
+
+<PageTitle>@(_order?.Order.Number ?? Text["Orders.Title"].Value)</PageTitle>
+
+<MudText Typo="Typo.h4" HtmlTag="h1" Class="mb-2">@Text["Nav.Fleet"]</MudText>
+<FleetTabs />
+
+@if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-3" data-testid="order-error">@_error</MudAlert>
+}
+
+@if (_order is null)
+{
+    @if (_error is null)
+    {
+        <MudProgressLinear Indeterminate="true" Class="my-4" aria-label="@Text["Order.Loading"]" />
+        <MudText>@Text["Order.Loading"]</MudText>
+    }
+}
+else
+{
+    var order = _order.Order;
+    <div class="d-flex align-center flex-wrap mb-1 gap-2">
+        <MudText Typo="Typo.h5" HtmlTag="h2" Class="mr-2">@order.Number</MudText>
+        <span data-testid="order-status"><ServiceOrderStatusChip Status="@order.Status" /></span>
+        @* The kit status is announced when it changes: "Reserving parts…" becomes "Kit reserved" without a reload. *@
+        <span data-testid="order-kit" role="status" aria-live="polite"><KitStatusChip Status="@order.KitStatus" /></span>
+    </div>
+    <MudText Class="mb-1">
+        <MudLink Href="@MachineHref(order.MachineId)">@order.Vin</MudLink> · @order.ModelName · @(order.PlanName ?? Text["Orders.Repair"].Value)
+        @if (order.DueEngineHours is { } due)
+        {
+            <span> · @Text["Order.DueAt", Hours(due)]</span>
+        }
+    </MudText>
+    <MudText Typo="Typo.body2" Class="mb-3">@Text["Order.Hub", order.WarehouseCode]</MudText>
+
+    @if (_refreshing)
+    {
+        <MudText Typo="Typo.body2" Class="mb-3" data-testid="order-refreshing">
+            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" aria-hidden="true" />@Text["Order.Waiting"]
+        </MudText>
+    }
+    else if (_stalled)
+    {
+        <MudAlert Severity="Severity.Info" Class="mb-3" data-testid="order-stalled">@Text["Order.Stalled"]</MudAlert>
+    }
+
+    @if (_order.AllowedActions.Count > 0)
+    {
+        @* One-hand actions: on phones and tablets the bar stays at the bottom of the screen. *@
+        <MudPaper Outlined="true" Class="pa-3 mb-3 bottom-action" data-testid="order-actions">
+            <div class="d-flex flex-wrap align-center">
+                @foreach (var action in _order.AllowedActions.Where(a => a != ServiceOrderActions.Cancel))
+                {
+                    <MudButton OnClick="() => Choose(action)" Disabled="_busy" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large"
+                               Class="mr-2 mb-1 touch-target" StartIcon="@ActionIcon(action)" data-testid="@("action-" + action)">@Text["Order.Action." + action]</MudButton>
+                }
+                @if (_order.AllowedActions.Contains(ServiceOrderActions.Cancel))
+                {
+                    <MudButton OnClick="() => Choose(ServiceOrderActions.Cancel)" Disabled="_busy" Variant="Variant.Outlined" Color="Color.Error" Size="Size.Large"
+                               Class="mr-2 mb-1 touch-target" StartIcon="@Icons.Material.Filled.Cancel" data-testid="action-cancel">@Text["Order.Action.cancel"]</MudButton>
+                }
+            </div>
+
+            @if (_pending is { } pending)
+            {
+                <MudDivider Class="my-3" />
+                <MudText Class="mb-2" data-testid="confirm-text">@Text["Order.Confirm." + pending, order.Number]</MudText>
+                @if (pending == ServiceOrderActions.Complete)
+                {
+                    <MudTextField T="string" @ref="_hoursField" @bind-Value="_hours" Label="@Text["Order.CompletionHours"]" Variant="Variant.Outlined"
+                                  InputMode="DecimalInput" Adornment="Adornment.End" AdornmentText="h" HelperText="@CompletionHelp" HelperTextOnFocus="false"
+                                  autocomplete="off" Class="mb-2" data-testid="complete-hours" />
+                }
+                else if (pending == ServiceOrderActions.Cancel)
+                {
+                    <MudTextField T="string" @bind-Value="_reason" Label="@Text["Order.CancelReason"]" Variant="Variant.Outlined" Lines="2"
+                                  MaxLength="CancelServiceOrderRequestValidator.MaxReasonLength" Class="mb-2" data-testid="cancel-reason" />
+                }
+                @if (_actionError is not null)
+                {
+                    <MudText Color="Color.Error" Typo="Typo.body2" Class="mb-2" role="alert" data-testid="action-error">@_actionError</MudText>
+                }
+                <MudButton OnClick="RunAsync" Disabled="_busy" Variant="Variant.Filled" Color="@(pending == ServiceOrderActions.Cancel ? Color.Error : Color.Primary)"
+                           Class="mr-2 touch-target" data-testid="confirm">@Text["Order.Yes." + pending]</MudButton>
+                <MudButton OnClick="() => _pending = null" Disabled="_busy" Variant="Variant.Text" Class="touch-target">@Text["Transfer.No"]</MudButton>
+            }
+        </MudPaper>
+    }
+
+    <MudGrid Spacing="3">
+        <MudItem xs="12" md="8">
+            <MudText Typo="Typo.h6" HtmlTag="h3" Class="mb-2">@Text["Order.Kit"]</MudText>
+            @if (_order.Lines.Count == 0)
+            {
+                <MudText>@Text["KitStatus.noParts"]</MudText>
+            }
+            else
+            {
+                <MudSimpleTable Dense="true" Outlined="true" Elevation="0" Class="overflow-x-auto" data-testid="order-lines">
+                    @* Three columns, so a phone shows the shortfall without scrolling. *@
+                    <thead>
+                        <tr><th>@Text["Order.Part"]</th><th class="text-right">@Text["Order.Required"]</th><th>@Text["Order.LineState"]</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var line in _order.Lines)
+                        {
+                            <tr>
+                                <td>
+                                    <MudText Typo="Typo.body2">@(line.OemPartNumber ?? Text["Order.UnknownPart", line.PartId].Value)</MudText>
+                                    <MudText Typo="Typo.caption">@line.Description</MudText>
+                                </td>
+                                <td class="text-right">@Number(line.QtyRequired) @line.UnitOfMeasure</td>
+                                <td>
+                                    <MudText Typo="Typo.body2">@Text["Order.ReservedIssued", Number(line.QtyReserved), Number(line.QtyIssued)]</MudText>
+                                    @if (line.QtyMissing > 0 && order.Status != ServiceOrderStatuses.Cancelled)
+                                    {
+                                        <MudText Typo="Typo.body2" Color="Color.Warning"><b>@Text["Order.Short", Number(line.QtyMissing)]</b></MudText>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </MudSimpleTable>
+            }
+        </MudItem>
+        <MudItem xs="12" md="4">
+            <MudText Typo="Typo.h6" HtmlTag="h3" Class="mb-2">@Text["Transfer.Timeline"]</MudText>
+            <MudTimeline TimelinePosition="TimelinePosition.Start" data-testid="order-timeline">
+                <MudTimelineItem Size="Size.Small">
+                    <MudText Typo="Typo.body2"><b>@Text["Order.Step.drafted"]</b></MudText>
+                    <MudText Typo="Typo.caption">@At(order.CreatedAt)@(_order.TriggerEngineHours is { } trigger ? $" · {Hours(trigger)} h" : string.Empty)</MudText>
+                </MudTimelineItem>
+                @if (_order.KitReservedAt is { } reservedAt)
+                {
+                    <MudTimelineItem Size="Size.Small">
+                        <MudText Typo="Typo.body2"><b>@Text["Order.Step.kitAnswered"]</b></MudText>
+                        <MudText Typo="Typo.caption">@At(reservedAt)</MudText>
+                    </MudTimelineItem>
+                }
+                @if (order.CompletedAt is { } completedAt)
+                {
+                    <MudTimelineItem Size="Size.Small">
+                        <MudText Typo="Typo.body2"><b>@Text["Order.Step.completed"]</b></MudText>
+                        <MudText Typo="Typo.caption">@At(completedAt)@(_order.CompletedEngineHours is { } done ? $" · {Hours(done)} h" : string.Empty)</MudText>
+                    </MudTimelineItem>
+                }
+                @if (_order.CancelReason is { } reason)
+                {
+                    <MudTimelineItem Size="Size.Small">
+                        <MudText Typo="Typo.body2"><b>@Text["Order.Step.cancelled"]</b></MudText>
+                        <MudText Typo="Typo.caption">@reason</MudText>
+                    </MudTimelineItem>
+                }
+            </MudTimeline>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    /// <summary>Opens the numeric keypad with a decimal separator on phones and tablets.</summary>
+    private const InputMode DecimalInput = InputMode.@decimal;
+
+    private readonly CancellationTokenSource _leaving = new();
+    private ServiceOrderDetails? _order;
+    private MachineDetails? _machine;
+    private MudTextField<string>? _hoursField;
+    private string? _error;
+    private string? _pending;
+    private string? _hours;
+    private string? _reason;
+    private string? _actionError;
+    private bool _busy;
+    private bool _refreshing;
+    private bool _stalled;
+
+    [Parameter]
+    public long Id { get; set; }
+
+    private string? CompletionHelp => _machine is null
+        ? null
+        : Text["Order.CompletionHelp", Hours(_machine.Machine.EngineHours)].Value;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        await LoadAsync();
+        _ = RefreshWhilePendingAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        var result = await Fleet.GetServiceOrderAsync(Id, _leaving.Token);
+        if (result.IsSuccess)
+        {
+            _order = result.Value;
+            _error = null;
+        }
+        else
+        {
+            _error = Messages.Describe(result.Problem!);
+        }
+    }
+
+    /// <summary>Asks again every two seconds while Inventory's answer is on its way, for at most 30 seconds (KitRefresh).</summary>
+    private async Task RefreshWhilePendingAsync()
+    {
+        if (_refreshing || _order is null || !KitRefresh.Pending(_order, Time.GetUtcNow()))
+        {
+            return;
+        }
+
+        _refreshing = true;
+        _stalled = false;
+        var until = Time.GetUtcNow() + KitRefresh.Patience;
+        try
+        {
+            while (_order is not null && KitRefresh.Pending(_order, Time.GetUtcNow()) && Time.GetUtcNow() < until)
+            {
+                await Task.Delay(KitRefresh.Interval, Time, _leaving.Token);
+                await LoadAsync();
+                await InvokeAsync(StateHasChanged);
+            }
+
+            _stalled = _order?.Order.KitStatus == KitStatuses.Reserving;
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        finally
+        {
+            _refreshing = false;
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task Choose(string action)
+    {
+        _pending = action;
+        _actionError = null;
+        if (action == ServiceOrderActions.Complete && _order is not null)
+        {
+            // Prefilled with the machine's hours; the engineer corrects them to the hour meter.
+            var machine = await Fleet.GetMachineAsync(_order.Order.MachineId, _leaving.Token);
+            _machine = machine.IsSuccess ? machine.Value : null;
+            _hours ??= _machine?.Machine.EngineHours.ToString("0.#", CultureInfo.CurrentCulture);
+        }
+    }
+
+    private async Task RunAsync()
+    {
+        if (_pending is not { } action || _order is null)
+        {
+            return;
+        }
+
+        decimal? hours = null;
+        if (action == ServiceOrderActions.Complete)
+        {
+            hours = EngineHoursInput.Parse(_hours);
+            var check = new CompleteServiceOrderRequestValidator().Validate(new CompleteServiceOrderRequest(hours ?? -1));
+            if (hours is null || !check.IsValid)
+            {
+                _actionError = Text["ReadingProblem.NotANumber"].Value;
+                if (_hoursField is not null)
+                {
+                    await _hoursField.FocusAsync();
+                }
+
+                return;
+            }
+        }
+
+        if (action == ServiceOrderActions.Cancel)
+        {
+            var check = new CancelServiceOrderRequestValidator().Validate(new CancelServiceOrderRequest(_reason?.Trim() ?? string.Empty));
+            if (!check.IsValid)
+            {
+                _actionError = Text["Order.ReasonRequired"].Value;
+                return;
+            }
+        }
+
+        _busy = true;
+        var result = await Fleet.ServiceOrderActionAsync(_order.Order.Id, action, hours, _reason?.Trim(), _leaving.Token);
+        _busy = false;
+        if (!result.IsSuccess)
+        {
+            _actionError = Messages.Describe(result.Problem!);
+            if (result.Problem!.Status == 409)
+            {
+                // The order moved on meanwhile (SS300): show its current state and the actions that are left.
+                await LoadAsync();
+            }
+
+            return;
+        }
+
+        _order = result.Value;
+        _pending = null;
+        _reason = null;
+        Snackbar.Add(Text["Order.Done." + action, _order!.Order.Number], Severity.Success);
+        _ = RefreshWhilePendingAsync();
+    }
+
+    private static string ActionIcon(string action) => action switch
+    {
+        ServiceOrderActions.Start => Icons.Material.Filled.Build,
+        _ => Icons.Material.Filled.TaskAlt,
+    };
+
+    private static string MachineHref(long id) => string.Create(CultureInfo.InvariantCulture, $"fleet/machines/{id}");
+
+    private static string Hours(decimal value) => value.ToString("#,0.#", CultureInfo.CurrentCulture);
+
+    private static string Number(decimal value) => value.ToString("0.###", CultureInfo.CurrentCulture);
+
+    private static string At(DateTimeOffset at) => at.ToLocalTime().ToString("g", CultureInfo.CurrentCulture);
+
+    public void Dispose()
+    {
+        _leaving.Cancel();
+        _leaving.Dispose();
+    }
+}

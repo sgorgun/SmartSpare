@@ -1,0 +1,230 @@
+@page "/fleet/service-orders/new"
+@attribute [Authorize(Policy = AppPolicies.ManageServiceOrders)]
+@using System.Globalization
+@using SmartSpare.ApiContracts.Fleet
+@using SmartSpare.ApiContracts.Inventory
+@inject IStringLocalizer<SharedResource> Text
+@inject FleetClient Fleet
+@inject InventoryClient Inventory
+@inject ProblemMessages Messages
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<PageTitle>@Text["NewOrder.Title"]</PageTitle>
+
+<MudText Typo="Typo.h4" HtmlTag="h1" Class="mb-2">@Text["Nav.Fleet"]</MudText>
+<FleetTabs />
+
+<MudText Typo="Typo.h5" HtmlTag="h2" Class="mb-3">@Text["NewOrder.Title"]</MudText>
+
+<MudPaper Outlined="true" Class="pa-4 mb-3" Style="max-width: 760px">
+    @* 1. The machine: prefilled from the due list or the card, otherwise found by part of its VIN. *@
+    <MudAutocomplete T="MachineSummary" Value="_machineSummary" ValueChanged="MachineChangedAsync" SearchFunc="SearchMachinesAsync"
+                     ToStringFunc="@(m => m is null ? string.Empty : $"{m.Vin} · {m.BrandCode} {m.ModelName}")" Label="@Text["NewOrder.Machine"]"
+                     Variant="Variant.Outlined" DebounceInterval="300" MinCharacters="2" ResetValueOnEmptyText="true" InputMode="InputMode.search"
+                     data-testid="new-machine" />
+
+    @if (_machine is not null)
+    {
+        <MudText Typo="Typo.body2" Class="mt-1">@Text["NewOrder.MachineInfo", Hours(_machine.Machine.EngineHours), _machine.Machine.WarehouseCode]</MudText>
+
+        @* 2. A planned service (kit from the plan) or a repair (parts chosen here). *@
+        <MudRadioGroup T="bool" Value="_repair" ValueChanged="KindChanged" Class="mt-3" aria-label="@Text["NewOrder.Kind"]">
+            <MudRadio T="bool" Value="false" Color="Color.Primary" data-testid="kind-plan">@Text["NewOrder.Planned"]</MudRadio>
+            <MudRadio T="bool" Value="true" Color="Color.Primary" data-testid="kind-repair">@Text["NewOrder.Repair"]</MudRadio>
+        </MudRadioGroup>
+
+        @if (!_repair)
+        {
+            @if (_machine.Plans.Count == 0)
+            {
+                <MudText Class="mt-2">@Text["Machines.NoPlans"]</MudText>
+            }
+            <MudRadioGroup T="int?" @bind-Value="_planId" Class="mt-2 d-flex flex-column" aria-label="@Text["NewOrder.Plan"]" data-testid="new-plans">
+                @foreach (var plan in _machine.Plans)
+                {
+                    <MudRadio T="int?" Value="plan.MaintenancePlanId" Color="Color.Primary" Disabled="plan.OpenOrderThreshold is not null">
+                        @plan.PlanName · @Text["Plan.NextAt", Hours(plan.OpenOrderThreshold ?? plan.DueEngineHours)]
+                        @if (plan.OpenOrderThreshold is not null)
+                        {
+                            <span> · @Text["NewOrder.AlreadyOrdered"]</span>
+                        }
+                    </MudRadio>
+                }
+            </MudRadioGroup>
+        }
+        else
+        {
+            <div class="d-flex flex-wrap align-end mt-2 gap-2">
+                <div class="flex-grow-1" style="min-width: 240px">
+                    <MudAutocomplete T="PartSummary" @bind-Value="_part" SearchFunc="SearchPartsAsync"
+                                     ToStringFunc="@(p => p is null ? string.Empty : $"{p.BrandCode} {p.OemPartNumber} · {p.Description}")"
+                                     Label="@Text["NewOrder.Part"]" Variant="Variant.Outlined" DebounceInterval="300" MinCharacters="2"
+                                     InputMode="InputMode.search" data-testid="new-part" />
+                </div>
+                <div style="width: 120px">
+                    <MudTextField T="string" @bind-Value="_quantity" Label="@Text["NewOrder.Quantity"]" Variant="Variant.Outlined"
+                                  InputMode="DecimalInput" autocomplete="off" data-testid="new-quantity" />
+                </div>
+                <MudButton OnClick="AddLine" Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Class="touch-target mb-1"
+                           data-testid="new-add">@Text["NewOrder.Add"]</MudButton>
+            </div>
+            @if (_lines.Count > 0)
+            {
+                <MudSimpleTable Dense="true" Outlined="true" Elevation="0" Class="mt-3" data-testid="new-lines">
+                    <tbody>
+                        @foreach (var line in _lines)
+                        {
+                            <tr>
+                                <td>@line.Part.BrandCode @line.Part.OemPartNumber · @line.Part.Description</td>
+                                <td class="text-right">@Number(line.Quantity) @line.Part.UnitOfMeasure</td>
+                                <td class="text-right">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" OnClick="() => _lines.Remove(line)"
+                                                   aria-label="@Text["NewOrder.Remove", line.Part.OemPartNumber].Value" />
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </MudSimpleTable>
+            }
+        }
+    }
+
+    @if (_problem is not null)
+    {
+        <MudAlert Severity="Severity.Error" Class="mt-3" data-testid="new-error">@_problem</MudAlert>
+    }
+
+    <div class="d-flex mt-4 bottom-action">
+        <MudButton OnClick="CreateAsync" Disabled="_busy || _machine is null" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large"
+                   StartIcon="@Icons.Material.Filled.Save" Class="mr-2 touch-target" data-testid="new-create">@Text["NewOrder.Create"]</MudButton>
+        <MudButton Href="fleet/service-orders" Variant="Variant.Text" Size="Size.Large" Class="touch-target">@Text["Reading.Cancel"]</MudButton>
+    </div>
+</MudPaper>
+
+@code {
+    /// <summary>Opens the numeric keypad with a decimal separator on phones and tablets.</summary>
+    private const InputMode DecimalInput = InputMode.@decimal;
+
+    private readonly List<(PartSummary Part, decimal Quantity)> _lines = [];
+    private MachineSummary? _machineSummary;
+    private MachineDetails? _machine;
+    private bool _repair;
+    private int? _planId;
+    private PartSummary? _part;
+    private string? _quantity = "1";
+    private string? _problem;
+    private bool _busy;
+
+    [SupplyParameterFromQuery(Name = "machineId")]
+    public long? MachineId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "planId")]
+    public int? PlanId { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!RendererInfo.IsInteractive || MachineId is not { } machineId || _machine is not null)
+        {
+            return;
+        }
+
+        await LoadMachineAsync(machineId);
+        _machineSummary = _machine?.Machine;
+        _planId = PlanId ?? _machine?.Plans.FirstOrDefault(p => p.OpenOrderThreshold is null)?.MaintenancePlanId;
+    }
+
+    private async Task LoadMachineAsync(long machineId)
+    {
+        var machine = await Fleet.GetMachineAsync(machineId);
+        _machine = machine.IsSuccess ? machine.Value : null;
+        _problem = machine.IsSuccess ? null : Messages.Describe(machine.Problem!);
+    }
+
+    private async Task<IEnumerable<MachineSummary>> SearchMachinesAsync(string? text, CancellationToken cancellationToken)
+    {
+        var result = await Fleet.ListMachinesAsync(text, null, null, 1, 10, cancellationToken);
+        return result.IsSuccess ? result.Value!.Items : [];
+    }
+
+    private async Task<IEnumerable<PartSummary>> SearchPartsAsync(string? text, CancellationToken cancellationToken)
+    {
+        var result = await Inventory.SearchPartsAsync(text, 1, 10, cancellationToken);
+        return result.IsSuccess ? result.Value!.Items : [];
+    }
+
+    private async Task MachineChangedAsync(MachineSummary? machine)
+    {
+        _machineSummary = machine;
+        _machine = null;
+        _planId = null;
+        _lines.Clear();
+        if (machine is not null)
+        {
+            await LoadMachineAsync(machine.Id);
+            _planId = _machine?.Plans.FirstOrDefault(p => p.OpenOrderThreshold is null)?.MaintenancePlanId;
+        }
+    }
+
+    private void KindChanged(bool repair)
+    {
+        _repair = repair;
+        _problem = null;
+    }
+
+    private void AddLine()
+    {
+        _problem = null;
+        var quantity = EngineHoursInput.Parse(_quantity);
+        if (_part is null || quantity is not > 0)
+        {
+            _problem = Text["NewOrder.LineInvalid"].Value;
+            return;
+        }
+
+        if (_lines.Any(l => l.Part.Id == _part.Id))
+        {
+            _problem = Text["NewOrder.PartTwice"].Value;
+            return;
+        }
+
+        _lines.Add((_part, quantity.Value));
+        _part = null;
+        _quantity = "1";
+    }
+
+    private async Task CreateAsync()
+    {
+        if (_machine is null)
+        {
+            return;
+        }
+
+        var request = _repair
+            ? new CreateServiceOrderRequest(_machine.Machine.Id, Lines: [.. _lines.Select(l => new CreateServiceOrderLine(l.Part.Id, l.Quantity))])
+            : new CreateServiceOrderRequest(_machine.Machine.Id, MaintenancePlanId: _planId);
+        var invalid = new CreateServiceOrderRequestValidator().Validate(request);
+        if (!invalid.IsValid)
+        {
+            _problem = Text[_repair ? "NewOrder.NeedParts" : "NewOrder.NeedPlan"].Value;
+            return;
+        }
+
+        _busy = true;
+        var result = await Fleet.CreateServiceOrderAsync(request);
+        _busy = false;
+        if (!result.IsSuccess)
+        {
+            // Fleet.ServiceOrderExists (409), an unknown part (422): the server's sentence with its reference.
+            _problem = Messages.Describe(result.Problem!);
+            return;
+        }
+
+        Snackbar.Add(Text["NewOrder.Created", result.Value!.Order.Number], Severity.Success);
+        Navigation.NavigateTo(string.Create(CultureInfo.InvariantCulture, $"fleet/service-orders/{result.Value.Order.Id}"));
+    }
+
+    private static string Hours(decimal value) => value.ToString("#,0.#", CultureInfo.CurrentCulture);
+
+    private static string Number(decimal value) => value.ToString("0.###", CultureInfo.CurrentCulture);
+}

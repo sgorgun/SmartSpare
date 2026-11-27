@@ -19,7 +19,7 @@
             <MudList T="string" Dense="true" data-testid="reading-drafted">
                 @foreach (var order in saved.DraftedOrders)
                 {
-                    <MudListItem T="string" Icon="@Icons.Material.Filled.EditNote">
+                    <MudListItem T="string" Icon="@Icons.Material.Filled.EditNote" Href="@OrderHref(order.Id)">
                         @Text["Reading.DraftedOrder", order.Number, Hours(order.DueEngineHours)]
                     </MudListItem>
                 }
@@ -180,6 +180,8 @@ else
     }
 
     private Task Close() => OnClose.InvokeAsync();
+
+    private static string OrderHref(long id) => string.Create(CultureInfo.InvariantCulture, $"fleet/service-orders/{id}");
 
     private static string Hours(decimal value) => value.ToString("#,0.#", CultureInfo.CurrentCulture);
 }

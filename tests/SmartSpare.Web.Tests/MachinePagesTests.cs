@@ -269,12 +269,88 @@ public sealed class FakeFleetClient() : FleetClient(new HttpClient())
             [new DraftedServiceOrder(501, "SO-2026-000501", 1500, false)])));
     }
 
+    public static ServiceOrderSummary OrderSummary(string status, string kit) => new(
+        501, "SO-2026-000501", 7, "FT724KLP2024DEMO", "724 Vario", "Engine service", 3, "KLP", status, kit, 750,
+        new DateTimeOffset(2026, 11, 25, 9, 0, 0, TimeSpan.Zero), null);
+
+    public static ServiceOrderDetails Order(string status, string kit, IReadOnlyList<string> allowed, decimal reserved = 30) => new(
+        OrderSummary(status, kit),
+        742,
+        null,
+        null,
+        Guid.NewGuid(),
+        kit == KitStatuses.Reserving ? null : DateTimeOffset.UtcNow,
+        [new ServiceOrderLineResponse(71, 1203, "F900004.010", "Engine oil 10W-40 Vario", "L", 30, reserved, 0, 30 - reserved),
+         new ServiceOrderLineResponse(72, 1210, "F900001.010", "Engine oil filter Vario", "PCS", 1, 1, 0, 0)],
+        allowed);
+
+    public List<(string? Status, short? Warehouse, long? Machine)> OrderCalls { get; } = [];
+
+    public List<(long Id, string Action, decimal? Hours, string? Reason)> Actions { get; } = [];
+
+    public List<CreateServiceOrderRequest> Created { get; } = [];
+
+    public List<(short? Warehouse, int Horizon, string? Status)> DueCalls { get; } = [];
+
+    /// <summary>The answers of GET service-orders/{id}, one per call; the last one repeats.</summary>
+    public Queue<ApiResult<ServiceOrderDetails>> OrderAnswers { get; } = new();
+
+    public ApiResult<ServiceOrderDetails>? NextAction { get; set; }
+
+    public ApiResult<ServiceOrderDetails>? NextCreate { get; set; }
+
+    public int OrderReads { get; private set; }
+
+    private ApiResult<ServiceOrderDetails>? _lastOrder;
+
     public override Task<ApiResult<PagedResponse<ServiceOrderSummary>>> ListServiceOrdersAsync(
-        string? status, short? warehouseId, long? machineId, int page, int pageSize, CancellationToken cancellationToken = default) =>
-        Task.FromResult(ApiResult.Success(new PagedResponse<ServiceOrderSummary>(
-            [new ServiceOrderSummary(501, "SO-2026-000501", 7, "FT724KLP2024DEMO", "724 Vario", "Engine service", 3, "KLP",
-                ServiceOrderStatuses.Draft, KitStatuses.Reserving, 1500, DateTimeOffset.UtcNow, null)],
-            page, pageSize, 1)));
+        string? status, short? warehouseId, long? machineId, int page, int pageSize, CancellationToken cancellationToken = default)
+    {
+        OrderCalls.Add((status, warehouseId, machineId));
+        return Task.FromResult(ApiResult.Success(new PagedResponse<ServiceOrderSummary>(
+            [OrderSummary(ServiceOrderStatuses.Draft, KitStatuses.Reserving)], page, pageSize, 1)));
+    }
+
+    public override Task<ApiResult<ServiceOrderDetails>> GetServiceOrderAsync(long id, CancellationToken cancellationToken = default)
+    {
+        OrderReads++;
+        _lastOrder = OrderAnswers.Count > 0 ? OrderAnswers.Dequeue() : _lastOrder
+            ?? ApiResult.Success(Order(ServiceOrderStatuses.PartsReserved, KitStatuses.Reserved,
+                [ServiceOrderActions.Start, ServiceOrderActions.Complete, ServiceOrderActions.Cancel]));
+        return Task.FromResult(_lastOrder);
+    }
+
+    public override Task<ApiResult<ServiceOrderDetails>> ServiceOrderActionAsync(
+        long id, string action, decimal? engineHours = null, string? reason = null, CancellationToken cancellationToken = default)
+    {
+        Actions.Add((id, action, engineHours, reason));
+        return Task.FromResult(NextAction ?? ApiResult.Success(Order(
+            action switch
+            {
+                ServiceOrderActions.Start => ServiceOrderStatuses.InProgress,
+                ServiceOrderActions.Complete => ServiceOrderStatuses.Completed,
+                _ => ServiceOrderStatuses.Cancelled,
+            },
+            action == ServiceOrderActions.Cancel ? KitStatuses.Released : KitStatuses.Reserved,
+            [])));
+    }
+
+    public override Task<ApiResult<ServiceOrderDetails>> CreateServiceOrderAsync(CreateServiceOrderRequest request, CancellationToken cancellationToken = default)
+    {
+        Created.Add(request);
+        return Task.FromResult(NextCreate ?? ApiResult.Success(Order(ServiceOrderStatuses.Draft, KitStatuses.Reserving, [])));
+    }
+
+    public override Task<ApiResult<PagedResponse<DueMaintenanceRow>>> GetDueMaintenanceAsync(
+        short? warehouseId, int horizonDays, string? status, int page, int pageSize, CancellationToken cancellationToken = default)
+    {
+        DueCalls.Add((warehouseId, horizonDays, status));
+        return Task.FromResult(ApiResult.Success(new PagedResponse<DueMaintenanceRow>(
+            [new DueMaintenanceRow(1, "JD6R150VLN2019OVD", "6R 150", "JD", "CUST-000001", 1, "VLN", 2580, Due("Engine service", 2500, -80, MaintenanceDueStatuses.Overdue)),
+             new DueMaintenanceRow(7, "FT724KLP2024DEMO", "724 Vario", "FENDT", "CUST-000001", 3, "KLP", 760,
+                 Due("Engine service", 1500, 740, MaintenanceDueStatuses.Planned) with { OpenOrderThreshold = 750 })],
+            page, pageSize, 2)));
+    }
 }
 
 /// <summary>The hub list of the filters.</summary>
