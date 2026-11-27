@@ -59,6 +59,9 @@ public sealed class AppPoliciesTests
         ("unscoped: approve purchase order", [AppRoles.Sponsor], [Permissions.Procurement.PurchaseOrder.ApproveAnyBrand]),
         ("unscoped: cancel purchase order", [AppRoles.Sponsor, AppRoles.Administrator], [Permissions.Procurement.PurchaseOrder.CancelAnyBrand]),
         ("unscoped: decide recommendation", [AppRoles.InventoryPlanner], [Permissions.Forecasting.Recommendation.DecideAnyBrand]),
+
+        // Added after PR 7x1, each with its default holders (ADR 0028).
+        ("7x3: supplier maintenance", [AppRoles.Administrator], [Permissions.Procurement.Supplier.Edit]),
     ];
 
     private static readonly IAuthorizationService Authorization = new ServiceCollection()
@@ -78,9 +81,13 @@ public sealed class AppPoliciesTests
             LegacyPolicies.Where(p => p.Roles.Contains(role)).SelectMany(p => p.Permissions).Distinct().Order(StringComparer.Ordinal));
 
     [Fact]
-    public void Every_permission_replaces_an_old_policy() =>
+    public void Every_permission_has_recorded_default_holders() =>
         Permissions.All.Select(p => p.Name).Except(LegacyPolicies.SelectMany(p => p.Permissions)).ShouldBeEmpty(
-            "PR 7x1 adds no right: a new permission arrives with its own catalogue or document PR");
+            "every permission is either an old policy's or recorded here with the PR that added it");
+
+    [Fact]
+    public void No_default_role_breaks_separation_of_duties() =>
+        AppRoles.All.ShouldAllBe(r => DutyConflicts.FindIn(DefaultRoles.Bundles[r]) == null);
 
     [Fact]
     public void The_catalogue_names_are_unique_and_follow_module_resource_action()

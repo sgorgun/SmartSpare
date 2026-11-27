@@ -43,6 +43,15 @@ public sealed class EndpointTableTests
             "POST /api/v1/identity/employees/{id:guid}/restore",
             "POST /api/v1/identity/employees/{id:guid}/account",
             "POST /api/v1/identity/employees/{id:guid}/anonymise",
+
+            // Roles as data and the permission catalogue (ADR 0028, PR 7x3a).
+            "GET /api/v1/identity/permissions",
+            "GET /api/v1/identity/roles/",
+            "GET /api/v1/identity/roles/{id:int}",
+            "POST /api/v1/identity/roles/",
+            "PUT /api/v1/identity/roles/{id:int}",
+            "POST /api/v1/identity/roles/{id:int}/archive",
+            "POST /api/v1/identity/roles/{id:int}/restore",
         ], ignoreOrder: true);
 
     [Fact]

@@ -31,7 +31,6 @@ internal sealed class RolePermissionConfiguration : IEntityTypeConfiguration<Rol
         builder.Property(x => x.RoleId).HasColumnName("role_id").HasColumnOrder(0).HasColumnType("smallint").HasComment("Reference to iam.role.");
         builder.Property(x => x.Permission).HasColumnName("permission").HasColumnOrder(1).HasColumnType("character varying(100)").HasComment("Reference to iam.permission.");
         builder.HasIndex(x => x.Permission).HasDatabaseName("ix_role_permission_permission");
-        builder.HasOne<Role>().WithMany().HasForeignKey(x => x.RoleId).HasConstraintName("fk_role_permission_role").OnDelete(DeleteBehavior.Cascade);
         builder.HasOne<PermissionDefinition>().WithMany().HasForeignKey(x => x.Permission).HasConstraintName("fk_role_permission_permission").OnDelete(DeleteBehavior.Restrict);
     }
 }

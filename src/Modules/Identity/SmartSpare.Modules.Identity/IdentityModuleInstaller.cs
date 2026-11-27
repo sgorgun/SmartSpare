@@ -85,6 +85,7 @@ public sealed class IdentityModuleInstaller : IModuleInstaller
         services.AddScoped<Infrastructure.Identity.OrganisationReader>();
         services.AddScoped<Infrastructure.Identity.AccountStamps>();
         services.AddScoped<Infrastructure.Identity.AdministratorGuard>();
+        services.AddScoped<Infrastructure.Identity.RightsGuard>();
         services.AddScoped<IEmployeeDirectory, Infrastructure.Queries.EmployeeDirectory>();
         services.AddScoped<IRolePermissions, Infrastructure.Queries.RolePermissionReader>();
     }
@@ -127,6 +128,7 @@ public sealed class IdentityModuleInstaller : IModuleInstaller
         Features.Users.UserEndpoints.Map(v1);
         Features.Organisation.PositionEndpoints.Map(v1);
         Features.Organisation.EmployeeEndpoints.Map(v1);
+        Features.Organisation.RoleEndpoints.Map(v1);
     }
 
     public void MapInternalEndpoints(IEndpointRouteBuilder endpoints)

@@ -146,6 +146,11 @@ public static class Permissions
             public const string CancelAnyBrand = "Procurement.PurchaseOrder.CancelAnyBrand";
             public const string Receive = "Procurement.PurchaseOrder.Receive";
         }
+
+        public static class Supplier
+        {
+            public const string Edit = "Procurement.Supplier.Edit";
+        }
     }
 
     public static class Forecasting
@@ -223,6 +228,7 @@ public static class Permissions
         P(Forecasting.Recommendation.Decide, 53, "Accept or reject recommendations of the brands one manages."),
         P(Forecasting.Recommendation.DecideAnyBrand, 54, "Accept or reject recommendations of every brand (with Decide)."),
         P(Audit.Log.View, 55, "Read the audit trail."),
+        P(Procurement.Supplier.Edit, 56, "Maintain suppliers, their parts and prices (never together with creating purchase orders)."),
     ];
 
     /// <summary>Whether <paramref name="name"/> is a permission of the catalogue.</summary>

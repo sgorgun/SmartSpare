@@ -584,12 +584,32 @@ namespace SmartSpare.Modules.Identity.Infrastructure.Persistence.Migrations
                         .HasColumnOrder(3)
                         .HasComment("Description.");
 
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_archived")
+                        .HasColumnOrder(5)
+                        .HasDefaultValueSql("false")
+                        .HasComment("Archived roles cannot be put in a role template.");
+
+                    b.Property<bool>("IsLocked")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_locked")
+                        .HasColumnOrder(4)
+                        .HasDefaultValueSql("false")
+                        .HasComment("A built-in role that cannot be changed or archived (ADR 0028).");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("character varying(80)")
                         .HasColumnName("name")
                         .HasColumnOrder(2)
                         .HasComment("Display name.");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
 
                     b.HasKey("Id")
                         .HasName("pk_role");
@@ -734,7 +754,7 @@ namespace SmartSpare.Modules.Identity.Infrastructure.Persistence.Migrations
                         .HasConstraintName("fk_role_permission_permission");
 
                     b.HasOne("SmartSpare.Modules.Identity.Domain.Role", null)
-                        .WithMany()
+                        .WithMany("Permissions")
                         .HasForeignKey("RoleId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
@@ -754,6 +774,11 @@ namespace SmartSpare.Modules.Identity.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("SmartSpare.Modules.Identity.Domain.Organisation.Position", b =>
                 {
                     b.Navigation("Roles");
+                });
+
+            modelBuilder.Entity("SmartSpare.Modules.Identity.Domain.Role", b =>
+                {
+                    b.Navigation("Permissions");
                 });
 #pragma warning restore 612, 618
         }

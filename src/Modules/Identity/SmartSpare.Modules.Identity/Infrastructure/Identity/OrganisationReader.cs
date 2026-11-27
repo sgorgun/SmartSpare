@@ -73,6 +73,16 @@ internal sealed class AccountStamps(IdentityDbContext db)
         db.Database.ExecuteSqlAsync(
             $"UPDATE iam.app_user u SET security_stamp = gen_random_uuid() FROM iam.employee e WHERE e.id = u.employee_id AND e.position_id = {positionId}",
             cancellationToken);
+
+    /// <summary>Every account of an employee whose position's template holds the role (its permissions changed, ADR 0028).</summary>
+    public Task<int> RotateForRoleAsync(short roleId, CancellationToken cancellationToken) =>
+        db.Database.ExecuteSqlAsync(
+            $"""
+            UPDATE iam.app_user u SET security_stamp = gen_random_uuid()
+            FROM iam.employee e JOIN iam.position_role pr ON pr.position_id = e.position_id
+            WHERE e.id = u.employee_id AND pr.role_id = {roleId}
+            """,
+            cancellationToken);
 }
 
 /// <summary>

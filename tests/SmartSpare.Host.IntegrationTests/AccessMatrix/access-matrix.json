@@ -61,7 +61,8 @@
       "Procurement.PurchaseOrder.Cancel": true,
       "Procurement.PurchaseOrder.CancelAnyBrand": true,
       "Procurement.PurchaseOrder.Create": false,
-      "Procurement.PurchaseOrder.Receive": true
+      "Procurement.PurchaseOrder.Receive": true,
+      "Procurement.Supplier.Edit": true
     },
     "BrandScopedActions": {
       "Forecasting.Recommendation.Decide": {
@@ -214,7 +215,8 @@
       "Procurement.PurchaseOrder.Cancel": true,
       "Procurement.PurchaseOrder.CancelAnyBrand": true,
       "Procurement.PurchaseOrder.Create": true,
-      "Procurement.PurchaseOrder.Receive": false
+      "Procurement.PurchaseOrder.Receive": false,
+      "Procurement.Supplier.Edit": false
     },
     "BrandScopedActions": {
       "Forecasting.Recommendation.Decide": {
@@ -363,7 +365,8 @@
       "Procurement.PurchaseOrder.Cancel": false,
       "Procurement.PurchaseOrder.CancelAnyBrand": false,
       "Procurement.PurchaseOrder.Create": false,
-      "Procurement.PurchaseOrder.Receive": true
+      "Procurement.PurchaseOrder.Receive": true,
+      "Procurement.Supplier.Edit": false
     },
     "BrandScopedActions": {
       "Forecasting.Recommendation.Decide": {
@@ -510,7 +513,8 @@
       "Procurement.PurchaseOrder.Cancel": false,
       "Procurement.PurchaseOrder.CancelAnyBrand": false,
       "Procurement.PurchaseOrder.Create": true,
-      "Procurement.PurchaseOrder.Receive": false
+      "Procurement.PurchaseOrder.Receive": false,
+      "Procurement.Supplier.Edit": false
     },
     "BrandScopedActions": {
       "Forecasting.Recommendation.Decide": {
@@ -659,7 +663,8 @@
       "Procurement.PurchaseOrder.Cancel": false,
       "Procurement.PurchaseOrder.CancelAnyBrand": false,
       "Procurement.PurchaseOrder.Create": false,
-      "Procurement.PurchaseOrder.Receive": false
+      "Procurement.PurchaseOrder.Receive": false,
+      "Procurement.Supplier.Edit": false
     },
     "BrandScopedActions": {
       "Forecasting.Recommendation.Decide": {
@@ -808,7 +813,8 @@
       "Procurement.PurchaseOrder.Cancel": false,
       "Procurement.PurchaseOrder.CancelAnyBrand": false,
       "Procurement.PurchaseOrder.Create": false,
-      "Procurement.PurchaseOrder.Receive": true
+      "Procurement.PurchaseOrder.Receive": true,
+      "Procurement.Supplier.Edit": false
     },
     "BrandScopedActions": {
       "Forecasting.Recommendation.Decide": {
@@ -957,7 +963,8 @@
       "Procurement.PurchaseOrder.Cancel": false,
       "Procurement.PurchaseOrder.CancelAnyBrand": false,
       "Procurement.PurchaseOrder.Create": false,
-      "Procurement.PurchaseOrder.Receive": false
+      "Procurement.PurchaseOrder.Receive": false,
+      "Procurement.Supplier.Edit": false
     },
     "BrandScopedActions": {
       "Forecasting.Recommendation.Decide": {
@@ -1117,7 +1124,8 @@
       "Procurement.PurchaseOrder.Cancel": true,
       "Procurement.PurchaseOrder.CancelAnyBrand": false,
       "Procurement.PurchaseOrder.Create": true,
-      "Procurement.PurchaseOrder.Receive": false
+      "Procurement.PurchaseOrder.Receive": false,
+      "Procurement.Supplier.Edit": false
     },
     "BrandScopedActions": {
       "Forecasting.Recommendation.Decide": {
@@ -1266,7 +1274,8 @@
       "Procurement.PurchaseOrder.Cancel": false,
       "Procurement.PurchaseOrder.CancelAnyBrand": false,
       "Procurement.PurchaseOrder.Create": false,
-      "Procurement.PurchaseOrder.Receive": true
+      "Procurement.PurchaseOrder.Receive": true,
+      "Procurement.Supplier.Edit": false
     },
     "BrandScopedActions": {
       "Forecasting.Recommendation.Decide": {
@@ -1416,7 +1425,8 @@
       "Procurement.PurchaseOrder.Cancel": true,
       "Procurement.PurchaseOrder.CancelAnyBrand": false,
       "Procurement.PurchaseOrder.Create": true,
-      "Procurement.PurchaseOrder.Receive": false
+      "Procurement.PurchaseOrder.Receive": false,
+      "Procurement.Supplier.Edit": false
     },
     "BrandScopedActions": {
       "Forecasting.Recommendation.Decide": {
@@ -1563,7 +1573,8 @@
       "Procurement.PurchaseOrder.Cancel": true,
       "Procurement.PurchaseOrder.CancelAnyBrand": true,
       "Procurement.PurchaseOrder.Create": false,
-      "Procurement.PurchaseOrder.Receive": false
+      "Procurement.PurchaseOrder.Receive": false,
+      "Procurement.Supplier.Edit": false
     },
     "BrandScopedActions": {
       "Forecasting.Recommendation.Decide": {
