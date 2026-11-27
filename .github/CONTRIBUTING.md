@@ -49,7 +49,7 @@ Before pushing, run the same checks as CI. CI calls `tools/check.sh` step by ste
 ```
 tools/check.sh              # all steps, needs Docker: stale terms, deploy path filters, locked restore, vulnerable packages,
                             # build, format, check-model, tests, architecture tests in Debug, coverage gate,
-                            # integration tests, database
+                            # integration tests, database, schema diff against the V016 baseline
 tools/check.sh fast         # the steps without Docker (the CI "Build and test" job)
 tools/check.sh build test   # selected steps
 tools/check.sh e2e topology # optional, after a build: the Playwright smoke test and the services topology

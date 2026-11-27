@@ -196,11 +196,11 @@ The gateway keeps its key ring in a directory (`DataProtection:KeysDirectory`, l
 
 | Task | Command |
 |---|---|
-| **All checks, exactly as CI** (Docker running) | `tools/check.sh` — stale terms, locked restore, Release build with `-warnaserror` (including the SonarQube C# rules), format, duplication, check-model, vulnerable packages, tests (the architecture tests in Debug as well) with the coverage gate (≥ 70 % of business logic), integration tests, database verification |
+| **All checks, exactly as CI** (Docker running) | `tools/check.sh` — stale terms, locked restore, Release build with `-warnaserror` (including the SonarQube C# rules), format, duplication, check-model, vulnerable packages, tests (the architecture tests in Debug as well) with the coverage gate (≥ 70 % of business logic), integration tests, database verification, schema diff against the V016 baseline |
 | Checks without Docker (the CI "Build and test" job) | `tools/check.sh fast` |
-| Selected checks | `tools/check.sh <step> ...` with steps `stale-terms deploy-paths restore vulnerabilities build format duplication check-model test architecture-debug coverage coverage-all integration database coverage-combined` |
+| Selected checks | `tools/check.sh <step> ...` with steps `stale-terms deploy-paths restore vulnerabilities build format duplication check-model test architecture-debug coverage coverage-all integration database schema-diff coverage-combined` |
 | End-to-end smoke test (Docker; installs Chromium) | `tools/check.sh restore build e2e` — Playwright signs in and out in Chromium; screenshots in `TestResults/e2e` |
-| Schema diff (Docker) | `tools/schema_diff.sh` — EF-built schema vs. the frozen V016 baseline |
+| Schema diff (Docker) | `tools/check.sh restore build schema-diff` — EF-built schema vs. the frozen V016 baseline; fails on a difference not documented in `tools/schema_diff.allow` (a CI gate in the integration job) |
 
 Run `tools/check.sh` (Git Bash on Windows) before pushing. Stage new files first: the stale-terms check scans tracked
 files only. While iterating, plain `dotnet build` / `dotnet test --filter "Category!=Integration"` are fine, but only
