@@ -43,7 +43,7 @@ The token is minted by the gateway from the cookie principal and cached per sess
 |---|---|
 | Format | JWS compact (RFC 7515/7519), created with `JsonWebTokenHandler` from `Microsoft.IdentityModel.JsonWebTokens` 8.23.0 ([API](https://learn.microsoft.com/dotnet/api/microsoft.identitymodel.jsonwebtokens.jsonwebtokenhandler.createtoken?view=msal-web-dotnet-latest)) |
 | Algorithm | **ES256** (ECDSA P-256), asymmetric |
-| Claims | `iss=smartspare-gateway`, `aud=smartspare-internal`, `sub`, `name`, `role` (n), `ss:brand` (n), `ss:warehouse`, `sid` (cookie session id), `jti`, `iat`, `exp` |
+| Claims | `iss=smartspare-gateway`, `aud=smartspare-internal`, `sub`, `name`, `role` (n), `ss:brand` (n), `ss:warehouse` (n since [ADR 0026](0026-employee-derived-authorization.md); one before), `sid` (cookie session id), `jti`, `iat`, `exp` |
 | Lifetime | **2 minutes** |
 | Private key | Held only by the gateway: Key Vault in Azure (read with the gateway's Managed Identity), user-secrets locally. It is never in configuration files or images. |
 | Public keys | Given to the services as a JWKS document in configuration (with `kid`). Two keys during rotation. |

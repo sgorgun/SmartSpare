@@ -205,6 +205,8 @@ Applies to new passwords only (administration, #46): `RequiredLength = 12`, `Req
 
 Claim type and role names are constants in `SmartSpare.ApiContracts.Authorization` (S14), shared by host and client.
 
+> **Superseded in part by [ADR 0026](../adr/0026-employee-derived-authorization.md)** (28 November 2026): roles come from the role template of the employee's position, brands from brand-manager assignments, and `ss:warehouse` is a list of hubs from warehouse assignments (write access only); no right is edited on a user.
+
 ### 3.2 Policies
 
 Policies are claims-only (ADR 0012) and registered by one shared method, `AppPolicies.Register(AuthorizationOptions)`, which the host and the client both call.
