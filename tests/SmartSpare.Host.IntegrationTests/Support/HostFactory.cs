@@ -32,6 +32,9 @@ public class HostFactory : WebApplicationFactory<Program>
     /// <summary>The host environment; <see langword="null"/> keeps the factory's default (Development).</summary>
     public string? EnvironmentName { get; init; }
 
+    /// <summary>Keeps the Quartz scheduler of the single host (off by default: tests run jobs themselves).</summary>
+    public bool WithJobScheduler { get; init; }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -50,6 +53,9 @@ public class HostFactory : WebApplicationFactory<Program>
         {
             builder.UseSetting("ConnectionStrings:smartspare", ConnectionString);
         }
+
+        // Tests run jobs themselves, at their own clock; the scheduler only where a test asks for it.
+        builder.UseSetting("Jobs:Enabled", WithJobScheduler ? "true" : "false");
 
         builder.ConfigureTestServices(services =>
         {

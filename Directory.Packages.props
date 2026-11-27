@@ -44,6 +44,8 @@
     <PackageVersion Include="Scalar.AspNetCore" Version="3.2.0" />
     <PackageVersion Include="FluentValidation" Version="12.2.0" />
     <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="12.2.0" />
+    <!-- Scheduler of the single host only (#30, ARCHITECTURE_DECISIONS 8): production runs jobs as Container Apps jobs. -->
+    <PackageVersion Include="Quartz.Extensions.Hosting" Version="3.22.11" />
     <PackageVersion Include="Scrutor" Version="7.0.0" />
   </ItemGroup>
 

@@ -26,6 +26,15 @@
           "Microsoft.OpenApi": "[2.13.0, 3.0.0)"
         }
       },
+      "Quartz.Extensions.Hosting": {
+        "type": "Direct",
+        "requested": "[3.22.11, )",
+        "resolved": "3.22.11",
+        "contentHash": "jARS9SNjCbzAfJiENyApP5RpQL4WCk4q661j1t7eaowEEVyVGN5Hs0Rn+i/lNMVkClS9lraaXKf51vnsE7KZBg==",
+        "dependencies": {
+          "Quartz.Extensions.DependencyInjection": "3.22.11"
+        }
+      },
       "SonarAnalyzer.CSharp": {
         "type": "Direct",
         "requested": "[10.37.0.15768, )",
@@ -220,6 +229,19 @@
         "contentHash": "ehTImQ/eUyO07VYW2WvwSmU9rRH200SKJ/3jku9rOkyWE0A2JxNFmAVms8dSn49QLSjmjFRRSgfNyOgr/2PSmA==",
         "dependencies": {
           "Polly.Core": "8.4.2"
+        }
+      },
+      "Quartz": {
+        "type": "Transitive",
+        "resolved": "3.22.11",
+        "contentHash": "Hf5564Ch/uXg04ujrlRSEW68UvB/eL6NonHKrl2NkUMaLe2jNNV+0BtBWJ2QJsHCpZ/JxcNNOGqRpJlyy4l/9A=="
+      },
+      "Quartz.Extensions.DependencyInjection": {
+        "type": "Transitive",
+        "resolved": "3.22.11",
+        "contentHash": "r95Y4FdA+0H93HVcQv2ioANZe0Dcu2yNHdpU5XpFiaMbcWKPOajdjSdc940zrWfMhsuZWy/drnW7ftXPhW8iyQ==",
+        "dependencies": {
+          "Quartz": "3.22.11"
         }
       },
       "System.Diagnostics.DiagnosticSource": {
