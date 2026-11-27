@@ -23,6 +23,7 @@ public sealed class AccessMigrationTests : IAsyncLifetime
 
     private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:17").Build();
     private string _migrator = null!;
+    private MigrationRunnerOptions _options = null!;
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -37,6 +38,7 @@ public sealed class AccessMigrationTests : IAsyncLifetime
         var platform = ModuleCatalog.ModuleCatalog.Databases().Where(d => d.Name == "platform").ToList();
         await new DatabaseMigrator(options, platform, NullLogger<DatabaseMigrator>.Instance).RunAsync(Ct);
         _migrator = options.BuildMigratorConnectionString();
+        _options = options;
 
         await using var context = IdentityDatabase.Instance.CreateContext(_migrator);
         await context.GetService<IMigrator>().MigrateAsync(LastStage6Migration, Ct);
@@ -55,22 +57,24 @@ public sealed class AccessMigrationTests : IAsyncLifetime
              ('00000000-0000-4000-8000-0000000000a3', 'legacy.odd',      'o@dealer.example', 'Legacy Odd',      NULL,           'AQAAAAIAA1tgAAAAE' || repeat('A', 67), 3,    true),
              ('00000000-0000-4000-8000-0000000000a4', 'legacy.none',     'n@dealer.example', 'Legacy None',     NULL,           'AQAAAAIAA1tgAAAAE' || repeat('A', 67), NULL, true),
              ('00000000-0000-4000-8000-0000000000a5', 'legacy.off',      'f@dealer.example', 'Legacy Off',      NULL,           NULL,                                  NULL, false),
-             ('00000000-0000-4000-8000-0000000000a6', 'legacy.keeper',   'k@dealer.example', 'Legacy Keeper',   NULL,           'AQAAAAIAA1tgAAAAE' || repeat('A', 67), 3,    true);
+             ('00000000-0000-4000-8000-0000000000a6', 'legacy.keeper',   'k@dealer.example', 'Legacy Keeper',   NULL,           'AQAAAAIAA1tgAAAAE' || repeat('A', 67), 3,    true),
+             ('00000000-0000-4000-8000-0000000000a7', 'legacy.engineer', 'e@dealer.example', 'Legacy Engineer', NULL,           'AQAAAAIAA1tgAAAAE' || repeat('A', 67), 4,    true);
             INSERT INTO iam.user_role (user_id, role_id)
             SELECT ('00000000-0000-4000-8000-0000000000' || x.u)::uuid, r.id
             FROM (VALUES ('a1', 'BRAND_MANAGER'), ('a2', 'BRAND_MANAGER'), ('a2', 'SPONSOR'), ('a3', 'WAREHOUSE_KEEPER'), ('a3', 'SERVICE_ENGINEER'),
-                         ('a5', 'SERVICE_ENGINEER'), ('a6', 'WAREHOUSE_KEEPER')) AS x (u, role)
+                         ('a5', 'SERVICE_ENGINEER'), ('a6', 'WAREHOUSE_KEEPER'), ('a7', 'SERVICE_ENGINEER')) AS x (u, role)
             JOIN iam.role r ON r.code = x.role;
+            INSERT INTO iam.user_brand (user_id, brand_id)
+            SELECT u.id, b.id FROM iam.app_user u, ref.brand b WHERE u.user_name IN ('legacy.manager', 'legacy.director') AND b.code IN ('CLAAS', 'JD');
             UPDATE iam.app_user SET is_active = false, password_hash = NULL, anonymised_at = now(),
                    user_name = 'anon_a5', email = 'anon-a5@anonymised.invalid', full_name = 'Anonymised User'
              WHERE user_name = 'legacy.off';
             """);
         var before = await RolesAsync(fromPositions: false);
 
-        await using (var context = IdentityDatabase.Instance.CreateContext(_migrator))
-        {
-            await context.Database.MigrateAsync(Ct);
-        }
+        // Every module, as the migration runner applies them: Identity's step 1, Inventory's assignment tables, and the
+        // Reporting copy of step 2, which runs last.
+        await new DatabaseMigrator(_options, ModuleCatalog.ModuleCatalog.Databases(), NullLogger<DatabaseMigrator>.Instance).RunAsync(Ct);
 
         var after = await RolesAsync(fromPositions: true);
         after.ShouldBe(before, "every account keeps exactly its roles");
@@ -86,7 +90,22 @@ public sealed class AccessMigrationTests : IAsyncLifetime
             .ShouldBeTrue("an anonymised user becomes an anonymised employee who left");
         (await ScalarAsync<string>("SELECT full_name || ' ' || email || ' ' || phone FROM iam.employee WHERE id = '00000000-0000-4000-8000-0000000000a1'"))
             .ShouldBe("Legacy Manager m@dealer.example +370 600 00001");
-        (await ScalarAsync<long>("SELECT count(DISTINCT code) FROM iam.employee")).ShouldBe(6);
+        (await ScalarAsync<long>("SELECT count(DISTINCT code) FROM iam.employee")).ShouldBe(7);
+
+        // Step 2: brand lists become brand-manager assignments, home hubs keeper (keepers) or service-base assignments,
+        // and Identity's projection holds the rights-bearing ones; the anonymised user is not copied.
+        (await ScalarAsync<long>("SELECT count(*) FROM catalog.brand_responsible WHERE assignment_role = 'BRAND_MANAGER'")).ShouldBe(4);
+        (await ScalarAsync<string>(
+                "SELECT string_agg(e.code || ':' || r.assignment_role, ',' ORDER BY e.code) FROM inventory.warehouse_responsible r JOIN iam.employee e ON e.id = r.employee_id"))
+            .ShouldBe(await ScalarAsync<string>(
+                "SELECT string_agg(code || ':' || CASE WHEN id IN ('00000000-0000-4000-8000-0000000000a3', '00000000-0000-4000-8000-0000000000a6') THEN 'KEEPER' ELSE 'SERVICE_BASE' END, ',' ORDER BY code) FROM iam.employee WHERE id IN ('00000000-0000-4000-8000-0000000000a3', '00000000-0000-4000-8000-0000000000a6', '00000000-0000-4000-8000-0000000000a7')"));
+        var projection = await ScalarAsync<long>("SELECT count(*) FROM iam.employee_responsibility");
+        projection.ShouldBe(7, "4 brand managers and 3 hubs");
+
+        var copy = await File.ReadAllTextAsync(Path.Combine(RepositoryRoot(), "db", "sql", "reporting", "0005_legacy_access_copy.sql"), Ct);
+        await ExecuteAsync(copy);
+        (await ScalarAsync<long>("SELECT count(*) FROM iam.employee_responsibility")).ShouldBe(projection, "the copy is idempotent");
+        (await ScalarAsync<long>("SELECT count(*) FROM catalog.brand_responsible")).ShouldBe(4);
 
         var employees = await ScalarAsync<long>("SELECT count(*) FROM iam.employee");
         var script = await File.ReadAllTextAsync(Path.Combine(RepositoryRoot(), "db", "sql", "identity", "0007_organisation.sql"), Ct);

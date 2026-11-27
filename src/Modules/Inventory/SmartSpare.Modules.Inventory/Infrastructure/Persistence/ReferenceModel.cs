@@ -19,3 +19,18 @@ internal sealed class RefUnitOfMeasure
 {
     public short Id { get; set; }
 }
+
+/// <summary>
+/// Platform reference table <c>ref.assignment_role</c> (ADR 0026), mapped read-only: the principal of the responsibles'
+/// FKs, and which roles grant scope.
+/// </summary>
+internal sealed class RefAssignmentRole
+{
+    public string RecordKind { get; set; } = null!;
+
+    public string Code { get; set; } = null!;
+
+    public string Name { get; set; } = null!;
+
+    public bool GrantsScope { get; set; }
+}

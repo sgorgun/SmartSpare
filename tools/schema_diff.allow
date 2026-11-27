@@ -201,3 +201,7 @@
 -^v_home   smallint;
 -^FOR v_line IN SELECT l\.id, l\.part_id, l\.quantity, p\.unit_cost FROM inventory\.transfer_order_line l JOIN catalog\.part p
 -^INSERT INTO inventory\.stock_movement \(occurred_at, warehouse_id, part_id, movement_type_code, quantity, unit_cost, transfer_order_line_id, created_by\) SELECT greatest
+
+# PR 7d2 (STAGE_7_PLAN 1.1, 1.3 and 3.7, ADR 0026 decision 3): responsible employees of brands and warehouses with their
+# assignment roles (ref.assignment_role, seeded), and Identity's projection of the rights-bearing ones with its watermark.
++(catalog\.brand_responsible|inventory\.warehouse_responsible|iam\.employee_responsibility|iam\.responsibility_source|ref\.assignment_role|(brand|warehouse)_responsible_id_seq|_(brand|warehouse)_responsible\b|uq_(brand|warehouse)_responsible|ix_(brand|warehouse)_responsible_employee)

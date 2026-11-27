@@ -35,11 +35,6 @@ public class IdentityClient(HttpClient http) : ApiClientBase(http)
     public virtual Task<ApiResult<UserFormOptions>> GetUserFormOptionsAsync(CancellationToken cancellationToken = default) =>
         SendAsync<UserFormOptions>(new HttpRequestMessage(HttpMethod.Get, "api/v1/identity/users/form-options"), cancellationToken);
 
-    public virtual Task<ApiResult<UserSummary>> UpdateUserAccessAsync(Guid id, UserAccessRequest request, CancellationToken cancellationToken = default) =>
-        SendAsync<UserSummary>(
-            new HttpRequestMessage(HttpMethod.Put, $"api/v1/identity/users/{id}/access") { Content = System.Net.Http.Json.JsonContent.Create(request) },
-            cancellationToken);
-
     /// <summary>unlock, deactivate or anonymise.</summary>
     public virtual Task<ApiResult<UserSummary>> UserActionAsync(Guid id, string action, CancellationToken cancellationToken = default) =>
         SendAsync<UserSummary>(new HttpRequestMessage(HttpMethod.Post, $"api/v1/identity/users/{id}/{action}"), cancellationToken);

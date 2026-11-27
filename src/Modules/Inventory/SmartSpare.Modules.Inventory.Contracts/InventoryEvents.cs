@@ -94,3 +94,20 @@ public sealed record IssuedKitLine(long LineId, decimal IssuedQty, decimal Short
 /// <see cref="ActorId"/>, the user who completed the order.
 /// </summary>
 public sealed record ServiceKitIssued(long ServiceOrderId, IReadOnlyList<IssuedKitLine> Lines, Guid ActorId) : IntegrationEvent, IActedByUser;
+
+/// <summary>An employee in a rights-bearing assignment role of a record, e.g. KEEPER of a warehouse (ADR 0026).</summary>
+public sealed record ResponsibleAssignment(Guid EmployeeId, string Role);
+
+/// <summary>
+/// The rights-bearing responsible employees of a brand or warehouse changed (ADR 0026 decision 3, STAGE_7_PLAN 1.3):
+/// the full new set of that record (state transfer), so Identity replaces its projection and derives brand scope and hub
+/// access from it. Idempotent and order-safe: Identity keeps the newer event per record. Written in the same transaction
+/// as the change; <c>inventory.responsibility-publish</c> republishes every record.
+/// </summary>
+public sealed record ResponsibilitiesChanged(string RecordKind, short RecordId, IReadOnlyList<ResponsibleAssignment> Assignments, Guid ActorId)
+    : IntegrationEvent, IActedByUser
+{
+    public const string Brand = "brand";
+
+    public const string Warehouse = "warehouse";
+}

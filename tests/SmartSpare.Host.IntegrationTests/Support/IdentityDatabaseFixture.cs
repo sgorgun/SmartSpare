@@ -48,7 +48,8 @@ public sealed class IdentityDatabaseFixture : IAsyncLifetime
     /// <summary>
     /// Creates an active user with <see cref="Password"/>, hashed with the given iteration count. The user belongs to an
     /// employee with a position of its own whose role template is <paramref name="roles"/> (ADR 0026); the position's code
-    /// is <c>T_</c> and the first 12 hex digits of the id.
+    /// is <c>T_</c> and the first 12 hex digits of the id. <paramref name="brandCodes"/> become brand-manager assignments on
+    /// the brands and Identity's projection of them, as if <c>ResponsibilitiesChanged</c> had been delivered.
     /// </summary>
     public async Task<Guid> CreateUserAsync(string userName, string[] roles, string[] brandCodes, int iterations = IdentityModuleInstaller.PasswordHashIterations)
     {
@@ -68,7 +69,10 @@ public sealed class IdentityDatabaseFixture : IAsyncLifetime
             FROM iam.position p WHERE p.code = 'T_' || upper(left(replace(@id::text, '-', ''), 12));
             INSERT INTO iam.app_user (id, employee_id, user_name, email, full_name, password_hash) VALUES (@id, @id, @name, @name || '@dealer.example', 'Test User', @hash);
             INSERT INTO iam.user_role (user_id, role_id) SELECT @id, r.id FROM iam.role r WHERE r.code = ANY(@roles);
-            INSERT INTO iam.user_brand (user_id, brand_id) SELECT @id, b.id FROM ref.brand b WHERE b.code = ANY(@brands);
+            INSERT INTO catalog.brand_responsible (brand_id, employee_id, record_kind, assignment_role)
+            SELECT b.id, @id, 'brand', 'BRAND_MANAGER' FROM ref.brand b WHERE b.code = ANY(@brands);
+            INSERT INTO iam.employee_responsibility (record_kind, record_id, employee_id, assignment_role)
+            SELECT 'brand', b.id, @id, 'BRAND_MANAGER' FROM ref.brand b WHERE b.code = ANY(@brands);
             """,
             ("id", id), ("name", userName), ("hash", hash), ("roles", roles), ("brands", brandCodes));
         return id;

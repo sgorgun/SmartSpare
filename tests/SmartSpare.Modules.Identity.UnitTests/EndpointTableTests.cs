@@ -25,7 +25,6 @@ public sealed class EndpointTableTests
         [
             "GET /api/v1/identity/users/",
             "GET /api/v1/identity/users/form-options",
-            "PUT /api/v1/identity/users/{id:guid}/access",
             "POST /api/v1/identity/users/{id:guid}/unlock",
             "POST /api/v1/identity/users/{id:guid}/deactivate",
             "POST /api/v1/identity/users/{id:guid}/anonymise",
@@ -49,11 +48,15 @@ public sealed class EndpointTableTests
     [Fact]
     public void No_endpoint_edits_roles_on_a_user()
     {
-        // ADR 0026: rights are derived from the employee's position and assignments; no route under /users takes roles.
+        // ADR 0026: rights are derived from the employee's position and assignments. Under /users only reads and the
+        // account actions remain (unlock, deactivate, anonymise): no route creates a user or writes roles, brands or hubs.
         Endpoints.Where(e => e.RoutePattern.RawText!.Contains("/users", StringComparison.Ordinal))
             .Select(Describe)
-            .ShouldNotContain(r => r.StartsWith("POST /api/v1/identity/users/", StringComparison.Ordinal) && r.EndsWith("users/", StringComparison.Ordinal));
-        typeof(SmartSpare.ApiContracts.Identity.UserAccessRequest).GetProperty("Roles").ShouldBeNull();
+            .Where(r => !r.StartsWith("GET ", StringComparison.Ordinal))
+            .ShouldAllBe(r => r.EndsWith("/unlock", StringComparison.Ordinal) || r.EndsWith("/deactivate", StringComparison.Ordinal)
+                              || r.EndsWith("/anonymise", StringComparison.Ordinal));
+        typeof(SmartSpare.ApiContracts.Identity.UserSummary).Assembly.GetType("SmartSpare.ApiContracts.Identity.UserAccessRequest")
+            .ShouldBeNull("no request type carries a user's rights");
     }
 
     [Theory]

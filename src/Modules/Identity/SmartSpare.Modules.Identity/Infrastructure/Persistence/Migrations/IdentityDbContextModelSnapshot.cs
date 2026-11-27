@@ -677,6 +677,39 @@ namespace SmartSpare.Modules.Identity.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("SmartSpare.Modules.Identity.Infrastructure.Persistence.EmployeeResponsibility", b =>
+                {
+                    b.Property<string>("RecordKind")
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("record_kind");
+
+                    b.Property<short>("RecordId")
+                        .HasColumnType("smallint")
+                        .HasColumnName("record_id")
+                        .HasComment("Brand or warehouse id of the Inventory module; no FK across modules.");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("employee_id");
+
+                    b.Property<string>("AssignmentRole")
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("assignment_role");
+
+                    b.HasKey("RecordKind", "RecordId", "EmployeeId", "AssignmentRole")
+                        .HasName("pk_employee_responsibility");
+
+                    b.HasIndex("EmployeeId")
+                        .HasDatabaseName("ix_employee_responsibility_employee");
+
+                    b.ToTable("employee_responsibility", "iam", t =>
+                        {
+                            t.HasComment("Projection of the rights-bearing responsible employees of brands and warehouses (ADR 0026); written only by the ResponsibilitiesChanged consumer.");
+
+                            t.HasCheckConstraint("ck_employee_responsibility_kind", "record_kind IN ('brand', 'warehouse')");
+                        });
+                });
+
             modelBuilder.Entity("SmartSpare.Modules.Identity.Infrastructure.Persistence.RefBrand", b =>
                 {
                     b.Property<short>("Id")
@@ -689,6 +722,29 @@ namespace SmartSpare.Modules.Identity.Infrastructure.Persistence.Migrations
                     b.ToTable("brand", "ref", t =>
                         {
                             t.ExcludeFromMigrations();
+                        });
+                });
+
+            modelBuilder.Entity("SmartSpare.Modules.Identity.Infrastructure.Persistence.ResponsibilitySource", b =>
+                {
+                    b.Property<string>("RecordKind")
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("record_kind");
+
+                    b.Property<short>("RecordId")
+                        .HasColumnType("smallint")
+                        .HasColumnName("record_id");
+
+                    b.Property<DateTimeOffset>("SourceOccurredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("source_occurred_at");
+
+                    b.HasKey("RecordKind", "RecordId")
+                        .HasName("pk_responsibility_source");
+
+                    b.ToTable("responsibility_source", "iam", t =>
+                        {
+                            t.HasComment("Newest applied ResponsibilitiesChanged per record (order-safe projection).");
                         });
                 });
 
@@ -767,6 +823,16 @@ namespace SmartSpare.Modules.Identity.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_user_role_user");
+                });
+
+            modelBuilder.Entity("SmartSpare.Modules.Identity.Infrastructure.Persistence.EmployeeResponsibility", b =>
+                {
+                    b.HasOne("SmartSpare.Modules.Identity.Domain.Organisation.Employee", null)
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_employee_responsibility_employee");
                 });
 
             modelBuilder.Entity("SmartSpare.Modules.Identity.Domain.AppUser", b =>

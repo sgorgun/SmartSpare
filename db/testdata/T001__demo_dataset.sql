@@ -115,6 +115,36 @@ FROM (VALUES ('01','CLAAS'), ('01','LEMKEN'), ('02','JD'), ('02','VAD'),
              ('03','FENDT'), ('03','MF'), ('03','CASE'), ('03','NH')) AS x (n, brand)
 JOIN ref.brand b ON b.code = x.brand;
 
+-- Responsible employees (ADR 0026): who manages which brand and who keeps or is based at which hub. They give the
+-- demo users exactly the rights the legacy lists above give; the rest are assignments without rights. Identity's
+-- projection (fed by ResponsibilitiesChanged) is filled as if the events had been delivered.
+INSERT INTO catalog.brand_responsible (brand_id, employee_id, record_kind, assignment_role)
+SELECT b.id, x.emp::uuid, 'brand', x.role
+FROM (VALUES ('00000000-0000-4000-8000-000000000001','CLAAS','BRAND_MANAGER'), ('00000000-0000-4000-8000-000000000001','LEMKEN','BRAND_MANAGER'),
+             ('00000000-0000-4000-8000-000000000002','JD','BRAND_MANAGER'), ('00000000-0000-4000-8000-000000000002','VAD','BRAND_MANAGER'),
+             ('00000000-0000-4000-8000-000000000003','FENDT','BRAND_MANAGER'), ('00000000-0000-4000-8000-000000000003','MF','BRAND_MANAGER'),
+             ('00000000-0000-4000-8000-000000000003','CASE','BRAND_MANAGER'), ('00000000-0000-4000-8000-000000000003','NH','BRAND_MANAGER'),
+             ('00000000-0000-4000-8000-000000000106','JD','PRODUCT_SPECIALIST')) AS x (emp, brand, role)
+JOIN ref.brand b ON b.code = x.brand;
+
+INSERT INTO inventory.warehouse_responsible (warehouse_id, employee_id, record_kind, assignment_role)
+SELECT w.id, x.emp::uuid, 'warehouse', x.role
+FROM (VALUES ('00000000-0000-4000-8000-000000000004','PNV','SERVICE_BASE'), ('00000000-0000-4000-8000-000000000005','KNS','SERVICE_BASE'),
+             ('00000000-0000-4000-8000-000000000006','KLP','KEEPER'), ('00000000-0000-4000-8000-000000000007','PNV','KEEPER'),
+             ('00000000-0000-4000-8000-000000000008','VLN','KEEPER'), ('00000000-0000-4000-8000-000000000104','UTN','KEEPER'),
+             ('00000000-0000-4000-8000-000000000105','MRJ','KEEPER'), ('00000000-0000-4000-8000-000000000102','KNS','HUB_MANAGER'),
+             ('00000000-0000-4000-8000-000000000107','SIA','SERVICE_BASE')) AS x (emp, hub, role)
+JOIN inventory.warehouse w ON w.code = x.hub;
+
+INSERT INTO iam.employee_responsibility (record_kind, record_id, employee_id, assignment_role)
+SELECT 'brand', r.brand_id, r.employee_id, r.assignment_role
+FROM catalog.brand_responsible r JOIN ref.assignment_role ar ON ar.record_kind = 'brand' AND ar.code = r.assignment_role AND ar.grants_scope
+UNION ALL
+SELECT 'warehouse', r.warehouse_id, r.employee_id, r.assignment_role
+FROM inventory.warehouse_responsible r JOIN ref.assignment_role ar ON ar.record_kind = 'warehouse' AND ar.code = r.assignment_role AND ar.grants_scope;
+INSERT INTO iam.responsibility_source (record_kind, record_id, source_occurred_at)
+SELECT DISTINCT record_kind, record_id, now() FROM iam.employee_responsibility;
+
 -- ---------------------------------------------------------------------------
 -- 2. Suppliers
 -- ---------------------------------------------------------------------------
@@ -524,7 +554,11 @@ CREATE FUNCTION pg_temp.t001_act_as(p_user uuid) RETURNS void LANGUAGE sql AS $$
                                                    JOIN iam.position_role pr ON pr.position_id = e.position_id
                                                    JOIN iam.role r ON r.id = pr.role_id
                                                    WHERE u.id = p_user AND u.is_active AND NOT e.is_archived), ''), false),
-           set_config('app.warehouse_ids', coalesce((SELECT home_warehouse_id::text FROM iam.app_user WHERE id = p_user), ''), false);
+           set_config('app.warehouse_ids', coalesce((SELECT string_agg(DISTINCT r.record_id::text, ',')
+                                                     FROM iam.app_user u
+                                                     JOIN iam.employee_responsibility r ON r.employee_id = u.employee_id AND r.record_kind = 'warehouse'
+                                                     JOIN ref.assignment_role ar ON ar.record_kind = r.record_kind AND ar.code = r.assignment_role AND ar.grants_scope
+                                                     WHERE u.id = p_user), ''), false);
 $$;
 
 -- UC02: Mantas logs 512 h on the Lexion -> 500 h service drafted (its kit is soft-reserved at Panevėžys below)

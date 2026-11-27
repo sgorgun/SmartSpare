@@ -23,7 +23,6 @@ public sealed class UserAdministrationTests(IdentityDatabaseFixture database) : 
     private readonly string _tag = "ua" + Convert.ToHexString(RandomNumberGenerator.GetBytes(3)).ToLowerInvariant();
 
     private HostFactory _host = null!;
-    private short _klp;
 
     /// <summary>A real administrator row: an employee in an administrator position with an account.</summary>
     private TestUser Admin { get; set; } = null!;
@@ -33,7 +32,6 @@ public sealed class UserAdministrationTests(IdentityDatabaseFixture database) : 
     public async ValueTask InitializeAsync()
     {
         _host = new HostFactory { ConnectionString = database.ApiConnectionString };
-        _klp = await database.ScalarAsync<short>("SELECT id FROM inventory.warehouse WHERE code = 'KLP'");
         var adminId = await database.CreateUserAsync($"{_tag}.admin", [AppRoles.Administrator], []);
         Admin = new TestUser(adminId, $"{_tag}.admin", IdentityDatabaseFixture.Password, [AppRoles.Administrator], [], null);
     }
@@ -43,13 +41,12 @@ public sealed class UserAdministrationTests(IdentityDatabaseFixture database) : 
     [Fact]
     public async Task An_account_is_created_from_an_employee_and_gets_the_roles_of_the_position()
     {
-        var id = await CreateAsync("keeper", [AppRoles.WarehouseKeeper], hub: _klp);
+        var id = await CreateAsync("keeper", [AppRoles.WarehouseKeeper]);
 
         var user = await FindAsync("keeper");
         user.Id.ShouldBe(id);
         user.Roles.ShouldBe([AppRoles.WarehouseKeeper]);
         user.Rights.ShouldContain(r => r.Kind == "Role" && r.Value == AppRoles.WarehouseKeeper && r.Origin == "Position");
-        user.Rights.ShouldContain(r => r.Kind == "Hub" && r.Value == "KLP");
         user.EmailMasked.ShouldNotBe($"{_tag}.keeper@dealer.example", "personal data is masked");
         (await database.ScalarAsync<bool>("SELECT password_hash LIKE 'AQAAAA%' FROM iam.app_user WHERE id = @id", ("id", id))).ShouldBeTrue();
         (await database.ScalarAsync<long>("SELECT count(*) FROM iam.user_role WHERE user_id = @id", ("id", id)))
@@ -79,34 +76,6 @@ public sealed class UserAdministrationTests(IdentityDatabaseFixture database) : 
         {
             weak.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         }
-
-        var user = (await FindAsync("taken")).Id;
-        using (var hub = await PutAsync(Admin, $"/api/v1/identity/users/{user}/access", new UserAccessRequest([], 999)))
-        {
-            hub.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
-            (await Problem.ReadAsync(hub)).Code.ShouldBe("Identity.UnknownWarehouse");
-        }
-
-        using (var brand = await PutAsync(Admin, $"/api/v1/identity/users/{user}/access", new UserAccessRequest(["NOPE"], null)))
-        {
-            (await Problem.ReadAsync(brand)).Code.ShouldBe("Identity.UnknownBrand");
-        }
-    }
-
-    [Fact]
-    public async Task Changing_brands_rotates_the_stamp_and_a_brand_counts_only_with_the_brand_manager_role()
-    {
-        var planner = await CreateAsync("planner", [AppRoles.InventoryPlanner]);
-        var stamp = await StampAsync(planner);
-
-        using var response = await PutAsync(Admin, $"/api/v1/identity/users/{planner}/access", new UserAccessRequest(["CLAAS", "JD"], null));
-
-        response.StatusCode.ShouldBe(HttpStatusCode.OK, await response.Content.ReadAsStringAsync(Ct));
-        var user = (await response.Content.ReadFromJsonAsync<UserSummary>(Ct))!;
-        user.Roles.ShouldBe([AppRoles.InventoryPlanner], "roles stay those of the position");
-        user.Brands.ShouldBeEmpty("a brand gives no scope without the BRAND_MANAGER role");
-        user.WithoutEffect.Select(r => r.Value).ShouldBe(["CLAAS", "JD"]);
-        (await StampAsync(planner)).ShouldNotBe(stamp, "sessions pick up the new claims at their next check");
     }
 
     [Fact]
@@ -187,7 +156,7 @@ public sealed class UserAdministrationTests(IdentityDatabaseFixture database) : 
             "SELECT e.anonymised_at IS NOT NULL AND e.email IS NULL AND e.full_name = 'Anonymised Employee' FROM iam.employee e JOIN iam.app_user u ON u.employee_id = e.id WHERE u.id = @id",
             ("id", id))).ShouldBeTrue("anonymising an account erases its employee too");
 
-        using var after = await PutAsync(Admin, $"/api/v1/identity/users/{id}/access", new UserAccessRequest([], null));
+        using var after = await PostAsync(Admin, $"/api/v1/identity/users/{id}/unlock");
         after.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
         (await Problem.ReadAsync(after)).Code.ShouldBe("Identity.Anonymised");
     }
@@ -266,19 +235,12 @@ public sealed class UserAdministrationTests(IdentityDatabaseFixture database) : 
         options.Hubs.Count.ShouldBe(7);
     }
 
-    /// <summary>A position with the given template, an employee in it, the employee's account, then brands and hub.</summary>
-    private async Task<Guid> CreateAsync(string suffix, string[] roles, string[]? brands = null, short? hub = null)
+    /// <summary>A position with the given template, an employee in it, and the employee's account.</summary>
+    private async Task<Guid> CreateAsync(string suffix, string[] roles)
     {
         var employee = await NewEmployeeAsync(suffix, roles);
         await AccountAsync(employee, suffix);
-        var user = (await FindAsync(suffix)).Id;
-        if (brands is not null || hub is not null)
-        {
-            using var access = await PutAsync(Admin, $"/api/v1/identity/users/{user}/access", new UserAccessRequest(brands ?? [], hub));
-            access.StatusCode.ShouldBe(HttpStatusCode.OK, await access.Content.ReadAsStringAsync(Ct));
-        }
-
-        return user;
+        return (await FindAsync(suffix)).Id;
     }
 
     private async Task<Guid> NewEmployeeAsync(string suffix, string[] roles)

@@ -25,10 +25,6 @@ internal static class UserErrors
     public static readonly Error OwnAdministration = Error.BusinessRule(
         "Identity.OwnAdministration", "You cannot deactivate yourself or remove your own Administrator role.");
 
-    public static readonly Error UnknownWarehouse = Error.Validation("Identity.UnknownWarehouse", "The home hub does not exist or is inactive.");
-
-    public static readonly Error UnknownBrand = Error.Validation("Identity.UnknownBrand", "A brand code is unknown.");
-
     public static readonly Error UserNameTaken = Error.Conflict("Identity.UserNameTaken", "This user name or e-mail address is already used.");
 
     public static readonly Error WrongPassword = Error.Validation("Identity.WrongPassword", "The current password is not correct.");
@@ -37,48 +33,6 @@ internal static class UserErrors
 
     public static Error PasswordRejected(IEnumerable<IdentityError> errors) =>
         Error.Validation("Identity.PasswordRejected", string.Join(" ", errors.Select(e => e.Description)));
-}
-
-/// <summary>
-/// Resolves brand codes to their ids and checks the home hub. Roles are not edited here: they come from the employee's
-/// position (ADR 0026). Brands and hub move to responsibility assignments in PR 7d.
-/// </summary>
-internal sealed class AccessResolver(IdentityFunctions functions, IWarehouseQueries warehouses)
-{
-    public sealed record Resolved(IReadOnlyList<short> BrandIds, short? HomeWarehouseId);
-
-    public async Task<Result<Resolved>> ResolveAsync(UserAccessRequest access, CancellationToken cancellationToken)
-    {
-        var brandCodes = access.Brands.Select(b => b.Trim().ToUpperInvariant()).Distinct(StringComparer.Ordinal).ToArray();
-        var brands = await functions.BrandIdsAsync(brandCodes, cancellationToken).ConfigureAwait(false);
-        if (brands.Count != brandCodes.Length)
-        {
-            return UserErrors.UnknownBrand;
-        }
-
-        if (access.HomeWarehouseId is { } hub && !await warehouses.ExistsAsync(hub, cancellationToken).ConfigureAwait(false))
-        {
-            return UserErrors.UnknownWarehouse;
-        }
-
-        return new Resolved(brands, access.HomeWarehouseId);
-    }
-
-    /// <summary>Makes the user's brands and hub equal to <paramref name="target"/>; every change rotates the stamp.</summary>
-    public static void Apply(AppUser user, Resolved target)
-    {
-        foreach (var brand in user.Brands.Select(b => b.BrandId).Except(target.BrandIds).ToList())
-        {
-            user.RemoveBrand(brand);
-        }
-
-        foreach (var brand in target.BrandIds)
-        {
-            user.AssignBrand(brand);
-        }
-
-        user.SetHomeWarehouse(target.HomeWarehouseId);
-    }
 }
 
 // ---- Queries -----------------------------------------------------------------------------------------------------
@@ -115,13 +69,6 @@ internal static class PasswordChecks
     }
 }
 
-internal sealed record UpdateUserAccessCommand(Guid Id, UserAccessRequest Access) : ICommand<UserSummary>;
-
-internal sealed class UpdateUserAccessCommandValidator : AbstractValidator<UpdateUserAccessCommand>
-{
-    public UpdateUserAccessCommandValidator() => RuleFor(c => c.Access).SetValidator(new UserAccessRequestValidator());
-}
-
 /// <summary>Reads one user of the directory (the list query's row) after a change.</summary>
 internal sealed class UserReader(IQueryHandler<ListUsersQuery, PagedResponse<UserSummary>> list, IdentityDbContext db)
 {
@@ -136,25 +83,11 @@ internal sealed class UserReader(IQueryHandler<ListUsersQuery, PagedResponse<Use
 /// <summary>The shared steps of the administrative commands: load the user, refuse anonymised users and changes to oneself.</summary>
 internal sealed class UserAdministration(
     IdentityDbContext db, IUnitOfWork<IdentityDbContext> unitOfWork, AdminSession admin, ICurrentUser currentUser, TimeProvider clock,
-    AccessResolver resolver, UserReader reader, IdentityFunctions functions)
-    : ICommandHandler<UpdateUserAccessCommand, UserSummary>,
-      ICommandHandler<UnlockUserCommand, UserSummary>,
+    UserReader reader, IdentityFunctions functions)
+    : ICommandHandler<UnlockUserCommand, UserSummary>,
       ICommandHandler<DeactivateUserCommand, UserSummary>,
       ICommandHandler<AnonymiseUserCommand, UserSummary>
 {
-    public async Task<Result<UserSummary>> Handle(UpdateUserAccessCommand command, CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(command);
-        var access = await resolver.ResolveAsync(command.Access, cancellationToken).ConfigureAwait(false);
-        if (access.IsFailure)
-        {
-            return access.Error;
-        }
-
-        return await ChangeAsync(command.Id, user => AccessResolver.Apply(user, access.Value), cancellationToken)
-            .ConfigureAwait(false);
-    }
-
     public Task<Result<UserSummary>> Handle(UnlockUserCommand command, CancellationToken cancellationToken) =>
         ChangeAsync(command.Id, user => user.Unlock(), cancellationToken);
 

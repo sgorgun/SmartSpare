@@ -62,6 +62,45 @@ namespace SmartSpare.Infrastructure.Persistence.Platform.Migrations
                         });
                 });
 
+            modelBuilder.Entity("SmartSpare.Infrastructure.Persistence.Platform.AssignmentRole", b =>
+                {
+                    b.Property<string>("RecordKind")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("record_kind")
+                        .HasComment("Kind of record the role applies to.");
+
+                    b.Property<string>("Code")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("code")
+                        .HasComment("Business code, e.g. BRAND_MANAGER.");
+
+                    b.Property<bool>("GrantsScope")
+                        .HasColumnType("boolean")
+                        .HasColumnName("grants_scope")
+                        .HasComment("TRUE if the assignment gives a right: brand approval scope or hub access.");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("name")
+                        .HasComment("Display name.");
+
+                    b.HasKey("RecordKind", "Code")
+                        .HasName("pk_assignment_role");
+
+                    b.ToTable("assignment_role", "ref", t =>
+                        {
+                            t.HasComment("Roles of responsible employees per record kind (ADR 0026); grants_scope marks the roles that give rights.");
+
+                            t.HasCheckConstraint("ck_assignment_role_code", "code ~ '^[A-Z_]{3,30}$'");
+
+                            t.HasCheckConstraint("ck_assignment_role_kind", "record_kind IN ('brand', 'warehouse', 'manufacturer', 'part', 'supplier')");
+                        });
+                });
+
             modelBuilder.Entity("SmartSpare.Infrastructure.Persistence.Platform.AuditLogEntry", b =>
                 {
                     b.Property<long>("Id")
