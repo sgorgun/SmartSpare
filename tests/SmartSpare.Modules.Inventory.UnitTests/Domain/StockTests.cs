@@ -137,7 +137,7 @@ public sealed class StockTests
     [InlineData(-2.5, MovementTypes.AdjustmentOut, -2.5)]
     public void An_adjustment_posts_its_direction_as_the_movement_type(decimal change, string type, decimal effect)
     {
-        var movement = StockMovement.Adjust(1, 101, change, 18.40m, " Stock count 2026-11 ", User, Now).Value;
+        var movement = StockMovement.Adjust(1, 101, change, 18.40m, Reason(AdjustmentReason.Both), " Stock count 2026-11 ", User, Now).Value;
 
         movement.MovementTypeCode.ShouldBe(type);
         movement.Quantity.ShouldBe(Math.Abs(change));
@@ -154,17 +154,51 @@ public sealed class StockTests
     [InlineData(0, "note")]
     [InlineData(0.0001, "note")]
     public void An_adjustment_needs_a_quantity(decimal change, string note) =>
-        StockMovement.Adjust(1, 101, change, 1, note, User, Now).Error.ShouldBe(InventoryErrors.InvalidQuantity);
+        StockMovement.Adjust(1, 101, change, 1, Reason(AdjustmentReason.Both), note, User, Now).Error.ShouldBe(InventoryErrors.InvalidQuantity);
 
     [Theory]
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    public void An_adjustment_needs_a_note(string? note)
+    public void A_reason_that_requires_a_note_refuses_an_adjustment_without_one(string? note)
     {
-        StockMovement.Adjust(1, 101, 1, 1, note, User, Now).Error.ShouldBe(InventoryErrors.NoteRequired);
-        StockMovement.Adjust(1, 101, 1, 1, new string('n', 301), User, Now).Error.ShouldBe(InventoryErrors.NoteRequired);
+        StockMovement.Adjust(1, 101, 1, 1, Reason(AdjustmentReason.Both, requiresNote: true), note, User, Now).Error.ShouldBe(InventoryErrors.NoteRequired);
+        StockMovement.Adjust(1, 101, 1, 1, Reason(AdjustmentReason.Both), note, User, Now).IsSuccess.ShouldBeTrue("other reasons need no note");
+        StockMovement.Adjust(1, 101, 1, 1, Reason(AdjustmentReason.Both), new string('n', 301), User, Now).Error.ShouldBe(InventoryErrors.NoteTooLong);
     }
+
+    [Theory]
+    [InlineData(AdjustmentReason.In, 2, true)]
+    [InlineData(AdjustmentReason.In, -2, false)]
+    [InlineData(AdjustmentReason.Out, -2, true)]
+    [InlineData(AdjustmentReason.Out, 2, false)]
+    [InlineData(AdjustmentReason.Both, -2, true)]
+    public void The_reason_must_allow_the_direction(string direction, decimal change, bool allowed)
+    {
+        var result = StockMovement.Adjust(1, 101, change, 1, Reason(direction), null, User, Now);
+
+        result.IsSuccess.ShouldBe(allowed);
+        if (allowed)
+        {
+            result.Value.AdjustmentReasonId.ShouldBe((short)0, "the reason's id (0 before it is saved)");
+        }
+        else
+        {
+            result.Error.ShouldBe(InventoryErrors.ReasonDirection);
+        }
+    }
+
+    [Fact]
+    public void An_archived_reason_cannot_be_chosen()
+    {
+        var reason = Reason(AdjustmentReason.Out);
+        reason.Archive(Now, User);
+
+        StockMovement.Adjust(1, 101, -1, 1, reason, null, User, Now).Error.Code.ShouldBe("SS500");
+    }
+
+    private static AdjustmentReason Reason(string direction, bool requiresNote = false) =>
+        AdjustmentReason.Create("TEST", "Test reason", direction, requiresNote).Value;
 
     [Theory]
     [InlineData(MovementTypes.OpeningBalance, 1, false)]

@@ -27,6 +27,7 @@ public static class AppPolicies
     public const string ReadInventory = nameof(ReadInventory);
     public const string ImportData = nameof(ImportData);
     public const string ReadFleet = nameof(ReadFleet);
+    public const string ManageCatalog = nameof(ManageCatalog);
 
     /// <summary>The roles each policy allows: the table of STAGE_3_PLAN section 3.2.</summary>
     public static IReadOnlyDictionary<string, IReadOnlyList<string>> Roles { get; } = new Dictionary<string, IReadOnlyList<string>>
@@ -46,6 +47,10 @@ public static class AppPolicies
         // CSV import of the part catalogue and the demand history (STAGE_5_PLAN 3.2): a planning and support task.
         // staging.process_batch has no role check of its own, so this policy is the control.
         [ImportData] = [AppRoles.Administrator, AppRoles.InventoryPlanner],
+
+        // Catalogue maintenance (STAGE_7_PLAN 6.1): brands, manufacturers, parts, analogues, adjustment reasons and the
+        // other Inventory catalogues. Fronts no SQL business function; planners own the catalogue, administrators support.
+        [ManageCatalog] = [AppRoles.InventoryPlanner, AppRoles.Administrator],
 
         // Read policies (stages 5–9) front no SQL function and are never brand-scoped (section 3.3 rule 1). Every role
         // works with parts and stock: planners and managers plan, keepers move, engineers fit parts, sponsors approve

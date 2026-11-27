@@ -173,7 +173,7 @@ public sealed class StockApiTests(IdentityDatabaseFixture database) : IAsyncLife
         using var browser = _host.NewBrowser();
 
         using (var surplus = await browser.PostAsync("/api/v1/inventory/stock-adjustments",
-                   new StockAdjustmentRequest(klp, part, 2, "Stock count surplus"), bearer: Token(keeper)))
+                   new StockAdjustmentRequest(klp, part, 2, 5, "Stock count surplus"), bearer: Token(keeper)))
         {
             surplus.StatusCode.ShouldBe(HttpStatusCode.Created, await surplus.Content.ReadAsStringAsync(Ct));
             var body = (await surplus.Content.ReadFromJsonAsync<StockAdjustmentResponse>(Ct))!;
@@ -182,27 +182,34 @@ public sealed class StockApiTests(IdentityDatabaseFixture database) : IAsyncLife
         }
 
         using (var shortage = await browser.PostAsync("/api/v1/inventory/stock-adjustments",
-                   new StockAdjustmentRequest(klp, part, -6, "Lost"), bearer: Token(keeper)))
+                   new StockAdjustmentRequest(klp, part, -6, 3, "Lost"), bearer: Token(keeper)))
         {
             shortage.StatusCode.ShouldBe(HttpStatusCode.Conflict);
             (await Problem.ReadAsync(shortage)).Code.ShouldBe("SS200");
         }
 
         using (var foreign = await browser.PostAsync("/api/v1/inventory/stock-adjustments",
-                   new StockAdjustmentRequest(klp, part, -1, "Wrong hub"), bearer: Token(otherKeeper)))
+                   new StockAdjustmentRequest(klp, part, -1, 3, "Wrong hub"), bearer: Token(otherKeeper)))
         {
             foreign.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
             (await Problem.ReadAsync(foreign)).Code.ShouldBe("SS302");
         }
 
         using (var noNote = await browser.PostAsync("/api/v1/inventory/stock-adjustments",
-                   new StockAdjustmentRequest(klp, part, 1, ""), bearer: Token(keeper)))
+                   new StockAdjustmentRequest(klp, part, 1, 1, ""), bearer: Token(keeper)))
         {
             noNote.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         }
 
+        using (var wrongDirection = await browser.PostAsync("/api/v1/inventory/stock-adjustments",
+                   new StockAdjustmentRequest(klp, part, 1, 2, null), bearer: Token(keeper)))
+        {
+            wrongDirection.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity, "DAMAGED allows shortages only");
+            (await Problem.ReadAsync(wrongDirection)).Code.ShouldBe("Inventory.ReasonDirection");
+        }
+
         using (var planner = await browser.PostAsync("/api/v1/inventory/stock-adjustments",
-                   new StockAdjustmentRequest(klp, part, 1, "Not a keeper"), bearer: Token(Planner)))
+                   new StockAdjustmentRequest(klp, part, 1, 5, "Not a keeper"), bearer: Token(Planner)))
         {
             planner.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         }

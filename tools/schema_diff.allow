@@ -232,3 +232,23 @@
 -GRANT UPDATE\((full_name|phone)\) ON TABLE iam\.app_user TO app_write
 -CREATE VIEW util\.v_privilege_findings AS (?!.*iam\.employee)
 +CREATE VIEW util\.v_privilege_findings AS .*iam\.employee
+
+# PR 7f1 (ADR 0025, STAGE_7_PLAN 2 and 3.1): the shared master-data mechanism and its first catalogue. The record
+# history (audit.history_table, audit.record_history, schema USAGE for app_read); inventory.adjustment_reason with its
+# triggers, grants and indexes; stock_movement.adjustment_reason_id with its FK and the insert trigger that requires
+# it on new adjustments; ck_stock_movement_source_document accepts the reason instead of a note.
++audit\.(history_table|record_history)\b
++\bhistory_table\b
++GRANT USAGE ON SCHEMA audit TO app_read
++\badjustment_reason\b
++trg_stock_movement_adjustment_reason
++BEGIN IF NEW\.movement_type_code IN \('ADJUSTMENT_IN', 'ADJUSTMENT_OUT'\) THEN IF NEW\.adjustment_reason_id IS NULL
++ELSIF NEW\.adjustment_reason_id IS NOT NULL THEN RAISE EXCEPTION 'Only a stock adjustment has an adjustment reason'
++COMMENT ON COLUMN inventory\.stock_movement\.adjustment_reason_id IS
+-CREATE TABLE inventory\.stock_movement(_\d{6}|_default)? \( (?!.*adjustment_reason_id)
++CREATE TABLE inventory\.stock_movement(_\d{6}|_default)? \( .*adjustment_reason_id
++IF p_page < 1 OR p_page_size NOT BETWEEN 1 AND 100 THEN RAISE EXCEPTION 'Page % of size % is out of range'
++IF v_direction IS DISTINCT FROM 'BOTH' AND v_direction IS DISTINCT FROM v_needed THEN
++RETURN QUERY SELECT a\.occurred_at, a\.action, a\.user_id, a\.changed_columns, a\.old_values, a\.new_values, a\.reason, count\(\*\) OVER \(\) FROM audit\.audit_log a
++v_needed +varchar\(4\);
++v_needed := CASE NEW\.movement_type_code WHEN 'ADJUSTMENT_IN' THEN 'IN' ELSE 'OUT' END;

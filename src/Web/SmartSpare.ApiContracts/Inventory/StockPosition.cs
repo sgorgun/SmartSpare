@@ -72,7 +72,8 @@ public sealed record StockAdjustmentRequest(
     [property: Description("Hub id.")] short WarehouseId,
     [property: Description("Part id.")] long PartId,
     [property: Description("Signed correction: positive for a surplus, negative for a shortage or scrap.")] decimal Quantity,
-    [property: Description("Why the stock is corrected (required).")] string Note);
+    [property: Description("Adjustment reason id (an active reason that allows this direction).")] short ReasonId,
+    [property: Description("Details; required when the reason says so.")] string? Note);
 
 public sealed class StockAdjustmentRequestValidator : AbstractValidator<StockAdjustmentRequest>
 {
@@ -82,7 +83,8 @@ public sealed class StockAdjustmentRequestValidator : AbstractValidator<StockAdj
         RuleFor(r => r.PartId).GreaterThan(0);
         RuleFor(r => r.Quantity).NotEqual(0).ExclusiveBetween(-InventoryLimits.MaxQuantity, InventoryLimits.MaxQuantity)
             .PrecisionScale(12, 3, true);
-        RuleFor(r => r.Note).NotEmpty().MaximumLength(InventoryLimits.MaxNoteLength);
+        RuleFor(r => r.ReasonId).GreaterThan((short)0).WithMessage("Choose an adjustment reason.");
+        RuleFor(r => r.Note).MaximumLength(InventoryLimits.MaxNoteLength);
     }
 }
 

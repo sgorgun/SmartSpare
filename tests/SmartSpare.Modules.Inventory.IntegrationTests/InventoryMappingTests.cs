@@ -149,8 +149,10 @@ public sealed class InventoryMappingTests(InventoryDatabaseFixture database)
         {
             context.Add(WarehousePart.Create(warehouse, part, 0, null).Value);
             await context.SaveChangesAsync(ct);
-            context.Add(StockMovement.Adjust(warehouse, part, 7, 10, "Stock count", Planner, DateTimeOffset.UtcNow).Value);
-            context.Add(StockMovement.Adjust(warehouse, part, -2, 10, "Damaged", Planner, DateTimeOffset.UtcNow).Value);
+            var count = await context.Set<AdjustmentReason>().AsNoTracking().SingleAsync(r => r.Code == "COUNT_CORRECTION", ct);
+            var damaged = await context.Set<AdjustmentReason>().AsNoTracking().SingleAsync(r => r.Code == "DAMAGED", ct);
+            context.Add(StockMovement.Adjust(warehouse, part, 7, 10, count, "Stock count", Planner, DateTimeOffset.UtcNow).Value);
+            context.Add(StockMovement.Adjust(warehouse, part, -2, 10, damaged, null, Planner, DateTimeOffset.UtcNow).Value);
             await context.SaveChangesAsync(ct);
         }
 

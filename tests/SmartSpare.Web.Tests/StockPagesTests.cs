@@ -5,6 +5,7 @@ using MudBlazor;
 using SmartSpare.ApiContracts;
 using SmartSpare.ApiContracts.Authorization;
 using SmartSpare.ApiContracts.Inventory;
+using SmartSpare.ApiContracts.MasterData;
 using SmartSpare.Web.Client.Features.Inventory;
 using SmartSpare.Web.Client.Http;
 
@@ -119,19 +120,21 @@ public sealed class StockPagesTests : ClientTestContext
     }
 
     [Fact]
-    public void A_keeper_posts_an_adjustment_and_needs_a_note()
+    public async Task A_keeper_posts_an_adjustment_and_needs_a_reason()
     {
         var page = Position(AppRoles.WarehouseKeeper);
         page.WaitForAssertion(() => page.Find("[data-testid=adjust-form]"));
 
         page.Find("input[data-testid=adjust-quantity], [data-testid=adjust-quantity] input").Change("-2");
         page.Find("[data-testid=post-adjustment]").Click();
-        page.WaitForAssertion(() => page.Find("[data-testid=adjust-error]").TextContent.ShouldContain("Note"));
+        page.WaitForAssertion(() => page.Find("[data-testid=adjust-error]").TextContent.ShouldContain("reason"));
         _inventory.Adjustments.ShouldBeEmpty("the shared validator stops the request");
 
-        page.Find("input[data-testid=adjust-note], [data-testid=adjust-note] input").Change("Damaged in storage");
+        var select = page.FindComponent<MudSelect<short>>();
+        await page.InvokeAsync(() => select.Instance.ValueChanged.InvokeAsync(2));
+        page.Find("input[data-testid=adjust-note], [data-testid=adjust-note] input").Change("Forklift damage");
         page.Find("[data-testid=post-adjustment]").Click();
-        page.WaitForAssertion(() => _inventory.Adjustments.ShouldHaveSingleItem().ShouldBe(new StockAdjustmentRequest(3, 1042, -2, "Damaged in storage")));
+        page.WaitForAssertion(() => _inventory.Adjustments.ShouldHaveSingleItem().ShouldBe(new StockAdjustmentRequest(3, 1042, -2, 2, "Forklift damage")));
     }
 
     [Fact]
@@ -209,6 +212,14 @@ public sealed class FakeStockClient() : InventoryClient(new HttpClient())
         LevelChanges.Add((request, version));
         return Task.FromResult(NextLevels ?? ApiResult.Success(Position.Stock));
     }
+
+    public override Task<ApiResult<List<CatalogLookupItem>>> LookupAdjustmentReasonsAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(ApiResult.Success(new List<CatalogLookupItem>
+        {
+            new(1, "COUNT_CORRECTION", "Stock count correction", AdjustmentDirections.Both),
+            new(2, "DAMAGED", "Damaged in storage", AdjustmentDirections.Out),
+            new(5, "FOUND", "Found in storage", AdjustmentDirections.In),
+        }));
 
     public override Task<ApiResult<StockAdjustmentResponse>> AdjustStockAsync(StockAdjustmentRequest request, CancellationToken cancellationToken = default)
     {

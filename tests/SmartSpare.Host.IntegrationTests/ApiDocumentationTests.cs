@@ -65,6 +65,9 @@ public sealed partial class ApiDocumentationTests : IAsyncLifetime
         var paths = root.GetProperty("paths");
         paths.EnumerateObject().Select(p => p.Name).Order(StringComparer.Ordinal).ShouldBe(
         [
+            "/api/v1/inventory/adjustment-reasons", "/api/v1/inventory/adjustment-reasons/lookup", "/api/v1/inventory/adjustment-reasons/{id}",
+            "/api/v1/inventory/adjustment-reasons/{id}/archive", "/api/v1/inventory/adjustment-reasons/{id}/history",
+            "/api/v1/inventory/adjustment-reasons/{id}/restore",
             "/api/v1/inventory/assignment-roles", "/api/v1/inventory/brands", "/api/v1/inventory/brands/{id}/responsibles",
             "/api/v1/inventory/imports", "/api/v1/inventory/imports/{id}", "/api/v1/inventory/movements", "/api/v1/inventory/parts", "/api/v1/inventory/parts/{id}", "/api/v1/inventory/stock",
             "/api/v1/inventory/stock-adjustments", "/api/v1/inventory/stock/{warehouseId}/{partId}",
@@ -83,7 +86,15 @@ public sealed partial class ApiDocumentationTests : IAsyncLifetime
             ("/api/v1/inventory/stock/{warehouseId}/{partId}", "get", ["200", "401", "403", "404"]),
             ("/api/v1/inventory/stock/{warehouseId}/{partId}/levels", "put", ["200", "400", "401", "403", "404", "409"]),
             ("/api/v1/inventory/movements", "get", ["200", "400", "401", "403"]),
-            ("/api/v1/inventory/stock-adjustments", "post", ["201", "400", "401", "403", "404", "409"]),
+            ("/api/v1/inventory/stock-adjustments", "post", ["201", "400", "401", "403", "404", "409", "422"]),
+            ("/api/v1/inventory/adjustment-reasons", "get", ["200", "400", "401", "403"]),
+            ("/api/v1/inventory/adjustment-reasons", "post", ["201", "400", "401", "403", "409"]),
+            ("/api/v1/inventory/adjustment-reasons/lookup", "get", ["200", "401", "403"]),
+            ("/api/v1/inventory/adjustment-reasons/{id}", "get", ["200", "401", "403", "404"]),
+            ("/api/v1/inventory/adjustment-reasons/{id}", "put", ["200", "400", "401", "403", "404", "409", "422"]),
+            ("/api/v1/inventory/adjustment-reasons/{id}/history", "get", ["200", "400", "401", "403", "404"]),
+            ("/api/v1/inventory/adjustment-reasons/{id}/archive", "post", ["200", "400", "401", "403", "404", "409"]),
+            ("/api/v1/inventory/adjustment-reasons/{id}/restore", "post", ["200", "400", "401", "403", "404", "409"]),
             ("/api/v1/inventory/transfers", "get", ["200", "400", "401", "403"]),
             ("/api/v1/inventory/transfers", "post", ["201", "400", "401", "403", "422"]),
             ("/api/v1/inventory/transfers/{id}", "get", ["200", "401", "403", "404"]),
@@ -118,7 +129,8 @@ public sealed partial class ApiDocumentationTests : IAsyncLifetime
         var schemas = root.GetProperty("components").GetProperty("schemas");
         foreach (var name in new[] { "StockRow", "StockPositionDetails", "ReservationSummary", "MovementRow", "ChangeStockLevelsRequest", "StockAdjustmentRequest", "StockAdjustmentResponse",
                      "TransferSummary", "TransferDetails", "TransferLineResponse", "TransferStep", "CreateTransferRequest", "CreateTransferLine", "CancelTransferRequest",
-                     "ImportBatchResponse", "ImportBatchDetails", "ImportRowError" })
+                     "ImportBatchResponse", "ImportBatchDetails", "ImportRowError",
+                     "AdjustmentReasonDto", "AdjustmentReasonWrite", "CatalogLookupItem", "RecordHistoryEntry", "RecordChange" })
         {
             schemas.GetProperty(name).GetProperty("properties").EnumerateObject()
                 .Where(p => !p.Value.TryGetProperty("description", out _)).Select(p => p.Name).ShouldBeEmpty($"every field of {name} is described");

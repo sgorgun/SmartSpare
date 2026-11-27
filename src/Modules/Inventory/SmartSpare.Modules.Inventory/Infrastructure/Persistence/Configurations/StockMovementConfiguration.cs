@@ -33,5 +33,6 @@ internal sealed class StockMovementConfiguration : IEntityTypeConfiguration<Stoc
         builder.Property(x => x.Note).HasColumnName("note").HasColumnOrder(12).HasColumnType("character varying(300)");
         builder.Property(x => x.CreatedBy).HasColumnName("created_by").HasColumnOrder(13).HasColumnType("uuid");
         builder.Property(x => x.CreatedAt).HasColumnName("created_at").HasColumnOrder(14).HasColumnType("timestamp with time zone").HasDefaultValueSql("now()");
+        builder.Property(x => x.AdjustmentReasonId).HasColumnName("adjustment_reason_id").HasColumnOrder(15).HasColumnType("smallint");
     }
 }

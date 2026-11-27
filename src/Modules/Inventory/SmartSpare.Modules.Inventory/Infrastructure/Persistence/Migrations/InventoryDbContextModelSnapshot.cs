@@ -257,6 +257,114 @@ namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("SmartSpare.Modules.Inventory.Domain.Stock.AdjustmentReason", b =>
+                {
+                    b.Property<short>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("smallint")
+                        .HasColumnName("id")
+                        .HasColumnOrder(0)
+                        .HasComment("Surrogate primary key.");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<short>("Id"));
+
+                    b.Property<DateTimeOffset?>("ArchivedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("archived_at")
+                        .HasColumnOrder(51);
+
+                    b.Property<Guid?>("ArchivedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("archived_by")
+                        .HasColumnOrder(52)
+                        .HasComment("User who archived the record (iam.app_user).");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("code")
+                        .HasColumnOrder(1)
+                        .HasComment("Business key, e.g. DAMAGED; never changes after creation.");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasColumnOrder(53)
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("Direction")
+                        .IsRequired()
+                        .HasColumnType("character varying(4)")
+                        .HasColumnName("direction")
+                        .HasColumnOrder(3)
+                        .HasComment("IN: surpluses only; OUT: shortages only; BOTH.");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_archived")
+                        .HasColumnOrder(50)
+                        .HasDefaultValueSql("false")
+                        .HasComment("Archived instead of deleted: kept on history, cannot be chosen (SS500).");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("name")
+                        .HasColumnOrder(2)
+                        .HasComment("Display name.");
+
+                    b.Property<bool>("RequiresNote")
+                        .HasColumnType("boolean")
+                        .HasColumnName("requires_note")
+                        .HasColumnOrder(4)
+                        .HasDefaultValueSql("false")
+                        .HasComment("An adjustment with this reason must have a note.");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasColumnOrder(54)
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id")
+                        .HasName("pk_adjustment_reason");
+
+                    b.HasIndex(new[] { "Code" }, "ix_adjustment_reason_code_trgm")
+                        .HasDatabaseName("ix_adjustment_reason_code_trgm");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex(new[] { "Code" }, "ix_adjustment_reason_code_trgm"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex(new[] { "Code" }, "ix_adjustment_reason_code_trgm"), new[] { "gin_trgm_ops" });
+
+                    b.HasIndex(new[] { "Name" }, "ix_adjustment_reason_name_trgm")
+                        .HasDatabaseName("ix_adjustment_reason_name_trgm");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex(new[] { "Name" }, "ix_adjustment_reason_name_trgm"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex(new[] { "Name" }, "ix_adjustment_reason_name_trgm"), new[] { "gin_trgm_ops" });
+
+                    b.HasIndex(new[] { "Code" }, "uq_adjustment_reason_code")
+                        .IsUnique()
+                        .HasDatabaseName("uq_adjustment_reason_code");
+
+                    b.ToTable("adjustment_reason", "inventory", t =>
+                        {
+                            t.HasComment("Why stock is corrected; every stock adjustment names an active reason (ADR 0025).");
+
+                            t.HasCheckConstraint("ck_adjustment_reason_archived", "((is_archived AND (archived_at IS NOT NULL)) OR ((NOT is_archived) AND (archived_at IS NULL)))");
+
+                            t.HasCheckConstraint("ck_adjustment_reason_code", "((code)::text ~ '^[A-Z0-9_]{2,30}$'::text)");
+
+                            t.HasCheckConstraint("ck_adjustment_reason_direction", "((direction)::text = ANY (ARRAY['IN'::text, 'OUT'::text, 'BOTH'::text]))");
+                        });
+                });
+
             modelBuilder.Entity("SmartSpare.Modules.Inventory.Domain.Stock.StockBalance", b =>
                 {
                     b.Property<short>("WarehouseId")
@@ -341,6 +449,11 @@ namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("occurred_at")
                         .HasColumnOrder(1);
+
+                    b.Property<short?>("AdjustmentReasonId")
+                        .HasColumnType("smallint")
+                        .HasColumnName("adjustment_reason_id")
+                        .HasColumnOrder(15);
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .ValueGeneratedOnAdd()

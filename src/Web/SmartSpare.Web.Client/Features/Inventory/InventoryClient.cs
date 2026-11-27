@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Net.Http.Json;
 using SmartSpare.ApiContracts;
 using SmartSpare.ApiContracts.Inventory;
+using SmartSpare.ApiContracts.MasterData;
 using SmartSpare.Web.Client.Http;
 
 namespace SmartSpare.Web.Client.Features.Inventory;
@@ -90,6 +91,11 @@ public class InventoryClient(HttpClient http) : ApiClientBase(http)
         message.Headers.TryAddWithoutValidation("If-Match", $"\"{version}\"");
         return SendAsync<StockRow>(message, cancellationToken);
     }
+
+    /// <summary>Active adjustment reasons for the adjustment form; the detail of each entry is its direction (IN, OUT, BOTH).</summary>
+    public virtual Task<ApiResult<List<CatalogLookupItem>>> LookupAdjustmentReasonsAsync(CancellationToken cancellationToken = default) =>
+        SendAsync<List<CatalogLookupItem>>(
+            new HttpRequestMessage(HttpMethod.Get, "api/v1/inventory/adjustment-reasons/lookup?limit=50"), cancellationToken);
 
     public virtual Task<ApiResult<StockAdjustmentResponse>> AdjustStockAsync(StockAdjustmentRequest request, CancellationToken cancellationToken = default) =>
         SendAsync<StockAdjustmentResponse>(

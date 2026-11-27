@@ -383,25 +383,27 @@ ORDER BY s.warehouse_id, s.part_id;
 UPDATE inventory.warehouse_part wp SET safety_stock_qty = CASE w.code WHEN 'KLP' THEN 8 WHEN 'PNV' THEN 4 ELSE 2 END
 FROM inventory.warehouse w, catalog.part p
 WHERE w.id = wp.warehouse_id AND p.id = wp.part_id AND p.oem_part_number = 'CP-4821';
-INSERT INTO inventory.stock_movement (occurred_at, warehouse_id, part_id, movement_type_code, quantity, unit_cost, note)
+INSERT INTO inventory.stock_movement (occurred_at, warehouse_id, part_id, movement_type_code, quantity, unit_cost, note, adjustment_reason_id)
 SELECT (:'go_live'::date + time '07:00') AT TIME ZONE 'Europe/Vilnius', w.id, p.id, 'ADJUSTMENT_IN',
-       CASE w.code WHEN 'KLP' THEN 38 WHEN 'PNV' THEN 6 ELSE 3 END - coalesce(b.on_hand_qty, 0), p.unit_cost, 'UC01 scenario stock count'
+       CASE w.code WHEN 'KLP' THEN 38 WHEN 'PNV' THEN 6 ELSE 3 END - coalesce(b.on_hand_qty, 0), p.unit_cost, 'UC01 scenario stock count',
+       (SELECT id FROM inventory.adjustment_reason WHERE code = 'COUNT_CORRECTION')
 FROM inventory.warehouse w CROSS JOIN catalog.part p
 LEFT JOIN inventory.stock_balance b ON b.warehouse_id = w.id AND b.part_id = p.id
 WHERE p.oem_part_number = 'CP-4821'
   AND CASE w.code WHEN 'KLP' THEN 38 WHEN 'PNV' THEN 6 ELSE 3 END > coalesce(b.on_hand_qty, 0);
-INSERT INTO inventory.stock_movement (occurred_at, warehouse_id, part_id, movement_type_code, quantity, unit_cost, note)
+INSERT INTO inventory.stock_movement (occurred_at, warehouse_id, part_id, movement_type_code, quantity, unit_cost, note, adjustment_reason_id)
 SELECT (:'go_live'::date + time '07:00') AT TIME ZONE 'Europe/Vilnius', w.id, p.id, 'ADJUSTMENT_OUT',
-       b.on_hand_qty - CASE w.code WHEN 'KLP' THEN 38 WHEN 'PNV' THEN 6 ELSE 3 END, p.unit_cost, 'UC01 scenario stock count'
+       b.on_hand_qty - CASE w.code WHEN 'KLP' THEN 38 WHEN 'PNV' THEN 6 ELSE 3 END, p.unit_cost, 'UC01 scenario stock count',
+       (SELECT id FROM inventory.adjustment_reason WHERE code = 'COUNT_CORRECTION')
 FROM inventory.warehouse w CROSS JOIN catalog.part p
 JOIN inventory.stock_balance b ON b.warehouse_id = w.id AND b.part_id = p.id
 WHERE p.oem_part_number = 'CP-4821'
   AND CASE w.code WHEN 'KLP' THEN 38 WHEN 'PNV' THEN 6 ELSE 3 END < b.on_hand_qty;
 
 -- Service-kit parts are well stocked at every hub.
-INSERT INTO inventory.stock_movement (occurred_at, warehouse_id, part_id, movement_type_code, quantity, unit_cost, note)
+INSERT INTO inventory.stock_movement (occurred_at, warehouse_id, part_id, movement_type_code, quantity, unit_cost, note, adjustment_reason_id)
 SELECT (:'go_live'::date + time '07:30') AT TIME ZONE 'Europe/Vilnius', wp.warehouse_id, p.id, 'ADJUSTMENT_IN',
-       CASE WHEN u.code = 'L' THEN 400 ELSE 12 END, p.unit_cost, 'Service kit stock build-up'
+       CASE WHEN u.code = 'L' THEN 400 ELSE 12 END, p.unit_cost, 'Service kit stock build-up', (SELECT id FROM inventory.adjustment_reason WHERE code = 'COUNT_CORRECTION')
 FROM catalog.part p JOIN ref.unit_of_measure u ON u.id = p.uom_id
 JOIN inventory.warehouse_part wp ON wp.part_id = p.id
 WHERE p.oem_part_number ~ '^(00115345|0006673220|000197|RE9000|F9000|V9000000|9000000|9100000)';

@@ -42,6 +42,7 @@ public sealed class InventoryModuleInstaller : IModuleInstaller
         services.AddScoped<TransferFunctions>();
         services.AddScoped<ImportStore>();
         services.AddScoped<ServiceKitStore>();
+        services.TryAddScoped<SmartSpare.Infrastructure.MasterData.IActorNames, Infrastructure.Queries.EmployeeActorNames>();
         services.AddImportRateLimit();
         services.AddJob<PartCatalogPublishJob>();
         services.AddJob<ReservationExpiryJob>();
@@ -68,6 +69,7 @@ public sealed class InventoryModuleInstaller : IModuleInstaller
         TransferCommandEndpoints.Map(v1);
         ImportEndpoints.Map(v1);
         Features.Responsibilities.ResponsibleEndpoints.Map(v1);
+        Features.AdjustmentReasons.AdjustmentReasonCatalog.Map(v1);
     }
 
     public void MapInternalEndpoints(IEndpointRouteBuilder endpoints) => WarehouseQueriesEndpoint.Map(endpoints);

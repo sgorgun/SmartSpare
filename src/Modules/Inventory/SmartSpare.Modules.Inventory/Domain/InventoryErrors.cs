@@ -1,4 +1,5 @@
 using SmartSpare.SharedKernel;
+using SmartSpare.SharedKernel.MasterData;
 
 namespace SmartSpare.Modules.Inventory.Domain;
 
@@ -27,7 +28,23 @@ internal static class InventoryErrors
         "Inventory.CancelReasonRequired", "A cancellation needs a reason of at most 300 characters.");
 
     public static readonly Error NoteRequired = Error.Validation(
-        "Inventory.NoteRequired", "A stock adjustment needs a note of at most 300 characters.");
+        "Inventory.NoteRequired", "This adjustment reason needs a note of at most 300 characters.");
+
+    public static readonly Error NoteTooLong = Error.Validation(
+        "Inventory.NoteTooLong", "The note can have at most 300 characters.");
+
+    public static readonly Error InvalidReasonCode = Error.Validation(
+        "Inventory.InvalidReasonCode", "The code needs 2 to 30 capital letters, digits or underscores, e.g. DAMAGED.");
+
+    public static readonly Error InvalidReasonDirection = Error.Validation(
+        "Inventory.InvalidReasonDirection", "The direction is IN (surplus), OUT (shortage) or BOTH.");
+
+    public static readonly Error ReasonNotFound = Error.NotFound("Inventory.ReasonNotFound", "The adjustment reason does not exist.");
+
+    public static readonly Error ReasonArchived = CatalogErrors.Archived("adjustment reason");
+
+    public static readonly Error ReasonDirection = Error.BusinessRule(
+        "Inventory.ReasonDirection", "This reason does not allow a correction in this direction (surplus or shortage).");
 
     public static readonly Error InvalidStockLevels = Error.Validation(
         "Inventory.InvalidStockLevels", "The safety stock is zero or more, and the maximum is not below it.");
