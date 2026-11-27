@@ -110,4 +110,14 @@ public class FleetClient(HttpClient http) : ApiClientBase(http)
         };
         return SendAsync<ServiceOrderDetails>(request, cancellationToken);
     }
+
+    /// <summary>Sets the kit of an order that has not started (PUT /service-orders/{id}/lines).</summary>
+    public virtual Task<ApiResult<ServiceOrderDetails>> ChangeServiceOrderLinesAsync(
+        long id, IReadOnlyList<CreateServiceOrderLine> lines, CancellationToken cancellationToken = default) =>
+        SendAsync<ServiceOrderDetails>(
+            new HttpRequestMessage(HttpMethod.Put, string.Create(CultureInfo.InvariantCulture, $"api/v1/fleet/service-orders/{id}/lines"))
+            {
+                Content = JsonContent.Create(new ChangeServiceOrderLinesRequest(lines)),
+            },
+            cancellationToken);
 }

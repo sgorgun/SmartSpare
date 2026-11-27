@@ -1,0 +1,139 @@
+@using System.Globalization
+@using SmartSpare.ApiContracts.Fleet
+@using SmartSpare.ApiContracts.Inventory
+@inject IStringLocalizer<SharedResource> Text
+@inject FleetClient Fleet
+@inject InventoryClient Inventory
+@inject ProblemMessages Messages
+
+@* Edits the kit of an order that has not started (PR 6i, #140): quantities, removals and new parts, saved as the whole
+   kit. A changed or new line is reserved again by the hub, so the order shows "Reserving parts…" afterwards. *@
+<div data-testid="kit-editor">
+    <MudText Typo="Typo.subtitle1" HtmlTag="h3" Class="mb-2">@Text["KitEditor.Title"]</MudText>
+    @foreach (var line in _lines)
+    {
+        <div class="d-flex align-center flex-wrap gap-2 mb-2">
+            <MudText Typo="Typo.body2" Class="flex-grow-1" Style="min-width: 180px">@line.Label</MudText>
+            <div style="width: 110px">
+                <MudTextField T="string" @bind-Value="line.Quantity" Label="@Text["NewOrder.Quantity"]" Variant="Variant.Outlined" Margin="Margin.Dense"
+                              InputMode="DecimalInput" autocomplete="off" aria-label="@Text["KitEditor.QuantityOf", line.Label].Value"
+                              data-testid="@("kit-qty-" + line.PartId)" />
+            </div>
+            <MudIconButton Icon="@Icons.Material.Filled.Delete" OnClick="() => _lines.Remove(line)" Class="touch-target"
+                           aria-label="@Text["NewOrder.Remove", line.Label].Value" data-testid="@("kit-remove-" + line.PartId)" />
+        </div>
+    }
+    <div class="d-flex flex-wrap align-end gap-2 mb-2">
+        <div class="flex-grow-1" style="min-width: 220px">
+            <MudAutocomplete T="PartSummary" @bind-Value="_part" SearchFunc="SearchPartsAsync"
+                             ToStringFunc="@(p => p is null ? string.Empty : $"{p.BrandCode} {p.OemPartNumber} · {p.Description}")"
+                             Label="@Text["NewOrder.Part"]" Variant="Variant.Outlined" Margin="Margin.Dense" DebounceInterval="300" MinCharacters="2"
+                             InputMode="InputMode.search" data-testid="kit-part" />
+        </div>
+        <MudButton OnClick="AddPart" Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Class="touch-target"
+                   data-testid="kit-add">@Text["NewOrder.Add"]</MudButton>
+    </div>
+    @if (_problem is not null)
+    {
+        <MudText Color="Color.Error" Typo="Typo.body2" Class="mb-2" role="alert" data-testid="kit-error">@_problem</MudText>
+    }
+    <MudButton OnClick="SaveAsync" Disabled="_busy" Variant="Variant.Filled" Color="Color.Primary" Class="mr-2 touch-target"
+               data-testid="kit-save">@Text["KitEditor.Save"]</MudButton>
+    <MudButton OnClick="() => OnClose.InvokeAsync()" Disabled="_busy" Variant="Variant.Text" Class="touch-target">@Text["Reading.Cancel"]</MudButton>
+</div>
+
+@code {
+    /// <summary>Opens the numeric keypad with a decimal separator on phones and tablets.</summary>
+    private const InputMode DecimalInput = InputMode.@decimal;
+
+    private List<EditedLine> _lines = [];
+    private PartSummary? _part;
+    private string? _problem;
+    private bool _busy;
+
+    [Parameter, EditorRequired]
+    public ServiceOrderDetails Order { get; set; } = null!;
+
+    [Parameter]
+    public EventCallback<ServiceOrderDetails> OnSaved { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    protected override void OnInitialized() =>
+        _lines = [.. Order.Lines.Select(l => new EditedLine(l.PartId, Label(l.OemPartNumber, l.Description, l.PartId), Number(l.QtyRequired)))];
+
+    private async Task<IEnumerable<PartSummary>> SearchPartsAsync(string? text, CancellationToken cancellationToken)
+    {
+        var result = await Inventory.SearchPartsAsync(text, 1, 10, cancellationToken);
+        return result.IsSuccess ? result.Value!.Items : [];
+    }
+
+    private void AddPart()
+    {
+        _problem = null;
+        if (_part is null)
+        {
+            _problem = Text["NewOrder.LineInvalid"].Value;
+            return;
+        }
+
+        if (_lines.Exists(l => l.PartId == _part.Id))
+        {
+            _problem = Text["NewOrder.PartTwice"].Value;
+            return;
+        }
+
+        _lines.Add(new EditedLine(_part.Id, Label(_part.OemPartNumber, _part.Description, _part.Id), "1"));
+        _part = null;
+    }
+
+    private async Task SaveAsync()
+    {
+        _problem = null;
+        var lines = new List<CreateServiceOrderLine>();
+        foreach (var line in _lines)
+        {
+            if (EngineHoursInput.Parse(line.Quantity) is not { } quantity || quantity <= 0)
+            {
+                _problem = Text["KitEditor.QuantityInvalid", line.Label].Value;
+                return;
+            }
+
+            lines.Add(new CreateServiceOrderLine(line.PartId, quantity));
+        }
+
+        var invalid = new ChangeServiceOrderLinesRequestValidator().Validate(new ChangeServiceOrderLinesRequest(lines));
+        if (!invalid.IsValid)
+        {
+            _problem = string.Join(" ", invalid.Errors.Select(e => e.ErrorMessage));
+            return;
+        }
+
+        _busy = true;
+        var result = await Fleet.ChangeServiceOrderLinesAsync(Order.Order.Id, lines);
+        _busy = false;
+        if (!result.IsSuccess)
+        {
+            // Fleet.NoLines (a repair keeps a line), an unknown part, SS300 once the work started: the sentence of the server.
+            _problem = Messages.Describe(result.Problem!);
+            return;
+        }
+
+        await OnSaved.InvokeAsync(result.Value!);
+    }
+
+    private string Label(string? oem, string? description, long partId) =>
+        oem is null ? Text["Order.UnknownPart", partId].Value : $"{oem} · {description}";
+
+    private static string Number(decimal value) => value.ToString("0.###", CultureInfo.CurrentCulture);
+
+    private sealed class EditedLine(long partId, string label, string quantity)
+    {
+        public long PartId { get; } = partId;
+
+        public string Label { get; } = label;
+
+        public string? Quantity { get; set; } = quantity;
+    }
+}
