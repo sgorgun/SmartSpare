@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using System.Globalization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -18,26 +17,6 @@ namespace SmartSpare.Modules.Inventory.Features.Stock;
 
 /// <summary>One stock position with its open reservations and latest movements.</summary>
 internal sealed record GetStockPositionQuery(short WarehouseId, long PartId) : IQuery<StockPositionDetails>;
-
-/// <summary>The <c>xmin</c> concurrency version of an aggregate as an opaque string and an entity tag.</summary>
-internal static class Versions
-{
-    public static string Format(uint version) => version.ToString(CultureInfo.InvariantCulture);
-
-    public static string ETag(uint version) => $"\"{Format(version)}\"";
-
-    /// <summary>Reads <c>If-Match: "123"</c> (or a bare <c>123</c>); <see langword="null"/> if absent or malformed.</summary>
-    public static uint? Parse(string? ifMatch)
-    {
-        var value = ifMatch?.Trim();
-        if (value is { Length: > 2 } && value[0] == '"' && value[^1] == '"')
-        {
-            value = value[1..^1];
-        }
-
-        return uint.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var version) ? version : null;
-    }
-}
 
 internal static class GetStockPositionEndpoint
 {
