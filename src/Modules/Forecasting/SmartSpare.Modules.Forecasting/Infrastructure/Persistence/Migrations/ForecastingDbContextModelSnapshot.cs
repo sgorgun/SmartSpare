@@ -286,7 +286,6 @@ namespace SmartSpare.Modules.Forecasting.Infrastructure.Persistence.Migrations
                         .HasComment("Time of the started event.");
 
                     b.Property<RunStatus>("Status")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("forecast.run_status")
                         .HasColumnName("status")
                         .HasColumnOrder(2)
@@ -428,7 +427,6 @@ namespace SmartSpare.Modules.Forecasting.Infrastructure.Persistence.Migrations
                         .HasComment("Root mean squared scaled error on the holdout period (KPI-02 metric).");
 
                     b.Property<ModelStatus>("Status")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("forecast.model_status")
                         .HasColumnName("status")
                         .HasColumnOrder(4)
@@ -618,7 +616,6 @@ namespace SmartSpare.Modules.Forecasting.Infrastructure.Persistence.Migrations
                         .HasComment("NFR08 (d): safety stock of the hub.");
 
                     b.Property<RecommendationStatus>("Status")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("forecast.recommendation_status")
                         .HasColumnName("status")
                         .HasColumnOrder(17)

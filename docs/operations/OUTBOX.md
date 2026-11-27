@@ -37,3 +37,15 @@ WHERE exhausted_at IS NOT NULL AND processed_at IS NULL;   -- or: AND id = '<eve
 Replaying is safe: every consumer records handled events in its inbox under a stable consumer name (#32), so an event that was already handled before it failed elsewhere isn't handled twice.
 
 The statement needs UPDATE on the outbox table, which the capability roles `app_write` and `app_ml` have (their logins, such as `smartspare_api` locally). Replayed events then show up in the trace and logs like any other delivery.
+
+## Retention
+
+Delivered outbox rows and handled inbox rows are deleted by the job `outbox-retention` (#30). It runs daily at 03:30 from the Quartz scheduler of the single host (`Jobs:Schedules`), and as `--job outbox-retention` of each service image in production, where every service purges only its own module's tables. Settings, section `Messaging:Retention`:
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `OutboxDays` | 7 | A delivered outbox row (`processed_at` set) is kept this long, for tracing a delivery. |
+| `InboxDays` | 30 | A handled inbox row is kept this long; it is the record that stops a redelivered event from being handled twice. |
+| `BatchSize` | 5,000 | Rows deleted per table and call; the job repeats while a batch comes back full, so locks stay short. |
+
+The host refuses to start when `InboxDays` is not longer than the longest redelivery window of the outbox (attempts × back-off cap × 1.2 jitter, about 2 hours with the defaults). Undelivered events, parked ones included, are **never** deleted: replay or investigate them as above. The job calls `<schema>.purge_processed_messages`, a `SECURITY DEFINER` function the application role may execute; the role itself has no `DELETE` on the tables.

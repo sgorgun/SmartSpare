@@ -58,6 +58,7 @@ public static class ModuleComposition
             }
 
             services.AddOutboxDispatcher();
+            services.AddMessageRetention();
         }
 
         // The session context of every module transaction comes from the request's claims (#11).
