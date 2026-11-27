@@ -145,3 +145,22 @@
 # no stock; the consumer of ServiceKitReserved sets it (Fleet migration ServiceOrderKitReservedAt, db/sql/fleet/0007).
 -CREATE TABLE fleet\.service_order \(
 +kit_reserved_at
+
+# PR 6h2 (STAGE_6_PLAN 5.4, F7, MODULE_MAPPING X7, #12): fleet.complete_service_order is module-local; Inventory issues
+# the kit on ServiceOrderCompleted through inventory.issue_service_kit (holds consumed, the rest up to the stock, ordered
+# locks, idempotent per line) and Fleet's consumer of ServiceKitIssued writes qty_issued (Inventory migration
+# ServiceKitIssue, db/sql/inventory/0009; Fleet migration ServiceKitIssueGrants, db/sql/fleet/0008).
+-COMMENT ON FUNCTION fleet\.complete_service_order\(.*Consumes the kit reservations, issues parts
++COMMENT ON FUNCTION fleet\.complete_service_order\(.*Closes an open service order; Inventory issues the kit on ServiceOrderCompleted
+-^FOR v_line IN SELECT l\.id, l\.part_id, l\.qty_required - l\.qty_issued AS qty, p\.unit_cost FROM fleet\.service_order_line l JOIN catalog\.part p
+-^INSERT INTO inventory\.stock_movement .*VALUES \(now\(\), v_so\.warehouse_id, v_line\.part_id, 'ISSUE_SERVICE'
++issue_service_kit
++^GRANT UPDATE\(qty_issued\) ON TABLE fleet\.service_order_line TO app_write;$
++^IF v_done IS NOT NULL THEN -- Issued before: release a late hold
++^IF v_qty > 0 THEN INSERT INTO inventory\.stock_movement .*'ISSUE_SERVICE', v_qty, p\.unit_cost, v_line\.line_id, v_user
++^PERFORM 1 FROM inventory\.stock_balance b WHERE b\.warehouse_id = p_warehouse_id AND b\.part_id = ANY \(p_part_ids\) ORDER BY b\.part_id, b\.warehouse_id FOR UPDATE;$
++^UPDATE inventory\.stock_reservation r SET status = 'consumed' WHERE r\.service_order_line_id = v_line\.line_id
++^issued_qty := (greatest\(v_qty, 0\)|v_done);$
++^shortfall_qty := (greatest\(v_line\.quantity - v_done, 0\)|v_line\.quantity - greatest\(v_qty, 0\));$
++^v_done +numeric;$
+

@@ -64,4 +64,14 @@ internal static class FleetExamples
         Lines: [new ServiceOrderLineResponse(71, 1203, "0011534571", "Engine oil filter", "PCS", 1, 1, 0, 0),
                 new ServiceOrderLineResponse(72, 1210, "0001970050", "Engine oil 15W-40", "L", 30, 30, 0, 0)],
         AllowedActions: [ServiceOrderActions.Start]);
+
+    /// <summary>Completed at 515 h; the oil was short by 6 l at the hub (shortfall rule F7).</summary>
+    public static ServiceOrderDetails CompletedServiceOrder { get; } = ServiceOrderDetails with
+    {
+        Order = ServiceOrder with { Status = ServiceOrderStatuses.Completed, KitStatus = KitStatuses.Issued, CompletedAt = At.AddHours(3) },
+        CompletedEngineHours = 515,
+        Lines = [new ServiceOrderLineResponse(71, 1203, "0011534571", "Engine oil filter", "PCS", 1, 0, 1, 0),
+                 new ServiceOrderLineResponse(72, 1210, "0001970050", "Engine oil 15W-40", "L", 30, 0, 24, 6)],
+        AllowedActions = [],
+    };
 }

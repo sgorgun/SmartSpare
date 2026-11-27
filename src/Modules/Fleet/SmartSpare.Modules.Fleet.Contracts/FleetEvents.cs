@@ -17,3 +17,16 @@ public sealed record ServiceOrderDrafted(
     IReadOnlyList<ServiceOrderKitLine> Lines,
     Guid ActorId,
     DateTimeOffset DraftedAt) : IntegrationEvent, IActedByUser;
+
+/// <summary>
+/// A service order was completed (MODULE_MAPPING X7, STAGE_6_PLAN 5.4): Inventory consumes the holds and issues the open
+/// quantities, the unreserved rest up to the available stock (F7), and answers with <c>ServiceKitIssued</c>. Written to
+/// Fleet's outbox in the completion's transaction from PR 6h2. Handled as <see cref="ActorId"/>.
+/// </summary>
+public sealed record ServiceOrderCompleted(
+    long ServiceOrderId,
+    string Number,
+    short WarehouseId,
+    IReadOnlyList<ServiceOrderKitLine> Lines,
+    Guid ActorId,
+    DateTimeOffset CompletedAt) : IntegrationEvent, IActedByUser;

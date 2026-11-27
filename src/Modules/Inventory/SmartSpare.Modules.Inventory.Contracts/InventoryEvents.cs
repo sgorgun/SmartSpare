@@ -83,3 +83,14 @@ public sealed record ServiceKitReservationExpired(IReadOnlyList<long> LineIds, D
 {
     public const int MaxLines = 500;
 }
+
+/// <summary>What Inventory issued for one service order line, and what it could not.</summary>
+public sealed record IssuedKitLine(long LineId, decimal IssuedQty, decimal ShortfallQty);
+
+/// <summary>
+/// The kit of a completed service order was issued (ISSUE_SERVICE movements, STAGE_6_PLAN 5.4, F7): reserved quantities
+/// always, the rest up to the available stock; <see cref="IssuedKitLine.ShortfallQty"/> is what was missing. Fleet stores the
+/// issued quantity per line. Published by Inventory's consumer of <c>ServiceOrderCompleted</c> from PR 6h2. Handled as
+/// <see cref="ActorId"/>, the user who completed the order.
+/// </summary>
+public sealed record ServiceKitIssued(long ServiceOrderId, IReadOnlyList<IssuedKitLine> Lines, Guid ActorId) : IntegrationEvent, IActedByUser;

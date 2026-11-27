@@ -124,3 +124,16 @@ public sealed class CreateServiceOrderRequestValidator : AbstractValidator<Creat
             .WithMessage("Each part appears only once.");
     }
 }
+
+/// <summary>The completion of a service order.</summary>
+[Description("The completion of a service order: the machine's engine hours when the work was done.")]
+public sealed record CompleteServiceOrderRequest(
+    [property: Description("Engine hours at completion, 0 to 100,000 with at most one decimal; not below the hours that triggered the order or the machine's current hours.")] decimal EngineHours);
+
+/// <summary>Rules of <see cref="CompleteServiceOrderRequest"/>, shared by the form and the server.</summary>
+public sealed class CompleteServiceOrderRequestValidator : AbstractValidator<CompleteServiceOrderRequest>
+{
+    public CompleteServiceOrderRequestValidator() =>
+        RuleFor(r => r.EngineHours).InclusiveBetween(0, RecordReadingRequestValidator.MaxHours)
+            .Must(h => decimal.Round(h, 1) == h).WithMessage("Engine hours have at most one decimal.");
+}

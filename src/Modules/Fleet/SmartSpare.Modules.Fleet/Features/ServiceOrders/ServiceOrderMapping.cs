@@ -63,6 +63,11 @@ internal sealed class ServiceOrderAccess(ICurrentUser user)
             actions.Add(ServiceOrderActions.Start);
         }
 
+        if (May(AppPolicies.RecordServiceWork) && order.CanComplete().IsSuccess)
+        {
+            actions.Add(ServiceOrderActions.Complete);
+        }
+
         return actions;
     }
 

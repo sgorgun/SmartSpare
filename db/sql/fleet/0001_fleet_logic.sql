@@ -4,8 +4,8 @@
 -- uq_customer_erp_ref_hash is created here: it is a UNIQUE constraint on a nullable column, which
 -- EF cannot model as an alternate key. fleet.v_machine_maintenance_status is module-local since stage 6 (X10);
 -- fleet.v_service_kit_shortage too (X9), created in 0005 after its column. The transitional draft, completion and
--- cancellation keep Fleet's copy service_order_line.qty_reserved current until the event flow replaces them (6h);
--- drafting is module-local since 6g2.
+-- cancellation keep Fleet's copy service_order_line.qty_reserved current until the event flow replaces it (6h3);
+-- drafting is module-local since 6g2, completion since 6h2.
 -- =============================================================================
 
 COMMENT ON SCHEMA fleet       IS 'Core layer / Fleet & Maintenance module: machines, engine hours, maintenance plans, service orders.';
@@ -210,13 +210,15 @@ END $$;
 CREATE TRIGGER trg_service_order_status_guard BEFORE UPDATE ON fleet.service_order
     FOR EACH ROW EXECUTE FUNCTION fleet.trg_service_order_status_guard();
 
--- TRANSITIONAL: replaced by ServiceOrderCompleted -> ServiceKitIssued in stage 6, #12 (writes inventory; MODULE_MAPPING 3.1 X7)
+-- Completes an open order, module-local since stage 6 (PR 6h2, MODULE_MAPPING X7): the caller publishes
+-- ServiceOrderCompleted with the open quantities, Inventory consumes the holds and issues the parts
+-- (inventory.issue_service_kit; reserved quantities always, the rest up to the available stock) and answers with
+-- ServiceKitIssued, which sets qty_issued. The order is completed even if Inventory later reports a shortfall (F7).
 CREATE FUNCTION fleet.complete_service_order(p_service_order_id bigint, p_engine_hours numeric) RETURNS void
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 DECLARE
     v_user  uuid := util.require_role('SERVICE_ENGINEER', 'ADMINISTRATOR');
     v_so    fleet.service_order;
-    v_line  record;
 BEGIN
     SELECT * INTO v_so FROM fleet.service_order WHERE id = p_service_order_id FOR UPDATE;
     IF NOT FOUND THEN RAISE EXCEPTION 'Service order % not found', p_service_order_id USING ERRCODE = 'no_data_found'; END IF;
@@ -224,25 +226,11 @@ BEGIN
         RAISE EXCEPTION 'Service order % is %', v_so.number, v_so.status USING ERRCODE = 'SS300';
     END IF;
 
-    FOR v_line IN
-        SELECT l.id, l.part_id, l.qty_required - l.qty_issued AS qty, p.unit_cost
-        FROM fleet.service_order_line l JOIN catalog.part p ON p.id = l.part_id
-        WHERE l.service_order_id = p_service_order_id AND l.qty_required > l.qty_issued
-        ORDER BY l.part_id
-    LOOP
-        UPDATE inventory.stock_reservation SET status = 'consumed'
-         WHERE service_order_line_id = v_line.id AND status IN ('soft', 'firm');
-        INSERT INTO inventory.stock_movement (occurred_at, warehouse_id, part_id, movement_type_code, quantity,
-                                              unit_cost, service_order_line_id, created_by)
-        VALUES (now(), v_so.warehouse_id, v_line.part_id, 'ISSUE_SERVICE', v_line.qty, v_line.unit_cost, v_line.id, v_user);
-        UPDATE fleet.service_order_line SET qty_issued = qty_required, qty_reserved = 0 WHERE id = v_line.id;
-    END LOOP;
-
     UPDATE fleet.service_order
        SET status = 'completed', completed_at = now(), completed_engine_hours = p_engine_hours
      WHERE id = p_service_order_id;
 END $$;
-COMMENT ON FUNCTION fleet.complete_service_order(bigint, numeric) IS 'Consumes the kit reservations, issues parts (ISSUE_SERVICE = demand) and closes the order.';
+COMMENT ON FUNCTION fleet.complete_service_order(bigint, numeric) IS 'Closes an open service order; Inventory issues the kit on ServiceOrderCompleted (ISSUE_SERVICE = demand).';
 
 -- TRANSITIONAL: replaced by ServiceOrderCancelled in stage 6, #12 (releases inventory.stock_reservation; MODULE_MAPPING 3.1 X8)
 CREATE FUNCTION fleet.cancel_service_order(p_service_order_id bigint, p_reason text) RETURNS void

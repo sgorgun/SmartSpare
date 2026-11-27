@@ -110,7 +110,10 @@ public sealed class KitExpiryTests(IdentityDatabaseFixture database) : IAsyncLif
     private async Task RunExpiryAsync() =>
         (await JobRunner.RunAsync(_host.Services, ExpiryJob, Ct)).ShouldBe(JobRunner.Succeeded);
 
-    /// <summary>The transitional completion consumes the holds and issues the kit (replaced by the event flow in 6h).</summary>
+    /// <summary>
+    /// The completion and Inventory's consumption of the holds, as the completion command and Inventory's consumer of
+    /// ServiceOrderCompleted do it (PR 6h2), in one transaction so the consumption races the expiry job.
+    /// </summary>
     private async Task CompleteAsync(long order)
     {
         await using var connection = new NpgsqlConnection(database.ApiConnectionString);
@@ -123,7 +126,15 @@ public sealed class KitExpiryTests(IdentityDatabaseFixture database) : IAsyncLif
             await context.ExecuteNonQueryAsync(Ct);
         }
 
-        await using (var complete = new NpgsqlCommand("SELECT fleet.complete_service_order(@o, 515)", connection, transaction))
+        await using (var complete = new NpgsqlCommand(
+                         """
+                         SELECT fleet.complete_service_order(@o, 515);
+                         SELECT count(*) FROM inventory.issue_service_kit(
+                             (SELECT warehouse_id FROM fleet.service_order WHERE id = @o),
+                             (SELECT array_agg(id ORDER BY part_id) FROM fleet.service_order_line WHERE service_order_id = @o),
+                             (SELECT array_agg(part_id ORDER BY part_id) FROM fleet.service_order_line WHERE service_order_id = @o),
+                             (SELECT array_agg(qty_required ORDER BY part_id) FROM fleet.service_order_line WHERE service_order_id = @o));
+                         """, connection, transaction))
         {
             complete.Parameters.AddWithValue("o", order);
             await complete.ExecuteNonQueryAsync(Ct);
