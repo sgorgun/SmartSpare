@@ -391,7 +391,19 @@ Never cut: the domain, the due calculator with its documentation, the reading �
 
 ### 10.1 Evidence
 
-Filled in by 6n.
+State on 27 November 2026 (6a–6m merged; 6i tracked in #140, decided by 4 December under the timebox).
+
+| # | Exit criterion | Evidence |
+|---|---|---|
+| 1 | Aggregates replace the persistence classes; model, schema and SQL suite green | `Domain/` of Fleet mapped directly (#121); `check-model` step green in CI; `tools/schema_diff.sh` clean with the reviewed allow-list entries of each PR; `tools/verify_database.sh`: 118 SQL assertions, concurrency test, T001 and data quality green on the EF-built database |
+| 2 | Engine hours through API and tablet screens; refusals readable; a threshold drafts the order | `ReadingApiTests` (SS100–SS104, retry, conflict, concurrency), `MachinePagesTests` (decimal keypad, rules before sending, SS100/SS101/SS104 as sentences), `FleetScenarioTest` (751 h drafts the 750 h service on three widths) |
+| 3 | The due calculation is a documented, unit-tested domain service in parity with SQL; the due list shows both triggers | `MaintenanceDueCalculatorTests`, [MAINTENANCE_PLANNING.md](../architecture/MAINTENANCE_PLANNING.md), `MaintenanceDueParityTests` on T001; `/fleet/maintenance` with trigger and projected / calendar dates (`ServiceOrderPagesTests`) |
+| 4 | The kit flow runs as events in both topologies; no cross-module writes; Fleet views module-local | `KitReservationFlowTests` (redelivery), `KitExpiryTests` (expiry vs. consumption race), `CompletionApiTests`, `CancellationApiTests` (late events), `ServiceKitReservationTests` (deadlock), `FleetTopologyTests` over RabbitMQ; MODULE_MAPPING X5–X10 done; #12 closed by #136 |
+| 5 | `PartCatalogChanged` in the catalogue transaction, applied idempotently | `PartCatalogPublicationTests` (written with the catalogue change, one transaction), `ImportApiTests`, `PartSnapshotConsumerTests` (idempotent, out-of-order safe), `PartCatalogPublishJobTests` |
+| 6 | Every Fleet endpoint documented; parity of the policies; `ReadFleet` | `ApiDocumentationTests` (every response with an example and the code), [API_DOCUMENTATION.md](../architecture/API_DOCUMENTATION.md); `PolicySqlRoleParityTests` including EXECUTE grants |
+| 7 | Mobile-first screens with loading and error states and Reference; bUnit; Playwright on desktop and tablet | bUnit 109 tests (`MachinePagesTests`, `ServiceOrderPagesTests`, `EngineHoursInputTests`, `KitRefreshTests`); `FleetScenarioTest` at 1280 × 800, 820 × 1180 and 390 × 844, no sideways scroll, focus checks; [FRONTEND.md](../architecture/FRONTEND.md) 3.8 and 7 |
+| 8 | Unit coverage of business logic ≥ 70 %, three figures reported | 80.6 % (gate 70 %), reported in every stage 6 PR and in the stage log on #118; unit+integration reported by the CI coverage job |
+| 9 | #12 closed; #30, #82, #17 closed or moved | #12 closed (#136); #30 closed (#142); #17 closed with the documented decision (#142); #82 moved to v0.10.0 (still a prerelease) |
 
 ---
 

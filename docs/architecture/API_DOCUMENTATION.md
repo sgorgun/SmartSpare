@@ -72,8 +72,8 @@ flowchart LR
   - Telemetry, the AI agent, MCP and the hosted developer tools are switched off, so nothing is sent to Scalar's services.
   - Its page has its own CSP, `script-src 'self' 'nonce-…'`, with a fresh 144-bit nonce per response. Every other page keeps the stricter stage 3 policy.
 
-**Content today** (v0.5.0). The Inventory API of stage 5 and the user administration of Identity are described in
-full:
+**Content today** (stage 6). The Inventory API of stage 5, the Fleet API of stage 6 and the user administration of
+Identity are described in full:
 
 | Document | Operation | Policy | Responses |
 |---|---|---|---|
@@ -97,6 +97,18 @@ full:
 | `inventory` | `POST /api/v1/inventory/transfers/{id}/dispatch` and `/receive` | `MoveStock` | 200; 401; 403 `SS302`; 404; 409 `SS300` |
 | `inventory` | `POST /api/v1/inventory/imports` (multipart `source`, `file`): CSV import raw → staging → core | `ImportData`, 5 a minute | 201 `ImportBatchDetails` (status `loaded` or `failed`); 400 `Inventory.ImportHeader` and others; 401; 403; 409 `Inventory.ImportDuplicate`; 429 |
 | `inventory` | `GET /api/v1/inventory/imports` and `/imports/{id}`: batches and their row errors | `ImportData` | 200; 401; 403; 404 `Inventory.ImportNotFound` |
+| `fleet` | `GET /api/v1/fleet/machines?search=&warehouseId=&status=&dueStatus=&page=&pageSize=`: machines with their next service | `ReadFleet` | 200 `PagedResponse<MachineSummary>`; 400; 401; 403 |
+| `fleet` | `GET /api/v1/fleet/machines/{id}`: the machine card with every plan's due calculation and recent readings | `ReadFleet` | 200 `MachineDetails`; 401; 403; 404 `Fleet.MachineNotFound` |
+| `fleet` | `GET /api/v1/fleet/machines/{id}/readings?page=&pageSize=`: the reading history | `ReadFleet` | 200 `PagedResponse<ReadingRow>`; 401; 403; 404 |
+| `fleet` | `POST /api/v1/fleet/machines/{id}/readings`: record engine hours; drafts the services due within 50 h | `RecordServiceWork` | 201 `RecordReadingResponse` (200 with `replayed` for an identical retry); 400; 401; 403; 404; 409 `Fleet.ReadingConflict`; 422 `SS100`–`SS104` |
+| `fleet` | `GET /api/v1/fleet/maintenance/due?warehouseId=&horizonDays=&status=&page=&pageSize=`: due maintenance | `ReadFleet` | 200 `PagedResponse<DueMaintenanceRow>`; 400; 401; 403 |
+| `fleet` | `GET /api/v1/fleet/maintenance-plans?modelId=`: OEM plans with their kits | `ReadFleet` | 200; 401; 403 |
+| `fleet` | `GET /api/v1/fleet/service-orders?status=&warehouseId=&machineId=&page=&pageSize=`: service orders with kit status | `ReadFleet` | 200 `PagedResponse<ServiceOrderSummary>`; 400; 401; 403 |
+| `fleet` | `GET /api/v1/fleet/service-orders/{id}`: an order with its kit lines and `allowedActions` | `ReadFleet` | 200 `ServiceOrderDetails`; 401; 403; 404 `Fleet.ServiceOrderNotFound` |
+| `fleet` | `POST /api/v1/fleet/service-orders`: a planned service or an unplanned repair | `ManageServiceOrders` | 201 `ServiceOrderDetails` (kit `reserving`); 400; 401; 403; 404; 409 `Fleet.ServiceOrderExists`; 422 `Fleet.UnknownPart` |
+| `fleet` | `POST /api/v1/fleet/service-orders/{id}/start` | `RecordServiceWork` | 200; 401; 403; 404; 409 `SS300` |
+| `fleet` | `POST /api/v1/fleet/service-orders/{id}/complete` with the engine hours; Inventory issues the kit (shortfall rule) | `RecordServiceWork` | 200 (an identical repeat is a safe retry); 400; 401; 403; 404; 409 `SS300`; 422 `Fleet.CompletionHoursTooLow` |
+| `fleet` | `POST /api/v1/fleet/service-orders/{id}/cancel` with a reason; Inventory releases the kit | `ManageServiceOrders` | 200; 400; 401; 403; 404; 409 `SS300` |
 | `identity` | `GET /api/v1/identity/users?search=&page=&pageSize=`: the masked user directory | `Administration` | 200 `PagedResponse<UserSummary>`; 400; 401; 403 |
 | `identity` | `GET /api/v1/identity/users/form-options`: roles, brands, active hubs | `Administration` | 200; 401; 403 |
 | `identity` | `POST /api/v1/identity/users`: create a user with an initial password | `Administration` (writes as `app_admin`) | 201; 400; 401; 403; 409 `Identity.UserNameTaken` |
@@ -104,9 +116,10 @@ full:
 | `identity` | `POST /api/v1/identity/users/{id}/unlock`, `/deactivate`, `/anonymise` | `Administration` | 200 `UserSummary`; 401; 403 (`SS301` for the own account); 404; 422 |
 | `identity` | `POST /api/v1/identity/me/password`: change the own password | any signed-in user | 204; 400 `Identity.WrongPassword`; 401 |
 
-`ReadInventory` admits every role but not a user without one. Reads are never brand-scoped (STAGE_3_PLAN §3.3). The
-other five module documents fill as stages 5–9 add `/api/v1` endpoints, each with its summary, response types and
-examples (#54).
+`ReadInventory` and `ReadFleet` admit every role but not a user without one. Reads are never brand-scoped
+(STAGE_3_PLAN §3.3). `RecordServiceWork` and `ManageServiceOrders` have the same roles as the SQL functions behind them,
+checked by `PolicySqlRoleParityTests` including the EXECUTE grants. The Procurement, Forecasting and Reporting documents
+fill as stages 7–9 add `/api/v1` endpoints, each with its summary, response types and examples (#54).
 
 ## 3. Conventions
 

@@ -226,12 +226,13 @@ Unstructured JSON is avoided. Exactly two columns use `jsonb`, both with a CHECK
 | `inventory.trg_stock_movement_apply` | trigger | posts every ledger movement to the balance with a row lock; rejects issues exceeding available stock (NFR03) |
 | `inventory.trg_stock_reservation_guard` / `_sync` | triggers | reservation state machine; keeps `reserved_qty` = Σ active holds |
 | `inventory.approve/dispatch/receive/cancel_transfer` | functions | UC01 steps 10–11, US10 (donor keeps safety stock), US11 (keeper of the right hub) |
-| `inventory.expire_soft_reservations` | procedure | 7-day soft holds expire; service orders return to draft (Quartz job) |
+| `inventory.reserve_service_kit` / `issue_service_kit` / `release_service_kit` | functions | the service-kit flow of stage 6 as integration events (#12): hold a kit partially and idempotently per line, issue it at completion (reserved quantities, the rest up to the stock: the shortfall rule F7), release it on cancellation or when a reservation reaches a closed order; holds locked in `(part_id, warehouse_id)` order |
+| `inventory.expire_soft_reservations` | function | 7-day soft holds expire at the job's clock and are returned as lines for `ServiceKitReservationExpired` (job `inventory.reservation-expiry`, module-local since stage 6) |
 | `inventory.find_exceptional_demand_candidates` / `flag_exceptional_demand` | functions | US08: demand lines above mean + 3σ (window functions) |
 | `fleet.trg_engine_hours_validate` | trigger | UC02 A1 rollback (SS100), plausibility ≤ elapsed time (SS101) |
 | `fleet.fn_maintenance_due` | function | due OEM services, effective interval = interval × condition factor (F5) |
-| `fleet.log_engine_hours` / `create_service_order_draft` | functions | UC02 steps 3–7, US05/US06 |
-| `fleet.complete_service_order` | function | issues the kit (ISSUE_SERVICE = demand) |
+| `fleet.log_engine_hours` / `create_service_order_draft` | functions | UC02 steps 3–7, US05/US06; module-local since stage 6 (the kit is reserved on `ServiceOrderDrafted`) |
+| `fleet.complete_service_order` / `cancel_service_order` | functions | close an open order (module-local since stage 6); Inventory issues or releases the kit on `ServiceOrderCompleted` / `ServiceOrderCancelled` (ISSUE_SERVICE = demand) |
 | `procurement.trg_po_line_validate` | trigger | US12: part offered by supplier, MOQ, pack size, price from the valid price list |
 | `procurement.trg_po_line_total` | trigger | PO total |
 | `procurement.submit/approve/export/receive/cancel_*` | functions | US13, US14 (four-eyes > €5,000), goods receipt |
@@ -245,6 +246,7 @@ Unstructured JSON is avoided. Exactly two columns use `jsonb`, both with a CHECK
 | `mart.refresh_all` | procedure | data mart refresh with logging |
 | `iam.anonymise_user` | function | GDPR Art. 17 |
 | `util.next_document_number`, `util.ensure_monthly_partitions`, `util.mask_*`, `util.pseudonymise` | functions | technical helpers |
+| `<schema>.purge_processed_messages` | functions | retention of delivered outbox and handled inbox rows per module schema, never undelivered ones (#30, job `outbox-retention`) |
 
 **Error contract.** Business rule violations raise custom SQLSTATEs, which the API maps to RFC 7807 problem details (`DatabaseErrorMapper`):
 
@@ -265,8 +267,8 @@ Unstructured JSON is avoided. Exactly two columns use `jsonb`, both with a CHECK
 |---|---|---|
 | `inventory.v_stock_overview` | view | US04 7-hub breakdown: on hand, reserved, available, in transit, below safety stock, value |
 | `inventory.v_in_transit` | view | dispatched transfers + open POs per hub and part |
-| `fleet.v_machine_maintenance_status` | view | machine card (WF03): hours, next OEM service, overdue flag |
-| `fleet.v_service_kit_shortage` | view | kits that could not be fully reserved |
+| `fleet.v_machine_maintenance_status` | view | machine card (WF03): hours, next OEM service, overdue flag; module-local since stage 6 (home hub id instead of the code) |
+| `fleet.v_service_kit_shortage` | view | kits that could not be fully reserved, from Fleet's copy of the held quantity and of the part (`fleet.part_snapshot`); module-local since stage 6 |
 | `procurement.v_purchase_order_overview` | view | WF04 PO list with approval state |
 | `forecast.v_recommendation_explained` | view | NFR08 / WF02 "Explain calculation" |
 | `iam.v_app_user_masked`, `audit.v_audit_log_masked` | views | personal data masked (§8.5) |

@@ -8,6 +8,63 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+Stage 6: Fleet ([STAGE_6_PLAN.md](docs/stage-6/STAGE_6_PLAN.md)). The core of the diploma topic: customer machines,
+engine hours, the maintenance due calculation and service orders, whose kits Inventory reserves, issues and releases
+through integration events; the screens for the service engineer's tablet; retention of delivered messages and a
+scheduler in the single host.
+
+### Added
+
+- The Fleet domain mapped directly by EF Core (ADR 0013): `Machine`, `EngineHoursReading`, `MaintenancePlan`,
+  `ServiceOrder` with its state machine and kit lines, `EngineHours`; calendar intervals of the OEM plans ([#121]).
+- The maintenance due calculation as a unit-tested domain service: effective interval by operating condition, next
+  threshold, average daily usage, projected and calendar due dates and status, documented in
+  [MAINTENANCE_PLANNING.md](docs/architecture/MAINTENANCE_PLANNING.md) and in parity with `fleet.fn_maintenance_due` on
+  the demo fleet ([#122]).
+- `fleet.part_snapshot`, Fleet's copy of the catalogue, fed idempotently by `PartCatalogChanged`, which Inventory now
+  writes in the same transaction as the catalogue change; the job `inventory.part-catalog-publish` ([#123]).
+- The Fleet read API: machines with search by partial VIN, the machine card, readings, due maintenance and maintenance
+  plans, under the new policy `ReadFleet`; full OpenAPI descriptions ([#127]).
+- Engine-hour readings: row lock per machine, idempotent retry, SS100–SS103 and the new SS104 (reading in the future,
+  against `TimeProvider`), drafting the services due within 50 h; policy/SQL parity including EXECUTE grants ([#128]).
+- The service-kit flow as integration events (#12): `ServiceOrderDrafted` → `inventory.reserve_service_kit` (partial,
+  idempotent per line, deterministic lock order, deadlock-tested) → `ServiceKitReserved`; expiry after 7 days
+  (`ServiceKitReservationExpired`); completion → `inventory.issue_service_kit` with the shortfall rule →
+  `ServiceKitIssued`; cancellation → `inventory.release_service_kit`; a reservation reaching a closed order is released
+  at once (`ServiceKitReleaseRequested`); the Fleet service in the topology test ([#129], [#130], [#131], [#132], [#135],
+  [#136]).
+- The service-order API: list, detail with kit status (including "reserving") and `allowedActions`, create (planned or
+  repair), start, complete (an identical repeat is a safe retry) and cancel, each conflict a 409 with a code ([#134],
+  [#135], [#136]).
+- [ADR 0024](docs/adr/0024-acting-user-of-integration-events-and-jobs.md): events carry the acting user for attribution
+  only; jobs act as the named system user ([#133]).
+- Screens: machine list and card, engine-hours entry (decimal keypad, rules checked before sending, SS100–SS104 as
+  plain sentences, identical retry), due maintenance, service orders, order detail that follows the kit while Inventory
+  answers, new order; bUnit tests and the Playwright scenario on desktop, tablet and phone ([#137], [#138], [#139]).
+- Demo data for every Fleet state, an imported service history so that about 8 % of the fleet is calendar-overdue,
+  and checks in T001 that fail the load otherwise ([#137], [#141]).
+- Retention of delivered outbox and handled inbox rows per module schema (`purge_processed_messages`, job
+  `outbox-retention`, settings validated against the redelivery window) and the Quartz scheduler of the single host,
+  which now also expires service-kit holds ([#142], closes [#30]).
+
+### Changed
+
+- Fleet's SQL is module-local: no Fleet or Inventory object writes another module's schema any more, and both Fleet
+  views read Fleet only (MODULE_MAPPING X5–X10; [#127], [#129], [#136], closes [#12]).
+- The Fleet menu entry follows `ReadFleet`, so every role that may read the fleet sees it ([#137]).
+- Focus set by navigation shows no ring, keyboard focus does, now also on MudBlazor buttons ([#141]).
+- CONTRIBUTING.md records the decision to refresh lock files on Dependabot branches by hand, without an App or token
+  ([#142], closes [#17]).
+
+### Fixed
+
+- The Inventory domain architecture test failed in Debug builds only ([#124]).
+
+### Deferred
+
+- `RabbitMQ.Client.OpenTelemetry` is still a prerelease: moved to v0.10.0 ([#82]).
+- CI gates for architecture tests in Debug and for the schema diff: [#125], [#126].
+
 ## [0.5.0] - 2026-11-27
 
 Stage 5: Inventory ([STAGE_5_PLAN.md](docs/stage-5/STAGE_5_PLAN.md)). The first business module: the Inventory domain,
@@ -332,3 +389,24 @@ Stage 1: solution skeleton.
 [#114]: https://github.com/sgorgun/SmartSpare/pull/114
 [#115]: https://github.com/sgorgun/SmartSpare/pull/115
 [#116]: https://github.com/sgorgun/SmartSpare/pull/116
+[#121]: https://github.com/sgorgun/SmartSpare/pull/121
+[#122]: https://github.com/sgorgun/SmartSpare/pull/122
+[#123]: https://github.com/sgorgun/SmartSpare/pull/123
+[#124]: https://github.com/sgorgun/SmartSpare/pull/124
+[#127]: https://github.com/sgorgun/SmartSpare/pull/127
+[#128]: https://github.com/sgorgun/SmartSpare/pull/128
+[#129]: https://github.com/sgorgun/SmartSpare/pull/129
+[#130]: https://github.com/sgorgun/SmartSpare/pull/130
+[#131]: https://github.com/sgorgun/SmartSpare/pull/131
+[#132]: https://github.com/sgorgun/SmartSpare/pull/132
+[#133]: https://github.com/sgorgun/SmartSpare/pull/133
+[#134]: https://github.com/sgorgun/SmartSpare/pull/134
+[#135]: https://github.com/sgorgun/SmartSpare/pull/135
+[#136]: https://github.com/sgorgun/SmartSpare/pull/136
+[#137]: https://github.com/sgorgun/SmartSpare/pull/137
+[#138]: https://github.com/sgorgun/SmartSpare/pull/138
+[#139]: https://github.com/sgorgun/SmartSpare/pull/139
+[#141]: https://github.com/sgorgun/SmartSpare/pull/141
+[#142]: https://github.com/sgorgun/SmartSpare/pull/142
+[#125]: https://github.com/sgorgun/SmartSpare/issues/125
+[#126]: https://github.com/sgorgun/SmartSpare/issues/126

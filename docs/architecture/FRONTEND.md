@@ -3,9 +3,9 @@
 The web client of SmartSpare: what it is built with and why, how it is structured, how the main user flows work, and how
 it is tested. Decisions: [ADR 0006](../adr/0006-frontend-blazor-wasm-mudblazor-bff.md) (Blazor WebAssembly, MudBlazor,
 BFF) and [ADR 0014](../adr/0014-browser-sign-in-through-bff-endpoints.md) (sign-in through BFF endpoints). Status as of
-stage 4: the shell, sign-in, role-based navigation and error handling are done, and so is the first business screen,
-the parts catalogue (a read-only slice of stage 5 pulled forward). The other business screens come with their modules
-in stages 5–9.
+stage 6: the shell, sign-in, role-based navigation and error handling, the Inventory screens (stage 5) and the Fleet
+screens for the service engineer's tablet (stage 6) are done. Procurement, Forecasting and Reporting come with their
+modules in stages 7–9.
 
 ## 1. Stack and why
 
@@ -42,7 +42,12 @@ SmartSpare.Web.Client/
                             catalogue); StockPage.razor, StockPositionPage.razor; TransfersPage.razor,
                             TransferDetailPage.razor, NewTransferPage.razor; ImportsPage.razor; status chips;
                             InventoryClient.cs
-    Fleet/ Procurement/ Forecasting/ Reporting/   area pages (placeholders until stages 6–9)
+    Fleet/                  FleetTabs.razor (Machines, Due maintenance, Service orders); MachinesPage.razor,
+                            MachinePage.razor (the machine card, WF03) with EngineHoursEntry.razor;
+                            DueMaintenancePage.razor; ServiceOrdersPage.razor, ServiceOrderPage.razor,
+                            NewServiceOrderPage.razor; due, order and kit status chips; EngineHoursInput.cs and
+                            KitRefresh.cs (pure rules); FleetClient.cs
+    Procurement/ Forecasting/ Reporting/   area pages (placeholders until stages 7–9)
   Shared/                   reusable components
     StatusChip.razor        a status as icon + text, never colour alone
     RedirectToLogin.razor   full navigation to /login?returnUrl=...
@@ -127,8 +132,8 @@ flowchart TD
 ```
 
 The policies come from `SmartSpare.ApiContracts` (`AppPolicies`), the same definitions the server enforces. Inventory
-is shown by its read policy, `ReadInventory`, which every role has. The other areas are shown by their action
-policies until their read policies arrive with stages 6–9. The bUnit test
+and Fleet are shown by their read policies, `ReadInventory` and `ReadFleet`, which every role has. The other areas
+are shown by their action policies until their read policies arrive with stages 7–9. The bUnit test
 `The_menu_shows_the_areas_the_roles_may_work_in` checks every role.
 
 ### 3.4 Session expiry and 401
@@ -207,6 +212,38 @@ sequenceDiagram
   end
 ```
 
+### 3.8 Logging engine hours and following the kit (stage 6)
+
+```mermaid
+sequenceDiagram
+  participant E as Service engineer
+  participant M as MachinePage + EngineHoursEntry
+  participant O as ServiceOrderPage
+  participant F as Fleet API
+  participant I as Inventory (events)
+  E->>M: Log engine hours (decimal keypad)
+  Note over M: EngineHoursInput checks first: a number, at most one decimal,<br/>not below the last reading, not before it, not in the future
+  M->>F: POST /machines/{id}/readings (time fixed per attempt)
+  alt a rule is broken on the server
+    F-->>M: 422 SS100–SS104
+    Note over M: a plain sentence from the resources, never the code,<br/>with "Reference: trace id"; focus back on the field
+  else stored
+    F-->>M: 201, the orders the reading drafted
+    F->>I: ServiceOrderDrafted (outbox)
+  end
+  E->>O: opens the drafted order
+  O-->>E: kit "Reserving parts…" (polite live region)
+  loop every 2 s, at most 30 s (KitRefresh)
+    O->>F: GET /service-orders/{id}
+  end
+  I-->>F: ServiceKitReserved
+  O-->>E: "Kit reserved"; Start, Complete, Cancel from allowedActions
+```
+
+A retry after a lost answer sends the identical reading (same time and hours), which the server answers as a replay
+instead of storing it twice. A 409 on an order shows the server's sentence and reloads the order, so the screen shows
+the state it moved to. If the hub never answers, the page stops asking after 30 seconds and says so.
+
 ## 4. Forms and validation
 
 - Form models (`LoginForm`) convert to the API request (`LoginRequest`) and are validated with the **same
@@ -254,18 +291,28 @@ and the trace.
   the home page and the Inventory page with the parts grid loaded have no horizontal scroll, and the menu opens from
   the app bar and leads to an area. On a phone the grid shows each part as a stacked card (`Breakpoint.Sm`).
   Screenshots are in `TestResults/e2e/mobile-*.png`.
-- The engineer's tablet view of a machine card (WF03) comes with Fleet in stage 6.
+- **The engineer's tablet** (stage 6): the machine card (WF03) and the order detail keep their main action at the
+  bottom of the screen below the md breakpoint (`bottom-action`), touch targets are at least 44 px (`touch-target`),
+  tables that would be too wide fold into two or three columns, and the Fleet tabs wrap. Playwright
+  `FleetScenarioTest` runs the whole service scenario at 1280 × 800, 820 × 1180 and 390 × 844 and fails if a page
+  scrolls sideways.
 
-**Accessibility** (WCAG 2.1 AA target): ARIA labels on icon buttons, a visible focus outline (`:focus-visible`), focus
-moved to the page heading on navigation (`FocusOnNavigate`), colours with sufficient contrast, and statuses shown as
-icon + text, not colour alone (`StatusChip`, bUnit-tested).
+**Accessibility** (WCAG 2.1 AA target): ARIA labels on icon buttons, real labels on every field, a visible focus
+outline for keyboard focus (`:root :focus-visible`, which also beats MudBlazor's own `outline: none` on buttons), focus
+moved to the page heading on navigation (`FocusOnNavigate`, `tabindex="-1"`) without a ring, because Tab never reaches
+it (`:focus:not(:focus-visible)`, checked by the E2E scenario), colours with sufficient contrast, statuses shown as
+icon + text, not colour alone (`StatusChip`, bUnit-tested), status filters as buttons with `aria-pressed`, and the kit
+status of an order as a polite live region.
 
 ## 8. Tests
 
 | Level | Project | What it covers |
 |---|---|---|
-| Components (bUnit) | [`tests/SmartSpare.Web.Tests`](../../tests/SmartSpare.Web.Tests) | Sign-in form: shared validator messages, busy state, the generic failure with its reference, return URL and open-redirect protection; menu per role; redirect to sign-in; 401 and 403 handling; antiforgery header on unsafe methods; problem messages; status chip; parts grid; stock overview and position (forms by role, `If-Match` version, conflict reload); transfers list, detail (exactly the allowed actions, confirmation, cancel reason, server refusals) and proposal form; import (report, row errors, refusals); user administration and own password change |
-| End-to-end (Playwright, Chromium) | [`tests/SmartSpare.E2E`](../../tests/SmartSpare.E2E) | `SignInSmokeTest`: redirect, wrong password with reference, sign-in, role menu, no credential readable by scripts, sign-out. `PartsCatalogueTest`: the demo catalogue page by page and a search. `MobileLayoutTest`: phone viewport with the parts grid. `ApiReferenceTest`: `/scalar` under its CSP. `StockScreensTest`: stock overview and position on desktop and phone. `TransferScenarioTest`: a planner proposes and approves a transfer and finds the donor's reservation; the list on a tablet. `ImportScreenTest`: a catalogue upload through the screen |
+| Components (bUnit) | [`tests/SmartSpare.Web.Tests`](../../tests/SmartSpare.Web.Tests) | Sign-in form: shared validator messages, busy state, the generic failure with its reference, return URL and open-redirect protection; menu per role; redirect to sign-in; 401 and 403 handling; antiforgery header on unsafe methods; problem messages; status chip; parts grid; stock overview and position (forms by role, `If-Match` version, conflict reload); transfers list, detail (exactly the allowed actions, confirmation, cancel reason, server refusals) and proposal form; import (report, row errors, refusals); user administration and own password change; Fleet: machine list and card,
+engine-hours entry (decimal keypad, label, rules before sending, SS100–SS104 as sentences, identical retry), due list,
+order list with status tabs, order detail (allowed actions, completion hours, cancel reason, conflict reload, kit
+refresh and its time-out, shortfall), new-order form; the pure rules `EngineHoursInput` and `KitRefresh` |
+| End-to-end (Playwright, Chromium) | [`tests/SmartSpare.E2E`](../../tests/SmartSpare.E2E) | `SignInSmokeTest`: redirect, wrong password with reference, sign-in, role menu, no credential readable by scripts, sign-out. `PartsCatalogueTest`: the demo catalogue page by page and a search. `MobileLayoutTest`: phone viewport with the parts grid. `ApiReferenceTest`: `/scalar` under its CSP. `StockScreensTest`: stock overview and position on desktop and phone. `TransferScenarioTest`: a planner proposes and approves a transfer and finds the donor's reservation; the list on a tablet. `ImportScreenTest`: a catalogue upload through the screen. `FleetScenarioTest`: an engineer logs hours that make a service due, follows the kit until it is reserved, starts and completes the order and sees the kit issued, on desktop, tablet and phone, with the focus checks |
 | Server side of the client | [`tests/SmartSpare.Host.IntegrationTests`](../../tests/SmartSpare.Host.IntegrationTests) | Cookie flags, antiforgery, CSP and the import-map hash, the principal handed to the client, rate limiting |
 
 The bUnit tests run in the "Build and test" CI job and the Playwright tests in the "End-to-end smoke test" job (`tools/check.sh e2e`, real host on Kestrel, PostgreSQL in Testcontainers, demo data, headless Chromium).
