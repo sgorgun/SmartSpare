@@ -46,5 +46,12 @@ internal sealed class ServiceOrderStore(FleetDbContext db)
             [new NpgsqlParameter<long>("order", id), new NpgsqlParameter<decimal>("hours", engineHours)],
             cancellationToken);
 
+    /// <summary><c>fleet.cancel_service_order</c>: cancels the order (role check and status guard in the database).</summary>
+    public Task CancelAsync(long id, string reason, CancellationToken cancellationToken) =>
+        db.Database.ExecuteSqlRawAsync(
+            "SELECT fleet.cancel_service_order(@order, @reason)",
+            [new NpgsqlParameter<long>("order", id), new NpgsqlParameter<string>("reason", reason)],
+            cancellationToken);
+
     public void Add(ServiceOrder order) => db.Add(order);
 }

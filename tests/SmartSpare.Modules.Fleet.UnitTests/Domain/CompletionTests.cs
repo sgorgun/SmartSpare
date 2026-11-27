@@ -124,9 +124,9 @@ public sealed class CompletionTests
         var access = new ServiceOrderAccess(new Roles(AppRoles.ServiceEngineer));
         var order = Draft();
 
-        access.AllowedActions(order).ShouldBe([ServiceOrderActions.Start, ServiceOrderActions.Complete]);
+        access.AllowedActions(order).ShouldBe([ServiceOrderActions.Start, ServiceOrderActions.Complete, ServiceOrderActions.Cancel]);
         order.Start();
-        access.AllowedActions(order).ShouldBe([ServiceOrderActions.Complete]);
+        access.AllowedActions(order).ShouldBe([ServiceOrderActions.Complete, ServiceOrderActions.Cancel]);
         order.Complete(515, 512, Now);
         access.AllowedActions(order).ShouldBeEmpty();
         new ServiceOrderAccess(new Roles(AppRoles.BrandManager)).AllowedActions(Draft()).ShouldNotContain(ServiceOrderActions.Complete);

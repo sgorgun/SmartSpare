@@ -74,4 +74,14 @@ internal static class FleetExamples
                  new ServiceOrderLineResponse(72, 1210, "0001970050", "Engine oil 15W-40", "L", 30, 0, 24, 6)],
         AllowedActions = [],
     };
+
+    /// <summary>Cancelled; Inventory released the holds of its kit.</summary>
+    public static ServiceOrderDetails CancelledServiceOrder { get; } = ServiceOrderDetails with
+    {
+        Order = ServiceOrder with { Status = ServiceOrderStatuses.Cancelled, KitStatus = KitStatuses.Released },
+        CancelReason = "Customer sold the machine",
+        Lines = [new ServiceOrderLineResponse(71, 1203, "0011534571", "Engine oil filter", "PCS", 1, 0, 0, 1),
+                 new ServiceOrderLineResponse(72, 1210, "0001970050", "Engine oil 15W-40", "L", 30, 0, 0, 30)],
+        AllowedActions = [],
+    };
 }

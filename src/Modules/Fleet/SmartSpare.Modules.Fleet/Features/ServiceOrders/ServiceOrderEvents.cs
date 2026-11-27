@@ -24,4 +24,11 @@ internal static class ServiceOrderEvents
             [.. order.Lines.Where(l => l.QtyOpen > 0).OrderBy(l => l.PartId).Select(l => new ServiceOrderKitLine(l.Id, l.PartId, l.QtyOpen))],
             actorId, completedAt);
     }
+
+    /// <summary>The cancelled order with all its lines, whose holds Inventory releases.</summary>
+    public static ServiceOrderCancelled Cancelled(ServiceOrder order, string reason, Guid actorId, DateTimeOffset cancelledAt)
+    {
+        ArgumentNullException.ThrowIfNull(order);
+        return new ServiceOrderCancelled(order.Id, order.Number, [.. order.Lines.Select(l => l.Id).Order()], reason, actorId, cancelledAt);
+    }
 }

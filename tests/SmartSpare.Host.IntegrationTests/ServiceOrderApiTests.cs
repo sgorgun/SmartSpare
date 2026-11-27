@@ -148,7 +148,7 @@ public sealed class ServiceOrderApiTests(IdentityDatabaseFixture database) : IAs
         list.Items.ShouldHaveSingleItem().Id.ShouldBe(order);
         (await GetAsync<PagedResponse<ServiceOrderSummary>>($"/api/v1/fleet/service-orders?machineId={machine}&status=completed", Sponsor)).TotalCount.ShouldBe(0);
 
-        (await GetAsync<ServiceOrderDetails>($"/api/v1/fleet/service-orders/{order}", Engineer)).AllowedActions.ShouldBe([ServiceOrderActions.Start, ServiceOrderActions.Complete]);
+        (await GetAsync<ServiceOrderDetails>($"/api/v1/fleet/service-orders/{order}", Engineer)).AllowedActions.ShouldBe([ServiceOrderActions.Start, ServiceOrderActions.Complete, ServiceOrderActions.Cancel]);
         (await GetAsync<ServiceOrderDetails>($"/api/v1/fleet/service-orders/{order}", Sponsor)).AllowedActions.ShouldBeEmpty();
 
         using var bad = await GetRawAsync("/api/v1/fleet/service-orders?status=parts_reserved", Sponsor);

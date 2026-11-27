@@ -198,6 +198,46 @@ internal sealed class CompleteServiceOrderCommandHandler(
     }
 }
 
+/// <summary>Cancels an open order with a reason (STAGE_6_PLAN 3.2, 5.5).</summary>
+internal sealed record CancelServiceOrderCommand(long Id, string Reason) : ICommand<long>;
+
+internal sealed class CancelServiceOrderCommandValidator : AbstractValidator<CancelServiceOrderCommand>
+{
+    public CancelServiceOrderCommandValidator() =>
+        RuleFor(c => c.Reason).Must(r => !string.IsNullOrWhiteSpace(r)).WithMessage("A cancellation needs a reason.")
+            .MaximumLength(CancelServiceOrderRequestValidator.MaxReasonLength);
+}
+
+/// <summary>
+/// Cancels an open order: the aggregate checks the state, <c>fleet.cancel_service_order</c> cancels it (role check and
+/// status guard in the database), and <c>ServiceOrderCancelled</c> goes to Inventory in the same transaction, which releases
+/// the holds of its lines. A reservation still in flight is released when it reaches the cancelled order.
+/// </summary>
+internal sealed class CancelServiceOrderCommandHandler(ServiceOrderStore store, IUnitOfWork<FleetDbContext> unitOfWork, ICurrentUser user, TimeProvider time)
+    : ICommandHandler<CancelServiceOrderCommand, long>
+{
+    public async Task<Result<long>> Handle(CancelServiceOrderCommand command, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        if (!await store.ExistsAsync(command.Id, cancellationToken).ConfigureAwait(false))
+        {
+            return FleetErrors.ServiceOrderNotFound;
+        }
+
+        var order = await store.ReadAsync(command.Id, cancellationToken).ConfigureAwait(false);
+        var now = time.GetUtcNow();
+        var cancelled = order.Cancel(command.Reason, now);
+        if (cancelled.IsFailure)
+        {
+            return cancelled.Error;
+        }
+
+        await store.CancelAsync(order.Id, order.CancelReason!, cancellationToken).ConfigureAwait(false);
+        unitOfWork.AddIntegrationEvent(ServiceOrderEvents.Cancelled(order, order.CancelReason!, user.UserId ?? Guid.Empty, now));
+        return order.Id;
+    }
+}
+
 internal static class ServiceOrderEndpoints
 {
     public static void Map(IEndpointRouteBuilder group)
@@ -354,5 +394,40 @@ internal static class ServiceOrderEndpoints
             .WithResponseExample(StatusCodes.Status403Forbidden, FleetExamples.Forbidden)
             .WithResponseExample(StatusCodes.Status404NotFound, OpenApiConventions.Problem(FleetErrors.ServiceOrderNotFound))
             .WithResponseExample(StatusCodes.Status409Conflict, OpenApiConventions.Problem(FleetErrors.InvalidTransition(ServiceOrderStatus.Completed, "completed")));
+
+        group.MapPost("/service-orders/{id:long}/cancel", async (
+                [Description("Service order id.")] long id,
+                CancelServiceOrderRequest request,
+                ICommandHandler<CancelServiceOrderCommand, long> handler,
+                IQueryHandler<GetServiceOrderQuery, ServiceOrderDetails> details,
+                CancellationToken cancellationToken) =>
+            {
+                var cancelled = await handler.Handle(new CancelServiceOrderCommand(id, request.Reason), cancellationToken).ConfigureAwait(false);
+                return cancelled.IsFailure
+                    ? cancelled.ToHttpResult()
+                    : (await details.Handle(new GetServiceOrderQuery(id), cancellationToken).ConfigureAwait(false)).ToHttpResult();
+            })
+            .RequireAuthorization(AppPolicies.ManageServiceOrders)
+            .WithName("CancelServiceOrder")
+            .WithSummary("Cancels a service order; Inventory then releases its kit.")
+            .WithDescription(
+                "An open order (draft, partsReserved or inProgress) is cancelled with a reason (1 to 300 characters); Inventory "
+                + "releases the holds of its lines (kitStatus released). A kit reservation still in flight is released as soon as it "
+                + "reaches the cancelled order, so no hold remains. Cancelling a completed or cancelled order is a 409 with code "
+                + "SS300. Policy ManageServiceOrders, the roles of fleet.cancel_service_order.")
+            .Accepts<CancelServiceOrderRequest>("application/json")
+            .Produces<ServiceOrderDetails>()
+            .ProducesValidationProblem()
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .WithRequestExample(new CancelServiceOrderRequest("Customer sold the machine"))
+            .WithResponseExample(StatusCodes.Status200OK, FleetExamples.CancelledServiceOrder)
+            .WithResponseExample(StatusCodes.Status400BadRequest, OpenApiConventions.ValidationProblem("Reason", "A cancellation needs a reason."))
+            .WithResponseExample(StatusCodes.Status401Unauthorized, FleetExamples.Unauthorized)
+            .WithResponseExample(StatusCodes.Status403Forbidden, FleetExamples.Forbidden)
+            .WithResponseExample(StatusCodes.Status404NotFound, OpenApiConventions.Problem(FleetErrors.ServiceOrderNotFound))
+            .WithResponseExample(StatusCodes.Status409Conflict, OpenApiConventions.Problem(FleetErrors.InvalidTransition(ServiceOrderStatus.Completed, "cancelled")));
     }
 }

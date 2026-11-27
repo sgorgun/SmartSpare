@@ -40,4 +40,10 @@ internal sealed class ServiceKitStore(InventoryDbContext db)
                 new NpgsqlParameter<long[]>("parts", [.. lines.Select(l => l.PartId)]),
                 new NpgsqlParameter<decimal[]>("quantities", [.. lines.Select(l => l.Quantity)]))
             .ToListAsync(cancellationToken).ConfigureAwait(false);
+
+    /// <summary><c>inventory.release_service_kit</c>: releases the open holds of the lines; returns how many.</summary>
+    public async Task<int> ReleaseAsync(IReadOnlyList<long> lineIds, CancellationToken cancellationToken) =>
+        (await db.Database.SqlQueryRaw<int>(
+                "SELECT inventory.release_service_kit(@lines) AS \"Value\"", new NpgsqlParameter<long[]>("lines", [.. lineIds]))
+            .ToListAsync(cancellationToken).ConfigureAwait(false)).Single();
 }

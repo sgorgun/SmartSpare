@@ -164,3 +164,12 @@
 +^shortfall_qty := (greatest\(v_line\.quantity - v_done, 0\)|v_line\.quantity - greatest\(v_qty, 0\));$
 +^v_done +numeric;$
 
+
+# PR 6h3 (STAGE_6_PLAN 5.5, MODULE_MAPPING X8, #12): fleet.cancel_service_order is module-local; Inventory releases the
+# holds through inventory.release_service_kit on ServiceOrderCancelled and on ServiceKitReleaseRequested (a reservation
+# that reached a closed order; Inventory migration ServiceKitRelease, db/sql/inventory/0010).
+-^UPDATE inventory\.stock_reservation r SET status = 'released' FROM fleet\.service_order_line l WHERE l\.service_order_id = p_service_order_id
++release_service_kit
++^BEGIN WITH released AS \( UPDATE inventory\.stock_reservation r SET status = 'released' WHERE r\.id IN
++^RETURN v_released;$
++^v_released integer;$
