@@ -127,6 +127,31 @@ public sealed class RoleApiTests(IdentityDatabaseFixture database) : IAsyncLifet
     }
 
     [Fact]
+    public async Task A_role_edit_ends_the_holders_sessions_within_30_seconds_and_the_next_sign_in_has_the_new_bundle()
+    {
+        var role = await CreateRoleAsync("_LIVE", [Permissions.Inventory.Part.View]);
+        var userName = $"{_tag.ToLowerInvariant()}.live";
+        var id = await database.CreateUserAsync(userName, [role.Code], []);
+        _host.Time.Advance(TimeSpan.FromSeconds(30)); // a new role, like any change, reaches the cached map within the window
+        using var session = _host.NewBrowser();
+        await session.LoginOrFailAsync(new TestUser(id, userName, IdentityDatabaseFixture.Password, [role.Code], []));
+        (await session.MeAsync()).Permissions.ShouldBe([Permissions.Inventory.Part.View]);
+
+        using (var changed = await PutAsync(role.Id, new UpdateRoleRequest("Live", null, [Permissions.Inventory.Part.View, Permissions.Inventory.Stock.View]), role.Version, _admin))
+        {
+            changed.StatusCode.ShouldBe(HttpStatusCode.OK, await changed.Content.ReadAsStringAsync(Ct));
+        }
+
+        _host.Time.Advance(TimeSpan.FromSeconds(30));
+
+        (await session.MeAsync()).IsAuthenticated.ShouldBeFalse("the edit rotates the holders' stamps, so the session check ends the session within 30 seconds");
+        using var again = _host.NewBrowser();
+        await again.LoginOrFailAsync(new TestUser(id, userName, IdentityDatabaseFixture.Password, [role.Code], []));
+        (await again.MeAsync()).Permissions.ShouldBe([Permissions.Inventory.Part.View, Permissions.Inventory.Stock.View], ignoreOrder: true,
+            "the next sign-in carries the edited bundle (ADR 0028)");
+    }
+
+    [Fact]
     public async Task A_role_in_a_template_cannot_be_archived_and_an_archived_role_cannot_be_chosen()
     {
         var used = await CreateRoleAsync("_USED", [Permissions.Inventory.Part.View]);

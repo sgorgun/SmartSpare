@@ -135,7 +135,7 @@ public static class BffRegistration
             .AddInternalToken();
 
         services.AddPermissionAuthorization();
-        services.AddMemoryCache();
+        services.TryAddSingleton<RolePermissionCache>();
         services.AddScoped<Microsoft.AspNetCore.Authentication.IClaimsTransformation, PermissionClaimsTransformation>();
         services.AddAuthorization(ServiceAuthentication.AddGatewayOnlyPolicy);
         services.AddBrandScopeAuthorization();
@@ -154,7 +154,7 @@ public static class BffRegistration
     {
         services.AddAuthentication(BffDefaults.CookieScheme).AddBffCookie();
         services.AddPermissionAuthorization();
-        services.AddMemoryCache();
+        services.TryAddSingleton<RolePermissionCache>();
         services.AddScoped<Microsoft.AspNetCore.Authentication.IClaimsTransformation, PermissionClaimsTransformation>();
         services.AddBrandScopeAuthorization();
         return services;
