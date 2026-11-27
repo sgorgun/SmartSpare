@@ -105,6 +105,23 @@ public class IdentityClient(HttpClient http) : ApiClientBase(http)
         return string.IsNullOrWhiteSpace(search) ? query : query + "&search=" + Uri.EscapeDataString(search.Trim());
     }
 
+    /// <summary>Every role with its permissions (ADR 0028).</summary>
+    public virtual Task<ApiResult<List<RoleSummary>>> ListRolesAsync(CancellationToken cancellationToken = default) =>
+        SendAsync<List<RoleSummary>>(new HttpRequestMessage(HttpMethod.Get, "api/v1/identity/roles"), cancellationToken);
+
+    /// <summary>The permission catalogue.</summary>
+    public virtual Task<ApiResult<List<PermissionDto>>> ListPermissionsAsync(CancellationToken cancellationToken = default) =>
+        SendAsync<List<PermissionDto>>(new HttpRequestMessage(HttpMethod.Get, "api/v1/identity/permissions"), cancellationToken);
+
+    public virtual Task<ApiResult<RoleSummary>> CreateRoleAsync(CreateRoleRequest request, CancellationToken cancellationToken = default) =>
+        SendAsync<RoleSummary>(
+            new HttpRequestMessage(HttpMethod.Post, "api/v1/identity/roles") { Content = System.Net.Http.Json.JsonContent.Create(request) }, cancellationToken);
+
+    public virtual Task<ApiResult<RoleSummary>> UpdateRoleAsync(short id, UpdateRoleRequest request, string version, CancellationToken cancellationToken = default) =>
+        SendAsync<RoleSummary>(
+            WithVersion(new HttpRequestMessage(HttpMethod.Put, $"api/v1/identity/roles/{id}") { Content = System.Net.Http.Json.JsonContent.Create(request) }, version),
+            cancellationToken);
+
     private static HttpRequestMessage WithVersion(HttpRequestMessage message, string version)
     {
         message.Headers.TryAddWithoutValidation("If-Match", $"\"{version}\"");

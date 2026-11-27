@@ -26,6 +26,23 @@ public sealed class UserPagesTests : ClientTestContext
     }
 
     [Fact]
+    public void Each_permission_of_a_user_shows_the_role_and_position_it_comes_from()
+    {
+        var page = Render<UsersPage>();
+        page.WaitForAssertion(() => page.FindAll("[data-testid=show-permissions]").Count.ShouldBe(2));
+
+        page.FindAll("[data-testid=show-permissions]")[0].TextContent.ShouldContain("Permissions (2)");
+        page.FindAll("[data-testid=show-permissions]")[0].Click();
+
+        var lines = page.Find("[data-testid=user-permissions]").QuerySelectorAll("li").Select(li => li.TextContent).ToList();
+        lines.ShouldBe(
+        [
+            $"{Permissions.Inventory.Stock.Adjust} ← Warehouse keeper ← position Warehouse keeper",
+            $"{Permissions.Inventory.Stock.View} ← Warehouse keeper ← position Warehouse keeper",
+        ]);
+    }
+
+    [Fact]
     public void The_directory_shows_each_user_with_position_rights_and_their_origin()
     {
         var page = Render<UsersPage>();
@@ -112,6 +129,13 @@ public sealed class FakeUsersClient() : IdentityClient(new HttpClient())
 
     public override Task<ApiResult<PagedResponse<UserSummary>>> ListUsersAsync(string? search, int page, int pageSize, CancellationToken cancellationToken = default) =>
         Task.FromResult(ApiResult.Success(new PagedResponse<UserSummary>([Keeper, Locked], page, pageSize, 2)));
+
+    public override Task<ApiResult<List<RoleSummary>>> ListRolesAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(ApiResult.Success(new List<RoleSummary>
+        {
+            new(4, AppRoles.WarehouseKeeper, "Warehouse keeper", null, [Permissions.Inventory.Stock.Adjust, Permissions.Inventory.Stock.View], false, false, ["WAREHOUSE_KEEPER"], "1"),
+            new(5, AppRoles.ServiceEngineer, "Service engineer", null, [Permissions.Fleet.EngineHours.Record], false, false, ["SERVICE_ENGINEER"], "1"),
+        }));
 
     public override Task<ApiResult<UserFormOptions>> GetUserFormOptionsAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(ApiResult.Success(new UserFormOptions(AppRoles.All, ["CLAAS", "JD"], [new HubOption(3, "KLP", "Klaipėda")])));

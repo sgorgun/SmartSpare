@@ -557,6 +557,11 @@ Effort: **S** ≈ a quarter day, **M** ≈ half a day, **L** ≈ a full day, at 
 - **Deviation from 3.1:** the reason rule is an insert trigger rather than a `CHECK NOT VALID`, because the ledger is append-only and partitioned; the effect is the same.
 - **New policy:** `ManageCatalog` (planners, administrators). It only adds rows to the golden matrix; no existing right changed.
 
+**As built, 7x4 (#192):**
+- **Roles screen** (`/admin/roles`, Organisation tab "Roles"): one column per role and one row per permission, grouped by module and searchable. Locked roles are read-only. A holder of `Organisation.Role.Edit` ticks permissions and saves one role with its version, or creates a role. A refusal (separation of duties, the own role, a stale version) is shown with its reason, and the pending change is kept.
+- **Effective rights with origin** on the users page: each account lists its permissions as "permission ← role ← position".
+- **Live propagation:** a role edit rotates its holders' stamps, so their sessions end at the next session check (within 30 s) and the next sign-in carries the new bundle. The BFF's role → permission map now ages on the registered `TimeProvider` (stage 6 lesson), and a host test moves the fake clock to prove it.
+
 **As built, 7x3b (#191):**
 - **The Superadministrator** is a locked position (`iam.position.is_locked`) whose locked role holds every permission. The reader returns the whole catalogue for it, so permissions added later are included.
 - **Refused:**

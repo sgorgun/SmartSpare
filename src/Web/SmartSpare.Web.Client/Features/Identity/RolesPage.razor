@@ -1,0 +1,207 @@
+@page "/admin/roles"
+@attribute [Authorize(Policy = Permissions.Organisation.Role.View)]
+@inject IStringLocalizer<SharedResource> Text
+@inject IdentityClient Identity
+@inject ProblemMessages Messages
+@inject ISnackbar Snackbar
+@inject IAuthorizationService Authorization
+
+<PageTitle>@Text["Roles.Title"]</PageTitle>
+
+<OrganisationTabs />
+<MudText Typo="Typo.h4" HtmlTag="h1" Class="mb-1">@Text["Roles.Title"]</MudText>
+<MudText Typo="Typo.body2" Class="mb-3">@Text["Roles.Intro"]</MudText>
+
+@if (_mayEdit)
+{
+    <div class="d-flex flex-wrap align-end mb-3" data-testid="new-role-form">
+        <MudTextField T="string" @bind-Value="_newCode" Label="@Text["Roles.Code"]" HelperText="@Text["Roles.CodeHelp"]" Variant="Variant.Outlined"
+                      Margin="Margin.Dense" Class="mr-2" data-testid="new-role-code" />
+        <MudTextField T="string" @bind-Value="_newName" Label="@Text["Roles.Name"]" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mr-2"
+                      data-testid="new-role-name" />
+        <MudButton OnClick="CreateAsync" Disabled="_busy" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                   Class="touch-target" data-testid="new-role">@Text["Roles.New"]</MudButton>
+    </div>
+}
+
+<MudTextField T="string" @bind-Value="_search" Label="@Text["Roles.Search"]" Variant="Variant.Outlined" Margin="Margin.Dense" Immediate="true"
+              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Clearable="true" Class="mb-3" data-testid="permission-search" />
+
+@if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-3" role="alert" data-testid="roles-error">@_error</MudAlert>
+}
+
+@if (_roles.Count > 0)
+{
+    <div style="overflow-x:auto">
+        <MudSimpleTable Dense="true" Bordered="true" Striped="false" data-testid="roles-matrix">
+            <thead>
+                <tr>
+                    <th scope="col">@Text["Roles.Permission"]</th>
+                    @foreach (var role in _roles)
+                    {
+                        <th scope="col" class="text-center" data-testid="role-column">
+                            <div class="d-flex flex-column align-center">
+                                <span>
+                                    @if (role.IsLocked)
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Filled.Lock" Size="Size.Small" aria-hidden="true" />
+                                    }
+                                    <strong>@role.Name</strong>
+                                </span>
+                                <MudText Typo="Typo.caption">@(role.IsLocked ? Text["Roles.Locked"].Value : role.Code)</MudText>
+                                @if (_mayEdit && !role.IsLocked && IsChanged(role))
+                                {
+                                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary" Disabled="_busy" OnClick="() => SaveAsync(role)"
+                                               Class="touch-target" data-testid="save-role">@Text["Roles.Save", role.Name]</MudButton>
+                                }
+                            </div>
+                        </th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var module in VisiblePermissions.GroupBy(p => p.Module))
+                {
+                    <tr data-testid="module-row">
+                        <th scope="rowgroup" colspan="@(_roles.Count + 1)"><MudText Typo="Typo.subtitle2">@module.Key</MudText></th>
+                    </tr>
+                    @foreach (var permission in module)
+                    {
+                        <tr data-testid="permission-row">
+                            <th scope="row" style="font-weight:normal">
+                                <MudText Typo="Typo.body2"><code>@permission.Name</code></MudText>
+                                <MudText Typo="Typo.caption">@permission.Description</MudText>
+                            </th>
+                            @foreach (var role in _roles)
+                            {
+                                <td class="text-center">
+                                    <MudCheckBox T="bool" Value="Holds(role, permission.Name)" ValueChanged="@(on => Toggle(role, permission.Name, on))"
+                                                 Disabled="@(!_mayEdit || role.IsLocked)"
+                                                 aria-label="@Text["Roles.Grant", permission.Name, role.Name]" data-testid="grant" />
+                                </td>
+                            }
+                        </tr>
+                    }
+                }
+            </tbody>
+        </MudSimpleTable>
+    </div>
+}
+
+@code {
+    private readonly Dictionary<short, HashSet<string>> _pending = [];
+    private List<RoleSummary> _roles = [];
+    private List<PermissionDto> _permissions = [];
+    private string? _search;
+    private string? _error;
+    private string? _newCode;
+    private string? _newName;
+    private bool _busy;
+    private bool _mayEdit;
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationState { get; set; }
+
+    private IEnumerable<PermissionDto> VisiblePermissions =>
+        string.IsNullOrWhiteSpace(_search)
+            ? _permissions
+            : _permissions.Where(p => p.Name.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase)
+                                      || p.Description.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        if (AuthenticationState is not null)
+        {
+            _mayEdit = (await Authorization.AuthorizeAsync((await AuthenticationState).User, Permissions.Organisation.Role.Edit)).Succeeded;
+        }
+
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        var permissions = await Identity.ListPermissionsAsync();
+        var roles = await Identity.ListRolesAsync();
+        if (!permissions.IsSuccess || !roles.IsSuccess)
+        {
+            _error = Messages.Describe((permissions.Problem ?? roles.Problem)!);
+            return;
+        }
+
+        _error = null;
+        _permissions = permissions.Value!;
+        _roles = [.. roles.Value!.Where(r => !r.IsArchived)];
+        _pending.Clear();
+    }
+
+    private bool Holds(RoleSummary role, string permission) =>
+        _pending.TryGetValue(role.Id, out var pending) ? pending.Contains(permission) : role.Permissions.Contains(permission);
+
+    private bool IsChanged(RoleSummary role) => _pending.TryGetValue(role.Id, out var pending) && !pending.SetEquals(role.Permissions);
+
+    private void Toggle(RoleSummary role, string permission, bool on)
+    {
+        if (!_pending.TryGetValue(role.Id, out var pending))
+        {
+            pending = [.. role.Permissions];
+            _pending[role.Id] = pending;
+        }
+
+        if (on)
+        {
+            pending.Add(permission);
+        }
+        else
+        {
+            pending.Remove(permission);
+        }
+    }
+
+    private async Task SaveAsync(RoleSummary role)
+    {
+        _busy = true;
+        var result = await Identity.UpdateRoleAsync(role.Id, new UpdateRoleRequest(role.Name, role.Description, [.. _pending[role.Id].Order(StringComparer.Ordinal)]), role.Version);
+        _busy = false;
+        if (!result.IsSuccess)
+        {
+            // A conflict of duties, the own role or a stale version: say why, keep the pending change so it can be corrected.
+            _error = Messages.Describe(result.Problem!);
+            return;
+        }
+
+        Snackbar.Add(Text["Roles.Saved", role.Name], Severity.Success);
+        await LoadAsync();
+    }
+
+    private async Task CreateAsync()
+    {
+        var request = new CreateRoleRequest(_newCode?.Trim().ToUpperInvariant() ?? string.Empty, _newName ?? string.Empty, null, []);
+        var validation = new CreateRoleRequestValidator().Validate(request);
+        if (!validation.IsValid)
+        {
+            _error = string.Join(" ", validation.Errors.Select(e => e.ErrorMessage));
+            return;
+        }
+
+        _busy = true;
+        var result = await Identity.CreateRoleAsync(request);
+        _busy = false;
+        if (!result.IsSuccess)
+        {
+            _error = Messages.Describe(result.Problem!);
+            return;
+        }
+
+        _newCode = null;
+        _newName = null;
+        Snackbar.Add(Text["Roles.Created", result.Value!.Name], Severity.Success);
+        await LoadAsync();
+    }
+}

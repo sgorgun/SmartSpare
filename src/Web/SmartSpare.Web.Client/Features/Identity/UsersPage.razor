@@ -42,6 +42,22 @@
                     {
                         <MudText Typo="Typo.body2" Color="Color.Secondary">@Text["Users.WithoutEffect", RightText(right)]</MudText>
                     }
+                    @if (_roleBundles.Count > 0 && context.Item.Roles.Count > 0)
+                    {
+                        <MudButton Size="Size.Small" Variant="Variant.Text" Class="touch-target" OnClick="() => TogglePermissions(context.Item.Id)"
+                                   aria-expanded="@(_expanded.Contains(context.Item.Id) ? "true" : "false")" data-testid="show-permissions">
+                            @Text["Users.Permissions", PermissionsOf(context.Item).Count]
+                        </MudButton>
+                        @if (_expanded.Contains(context.Item.Id))
+                        {
+                            <ul class="ml-4" data-testid="user-permissions">
+                                @foreach (var (permission, origins) in PermissionsOf(context.Item))
+                                {
+                                    <li><MudText Typo="Typo.body2"><code>@permission</code> ← @string.Join(", ", origins) ← @Text["Users.PositionOrigin", context.Item.PositionName ?? string.Empty]</MudText></li>
+                                }
+                            </ul>
+                        }
+                    }
                 </div>
             </CellTemplate>
         </TemplateColumn>
@@ -158,6 +174,47 @@
         {
             await _grid.ReloadServerData();
         }
+    }
+
+    private readonly HashSet<Guid> _expanded = [];
+    private Dictionary<string, (string Name, IReadOnlyList<string> Permissions)> _roleBundles = [];
+
+    /// <summary>The role bundles, for the permissions with their origin (ADR 0028); only for users who may read roles.</summary>
+    protected override async Task OnInitializedAsync()
+    {
+        if (RendererInfo.IsInteractive && await Identity.ListRolesAsync() is { IsSuccess: true } roles)
+        {
+            _roleBundles = roles.Value!.ToDictionary(r => r.Code, r => (r.Name, r.Permissions), StringComparer.Ordinal);
+        }
+    }
+
+    private void TogglePermissions(Guid id)
+    {
+        if (!_expanded.Remove(id))
+        {
+            _expanded.Add(id);
+        }
+    }
+
+    /// <summary>Each permission of the user with the roles that grant it: permission ← role ← position (ADR 0028).</summary>
+    private SortedDictionary<string, List<string>> PermissionsOf(UserSummary user)
+    {
+        var result = new SortedDictionary<string, List<string>>(StringComparer.Ordinal);
+        foreach (var role in user.Roles.Where(_roleBundles.ContainsKey))
+        {
+            foreach (var permission in _roleBundles[role].Permissions)
+            {
+                if (!result.TryGetValue(permission, out var origins))
+                {
+                    origins = [];
+                    result[permission] = origins;
+                }
+
+                origins.Add(_roleBundles[role].Name);
+            }
+        }
+
+        return result;
     }
 
     /// <summary>"Role Brand manager — from position Brand manager": the right and where it comes from (ADR 0026).</summary>
