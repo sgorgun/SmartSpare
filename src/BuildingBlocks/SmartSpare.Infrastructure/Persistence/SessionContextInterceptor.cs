@@ -21,6 +21,9 @@ public interface ICurrentUser
 
     /// <summary>Hubs the user may write at (<c>ss:warehouse</c> claims, ADR 0026); empty without a hub.</summary>
     IReadOnlyCollection<short> WarehouseIds { get; }
+
+    /// <summary>Permissions of the user (<c>ss:perm</c> claims, ADR 0028); empty without a user.</summary>
+    IReadOnlyCollection<string> Permissions => [];
 }
 
 /// <summary>No user: background jobs, and every process that serves no requests.</summary>

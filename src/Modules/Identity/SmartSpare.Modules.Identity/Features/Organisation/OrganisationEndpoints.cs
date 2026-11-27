@@ -51,7 +51,7 @@ internal static class ETagResults
     }
 }
 
-/// <summary>Positions and their role templates under <c>/api/v1/identity/positions</c> (ADR 0026). Policy Administration.</summary>
+/// <summary>Positions and their role templates under <c>/api/v1/identity/positions</c> (ADR 0026). Permission Organisation.Position.View.</summary>
 internal static class PositionEndpoints
 {
     private static readonly PositionSummary Example = new(
@@ -59,7 +59,7 @@ internal static class PositionEndpoints
 
     public static void Map(IEndpointRouteBuilder v1)
     {
-        var positions = v1.MapGroup("/positions").RequireAuthorization(AppPolicies.Administration).WithTags("Organisation");
+        var positions = v1.MapGroup("/positions").RequireAuthorization(Permissions.Organisation.Position.View).WithTags("Organisation");
 
         positions.MapGet("", async (
                 IQueryHandler<ListPositionsQuery, PagedResponse<PositionSummary>> handler, CancellationToken cancellationToken,
@@ -69,14 +69,14 @@ internal static class PositionEndpoints
                 [Description("Positions per page, 1 to 100.")] int pageSize = UserLimits.DefaultPageSize) =>
                 (await handler.Handle(new ListPositionsQuery(search, archived, page, pageSize), cancellationToken).ConfigureAwait(false)).ToHttpResult())
             .Documented("ListPositions", "Lists positions with their role templates.",
-                "Active (or archived) positions by name, with the roles of the template and the number of active employees. Policy Administration.")
+                "Active (or archived) positions by name, with the roles of the template and the number of active employees. Permission Organisation.Position.View.")
             .Produces<PagedResponse<PositionSummary>>()
             .ProducesValidationProblem()
             .WithResponseExample(StatusCodes.Status200OK, new PagedResponse<PositionSummary>([Example], 1, UserLimits.DefaultPageSize, 1));
 
         positions.MapGet("/{id:int}", async ([Description("Position id.")] short id, IQueryHandler<GetPositionQuery, PositionSummary> handler, CancellationToken cancellationToken) =>
                 OrganisationApi.WithETag(await handler.Handle(new GetPositionQuery(id), cancellationToken).ConfigureAwait(false), p => p.Version))
-            .Documented("GetPosition", "Returns one position.", "The position with its role template; the ETag header carries its version for If-Match. Policy Administration.")
+            .Documented("GetPosition", "Returns one position.", "The position with its role template; the ETag header carries its version for If-Match. Permission Organisation.Position.View.")
             .Produces<PositionSummary>()
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithResponseExample(StatusCodes.Status200OK, Example)
@@ -89,8 +89,9 @@ internal static class PositionEndpoints
                     ? Results.Created($"/api/v1/identity/positions/{result.Value.Id}", result.Value)
                     : result.Error.ToProblem();
             })
+            .RequireAuthorization(Permissions.Organisation.Position.Create)
             .Documented("CreatePosition", "Creates a position with its role template.",
-                "The code is stored in capitals and never changes. A used code gives 409 Identity.CodeTaken. Policy Administration; written as app_admin.")
+                "The code is stored in capitals and never changes. A used code gives 409 Identity.CodeTaken. Permission Organisation.Position.Create; written as app_admin.")
             .Accepts<CreatePositionRequest>("application/json")
             .Produces<PositionSummary>(StatusCodes.Status201Created)
             .ProducesValidationProblem()
@@ -102,10 +103,11 @@ internal static class PositionEndpoints
                 [Description("Position id.")] short id, UpdatePositionRequest request, [FromHeader(Name = "If-Match")] string? ifMatch,
                 ICommandHandler<UpdatePositionCommand, PositionSummary> handler, CancellationToken cancellationToken) =>
                 (await handler.Handle(new UpdatePositionCommand(id, request, Versions.Parse(ifMatch)), cancellationToken).ConfigureAwait(false)).ToHttpResult())
+            .RequireAuthorization(Permissions.Organisation.Position.Edit)
             .Documented("UpdatePosition", "Changes a position and its role template.",
                 "Needs If-Match with the version read. A changed template changes the roles of every employee in the position: their "
                 + "sessions get the new roles at the next session check (at most 30 seconds). The last position that grants ADMINISTRATOR to "
-                + "an active account keeps that role (409 Identity.LastAdministrator). A stale version gives 409. Policy Administration.")
+                + "an active account keeps that role (409 Identity.LastAdministrator). A stale version gives 409. Permission Organisation.Position.Edit.")
             .Accepts<UpdatePositionRequest>("application/json")
             .Produces<PositionSummary>()
             .ProducesValidationProblem()
@@ -116,9 +118,9 @@ internal static class PositionEndpoints
             .WithResponseExample(StatusCodes.Status409Conflict, OrganisationApi.Problem(OrganisationErrors.LastAdministrator, 409));
 
         MapState<ArchivePositionCommand>(positions, "archive", (id, v) => new ArchivePositionCommand(id, v), "ArchivePosition", "Archives a position.",
-            "Needs If-Match. Refused while active employees hold the position (409 SS501). An archived position cannot be chosen. Policy Administration.");
+            "Needs If-Match. Refused while active employees hold the position (409 SS501). An archived position cannot be chosen. Permission Organisation.Position.Archive.");
         MapState<RestorePositionCommand>(positions, "restore", (id, v) => new RestorePositionCommand(id, v), "RestorePosition", "Restores an archived position.",
-            "Needs If-Match. Policy Administration.");
+            "Needs If-Match. Permission Organisation.Position.Archive.");
     }
 
     private static void MapState<TCommand>(RouteGroupBuilder group, string action, Func<short, uint?, TCommand> create, string name, string summary, string description)
@@ -127,6 +129,7 @@ internal static class PositionEndpoints
                 [Description("Position id.")] short id, [FromHeader(Name = "If-Match")] string? ifMatch,
                 ICommandHandler<TCommand, PositionSummary> handler, CancellationToken cancellationToken) =>
                 (await handler.Handle(create(id, Versions.Parse(ifMatch)), cancellationToken).ConfigureAwait(false)).ToHttpResult())
+            .RequireAuthorization(Permissions.Organisation.Position.Archive)
             .Documented(name, summary, description)
             .Produces<PositionSummary>()
             .ProducesValidationProblem()
@@ -136,7 +139,7 @@ internal static class PositionEndpoints
             .WithResponseExample(StatusCodes.Status409Conflict, OrganisationApi.Problem(OrganisationErrors.PositionInUse, 409));
 }
 
-/// <summary>Employees and their accounts under <c>/api/v1/identity/employees</c> (ADR 0026). Policy Administration.</summary>
+/// <summary>Employees and their accounts under <c>/api/v1/identity/employees</c> (ADR 0026). Permission Organisation.Employee.View.</summary>
 internal static class EmployeeEndpoints
 {
     private static readonly EmployeeSummary Example = new(
@@ -145,7 +148,7 @@ internal static class EmployeeEndpoints
 
     public static void Map(IEndpointRouteBuilder v1)
     {
-        var employees = v1.MapGroup("/employees").RequireAuthorization(AppPolicies.Administration).WithTags("Organisation");
+        var employees = v1.MapGroup("/employees").RequireAuthorization(Permissions.Organisation.Employee.View).WithTags("Organisation");
 
         employees.MapGet("", async (
                 IQueryHandler<ListEmployeesQuery, PagedResponse<EmployeeSummary>> handler, CancellationToken cancellationToken,
@@ -163,7 +166,7 @@ internal static class EmployeeEndpoints
 
         employees.MapGet("/{id:guid}", async ([Description("Employee id.")] Guid id, IQueryHandler<GetEmployeeQuery, EmployeeSummary> handler, CancellationToken cancellationToken) =>
                 OrganisationApi.WithETag(await handler.Handle(new GetEmployeeQuery(id), cancellationToken).ConfigureAwait(false), e => e.Version))
-            .Documented("GetEmployee", "Returns one employee.", "The employee with position and account; the ETag header carries the version for If-Match. Policy Administration.")
+            .Documented("GetEmployee", "Returns one employee.", "The employee with position and account; the ETag header carries the version for If-Match. Permission Organisation.Employee.View.")
             .Produces<EmployeeSummary>()
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithResponseExample(StatusCodes.Status200OK, Example)
@@ -176,8 +179,9 @@ internal static class EmployeeEndpoints
                     ? Results.Created($"/api/v1/identity/employees/{result.Value.Id}", result.Value)
                     : result.Error.ToProblem();
             })
+            .RequireAuthorization(Permissions.Organisation.Employee.Create)
             .Documented("CreateEmployee", "Creates an employee.",
-                "The position must be active (422 SS500 for an archived one). A used number or e-mail gives 409. An employee needs no account. Policy Administration.")
+                "The position must be active (422 SS500 for an archived one). A used number or e-mail gives 409. An employee needs no account. Permission Organisation.Employee.Create.")
             .Accepts<CreateEmployeeRequest>("application/json")
             .Produces<EmployeeSummary>(StatusCodes.Status201Created)
             .ProducesValidationProblem()
@@ -191,9 +195,10 @@ internal static class EmployeeEndpoints
                 [Description("Employee id.")] Guid id, UpdateEmployeeRequest request, [FromHeader(Name = "If-Match")] string? ifMatch,
                 ICommandHandler<UpdateEmployeeCommand, EmployeeSummary> handler, CancellationToken cancellationToken) =>
                 (await handler.Handle(new UpdateEmployeeCommand(id, request, Versions.Parse(ifMatch)), cancellationToken).ConfigureAwait(false)).ToHttpResult())
+            .RequireAuthorization(Permissions.Organisation.Employee.Edit)
             .Documented("UpdateEmployee", "Changes an employee's data or position.",
                 "Needs If-Match. A new position changes the account's roles: its sessions get them at the next session check (at most 30 "
-                + "seconds). Moving the last active administrator away gives 409 Identity.LastAdministrator. Policy Administration.")
+                + "seconds). Moving the last active administrator away gives 409 Identity.LastAdministrator. Permission Organisation.Employee.Edit.")
             .Accepts<UpdateEmployeeRequest>("application/json")
             .Produces<EmployeeSummary>()
             .ProducesValidationProblem()
@@ -208,9 +213,10 @@ internal static class EmployeeEndpoints
                 [Description("Employee id.")] Guid id, ArchiveEmployeeRequest request, [FromHeader(Name = "If-Match")] string? ifMatch,
                 ICommandHandler<ArchiveEmployeeCommand, EmployeeSummary> handler, CancellationToken cancellationToken) =>
                 (await handler.Handle(new ArchiveEmployeeCommand(id, request, Versions.Parse(ifMatch)), cancellationToken).ConfigureAwait(false)).ToHttpResult())
+            .RequireAuthorization(Permissions.Organisation.Employee.Archive)
             .Documented("ArchiveEmployee", "Records that an employee left.",
                 "Needs If-Match. The employee is archived with the leaving date; the account can no longer sign in, at once, and open "
-                + "sessions end at the next session check. Not for oneself or the last active administrator. Policy Administration.")
+                + "sessions end at the next session check. Not for oneself or the last active administrator. Permission Organisation.Employee.Archive.")
             .Accepts<ArchiveEmployeeRequest>("application/json")
             .Produces<EmployeeSummary>()
             .ProducesValidationProblem()
@@ -224,7 +230,8 @@ internal static class EmployeeEndpoints
                 [Description("Employee id.")] Guid id, [FromHeader(Name = "If-Match")] string? ifMatch,
                 ICommandHandler<RestoreEmployeeCommand, EmployeeSummary> handler, CancellationToken cancellationToken) =>
                 (await handler.Handle(new RestoreEmployeeCommand(id, Versions.Parse(ifMatch)), cancellationToken).ConfigureAwait(false)).ToHttpResult())
-            .Documented("RestoreEmployee", "Restores an employee archived by mistake.", "Needs If-Match. An anonymised employee cannot be restored. Policy Administration.")
+            .RequireAuthorization(Permissions.Organisation.Employee.Archive)
+            .Documented("RestoreEmployee", "Restores an employee archived by mistake.", "Needs If-Match. An anonymised employee cannot be restored. Permission Organisation.Employee.Archive.")
             .Produces<EmployeeSummary>()
             .ProducesValidationProblem()
             .ProducesProblem(StatusCodes.Status404NotFound)
@@ -238,9 +245,10 @@ internal static class EmployeeEndpoints
                 var result = await handler.Handle(new CreateAccountCommand(id, request), cancellationToken).ConfigureAwait(false);
                 return result.IsSuccess ? Results.Created($"/api/v1/identity/employees/{id}", result.Value) : result.Error.ToProblem();
             })
+            .RequireAuthorization(Permissions.Organisation.Account.Create)
             .Documented("CreateEmployeeAccount", "Creates the user account of an employee.",
                 "The account's roles come from the employee's position; there is no other way to give roles. One account per employee "
-                + "(409 Identity.AccountExists); a used user name gives 409 Identity.UserNameTaken. Policy Administration.")
+                + "(409 Identity.AccountExists); a used user name gives 409 Identity.UserNameTaken. Permission Organisation.Account.Create.")
             .Accepts<CreateAccountRequest>("application/json")
             .Produces<EmployeeSummary>(StatusCodes.Status201Created)
             .ProducesValidationProblem()
@@ -253,9 +261,10 @@ internal static class EmployeeEndpoints
         employees.MapPost("/{id:guid}/anonymise", async (
                 [Description("Employee id.")] Guid id, ICommandHandler<AnonymiseEmployeeCommand, EmployeeSummary> handler, CancellationToken cancellationToken) =>
                 (await handler.Handle(new AnonymiseEmployeeCommand(id), cancellationToken).ConfigureAwait(false)).ToHttpResult())
+            .RequireAuthorization(Permissions.Organisation.Employee.Anonymise)
             .Documented("AnonymiseEmployee", "Anonymises an employee (GDPR).",
                 "Erases the personal data of the employee and of the account with iam.anonymise_employee; the rows stay for audit "
-                + "references. Not for oneself (403, SS301) or the last active administrator. Policy Administration.")
+                + "references. Not for oneself (403, SS301) or the last active administrator. Permission Organisation.Employee.Anonymise.")
             .Produces<EmployeeSummary>()
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict)

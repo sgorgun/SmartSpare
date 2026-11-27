@@ -203,14 +203,14 @@ internal static class TransferCommandEndpoints
                     ? Results.Created($"/api/v1/inventory/transfers/{result.Value.Order.Id}", result.Value)
                     : result.Error.ToProblem();
             })
-            .RequireAuthorization(AppPolicies.PlanInventory)
+            .RequireAuthorization(Permissions.Inventory.Transfer.Create)
             .WithName("CreateTransfer")
             .WithSummary("Proposes a transfer between two hubs.")
             .WithDescription(
                 "Creates a proposed transfer order with 1 to 50 lines, each part once, on an existing route. The number "
                 + "(TR-YYYY-NNNNNN) is assigned by the database. Nothing is reserved until the order is approved. An unknown "
                 + "route gives 422 Inventory.NoRoute; an unknown or deactivated part 422 Inventory.UnknownPart. Returns 201 "
-                + "with the order and its Location. Policy PlanInventory (brand managers and inventory planners).")
+                + "with the order and its Location. Permission Inventory.Transfer.Create.")
             .Accepts<CreateTransferRequest>("application/json")
             .Produces<TransferDetails>(StatusCodes.Status201Created)
             .ProducesValidationProblem()
@@ -225,7 +225,7 @@ internal static class TransferCommandEndpoints
             .WithResponseExample(StatusCodes.Status422UnprocessableEntity, InventoryExamples.Problem(TransferErrors.NoRoute));
 
         MapTransition<ApproveTransferCommand>(group, "approve", id => new ApproveTransferCommand(id))
-            .RequireAuthorization(AppPolicies.ApproveTransfer)
+            .RequireAuthorization(Permissions.Inventory.Transfer.Approve)
             .WithName("ApproveTransfer")
             .WithSummary("Approves a proposed transfer.")
             .WithDescription(
@@ -233,7 +233,7 @@ internal static class TransferCommandEndpoints
                 + "transaction. A donor that would fall below its safety stock is refused with 409 SS201 (urgent orders may "
                 + "use the buffer, US10); not enough available stock with 409 SS200; an order that is not proposed with 409 "
                 + "SS300. A brand manager may approve only orders whose parts are all of their brands (403 "
-                + "Inventory.OutOfBrandScope). Policy ApproveTransfer.")
+                + "Inventory.OutOfBrandScope). Permission Inventory.Transfer.Approve (any brand with Inventory.Transfer.ApproveAnyBrand).")
             .WithResponseExample(StatusCodes.Status403Forbidden, InventoryExamples.Problem(TransferAccess.OutOfBrandScope))
             .WithResponseExample(StatusCodes.Status409Conflict, InventoryExamples.Problem(Error.Conflict("SS201",
                 "Donor warehouse 3 would fall below its safety stock for part 1042 (available 14.000, safety 6.000, transfer 11.000)")));
@@ -244,13 +244,13 @@ internal static class TransferCommandEndpoints
                 ICommandHandler<CancelTransferCommand, TransferDetails> handler,
                 CancellationToken cancellationToken) =>
                 (await handler.Handle(new CancelTransferCommand(id, request.Reason), cancellationToken).ConfigureAwait(false)).ToHttpResult())
-            .RequireAuthorization(AppPolicies.CancelTransfer)
+            .RequireAuthorization(Permissions.Inventory.Transfer.Cancel)
             .WithName("CancelTransfer")
             .WithSummary("Cancels a proposed or approved transfer.")
             .WithDescription(
                 "Cancels the order with a reason and releases its firm reservations. A dispatched or received order cannot "
                 + "be cancelled (409 SS300). A brand manager may cancel only orders whose parts are all of their brands (403 "
-                + "Inventory.OutOfBrandScope). Policy CancelTransfer.")
+                + "Inventory.OutOfBrandScope). Permission Inventory.Transfer.Cancel (any brand with Inventory.Transfer.CancelAnyBrand).")
             .Accepts<CancelTransferRequest>("application/json")
             .Produces<TransferDetails>()
             .ProducesValidationProblem()
@@ -268,25 +268,25 @@ internal static class TransferCommandEndpoints
                 InventoryErrors.InvalidTransition("transfer order", TransferStatus.Dispatched, "cancelled")));
 
         MapTransition<DispatchTransferCommand>(group, "dispatch", id => new DispatchTransferCommand(id))
-            .RequireAuthorization(AppPolicies.MoveStock)
+            .RequireAuthorization(Permissions.Inventory.Transfer.Dispatch)
             .WithName("DispatchTransfer")
             .WithSummary("Dispatches an approved transfer.")
             .WithDescription(
                 "US11: a keeper of the donor hub (or a user without a home hub) dispatches the order: the firm reservations are "
                 + "consumed and TRANSFER_OUT movements posted; the stock is then in transit. A keeper of another hub gets 403 "
-                + "SS302; an order that is not approved 409 SS300. Policy MoveStock.")
+                + "SS302; an order that is not approved 409 SS300. Permission Inventory.Transfer.Dispatch.")
             .WithResponseExample(StatusCodes.Status403Forbidden, InventoryExamples.Problem(InventoryErrors.NotYourWarehouse))
             .WithResponseExample(StatusCodes.Status409Conflict, InventoryExamples.Problem(
                 InventoryErrors.InvalidTransition("transfer order", TransferStatus.Proposed, "dispatched")));
 
         MapTransition<ReceiveTransferCommand>(group, "receive", id => new ReceiveTransferCommand(id))
-            .RequireAuthorization(AppPolicies.MoveStock)
+            .RequireAuthorization(Permissions.Inventory.Transfer.Receive)
             .WithName("ReceiveTransfer")
             .WithSummary("Receives a dispatched transfer.")
             .WithDescription(
                 "US11: a keeper of the recipient hub (or a user without a home hub) receives the order: TRANSFER_IN movements "
                 + "are posted at the recipient. A keeper of another hub gets 403 SS302; an order that is not dispatched 409 "
-                + "SS300. Policy MoveStock.")
+                + "SS300. Permission Inventory.Transfer.Receive.")
             .WithResponseExample(StatusCodes.Status403Forbidden, InventoryExamples.Problem(InventoryErrors.NotYourWarehouse))
             .WithResponseExample(StatusCodes.Status409Conflict, InventoryExamples.Problem(
                 InventoryErrors.InvalidTransition("transfer order", TransferStatus.Approved, "received")));

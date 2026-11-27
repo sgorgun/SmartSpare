@@ -161,7 +161,7 @@ public sealed class TransferFeatureTests
     private static TransferAccess Access(string? role, short[] ownBrands)
     {
         var services = new ServiceCollection().AddLogging();
-        services.AddAuthorization(AppPolicies.Register);
+        services.AddPermissionAuthorization();
         services.AddBrandScopeAuthorization();
         var provider = services.BuildServiceProvider();
 
@@ -169,6 +169,7 @@ public sealed class TransferFeatureTests
         if (role is not null)
         {
             claims.Add(new Claim(AppClaimTypes.Role, role));
+            claims.AddRange(DefaultRoles.Bundles[role].Select(p => new Claim(AppClaimTypes.Permission, p)));   // what the BFF adds (ADR 0028)
         }
 
         claims.AddRange(ownBrands.Select(b => new Claim(AppClaimTypes.Brand, b.ToString(System.Globalization.CultureInfo.InvariantCulture))));

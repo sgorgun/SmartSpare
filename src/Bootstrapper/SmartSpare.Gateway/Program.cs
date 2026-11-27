@@ -20,6 +20,8 @@ builder.Services.AddGatewayAuthentication();
 builder.Services.AddTransient<ServiceTokenHandler>();
 builder.Services.AddHttpClient<ICredentialVerifier, HttpCredentialVerifier>(GatewayClients.Identity, client => client.BaseAddress = new Uri("http://identity"))
     .AddHttpMessageHandler<ServiceTokenHandler>();
+builder.Services.AddHttpClient<IRolePermissions, HttpRolePermissions>(GatewayClients.Identity, client => client.BaseAddress = new Uri("http://identity"))
+    .AddHttpMessageHandler<ServiceTokenHandler>();
 
 builder.Services.AddGatewayProxy();
 

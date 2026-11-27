@@ -24,10 +24,10 @@ internal static class ListWarehousesEndpoint
                 var result = await handler.Handle(new ListWarehousesQuery(), cancellationToken).ConfigureAwait(false);
                 return result.ToHttpResult();
             })
-            .RequireAuthorization(AppPolicies.ReadInventory)
+            .RequireAuthorization(Permissions.Inventory.Warehouse.View)
             .WithName("ListWarehouses")
             .WithSummary("Lists the warehouses.")
-            .WithDescription("All warehouses, deactivated ones included, the central hub first, then by code. Policy ReadInventory.")
+            .WithDescription("All warehouses, deactivated ones included, the central hub first, then by code. Permission Inventory.Warehouse.View.")
             .Produces<IReadOnlyList<WarehouseResponse>>()
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)

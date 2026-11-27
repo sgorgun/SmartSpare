@@ -304,13 +304,13 @@ internal static class ServiceOrderEndpoints
                 [Description("Page number, from 1.")] int page = 1,
                 [Description("Rows per page, 1 to 100.")] int pageSize = FleetSearch.DefaultPageSize) =>
                 (await handler.Handle(new ListServiceOrdersQuery(status, warehouseId, machineId, page, pageSize), cancellationToken).ConfigureAwait(false)).ToHttpResult())
-            .RequireAuthorization(AppPolicies.ReadFleet)
+            .RequireAuthorization(Permissions.Fleet.ServiceOrder.View)
             .WithName("ListServiceOrders")
             .WithSummary("Lists service orders, newest first.")
             .WithDescription(
                 "Planned services and unplanned repairs with machine, plan, hub, status and kit status. kitStatus is reserving while "
                 + "Inventory's answer to the draft is pending, then reserved, partial or notHeld by the held quantities; issued once "
-                + "completed, released once cancelled. Policy ReadFleet.")
+                + "completed, released once cancelled. Permission Fleet.ServiceOrder.View.")
             .Produces<PagedResponse<ServiceOrderSummary>>()
             .ProducesValidationProblem()
             .ProducesProblem(StatusCodes.Status401Unauthorized)
@@ -325,13 +325,13 @@ internal static class ServiceOrderEndpoints
                 IQueryHandler<GetServiceOrderQuery, ServiceOrderDetails> handler,
                 CancellationToken cancellationToken) =>
                 (await handler.Handle(new GetServiceOrderQuery(id), cancellationToken).ConfigureAwait(false)).ToHttpResult())
-            .RequireAuthorization(AppPolicies.ReadFleet)
+            .RequireAuthorization(Permissions.Fleet.ServiceOrder.View)
             .WithName("GetServiceOrder")
             .WithSummary("Returns a service order with its kit and the actions the current user may take.")
             .WithDescription(
                 "The order, its lines (required, held at the hub, issued, missing; part data from Fleet's catalogue copy), when "
                 + "Inventory answered the kit reservation, and allowedActions computed with the same policies and state rules as "
-                + "the commands, so a screen offers only what the API accepts. Policy ReadFleet.")
+                + "the commands, so a screen offers only what the API accepts. Permission Fleet.ServiceOrder.View.")
             .Produces<ServiceOrderDetails>()
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
@@ -355,7 +355,7 @@ internal static class ServiceOrderEndpoints
                 var order = await details.Handle(new GetServiceOrderQuery(created.Value), cancellationToken).ConfigureAwait(false);
                 return Results.Created($"/api/v1/fleet/service-orders/{created.Value}", order.Value);
             })
-            .RequireAuthorization(AppPolicies.ManageServiceOrders)
+            .RequireAuthorization(Permissions.Fleet.ServiceOrder.Create)
             .WithName("CreateServiceOrder")
             .WithSummary("Creates a planned service or an unplanned repair; Inventory then reserves its kit.")
             .WithDescription(
@@ -363,7 +363,7 @@ internal static class ServiceOrderEndpoints
                 + "at the plan's next engine-hour threshold (the due calculation), with the plan's kit; a plan that already has an open "
                 + "order is a 409 (Fleet.ServiceOrderExists). With lines: an unplanned repair with parts from Fleet's catalogue copy "
                 + "(422 Fleet.UnknownPart otherwise). Either way the order starts as a draft whose kit Inventory reserves right after "
-                + "(kitStatus reserving). Policy ManageServiceOrders (service engineers, brand managers, administrators), the roles of "
+                + "(kitStatus reserving). Permission Fleet.ServiceOrder.Create, the roles of "
                 + "fleet.create_service_order_draft.")
             .Accepts<CreateServiceOrderRequest>("application/json")
             .Produces<ServiceOrderDetails>(StatusCodes.Status201Created)
@@ -393,12 +393,12 @@ internal static class ServiceOrderEndpoints
                     ? started.ToHttpResult()
                     : (await details.Handle(new GetServiceOrderQuery(id), cancellationToken).ConfigureAwait(false)).ToHttpResult();
             })
-            .RequireAuthorization(AppPolicies.RecordServiceWork)
+            .RequireAuthorization(Permissions.Fleet.ServiceOrder.Start)
             .WithName("StartServiceOrder")
             .WithSummary("Marks a service order as in progress.")
             .WithDescription(
                 "A draft or parts-reserved order goes to in progress; any other status is a 409 with code SS300 (the state machine "
-                + "of fleet.trg_service_order_status_guard). Policy RecordServiceWork (service engineers, administrators).")
+                + "of fleet.trg_service_order_status_guard). Permission Fleet.ServiceOrder.Start.")
             .Produces<ServiceOrderDetails>()
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
@@ -422,7 +422,7 @@ internal static class ServiceOrderEndpoints
                     ? completed.ToHttpResult()
                     : (await details.Handle(new GetServiceOrderQuery(id), cancellationToken).ConfigureAwait(false)).ToHttpResult();
             })
-            .RequireAuthorization(AppPolicies.RecordServiceWork)
+            .RequireAuthorization(Permissions.Fleet.ServiceOrder.Complete)
             .WithName("CompleteServiceOrder")
             .WithSummary("Completes a service order; Inventory then issues its kit.")
             .WithDescription(
@@ -431,7 +431,7 @@ internal static class ServiceOrderEndpoints
                 + "reading first. Inventory then issues the kit: the reserved quantities, and the unreserved rest up to the stock at "
                 + "the hub; lines show what was issued and what is missing (the shortfall). This also applies while the kit is "
                 + "still being reserved. Posting the same completion again returns the completed order (a safe retry); other "
-                + "hours on a completed order, or completing a cancelled order, are a 409 with code SS300. Policy RecordServiceWork, "
+                + "hours on a completed order, or completing a cancelled order, are a 409 with code SS300. Permission Fleet.ServiceOrder.Complete, "
                 + "the roles of fleet.complete_service_order.")
             .Accepts<CompleteServiceOrderRequest>("application/json")
             .Produces<ServiceOrderDetails>()
@@ -460,7 +460,7 @@ internal static class ServiceOrderEndpoints
                     ? changed.ToHttpResult()
                     : (await details.Handle(new GetServiceOrderQuery(id), cancellationToken).ConfigureAwait(false)).ToHttpResult();
             })
-            .RequireAuthorization(AppPolicies.ManageServiceOrders)
+            .RequireAuthorization(Permissions.Fleet.ServiceOrder.Edit)
             .WithName("ChangeServiceOrderLines")
             .WithSummary("Sets the kit of a service order that has not started; Inventory adjusts the holds.")
             .WithDescription(
@@ -469,7 +469,7 @@ internal static class ServiceOrderEndpoints
                 + "With new lines the kit is reserving again (kitStatus reserving; an order that was partsReserved returns to draft). "
                 + "Sending the same kit again changes nothing. A repair keeps at least one line (400 Fleet.NoLines); a planned "
                 + "service may lose all. Each part once (400), parts must be active in the catalogue (422 Fleet.UnknownPart). Once "
-                + "the work has started, completed or cancelled the kit is fixed: 409 with code SS300. Policy ManageServiceOrders.")
+                + "the work has started, completed or cancelled the kit is fixed: 409 with code SS300. Permission Fleet.ServiceOrder.Edit.")
             .Accepts<ChangeServiceOrderLinesRequest>("application/json")
             .Produces<ServiceOrderDetails>()
             .ProducesValidationProblem()
@@ -499,14 +499,14 @@ internal static class ServiceOrderEndpoints
                     ? cancelled.ToHttpResult()
                     : (await details.Handle(new GetServiceOrderQuery(id), cancellationToken).ConfigureAwait(false)).ToHttpResult();
             })
-            .RequireAuthorization(AppPolicies.ManageServiceOrders)
+            .RequireAuthorization(Permissions.Fleet.ServiceOrder.Cancel)
             .WithName("CancelServiceOrder")
             .WithSummary("Cancels a service order; Inventory then releases its kit.")
             .WithDescription(
                 "An open order (draft, partsReserved or inProgress) is cancelled with a reason (1 to 300 characters); Inventory "
                 + "releases the holds of its lines (kitStatus released). A kit reservation still in flight is released as soon as it "
                 + "reaches the cancelled order, so no hold remains. Cancelling a completed or cancelled order is a 409 with code "
-                + "SS300. Policy ManageServiceOrders, the roles of fleet.cancel_service_order.")
+                + "SS300. Permission Fleet.ServiceOrder.Cancel, the roles of fleet.cancel_service_order.")
             .Accepts<CancelServiceOrderRequest>("application/json")
             .Produces<ServiceOrderDetails>()
             .ProducesValidationProblem()

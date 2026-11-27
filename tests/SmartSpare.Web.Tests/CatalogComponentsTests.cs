@@ -26,7 +26,7 @@ public sealed class CatalogComponentsTests : ClientTestContext
     {
         Services.AddScoped<CatalogClient>(_ => _catalog);
         Services.AddLogging();
-        Services.AddAuthorizationCore(AppPolicies.Register);
+        Services.AddPermissionAuthorization();
         Services.AddTransient<IAuthorizationService, DefaultAuthorizationService>();
         UseWebAssemblyRenderer();
         Render<MudPopoverProvider>();

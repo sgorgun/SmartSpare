@@ -13,38 +13,34 @@ public interface IBrandScoped
 }
 
 /// <summary>
-/// Resource requirement of an approval or decision action. A user with any of <paramref name="UnscopedRoles"/> may act on
-/// any document; a user with <paramref name="ScopedRole"/> only on documents whose every line has one of their brands.
-/// The unscoped roles plus the scoped role equal the roles of the action's policy (parity rule, section 3.2).
+/// Resource requirement of a brand-scoped action (ADR 0026 data scope, ADR 0028): the user holds the action's
+/// <paramref name="Permission"/>, and either its <paramref name="AnyBrandPermission"/> (any document) or a brand claim for
+/// every line of the document. A scope permission per action, not one for all of them, so a user whose roles combine a
+/// brand-scoped approval with another role's unscoped right on a different action stays scoped, as before ADR 0028.
 /// </summary>
-public sealed record BrandScopedActionRequirement(IReadOnlySet<string> UnscopedRoles, string ScopedRole) : IAuthorizationRequirement;
+public sealed record BrandScopedActionRequirement(string Permission, string AnyBrandPermission) : IAuthorizationRequirement;
 
-/// <summary>The five brand-scoped actions of STAGE_3_PLAN section 3.3, keyed by the policy each one refines.</summary>
+/// <summary>The five brand-scoped actions of STAGE_3_PLAN section 3.3, keyed by their permission.</summary>
 public static class BrandScopeRequirements
 {
-    public static BrandScopedActionRequirement ApproveTransferScope { get; } =
-        new(new HashSet<string>(StringComparer.Ordinal) { AppRoles.InventoryPlanner }, AppRoles.BrandManager);
+    public static BrandScopedActionRequirement ApproveTransferScope { get; } = new(Permissions.Inventory.Transfer.Approve, Permissions.Inventory.Transfer.ApproveAnyBrand);
 
-    public static BrandScopedActionRequirement CancelTransferScope { get; } =
-        new(new HashSet<string>(StringComparer.Ordinal) { AppRoles.InventoryPlanner, AppRoles.Administrator }, AppRoles.BrandManager);
+    public static BrandScopedActionRequirement CancelTransferScope { get; } = new(Permissions.Inventory.Transfer.Cancel, Permissions.Inventory.Transfer.CancelAnyBrand);
 
-    public static BrandScopedActionRequirement ApprovePurchaseOrderScope { get; } =
-        new(new HashSet<string>(StringComparer.Ordinal) { AppRoles.Sponsor }, AppRoles.BrandManager);
+    public static BrandScopedActionRequirement ApprovePurchaseOrderScope { get; } = new(Permissions.Procurement.PurchaseOrder.Approve, Permissions.Procurement.PurchaseOrder.ApproveAnyBrand);
 
-    public static BrandScopedActionRequirement CancelPurchaseOrderScope { get; } =
-        new(new HashSet<string>(StringComparer.Ordinal) { AppRoles.Sponsor, AppRoles.Administrator }, AppRoles.BrandManager);
+    public static BrandScopedActionRequirement CancelPurchaseOrderScope { get; } = new(Permissions.Procurement.PurchaseOrder.Cancel, Permissions.Procurement.PurchaseOrder.CancelAnyBrand);
 
-    public static BrandScopedActionRequirement DecideRecommendationScope { get; } =
-        new(new HashSet<string>(StringComparer.Ordinal) { AppRoles.InventoryPlanner }, AppRoles.BrandManager);
+    public static BrandScopedActionRequirement DecideRecommendationScope { get; } = new(Permissions.Forecasting.Recommendation.Decide, Permissions.Forecasting.Recommendation.DecideAnyBrand);
 
-    /// <summary>Each requirement with the policy (<see cref="AppPolicies"/>) whose role gate it refines.</summary>
-    public static IReadOnlyDictionary<string, BrandScopedActionRequirement> ByPolicy { get; } = new Dictionary<string, BrandScopedActionRequirement>
+    /// <summary>Each requirement by the permission it refines.</summary>
+    public static IReadOnlyDictionary<string, BrandScopedActionRequirement> ByPermission { get; } = new Dictionary<string, BrandScopedActionRequirement>
     {
-        [AppPolicies.ApproveTransfer] = ApproveTransferScope,
-        [AppPolicies.CancelTransfer] = CancelTransferScope,
-        [AppPolicies.ApprovePurchaseOrder] = ApprovePurchaseOrderScope,
-        [AppPolicies.CancelPurchaseOrder] = CancelPurchaseOrderScope,
-        [AppPolicies.DecideRecommendation] = DecideRecommendationScope,
+        [Permissions.Inventory.Transfer.Approve] = ApproveTransferScope,
+        [Permissions.Inventory.Transfer.Cancel] = CancelTransferScope,
+        [Permissions.Procurement.PurchaseOrder.Approve] = ApprovePurchaseOrderScope,
+        [Permissions.Procurement.PurchaseOrder.Cancel] = CancelPurchaseOrderScope,
+        [Permissions.Forecasting.Recommendation.Decide] = DecideRecommendationScope,
     };
 
     /// <summary>Registers the handler of <see cref="BrandScopedActionRequirement"/>.</summary>
@@ -56,9 +52,9 @@ public static class BrandScopeRequirements
 }
 
 /// <summary>
-/// Evaluates <see cref="BrandScopedActionRequirement"/> in a fixed order: an unscoped role succeeds without looking at
-/// brands; otherwise the scoped role succeeds only if the document has lines and every line's brand is among the user's
-/// <see cref="AppClaimTypes.Brand"/> claims; anything else is not satisfied (403). Deny by default.
+/// Evaluates <see cref="BrandScopedActionRequirement"/>: without the action's permission it fails; with
+/// the action's any-brand permission it succeeds without looking at brands; otherwise only if the
+/// document has lines and every line's brand is among the user's <see cref="AppClaimTypes.Brand"/> claims (403 else).
 /// </summary>
 internal sealed class BrandScopedActionHandler : AuthorizationHandler<BrandScopedActionRequirement, IBrandScoped>
 {
@@ -66,14 +62,18 @@ internal sealed class BrandScopedActionHandler : AuthorizationHandler<BrandScope
         AuthorizationHandlerContext context, BrandScopedActionRequirement requirement, IBrandScoped resource)
     {
         var user = context.User;
+        if (!user.HasClaim(AppClaimTypes.Permission, requirement.Permission))
+        {
+            return Task.CompletedTask;
+        }
 
-        if (requirement.UnscopedRoles.Any(user.IsInRole))
+        if (user.HasClaim(AppClaimTypes.Permission, requirement.AnyBrandPermission))
         {
             context.Succeed(requirement);
             return Task.CompletedTask;
         }
 
-        if (user.IsInRole(requirement.ScopedRole) && resource.BrandIds.Count > 0)
+        if (resource.BrandIds.Count > 0)
         {
             var ownBrands = user.FindAll(AppClaimTypes.Brand)
                 .Select(c => short.TryParse(c.Value, NumberStyles.None, CultureInfo.InvariantCulture, out var id) ? id : (short?)null)

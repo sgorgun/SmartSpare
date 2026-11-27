@@ -45,7 +45,7 @@ internal static class MaintenanceQueryEndpoints
                 [Description("Rows per page, 1 to 100.")] int pageSize = FleetSearch.DefaultPageSize) =>
                 (await handler.Handle(new DueMaintenanceQuery(warehouseId, horizonDays, status, page, pageSize), cancellationToken)
                     .ConfigureAwait(false)).ToHttpResult())
-            .RequireAuthorization(AppPolicies.ReadFleet)
+            .RequireAuthorization(Permissions.Fleet.Machine.View)
             .WithName("ListDueMaintenance")
             .WithSummary("Lists the machines that need a planned service soon.")
             .WithDescription(
@@ -54,7 +54,7 @@ internal static class MaintenanceQueryEndpoints
                 + "remaining hours, the projected date from the average daily usage, the calendar date (last service plus the "
                 + "calendar interval) and the earlier of the two. overdue: the threshold or the calendar date has passed; dueSoon: "
                 + "at most 50 h remain or the due date is within horizonDays; planned: an open service order exists. By default "
-                + "overdue and dueSoon rows, ordered by due date (unknown dates last). Policy ReadFleet.")
+                + "overdue and dueSoon rows, ordered by due date (unknown dates last). Permission Fleet.Machine.View.")
             .Produces<PagedResponse<DueMaintenanceRow>>()
             .ProducesValidationProblem()
             .ProducesProblem(StatusCodes.Status401Unauthorized)
@@ -69,13 +69,13 @@ internal static class MaintenanceQueryEndpoints
                 CancellationToken cancellationToken,
                 [Description("Machine model id; empty lists the plans of every model.")] int? modelId = null) =>
                 (await handler.Handle(new ListMaintenancePlansQuery(modelId), cancellationToken).ConfigureAwait(false)).ToHttpResult())
-            .RequireAuthorization(AppPolicies.ReadFleet)
+            .RequireAuthorization(Permissions.Fleet.Machine.View)
             .WithName("ListMaintenancePlans")
             .WithSummary("Lists the OEM maintenance plans with their service kits.")
             .WithDescription(
                 "Active OEM plans per machine model: name, interval in engine hours and, if the OEM sets one, in months (due by "
                 + "whichever comes first), and the kit with part data from Fleet's copy of the catalogue (fed by "
-                + "PartCatalogChanged). Plans are OEM reference data and are not changed through the API. Policy ReadFleet.")
+                + "PartCatalogChanged). Plans are OEM reference data and are not changed through the API. Permission Fleet.Machine.View.")
             .Produces<IReadOnlyList<MaintenancePlanResponse>>()
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)

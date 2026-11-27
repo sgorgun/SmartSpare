@@ -43,7 +43,7 @@ internal sealed class ReplaceResponsiblesCommandValidator : AbstractValidator<Re
 /// <summary>
 /// Replaces the responsible employees of a brand or warehouse (ADR 0026 decision 3, STAGE_7_PLAN 3.7). When a role
 /// that grants scope changes, the full new rights-bearing set goes to Identity as <see cref="ResponsibilitiesChanged"/>
-/// in the same transaction, so the employees' rights follow at the next session check. Policy Administration: these
+/// in the same transaction, so the employees' rights follow at the next session check. Permissions Inventory.Brand.ManageAssignments and Inventory.Warehouse.ManageAssignments: these
 /// assignments give rights.
 /// </summary>
 internal sealed class ReplaceResponsiblesCommandHandler(
@@ -113,7 +113,8 @@ internal sealed class ReplaceResponsiblesCommandHandler(
 
 /// <summary>
 /// GET and PUT of the responsible employees of brands and warehouses, the assignment roles and the brand list, under
-/// <c>/api/v1/inventory</c>. Reads: ReadInventory; changes: Administration (the assignments give rights, ADR 0026).
+/// <c>/api/v1/inventory</c>. Reads: Inventory.Brand.View or Inventory.Warehouse.View; changes: Inventory.Brand.ManageAssignments or
+/// Inventory.Warehouse.ManageAssignments (the assignments give rights, ADR 0026, ADR 0028).
 /// </summary>
 internal static class ResponsibleEndpoints
 {
@@ -126,10 +127,10 @@ internal static class ResponsibleEndpoints
                 IQueryHandler<ListAssignmentRolesQuery, IReadOnlyList<AssignmentRoleDto>> handler, CancellationToken cancellationToken,
                 [Description("brand or warehouse; empty for every kind.")] string? kind = null) =>
                 (await handler.Handle(new ListAssignmentRolesQuery(kind), cancellationToken).ConfigureAwait(false)).ToHttpResult())
-            .RequireAuthorization(AppPolicies.ReadInventory)
+            .RequireAuthorization(Permissions.Inventory.Brand.View)
             .WithName("ListAssignmentRoles")
             .WithSummary("Lists the assignment roles of responsible employees.")
-            .WithDescription("Roles per record kind; roles that grant scope give brand approval scope or hub access (ADR 0026). Policy ReadInventory.")
+            .WithDescription("Roles per record kind; roles that grant scope give brand approval scope or hub access (ADR 0026). Permission Inventory.Brand.View.")
             .Produces<IReadOnlyList<AssignmentRoleDto>>()
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
@@ -137,10 +138,10 @@ internal static class ResponsibleEndpoints
 
         v1.MapGet("/brands", async (IQueryHandler<ListBrandsQuery, IReadOnlyList<BrandDto>> handler, CancellationToken cancellationToken) =>
                 (await handler.Handle(new ListBrandsQuery(), cancellationToken).ConfigureAwait(false)).ToHttpResult())
-            .RequireAuthorization(AppPolicies.ReadInventory)
+            .RequireAuthorization(Permissions.Inventory.Brand.View)
             .WithName("ListBrands")
             .WithSummary("Lists the brands.")
-            .WithDescription("Every brand by code. The brand catalogue with editing follows in PR 7h. Policy ReadInventory.")
+            .WithDescription("Every brand by code. The brand catalogue with editing follows in PR 7h. Permission Inventory.Brand.View.")
             .Produces<IReadOnlyList<BrandDto>>()
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
@@ -152,10 +153,10 @@ internal static class ResponsibleEndpoints
                     [Description("Brand or warehouse id.")] short id, IQueryHandler<ListResponsiblesQuery, IReadOnlyList<ResponsibleDto>> handler,
                     CancellationToken cancellationToken) =>
                     (await handler.Handle(new ListResponsiblesQuery(kind, id), cancellationToken).ConfigureAwait(false)).ToHttpResult())
-                .RequireAuthorization(AppPolicies.ReadInventory)
+                .RequireAuthorization(kind == RecordKinds.Brand ? Permissions.Inventory.Brand.View : Permissions.Inventory.Warehouse.View)
                 .WithName($"List{Pascal(kind)}Responsibles")
                 .WithSummary($"Lists the responsible employees of a {kind}.")
-                .WithDescription($"Employees with their assignment role on the {kind}, by name; an employee who left is marked. Policy ReadInventory.")
+                .WithDescription($"Employees with their assignment role on the {kind}, by name; an employee who left is marked. Permission Inventory.Brand.View or Inventory.Warehouse.View.")
                 .Produces<IReadOnlyList<ResponsibleDto>>()
                 .ProducesProblem(StatusCodes.Status401Unauthorized)
                 .ProducesProblem(StatusCodes.Status403Forbidden)
@@ -165,13 +166,13 @@ internal static class ResponsibleEndpoints
                     [Description("Brand or warehouse id.")] short id, ResponsiblesRequest request,
                     ICommandHandler<ReplaceResponsiblesCommand, IReadOnlyList<ResponsibleDto>> handler, CancellationToken cancellationToken) =>
                     (await handler.Handle(new ReplaceResponsiblesCommand(kind, id, request), cancellationToken).ConfigureAwait(false)).ToHttpResult())
-                .RequireAuthorization(AppPolicies.Administration)
+                .RequireAuthorization(kind == RecordKinds.Brand ? Permissions.Inventory.Brand.ManageAssignments : Permissions.Inventory.Warehouse.ManageAssignments)
                 .WithName($"Replace{Pascal(kind)}Responsibles")
                 .WithSummary($"Replaces the responsible employees of a {kind}.")
                 .WithDescription(
                     $"The complete new set of employee and role pairs of the {kind}. A change of a role that grants scope (brand manager, keeper, "
                     + "service base) changes the employees' rights: Identity receives it as an event and their sessions follow at the next "
-                    + "session check (at most 30 seconds). New employees must be active (422 Inventory.UnknownEmployee). Policy Administration.")
+                    + "session check (at most 30 seconds). New employees must be active (422 Inventory.UnknownEmployee). Permission Inventory.Brand.ManageAssignments or Inventory.Warehouse.ManageAssignments.")
                 .Accepts<ResponsiblesRequest>("application/json")
                 .Produces<IReadOnlyList<ResponsibleDto>>()
                 .ProducesValidationProblem()

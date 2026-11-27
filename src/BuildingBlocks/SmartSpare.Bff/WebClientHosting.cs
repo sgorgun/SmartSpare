@@ -13,14 +13,14 @@ namespace SmartSpare.Bff;
 
 /// <summary>
 /// The authentication state the host serializes into the prerendered page for the WebAssembly client (STAGE_3_PLAN 1.4).
-/// Only an allow-list of claims leaves the server: id, name, roles, brands and warehouse. The security stamp and anything
+/// Only an allow-list of claims leaves the server: id, name, roles, brands, warehouse and the permissions (ADR 0028). The security stamp and anything
 /// else (no personal data besides the user name) never reach the browser.
 /// </summary>
 public static class ClientAuthenticationState
 {
     public static IReadOnlySet<string> AllowedClaimTypes { get; } = new HashSet<string>(StringComparer.Ordinal)
     {
-        AppClaimTypes.Subject, AppClaimTypes.Name, AppClaimTypes.Role, AppClaimTypes.Brand, AppClaimTypes.Warehouse,
+        AppClaimTypes.Subject, AppClaimTypes.Name, AppClaimTypes.Role, AppClaimTypes.Brand, AppClaimTypes.Warehouse, AppClaimTypes.Permission,
     };
 
     public static void Configure(AuthenticationStateSerializationOptions options)

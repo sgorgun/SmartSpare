@@ -22,7 +22,7 @@ internal static class UserEndpoints
 
     public static void Map(IEndpointRouteBuilder v1)
     {
-        var users = v1.MapGroup("/users").RequireAuthorization(AppPolicies.Administration);
+        var users = v1.MapGroup("/users").RequireAuthorization(Permissions.Organisation.Account.View);
 
         users.MapGet("", async (
                 IQueryHandler<ListUsersQuery, PagedResponse<UserSummary>> handler,
@@ -37,7 +37,7 @@ internal static class UserEndpoints
                 "The accounts from iam.v_app_user_masked: user name, the employee's masked name and e-mail, status, lockout and "
                 + "every effective right with its origin (role from the position, brand and hub from assignments; ADR 0026), "
                 + "ordered by user name. Rights are read-only here: they change with the employee's position and assignments. "
-                + "Policy Administration.")
+                + "Permission Organisation.Account.View.")
             .Produces<PagedResponse<UserSummary>>()
             .ProducesValidationProblem()
             .ProducesProblem(StatusCodes.Status401Unauthorized)
@@ -49,7 +49,7 @@ internal static class UserEndpoints
                 (await handler.Handle(new GetUserFormOptionsQuery(), cancellationToken).ConfigureAwait(false)).ToHttpResult())
             .WithName("GetUserFormOptions")
             .WithSummary("Returns the roles, brands and hubs a user can be given.")
-            .WithDescription("Every role and brand code and the active hubs (from the Inventory module). Policy Administration.")
+            .WithDescription("Every role and brand code and the active hubs (from the Inventory module). Permission Organisation.Account.View.")
             .Produces<UserFormOptions>()
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
@@ -58,14 +58,14 @@ internal static class UserEndpoints
             .WithResponseExample(StatusCodes.Status401Unauthorized, Problem(Error.Failure(ProblemCodes.Unauthenticated, "Unauthorized"), 401));
 
         MapAction<UnlockUserCommand>(users, "unlock", id => new UnlockUserCommand(id), "UnlockUser", "Unlocks a locked-out user.",
-            "Ends a lockout after failed sign-ins and resets the failure counter. Policy Administration.");
+            "Ends a lockout after failed sign-ins and resets the failure counter. Permission Organisation.Account.Edit.");
         MapAction<DeactivateUserCommand>(users, "deactivate", id => new DeactivateUserCommand(id), "DeactivateUser", "Deactivates a user.",
             "No new sign-ins; existing sessions end at their next check. An administrator cannot deactivate the own account (422 "
-            + "Identity.OwnAdministration). Policy Administration.");
+            + "Identity.OwnAdministration). Permission Organisation.Account.Edit.");
         MapAction<AnonymiseUserCommand>(users, "anonymise", id => new AnonymiseUserCommand(id), "AnonymiseUser", "Anonymises a user's employee (GDPR).",
             "Erases the personal data of the account's employee and of the account with iam.anonymise_employee; the rows stay for "
             + "audit references and the account can never sign in again. An administrator cannot anonymise the own account (403, "
-            + "SS301). Policy Administration.");
+            + "SS301). Permission Organisation.Account.Edit.");
 
         v1.MapPost("/me/password", async (ChangePasswordRequest request, ICommandHandler<ChangeOwnPasswordCommand> handler, CancellationToken cancellationToken) =>
                 (await handler.Handle(new ChangeOwnPasswordCommand(request), cancellationToken).ConfigureAwait(false)).ToHttpResult())
@@ -89,6 +89,7 @@ internal static class UserEndpoints
         users.MapPost($"/{{id:guid}}/{action}", async (
                 [Description("User id.")] Guid id, ICommandHandler<TCommand, UserSummary> handler, CancellationToken cancellationToken) =>
                 (await handler.Handle(create(id), cancellationToken).ConfigureAwait(false)).ToHttpResult())
+            .RequireAuthorization(Permissions.Organisation.Account.Edit)
             .WithName(name)
             .WithSummary(summary)
             .WithDescription(description)

@@ -1,5 +1,5 @@
 @page "/fleet/maintenance"
-@attribute [Authorize(Policy = AppPolicies.ReadFleet)]
+@attribute [Authorize(Policy = Permissions.Fleet.Machine.View)]
 @using System.Globalization
 @using SmartSpare.ApiContracts.Fleet
 @using SmartSpare.ApiContracts.Inventory
@@ -121,7 +121,7 @@
         if (AuthenticationState is not null)
         {
             var user = (await AuthenticationState).User;
-            _mayCreate = (await Authorization.AuthorizeAsync(user, AppPolicies.ManageServiceOrders)).Succeeded;
+            _mayCreate = (await Authorization.AuthorizeAsync(user, Permissions.Fleet.ServiceOrder.Create)).Succeeded;
         }
 
         if (!RendererInfo.IsInteractive)

@@ -85,7 +85,8 @@ public sealed class EndpointTableTests
         }
         else
         {
-            policies.ShouldContain(AppPolicies.Administration);
+            policies.ShouldNotBeEmpty(route);
+            policies.ShouldAllBe(p => Permissions.Exists(p) && p!.StartsWith("Organisation.", StringComparison.Ordinal), route);
         }
     }
 

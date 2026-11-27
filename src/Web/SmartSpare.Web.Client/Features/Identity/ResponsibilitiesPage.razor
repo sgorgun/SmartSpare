@@ -1,5 +1,5 @@
 @page "/admin/responsibilities"
-@attribute [Authorize(Policy = AppPolicies.Administration)]
+@attribute [Authorize(Policy = Permissions.Inventory.Brand.ManageAssignments)]
 @using SmartSpare.ApiContracts.Inventory
 @using SmartSpare.Web.Client.Features.Inventory
 @using SmartSpare.Web.Client.Features.MasterData

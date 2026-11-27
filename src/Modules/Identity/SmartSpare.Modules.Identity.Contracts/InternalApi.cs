@@ -19,6 +19,9 @@ public static class IdentityInternalApi
 
     /// <summary>POST, body: the account ids; answer: the <c>AccountOwner</c> list (<c>IEmployeeDirectory.FindAccountOwnersAsync</c>).</summary>
     public const string AccountOwners = Prefix + "/account-owners";
+
+    /// <summary>GET: role code → permissions of every role (<c>IRolePermissions</c>, ADR 0028), for the gateway.</summary>
+    public const string RolePermissions = Prefix + "/role-permissions";
 }
 
 /// <summary>Body of <see cref="IdentityInternalApi.CredentialChecks"/>.</summary>

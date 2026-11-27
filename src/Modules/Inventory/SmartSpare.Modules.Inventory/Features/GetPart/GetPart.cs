@@ -36,13 +36,13 @@ internal static class GetPartEndpoint
                 var result = await handler.Handle(new GetPartQuery(id), cancellationToken).ConfigureAwait(false);
                 return result.ToHttpResult();
             })
-            .RequireAuthorization(AppPolicies.ReadInventory)
+            .RequireAuthorization(Permissions.Inventory.Part.View)
             .WithName("GetPart")
             .WithSummary("Returns one part with its stock per warehouse.")
             .WithDescription(
                 "The part, a deactivated one included, with its brand, category and unit, and its on-hand, reserved and "
                 + "available quantity in each warehouse that holds a balance. An unknown id gives 404 with code "
-                + "Inventory.PartNotFound. Policy ReadInventory.")
+                + "Inventory.PartNotFound. Permission Inventory.Part.View.")
             .Produces<PartDetails>()
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)

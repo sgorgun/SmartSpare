@@ -33,9 +33,15 @@ public sealed record CatalogDefinition<TRecord, TId, TDto, TWrite>
     /// <summary>Singular in PascalCase for operation ids, e.g. <c>AdjustmentReason</c>.</summary>
     public required string OperationNoun { get; init; }
 
-    public required string ReadPolicy { get; init; }
+    /// <summary>Permission to list, read, look up and see the history (ADR 0028).</summary>
+    public required string ViewPermission { get; init; }
 
-    public required string WritePolicy { get; init; }
+    public required string CreatePermission { get; init; }
+
+    public required string EditPermission { get; init; }
+
+    /// <summary>Permission to archive and restore.</summary>
+    public required string ArchivePermission { get; init; }
 
     /// <summary>Schema-qualified table, as the audit trail names it and <c>audit.history_table</c> allows it.</summary>
     public required string AuditTable { get; init; }

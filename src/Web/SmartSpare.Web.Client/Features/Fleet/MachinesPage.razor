@@ -1,6 +1,6 @@
 @page "/fleet"
 @page "/fleet/machines"
-@attribute [Authorize(Policy = AppPolicies.ReadFleet)]
+@attribute [Authorize(Policy = Permissions.Fleet.Machine.View)]
 @using System.Globalization
 @using SmartSpare.ApiContracts.Fleet
 @using SmartSpare.ApiContracts.Inventory

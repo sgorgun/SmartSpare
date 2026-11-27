@@ -1,5 +1,5 @@
 @page "/fleet/service-orders/new"
-@attribute [Authorize(Policy = AppPolicies.ManageServiceOrders)]
+@attribute [Authorize(Policy = Permissions.Fleet.ServiceOrder.Create)]
 @using System.Globalization
 @using SmartSpare.ApiContracts.Fleet
 @using SmartSpare.ApiContracts.Inventory

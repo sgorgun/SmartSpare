@@ -47,10 +47,14 @@ public sealed class EndpointTableTests
         endpoint.Metadata.GetMetadata<IEndpointDescriptionMetadata>()!.Description.ShouldNotBeNullOrWhiteSpace(route);
         var expected = route switch
         {
-            _ when route.StartsWith("GET ", StringComparison.Ordinal) => AppPolicies.ReadFleet,
-            "POST /api/v1/fleet/service-orders" or "POST /api/v1/fleet/service-orders/{id:long}/cancel" or "PUT /api/v1/fleet/service-orders/{id:long}/lines"
-                => AppPolicies.ManageServiceOrders,
-            _ => AppPolicies.RecordServiceWork,
+            _ when route.StartsWith("GET /api/v1/fleet/service-orders", StringComparison.Ordinal) => Permissions.Fleet.ServiceOrder.View,
+            _ when route.StartsWith("GET ", StringComparison.Ordinal) => Permissions.Fleet.Machine.View,
+            "POST /api/v1/fleet/service-orders" => Permissions.Fleet.ServiceOrder.Create,
+            "POST /api/v1/fleet/service-orders/{id:long}/cancel" => Permissions.Fleet.ServiceOrder.Cancel,
+            "PUT /api/v1/fleet/service-orders/{id:long}/lines" => Permissions.Fleet.ServiceOrder.Edit,
+            "POST /api/v1/fleet/service-orders/{id:long}/start" => Permissions.Fleet.ServiceOrder.Start,
+            "POST /api/v1/fleet/service-orders/{id:long}/complete" => Permissions.Fleet.ServiceOrder.Complete,
+            _ => Permissions.Fleet.EngineHours.Record,
         };
         endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>().ShouldHaveSingleItem().Policy.ShouldBe(expected, route);
         endpoint.Metadata.GetOrderedMetadata<IProducesResponseTypeMetadata>().Select(p => p.StatusCode)
@@ -58,8 +62,8 @@ public sealed class EndpointTableTests
     }
 
     [Fact]
-    public void Every_role_may_read_the_fleet() =>
-        AppPolicies.Roles[AppPolicies.ReadFleet].ShouldBe(AppRoles.All, ignoreOrder: true);
+    public void Every_default_role_may_read_the_fleet() =>
+        AppRoles.All.ShouldAllBe(r => DefaultRoles.Bundles[r].Contains(Permissions.Fleet.Machine.View) && DefaultRoles.Bundles[r].Contains(Permissions.Fleet.ServiceOrder.View));
 
     private static string Describe(RouteEndpoint endpoint) =>
         $"{endpoint.Metadata.GetMetadata<IHttpMethodMetadata>()!.HttpMethods.Single()} {endpoint.RoutePattern.RawText}";

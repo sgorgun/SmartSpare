@@ -60,16 +60,17 @@ internal sealed class TransferAccess(
 
         var policy = action switch
         {
-            TransferActions.Approve => AppPolicies.ApproveTransfer,
-            TransferActions.Cancel => AppPolicies.CancelTransfer,
-            _ => AppPolicies.MoveStock,
+            TransferActions.Approve => Permissions.Inventory.Transfer.Approve,
+            TransferActions.Cancel => Permissions.Inventory.Transfer.Cancel,
+            TransferActions.Dispatch => Permissions.Inventory.Transfer.Dispatch,
+            _ => Permissions.Inventory.Transfer.Receive,
         };
         if (!(await authorization.AuthorizeAsync(principal, policy).ConfigureAwait(false)).Succeeded)
         {
             return false;
         }
 
-        return !BrandScopeRequirements.ByPolicy.TryGetValue(policy, out var scope)
+        return !BrandScopeRequirements.ByPermission.TryGetValue(policy, out var scope)
                || (await authorization.AuthorizeAsync(principal, brands, scope).ConfigureAwait(false)).Succeeded;
     }
 
@@ -199,12 +200,12 @@ internal static class TransferQueryEndpoints
                 [Description("Orders per page, 1 to 100.")] int pageSize = TransferLimits.DefaultPageSize) =>
                 (await handler.Handle(new ListTransfersQuery(status, warehouseId, page, pageSize), cancellationToken).ConfigureAwait(false))
                     .ToHttpResult())
-            .RequireAuthorization(AppPolicies.ReadInventory)
+            .RequireAuthorization(Permissions.Inventory.Transfer.View)
             .WithName("ListTransfers")
             .WithSummary("Lists transfer orders, newest first.")
             .WithDescription(
                 "Transfer orders between hubs with their route, status, urgency, number of lines and total quantity, "
-                + "filtered by status and by a hub that is donor or recipient. Policy ReadInventory; reads are not brand-scoped.")
+                + "filtered by status and by a hub that is donor or recipient. Permission Inventory.Transfer.View; reads are not brand-scoped.")
             .Produces<PagedResponse<TransferSummary>>()
             .ProducesValidationProblem()
             .ProducesProblem(StatusCodes.Status401Unauthorized)
@@ -220,14 +221,14 @@ internal static class TransferQueryEndpoints
                 IQueryHandler<GetTransferQuery, TransferDetails> handler,
                 CancellationToken cancellationToken) =>
                 (await handler.Handle(new GetTransferQuery(id), cancellationToken).ConfigureAwait(false)).ToHttpResult())
-            .RequireAuthorization(AppPolicies.ReadInventory)
+            .RequireAuthorization(Permissions.Inventory.Transfer.View)
             .WithName("GetTransfer")
             .WithSummary("Returns one transfer order with its lines, timeline and allowed actions.")
             .WithDescription(
                 "The order, its lines with the part, the quantity, the system proposal and the donor's available stock, the "
                 + "timeline of its steps and allowedActions: the actions the current user may take now, decided by the "
                 + "action's policy, the brand scope (approve and cancel) and the state machine. An unknown id gives 404 "
-                + "with code Inventory.TransferNotFound. Policy ReadInventory.")
+                + "with code Inventory.TransferNotFound. Permission Inventory.Transfer.View.")
             .Produces<TransferDetails>()
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)

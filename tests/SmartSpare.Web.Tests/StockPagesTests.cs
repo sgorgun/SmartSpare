@@ -23,7 +23,7 @@ public sealed class StockPagesTests : ClientTestContext
     {
         Services.AddScoped<InventoryClient>(_ => _inventory);
         Services.AddLogging();
-        Services.AddAuthorizationCore(AppPolicies.Register);
+        Services.AddPermissionAuthorization();
         Services.AddTransient<IAuthorizationService, DefaultAuthorizationService>();
         UseWebAssemblyRenderer();
         Render<MudPopoverProvider>();

@@ -10,7 +10,8 @@ public sealed record CurrentUserResponse(
     [property: Description("User name.")] string? UserName,
     [property: Description("Role codes, for example BRAND_MANAGER.")] IReadOnlyList<string> Roles,
     [property: Description("Ids of the brands the user is responsible for (brand scope of approvals).")] IReadOnlyList<short> BrandIds,
-    [property: Description("Hubs the user may write at (keeper or service-base assignments, ADR 0026); empty for none.")] IReadOnlyList<short> HomeWarehouseIds)
+    [property: Description("Hubs the user may write at (keeper or service-base assignments, ADR 0026); empty for none.")] IReadOnlyList<short> HomeWarehouseIds,
+    [property: Description("Permissions from the user's roles (ADR 0028), for example Inventory.Transfer.Approve.")] IReadOnlyList<string> Permissions)
 {
-    public static CurrentUserResponse Anonymous { get; } = new(false, null, null, [], [], []);
+    public static CurrentUserResponse Anonymous { get; } = new(false, null, null, [], [], [], []);
 }

@@ -37,14 +37,14 @@ internal static class GetStockPositionEndpoint
 
                 return result.ToHttpResult();
             })
-            .RequireAuthorization(AppPolicies.ReadInventory)
+            .RequireAuthorization(Permissions.Inventory.Stock.View)
             .WithName("GetStockPosition")
             .WithSummary("Returns one stock position with its reservations and latest movements.")
             .WithDescription(
                 "The overview row of the part in the hub, its shelf location, the open (soft or firm) reservations with the "
                 + "transfer order that holds them, and the latest 20 ledger movements. The ETag header and the version field "
                 + "carry the concurrency version of the stocking policy, needed to change the stock levels. A part that is not "
-                + "stocked in the hub gives 404 with code Inventory.StockPositionNotFound. Policy ReadInventory.")
+                + "stocked in the hub gives 404 with code Inventory.StockPositionNotFound. Permission Inventory.Stock.View.")
             .Produces<StockPositionDetails>()
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)

@@ -27,7 +27,7 @@ public static class ClientServices
             options.SnackbarConfiguration.VisibleStateDuration = 8000;
         });
         services.AddLocalization();
-        services.AddAuthorizationCore(AppPolicies.Register);
+        services.AddPermissionAuthorization();
         services.AddCascadingAuthenticationState();
         services.AddScoped<ProblemMessages>();
         services.TryAddSingleton(TimeProvider.System);

@@ -69,23 +69,26 @@ public sealed class EndpointTableTests
         endpoint.Metadata.GetMetadata<IEndpointSummaryMetadata>()!.Summary.ShouldNotBeNullOrWhiteSpace(route);
         endpoint.Metadata.GetMetadata<IEndpointDescriptionMetadata>()!.Description.ShouldNotBeNullOrWhiteSpace(route);
         var policy = endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>().ShouldHaveSingleItem().Policy;
-        AppPolicies.Roles.Keys.ShouldContain(policy!, route);
+        Permissions.Exists(policy).ShouldBeTrue(route);
         endpoint.Metadata.GetOrderedMetadata<IProducesResponseTypeMetadata>().Select(p => p.StatusCode)
             .ShouldContain(StatusCodes.Status401Unauthorized, route);
     }
 
     [Theory]
-    [InlineData("PUT /api/v1/inventory/stock/{warehouseId:int}/{partId:long}/levels", AppPolicies.PlanInventory)]
-    [InlineData("POST /api/v1/inventory/stock-adjustments", AppPolicies.MoveStock)]
-    [InlineData("GET /api/v1/inventory/stock", AppPolicies.ReadInventory)]
-    [InlineData("POST /api/v1/inventory/transfers", AppPolicies.PlanInventory)]
-    [InlineData("POST /api/v1/inventory/imports", AppPolicies.ImportData)]
-    [InlineData("GET /api/v1/inventory/imports", AppPolicies.ImportData)]
-    [InlineData("POST /api/v1/inventory/transfers/{id:long}/approve", AppPolicies.ApproveTransfer)]
-    [InlineData("POST /api/v1/inventory/transfers/{id:long}/cancel", AppPolicies.CancelTransfer)]
-    [InlineData("POST /api/v1/inventory/transfers/{id:long}/dispatch", AppPolicies.MoveStock)]
-    [InlineData("POST /api/v1/inventory/transfers/{id:long}/receive", AppPolicies.MoveStock)]
-    [InlineData("GET /internal/v1/inventory/warehouses", AppPolicies.ReadInventory)]
+    [InlineData("PUT /api/v1/inventory/stock/{warehouseId:int}/{partId:long}/levels", Permissions.Inventory.Stock.EditLevels)]
+    [InlineData("POST /api/v1/inventory/stock-adjustments", Permissions.Inventory.Stock.Adjust)]
+    [InlineData("GET /api/v1/inventory/stock", Permissions.Inventory.Stock.View)]
+    [InlineData("POST /api/v1/inventory/transfers", Permissions.Inventory.Transfer.Create)]
+    [InlineData("POST /api/v1/inventory/imports", Permissions.Inventory.Import.Run)]
+    [InlineData("GET /api/v1/inventory/imports", Permissions.Inventory.Import.View)]
+    [InlineData("POST /api/v1/inventory/transfers/{id:long}/approve", Permissions.Inventory.Transfer.Approve)]
+    [InlineData("POST /api/v1/inventory/transfers/{id:long}/cancel", Permissions.Inventory.Transfer.Cancel)]
+    [InlineData("POST /api/v1/inventory/transfers/{id:long}/dispatch", Permissions.Inventory.Transfer.Dispatch)]
+    [InlineData("POST /api/v1/inventory/transfers/{id:long}/receive", Permissions.Inventory.Transfer.Receive)]
+    [InlineData("GET /internal/v1/inventory/warehouses", Permissions.Inventory.Warehouse.View)]
+    [InlineData("PUT /api/v1/inventory/brands/{id:int}/responsibles", Permissions.Inventory.Brand.ManageAssignments)]
+    [InlineData("PUT /api/v1/inventory/warehouses/{id:int}/responsibles", Permissions.Inventory.Warehouse.ManageAssignments)]
+    [InlineData("POST /api/v1/inventory/adjustment-reasons/{id:long}/archive", Permissions.Inventory.AdjustmentReason.Archive)]
     public void Writes_use_their_own_policies(string route, string policy) =>
         Endpoints.Single(e => Describe(e) == route).Metadata.GetOrderedMetadata<IAuthorizeData>().Single().Policy.ShouldBe(policy);
 

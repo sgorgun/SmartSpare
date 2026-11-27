@@ -124,7 +124,7 @@ public static class BffRegistration
     /// Authentication and authorization of the single host (ADR 0016 section 4): the policy scheme
     /// <see cref="BffDefaults.PolicyScheme"/> is the default and forwards a request with <c>Authorization: Bearer</c> to the
     /// internal-token scheme and every other request to the cookie. Module endpoints never name a scheme. Policies come
-    /// from <see cref="AppPolicies.Register"/>, plus the brand-scope handler.
+    /// are permissions (ADR 0028), added to the request by <see cref="PermissionClaimsTransformation"/>, plus the brand-scope handler.
     /// </summary>
     public static IServiceCollection AddSingleHostAuthentication(this IServiceCollection services)
     {
@@ -134,7 +134,9 @@ public static class BffRegistration
             .AddBffCookie()
             .AddInternalToken();
 
-        services.AddAuthorization(AppPolicies.Register);
+        services.AddPermissionAuthorization();
+        services.AddMemoryCache();
+        services.AddScoped<Microsoft.AspNetCore.Authentication.IClaimsTransformation, PermissionClaimsTransformation>();
         services.AddAuthorization(ServiceAuthentication.AddGatewayOnlyPolicy);
         services.AddBrandScopeAuthorization();
         return services;
@@ -151,7 +153,9 @@ public static class BffRegistration
     public static IServiceCollection AddGatewayAuthentication(this IServiceCollection services)
     {
         services.AddAuthentication(BffDefaults.CookieScheme).AddBffCookie();
-        services.AddAuthorization(AppPolicies.Register);
+        services.AddPermissionAuthorization();
+        services.AddMemoryCache();
+        services.AddScoped<Microsoft.AspNetCore.Authentication.IClaimsTransformation, PermissionClaimsTransformation>();
         services.AddBrandScopeAuthorization();
         return services;
     }
