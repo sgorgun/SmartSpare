@@ -12,7 +12,16 @@ public interface IEmployeeDirectory
 
     /// <summary>Active employees whose number or name contains <paramref name="search"/>, for a picker.</summary>
     Task<IReadOnlyList<EmployeeInfo>> SearchAsync(string? search, int limit, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The employees behind these accounts (<c>iam.app_user</c> ids, as the audit trail records them), for "who changed
+    /// it" in a record's history; unknown ids (the system user, a deleted account) are left out.
+    /// </summary>
+    Task<IReadOnlyList<AccountOwner>> FindAccountOwnersAsync(IReadOnlyCollection<Guid> userIds, CancellationToken cancellationToken);
 }
+
+/// <summary>The employee who owns an account.</summary>
+public sealed record AccountOwner(Guid UserId, Guid EmployeeId, string FullName);
 
 /// <summary>An employee as other modules see it: id, number, name, and whether the employee still works here.</summary>
 public sealed record EmployeeInfo(Guid Id, string Code, string FullName, bool IsActive);
