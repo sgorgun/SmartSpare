@@ -15,9 +15,9 @@
 | [0011](0011-database-ownership-per-module.md) | Database ownership per module | Accepted |
 | [0012](0012-evolvability-principles.md) | Evolvability principles | Accepted, amended by 0019 |
 | [0013](0013-domain-model-and-persistence.md) | Domain model and persistence | Accepted |
-| [0014](0014-browser-sign-in-through-bff-endpoints.md) | Browser sign-in through BFF endpoints | Accepted, amended by 0016; implemented in stage 3 |
+| [0014](0014-browser-sign-in-through-bff-endpoints.md) | Browser sign-in through BFF endpoints | Accepted, amended by 0016, 0026; implemented in stage 3 |
 | [0015](0015-deployment-topology-microservices-behind-yarp-gateway.md) | Deployment topology: microservices behind a YARP gateway | Accepted, amended by 0020 |
-| [0016](0016-authentication-behind-the-gateway.md) | Authentication behind the gateway | Accepted; single-host part implemented in stage 3 |
+| [0016](0016-authentication-behind-the-gateway.md) | Authentication behind the gateway | Accepted, amended by 0026; single-host part implemented in stage 3 |
 | [0017](0017-rabbitmq-integration-event-transport.md) | RabbitMQ as the integration-event transport | Accepted, amended by 0021, 0023, 0024 |
 | [0018](0018-observability-with-the-grafana-stack.md) | Observability with the Grafana stack | Accepted, amended by 0023 |
 | [0019](0019-public-api-documentation.md) | Public API documentation | Accepted, amended 26 Nov 2026 (the `/bff` document) |
@@ -26,6 +26,7 @@
 | [0022](0022-azure-region-north-europe.md) | Azure region North Europe | Accepted |
 | [0023](0023-message-quota-watched-by-cloudamqp.md) | Message quota watched by CloudAMQP | Accepted |
 | [0024](0024-acting-user-of-integration-events-and-jobs.md) | The acting user of integration events and background jobs | Accepted |
+| [0026](0026-employee-derived-authorization.md) | Employee-derived authorization | Accepted; roles from positions in stage 7 (7c), assignments in 7d |
 
 New ADRs use the next free number and the same Context / Decision / Consequences format.
 

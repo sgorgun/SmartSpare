@@ -172,7 +172,7 @@ FKs **to the Platform** (`ref.*`) are kept by decision D3 and are not listed as 
 
 | FK | Replacement |
 |---|---|
-| `iam.app_user.home_warehouse_id` | Plain `smallint`; validated on user administration through `Inventory.Contracts.IWarehouseQueries`; exposed to the BFF as a claim (used by X2). |
+| `iam.app_user.home_warehouse_id` | Plain `smallint`; validated on user administration through `Inventory.Contracts.IWarehouseQueries`; exposed to the BFF as a claim (used by X2). **Superseded by [ADR 0026](../adr/0026-employee-derived-authorization.md):** hub access comes from warehouse assignments (`inventory.warehouse_responsible`, PR 7d) and the column is dropped in PR 7e. |
 | `fleet.customer.region_warehouse_id`, `fleet.machine.home_warehouse_id`, `fleet.service_order.warehouse_id` | Plain `smallint`; validated in the Fleet command handlers through `IWarehouseQueries` (7 static rows, cached). Warehouses are deactivated, never deleted. |
 | `procurement.purchase_order.warehouse_id` | Plain `smallint`; validated in the Procurement handler through `IWarehouseQueries`. |
 | `forecast.recommendation.donor_warehouse_id` | Plain `smallint`; produced by the recommendation engine from Inventory data, validated again by Inventory when it receives `TransferRequested`. |
@@ -291,6 +291,8 @@ Reporting never writes another schema. With microservices, the marts are fed fro
 Read-only copies: `fleet.part_snapshot`, `procurement.part_snapshot`, `forecast.part_snapshot`, `fleet.service_order_line.qty_reserved`, `inventory.expected_receipt`. They are created in the module stage that introduces the corresponding flow, not in stage 2.
 
 ### 3.6 Trust model of the session context (`app.user_id`, `app.user_roles`, `app.home_warehouse_id`)
+
+> **Amended by [ADR 0026](../adr/0026-employee-derived-authorization.md):** from PR 7d, `app.warehouse_ids` (a list, from warehouse assignments) replaces `app.home_warehouse_id`; the trust model below is unchanged.
 
 Implemented in PR 3c (#11): `ClaimsCurrentUser` reads the claims of the request (cookie or internal token, ADR 0016), and `SessionContextInterceptor` writes the three values next to `app.reason`.
 

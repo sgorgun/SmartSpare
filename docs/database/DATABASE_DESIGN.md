@@ -349,6 +349,8 @@ Balances, reservations and statuses are changed only by `SECURITY DEFINER` funct
 
 ### 8.3 Acting user and audit
 
+> **Amended by [ADR 0026](../adr/0026-employee-derived-authorization.md):** the roles in `app.user_roles` are derived from the employee's position; from PR 7d `app.warehouse_ids` replaces `app.home_warehouse_id`.
+
 The API sets `app.user_id`, `app.user_roles`, `app.home_warehouse_id` (from the claims of the signed-in user) and optionally `app.reason` **transaction-locally** at the start of each transaction (EF Core `SessionContextInterceptor` with `ClaimsCurrentUser`; safe with connection pooling). Audit triggers write user, action, the changed record (`record_id`: the `id` column, or the `*_id` columns of a composite key joined with `|`), previous and new values of the changed columns, and the reason (US18). The audit table is append-only and partitioned by month; `audit.purge_expired()` drops partitions older than 180 days (BA 2.8).
 
 ### 8.4 Passwords and secrets
@@ -358,6 +360,8 @@ The API sets `app.user_id`, `app.user_roles`, `app.home_warehouse_id` (from the 
 * Pseudonymisation key (`app.pseudonym_key`) is supplied per session from Key Vault, never stored in the database.
 
 ### 8.5 Personal data: masking, pseudonymisation, anonymisation (GDPR)
+
+> **Amended by [ADR 0026](../adr/0026-employee-derived-authorization.md):** staff personal data lives on `iam.employee` (masked in `iam.v_employee_masked`, never in the audit values) and is erased by `iam.anonymise_employee`, which also erases the account.
 
 | Data | Technique |
 |---|---|
