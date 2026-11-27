@@ -15,11 +15,15 @@ public sealed class RightsSourceTests
     ];
 
     [Theory]
-    [InlineData("INSERT INTO iam.employee_responsibility", "ApplyResponsibilitiesConsumer.cs")]
-    [InlineData("DELETE FROM iam.employee_responsibility", "ApplyResponsibilitiesConsumer.cs")]
-    [InlineData("INSERT INTO iam.responsibility_source", "ApplyResponsibilitiesConsumer.cs")]
-    public void Only_the_consumer_writes_the_projection(string statement, string allowedFile) =>
-        Writers(statement).ShouldBe([allowedFile], $"'{statement}' outside the ResponsibilitiesChanged consumer would edit rights directly");
+    [InlineData("INSERT INTO iam.employee_responsibility")]
+    [InlineData("DELETE FROM iam.employee_responsibility")]
+    [InlineData("INSERT INTO iam.responsibility_source")]
+    public void No_code_writes_the_projection_tables_directly(string statement) =>
+        Writers(statement).ShouldBeEmpty($"'{statement}': the projection changes only through iam.apply_responsibilities (the grants refuse the rest)");
+
+    [Fact]
+    public void Only_the_consumer_calls_the_projections_write_function() =>
+        Writers("iam.apply_responsibilities").ShouldBe(["ApplyResponsibilitiesConsumer.cs"]);
 
     [Theory]
     [InlineData("iam.position_role")]
