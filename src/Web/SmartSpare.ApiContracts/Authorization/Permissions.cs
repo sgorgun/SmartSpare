@@ -1,7 +1,10 @@
 namespace SmartSpare.ApiContracts.Authorization;
 
-/// <summary>A permission of the catalogue: its stable name, module, resource, action and what it allows.</summary>
-public sealed record PermissionInfo(string Name, string Module, string Resource, string Action, string Description);
+/// <summary>
+/// A permission of the catalogue: its stable name, its stable numeric <paramref name="Code"/> (the bit it occupies in the
+/// internal token, ADR 0028; assigned once, never reused or renumbered), module, resource, action and what it allows.
+/// </summary>
+public sealed record PermissionInfo(string Name, int Code, string Module, string Resource, string Action, string Description);
 
 /// <summary>
 /// The permission catalogue (ADR 0028, STAGE_7_PLAN 1.8): the only fixed part of authorization. Names are
@@ -165,71 +168,83 @@ public static class Permissions
     /// <summary>Every permission with its description, in catalogue order (the UI groups them by module).</summary>
     public static IReadOnlyList<PermissionInfo> All { get; } =
     [
-        P(Organisation.Employee.View, "See employees and their positions."),
-        P(Organisation.Employee.Create, "Add employees."),
-        P(Organisation.Employee.Edit, "Change an employee's data and position."),
-        P(Organisation.Employee.Archive, "Archive or restore employees."),
-        P(Organisation.Employee.Anonymise, "Erase a former employee's personal data (GDPR)."),
-        P(Organisation.Position.View, "See positions and their role templates."),
-        P(Organisation.Position.Create, "Add positions."),
-        P(Organisation.Position.Edit, "Change a position and its role template."),
-        P(Organisation.Position.Archive, "Archive or restore positions."),
-        P(Organisation.Account.View, "See user accounts."),
-        P(Organisation.Account.Create, "Create an account for an employee."),
-        P(Organisation.Account.Edit, "Deactivate, reactivate, unlock accounts and reset passwords."),
-        P(Organisation.Role.View, "See roles and their permissions."),
-        P(Organisation.Role.Edit, "Create roles and change their permissions."),
-        P(Organisation.Scope.AllHubs, "Write at every hub, not only the hubs one is assigned to."),
-        P(Inventory.Part.View, "See the parts catalogue."),
-        P(Inventory.Brand.View, "See brands and who manages them."),
-        P(Inventory.Brand.ManageAssignments, "Assign brand managers and other brand responsibles."),
-        P(Inventory.Warehouse.View, "See warehouses and their responsibles."),
-        P(Inventory.Warehouse.ManageAssignments, "Assign keepers, service bases and other warehouse responsibles."),
-        P(Inventory.Stock.View, "See stock, positions and the ledger."),
-        P(Inventory.Stock.EditLevels, "Change safety and maximum stock."),
-        P(Inventory.Stock.Adjust, "Post stock count corrections."),
-        P(Inventory.Demand.Flag, "Mark demand as exceptional for forecasting."),
-        P(Inventory.Transfer.View, "See transfers."),
-        P(Inventory.Transfer.Create, "Create transfer drafts."),
-        P(Inventory.Transfer.Approve, "Approve transfers of the brands one manages."),
-        P(Inventory.Transfer.ApproveAnyBrand, "Approve transfers of every brand (with Approve)."),
-        P(Inventory.Transfer.Cancel, "Cancel transfers of the brands one manages."),
-        P(Inventory.Transfer.CancelAnyBrand, "Cancel transfers of every brand (with Cancel)."),
-        P(Inventory.Transfer.Dispatch, "Dispatch transfers from a hub."),
-        P(Inventory.Transfer.Receive, "Receive transfers at a hub."),
-        P(Inventory.Import.View, "See data imports and their errors."),
-        P(Inventory.Import.Run, "Import the parts catalogue and demand history."),
-        P(Inventory.AdjustmentReason.View, "See adjustment reasons."),
-        P(Inventory.AdjustmentReason.Create, "Add adjustment reasons."),
-        P(Inventory.AdjustmentReason.Edit, "Change adjustment reasons."),
-        P(Inventory.AdjustmentReason.Archive, "Archive or restore adjustment reasons."),
-        P(Fleet.Machine.View, "See customer machines, readings and due maintenance."),
-        P(Fleet.EngineHours.Record, "Log engine hours."),
-        P(Fleet.ServiceOrder.View, "See service orders."),
-        P(Fleet.ServiceOrder.Create, "Create service orders."),
-        P(Fleet.ServiceOrder.Edit, "Change the parts of a service order."),
-        P(Fleet.ServiceOrder.Cancel, "Cancel service orders."),
-        P(Fleet.ServiceOrder.Start, "Start service work."),
-        P(Fleet.ServiceOrder.Complete, "Complete service work."),
-        P(Procurement.PurchaseOrder.Create, "Create, submit and export purchase orders."),
-        P(Procurement.PurchaseOrder.Approve, "Approve purchase orders of the brands one manages, never one's own."),
-        P(Procurement.PurchaseOrder.ApproveAnyBrand, "Approve purchase orders of every brand (with Approve)."),
-        P(Procurement.PurchaseOrder.Cancel, "Cancel purchase orders of the brands one manages."),
-        P(Procurement.PurchaseOrder.CancelAnyBrand, "Cancel purchase orders of every brand (with Cancel)."),
-        P(Procurement.PurchaseOrder.Receive, "Receive purchase order lines into stock."),
-        P(Forecasting.Recommendation.Decide, "Accept or reject recommendations of the brands one manages."),
-        P(Forecasting.Recommendation.DecideAnyBrand, "Accept or reject recommendations of every brand (with Decide)."),
-        P(Audit.Log.View, "Read the audit trail."),
+        P(Organisation.Employee.View, 1, "See employees and their positions."),
+        P(Organisation.Employee.Create, 2, "Add employees."),
+        P(Organisation.Employee.Edit, 3, "Change an employee's data and position."),
+        P(Organisation.Employee.Archive, 4, "Archive or restore employees."),
+        P(Organisation.Employee.Anonymise, 5, "Erase a former employee's personal data (GDPR)."),
+        P(Organisation.Position.View, 6, "See positions and their role templates."),
+        P(Organisation.Position.Create, 7, "Add positions."),
+        P(Organisation.Position.Edit, 8, "Change a position and its role template."),
+        P(Organisation.Position.Archive, 9, "Archive or restore positions."),
+        P(Organisation.Account.View, 10, "See user accounts."),
+        P(Organisation.Account.Create, 11, "Create an account for an employee."),
+        P(Organisation.Account.Edit, 12, "Deactivate, reactivate, unlock accounts and reset passwords."),
+        P(Organisation.Role.View, 13, "See roles and their permissions."),
+        P(Organisation.Role.Edit, 14, "Create roles and change their permissions."),
+        P(Organisation.Scope.AllHubs, 15, "Write at every hub, not only the hubs one is assigned to."),
+        P(Inventory.Part.View, 16, "See the parts catalogue."),
+        P(Inventory.Brand.View, 17, "See brands and who manages them."),
+        P(Inventory.Brand.ManageAssignments, 18, "Assign brand managers and other brand responsibles."),
+        P(Inventory.Warehouse.View, 19, "See warehouses and their responsibles."),
+        P(Inventory.Warehouse.ManageAssignments, 20, "Assign keepers, service bases and other warehouse responsibles."),
+        P(Inventory.Stock.View, 21, "See stock, positions and the ledger."),
+        P(Inventory.Stock.EditLevels, 22, "Change safety and maximum stock."),
+        P(Inventory.Stock.Adjust, 23, "Post stock count corrections."),
+        P(Inventory.Demand.Flag, 24, "Mark demand as exceptional for forecasting."),
+        P(Inventory.Transfer.View, 25, "See transfers."),
+        P(Inventory.Transfer.Create, 26, "Create transfer drafts."),
+        P(Inventory.Transfer.Approve, 27, "Approve transfers of the brands one manages."),
+        P(Inventory.Transfer.ApproveAnyBrand, 28, "Approve transfers of every brand (with Approve)."),
+        P(Inventory.Transfer.Cancel, 29, "Cancel transfers of the brands one manages."),
+        P(Inventory.Transfer.CancelAnyBrand, 30, "Cancel transfers of every brand (with Cancel)."),
+        P(Inventory.Transfer.Dispatch, 31, "Dispatch transfers from a hub."),
+        P(Inventory.Transfer.Receive, 32, "Receive transfers at a hub."),
+        P(Inventory.Import.View, 33, "See data imports and their errors."),
+        P(Inventory.Import.Run, 34, "Import the parts catalogue and demand history."),
+        P(Inventory.AdjustmentReason.View, 35, "See adjustment reasons."),
+        P(Inventory.AdjustmentReason.Create, 36, "Add adjustment reasons."),
+        P(Inventory.AdjustmentReason.Edit, 37, "Change adjustment reasons."),
+        P(Inventory.AdjustmentReason.Archive, 38, "Archive or restore adjustment reasons."),
+        P(Fleet.Machine.View, 39, "See customer machines, readings and due maintenance."),
+        P(Fleet.EngineHours.Record, 40, "Log engine hours."),
+        P(Fleet.ServiceOrder.View, 41, "See service orders."),
+        P(Fleet.ServiceOrder.Create, 42, "Create service orders."),
+        P(Fleet.ServiceOrder.Edit, 43, "Change the parts of a service order."),
+        P(Fleet.ServiceOrder.Cancel, 44, "Cancel service orders."),
+        P(Fleet.ServiceOrder.Start, 45, "Start service work."),
+        P(Fleet.ServiceOrder.Complete, 46, "Complete service work."),
+        P(Procurement.PurchaseOrder.Create, 47, "Create, submit and export purchase orders."),
+        P(Procurement.PurchaseOrder.Approve, 48, "Approve purchase orders of the brands one manages, never one's own."),
+        P(Procurement.PurchaseOrder.ApproveAnyBrand, 49, "Approve purchase orders of every brand (with Approve)."),
+        P(Procurement.PurchaseOrder.Cancel, 50, "Cancel purchase orders of the brands one manages."),
+        P(Procurement.PurchaseOrder.CancelAnyBrand, 51, "Cancel purchase orders of every brand (with Cancel)."),
+        P(Procurement.PurchaseOrder.Receive, 52, "Receive purchase order lines into stock."),
+        P(Forecasting.Recommendation.Decide, 53, "Accept or reject recommendations of the brands one manages."),
+        P(Forecasting.Recommendation.DecideAnyBrand, 54, "Accept or reject recommendations of every brand (with Decide)."),
+        P(Audit.Log.View, 55, "Read the audit trail."),
     ];
 
-    private static readonly HashSet<string> Names = [.. All.Select(p => p.Name)];
-
     /// <summary>Whether <paramref name="name"/> is a permission of the catalogue.</summary>
-    public static bool Exists(string? name) => name is not null && Names.Contains(name);
+    public static bool Exists(string? name) => name is not null && ByName.ContainsKey(name);
 
-    private static PermissionInfo P(string name, string description)
+    private static readonly Dictionary<string, PermissionInfo> ByName = All.ToDictionary(p => p.Name, StringComparer.Ordinal);
+
+    private static readonly Dictionary<int, PermissionInfo> ByCode = All.ToDictionary(p => p.Code);
+
+    /// <summary>
+    /// The highest code of the catalogue: the version of the bitset in the internal token (<see cref="PermissionBitset"/>).
+    /// Codes only grow, so a higher version is a superset.
+    /// </summary>
+    public static int CatalogueVersion { get; } = All.Max(p => p.Code);
+
+    public static PermissionInfo? Find(string name) => ByName.GetValueOrDefault(name);
+
+    public static PermissionInfo? Find(int code) => ByCode.GetValueOrDefault(code);
+
+    private static PermissionInfo P(string name, int code, string description)
     {
         var parts = name.Split('.');
-        return new PermissionInfo(name, parts[0], parts[1], parts[2], description);
+        return new PermissionInfo(name, code, parts[0], parts[1], parts[2], description);
     }
 }

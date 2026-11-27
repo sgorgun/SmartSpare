@@ -34,7 +34,10 @@ public sealed class InternalTokenTests(FakeIdentityHostFactory factory) : IClass
 
         TestContext.Current.SendDiagnosticMessage($"Internal token with all {Permissions.All.Count} permissions: {Encoding.ASCII.GetByteCount(token)} bytes");
         Encoding.ASCII.GetByteCount(token).ShouldBeLessThan(TokenBudgetBytes);
-        new JsonWebToken(token).Claims.Count(c => c.Type == AppClaimTypes.Permission).ShouldBe(Permissions.All.Count, "the permissions travel in the token");
+        var jwt = new JsonWebToken(token);
+        jwt.Claims.ShouldNotContain(c => c.Type == AppClaimTypes.Permission, "names never travel; the compact bitset does");
+        PermissionBitset.Decode(jwt.GetClaim(AppClaimTypes.PermissionSet).Value).Count.ShouldBe(Permissions.All.Count);
+        jwt.GetClaim(AppClaimTypes.PermissionVersion).Value.ShouldBe(Permissions.CatalogueVersion.ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
 
     [Fact]

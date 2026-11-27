@@ -28,6 +28,12 @@ public static class AppClaimTypes
     /// </summary>
     public const string Permission = "ss:perm";
 
+    /// <summary>The permissions in the internal token, as a <see cref="PermissionBitset"/> (ADR 0028); expanded on validation.</summary>
+    public const string PermissionSet = "ss:perms";
+
+    /// <summary>The <see cref="Permissions.CatalogueVersion"/> the issuer encoded <see cref="PermissionSet"/> with.</summary>
+    public const string PermissionVersion = "ss:permv";
+
     /// <summary>Cookie session id, carried into internal tokens (ADR 0016 section 2).</summary>
     public const string SessionId = "sid";
 }

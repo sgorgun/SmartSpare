@@ -32,7 +32,14 @@ Three layers.
 **Transport.**
 - The cookie keeps id, name, stamp and role codes; permissions never go into it.
 - `PermissionClaimsTransformation` in each BFF host (the single host and the gateway) adds the permissions per request. It reads the role → permissions map through `IRolePermissions`: in process from Identity, or over HTTP from the Identity service. The map is cached for the 30-second session check, the same window in which any rights change reaches a session.
-- The 2-minute internal token to the services carries the permissions, so the services need no lookup. Measured worst case, with all 55 permissions, every role, 12 brands and 6 hubs: **3,062 bytes**, under the 8 KB budget that `InternalTokenTests` enforces.
+- The 2-minute internal token to the services carries the permissions, so the services need no lookup.
+- **Compact encoding, decided before it was needed (PR 7x1b).** As names, every permission cost about 40 bytes of token. The worst case was 3,062 bytes at 55 permissions; extrapolated, it reaches about 6.9 KB at 150 permissions (the expected size at the end of stage 7) and about 8.9 KB at 200, over the 8 KB budget. So the token carries a **bitset** instead.
+  - Every permission has a stable numeric code, assigned once and never renumbered or reused; a test pins the list.
+  - `ss:perms` holds the base64url bitset, where bit *n* is code *n*; `ss:permv` holds the catalogue version (the highest code).
+  - Token validation expands the bitset back into permission claims, so policies are unchanged.
+  - A service with an older catalogue ignores bits it does not know, because none of its endpoints can require them, so services deploy independently.
+  - Measured worst case now: **886 bytes**. The bitset costs about 26 characters at 150 permissions and 51 at 300.
+  - The 8 KB budget test stays.
 - The web client receives the permissions in its serialized authentication state and in `/bff/me`.
 
 **Guardrails** (PR 7x3):
