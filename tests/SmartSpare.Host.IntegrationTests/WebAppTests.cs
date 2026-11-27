@@ -117,7 +117,7 @@ public sealed partial class WebAppTests(FakeIdentityHostFactory factory) : IClas
         html.ShouldContain("href=\"inventory\"", customMessage: "a warehouse keeper moves stock");
         html.ShouldContain("href=\"procurement\"", customMessage: "a warehouse keeper receives purchase orders");
         html.ShouldNotContain("href=\"forecasting\"", customMessage: "only brand managers and planners decide recommendations");
-        html.ShouldNotContain("href=\"fleet\"");
+        html.ShouldContain("href=\"fleet\"", customMessage: "a warehouse keeper reads the machines and service orders of the hub (ReadFleet)");
 
         // The principal handed to WebAssembly: allow-listed claims only (STAGE_3_PLAN 1.4).
         var state = PersistedState(html);

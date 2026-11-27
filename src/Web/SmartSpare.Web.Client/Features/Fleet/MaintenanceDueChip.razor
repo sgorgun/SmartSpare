@@ -1,0 +1,26 @@
+@using SmartSpare.ApiContracts.Fleet
+@inject IStringLocalizer<SharedResource> Text
+
+@* A due status with its icon and text, never colour alone (WCAG 2.1 AA). *@
+<StatusChip Label="@Text["DueStatus." + Status]" Icon="@Icon" Color="@Color" />
+
+@code {
+    [Parameter, EditorRequired]
+    public string Status { get; set; } = MaintenanceDueStatuses.Ok;
+
+    private string Icon => Status switch
+    {
+        MaintenanceDueStatuses.Overdue => Icons.Material.Filled.ReportProblem,
+        MaintenanceDueStatuses.DueSoon => Icons.Material.Filled.Schedule,
+        MaintenanceDueStatuses.Planned => Icons.Material.Filled.EventAvailable,
+        _ => Icons.Material.Filled.CheckCircle,
+    };
+
+    private Color Color => Status switch
+    {
+        MaintenanceDueStatuses.Overdue => Color.Error,
+        MaintenanceDueStatuses.DueSoon => Color.Warning,
+        MaintenanceDueStatuses.Planned => Color.Info,
+        _ => Color.Success,
+    };
+}

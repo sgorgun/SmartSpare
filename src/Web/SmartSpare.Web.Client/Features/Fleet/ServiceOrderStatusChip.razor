@@ -1,0 +1,28 @@
+@using SmartSpare.ApiContracts.Fleet
+@inject IStringLocalizer<SharedResource> Text
+
+@* A service-order status with its icon and text, never colour alone (WCAG 2.1 AA). *@
+<StatusChip Label="@Text["OrderStatus." + Status]" Icon="@Icon" Color="@Color" />
+
+@code {
+    [Parameter, EditorRequired]
+    public string Status { get; set; } = ServiceOrderStatuses.Draft;
+
+    private string Icon => Status switch
+    {
+        ServiceOrderStatuses.Draft => Icons.Material.Filled.EditNote,
+        ServiceOrderStatuses.PartsReserved => Icons.Material.Filled.Inventory,
+        ServiceOrderStatuses.InProgress => Icons.Material.Filled.Build,
+        ServiceOrderStatuses.Completed => Icons.Material.Filled.TaskAlt,
+        _ => Icons.Material.Filled.Cancel,
+    };
+
+    private Color Color => Status switch
+    {
+        ServiceOrderStatuses.Draft => Color.Default,
+        ServiceOrderStatuses.PartsReserved => Color.Info,
+        ServiceOrderStatuses.InProgress => Color.Warning,
+        ServiceOrderStatuses.Completed => Color.Success,
+        _ => Color.Error,
+    };
+}

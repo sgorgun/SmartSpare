@@ -8,8 +8,8 @@ namespace SmartSpare.Web.Client.Layout;
 public sealed record NavigationArea(string Href, string TitleKey, string DescriptionKey, string Icon, int Stage, IReadOnlyList<string> Policies);
 
 /// <summary>
-/// The menu, by policy (STAGE_3_PLAN 8.2). An area with a read policy (Inventory: <see cref="AppPolicies.ReadInventory"/>)
-/// is shown to everyone who may read it. Until the read policies of stages 6–9 exist, the other areas are shown to the
+/// The menu, by policy (STAGE_3_PLAN 8.2). An area with a read policy (Inventory: <see cref="AppPolicies.ReadInventory"/>,
+/// Fleet: <see cref="AppPolicies.ReadFleet"/>) is shown to everyone who may read it. Until the read policies of stages 6–9 exist, the other areas are shown to the
 /// users who may act in them, using the action policies of section 3.2; an empty list means every signed-in user. This
 /// is UX only: every endpoint checks its own policy on the server.
 /// </summary>
@@ -20,7 +20,7 @@ public static class NavigationAreas
         new("inventory", "Nav.Inventory", "Module.Inventory", Icons.Material.Filled.Inventory2, 5,
             [AppPolicies.ReadInventory]),
         new("fleet", "Nav.Fleet", "Module.Fleet", Icons.Material.Filled.Agriculture, 6,
-            [AppPolicies.RecordServiceWork, AppPolicies.ManageServiceOrders]),
+            [AppPolicies.ReadFleet]),
         new("procurement", "Nav.Procurement", "Module.Procurement", Icons.Material.Filled.ShoppingCart, 7,
             [AppPolicies.PlanInventory, AppPolicies.ApprovePurchaseOrder, AppPolicies.CancelPurchaseOrder, AppPolicies.MoveStock]),
         new("forecasting", "Nav.Forecasting", "Module.Forecasting", Icons.Material.Filled.Insights, 8,

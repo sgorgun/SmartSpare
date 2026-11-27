@@ -8,3 +8,19 @@ html, body {
     outline: 3px solid #0D47A1;
     outline-offset: 2px;
 }
+
+/* Touch targets of at least 44 px on the engineer's tablet (STAGE_6_PLAN section 6, WCAG 2.5.5). */
+.touch-target {
+    min-height: 44px;
+}
+
+/* One-hand actions: below the md breakpoint the main action stays at the bottom of the screen. */
+@media (max-width: 959.98px) {
+    .bottom-action {
+        position: sticky;
+        bottom: 0;
+        z-index: 2;
+        padding: 8px 0;
+        background: var(--mud-palette-surface);
+    }
+}

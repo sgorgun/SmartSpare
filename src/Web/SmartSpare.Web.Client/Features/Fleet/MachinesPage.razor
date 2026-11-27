@@ -1,0 +1,207 @@
+@page "/fleet"
+@page "/fleet/machines"
+@attribute [Authorize(Policy = AppPolicies.ReadFleet)]
+@using System.Globalization
+@using SmartSpare.ApiContracts.Fleet
+@using SmartSpare.ApiContracts.Inventory
+@inject IStringLocalizer<SharedResource> Text
+@inject FleetClient Fleet
+@inject InventoryClient Inventory
+@inject ProblemMessages Messages
+@inject NavigationManager Navigation
+
+<PageTitle>@Text["Machines.Title"]</PageTitle>
+
+<MudText Typo="Typo.h4" HtmlTag="h1" Class="mb-2">@Text["Nav.Fleet"]</MudText>
+<FleetTabs />
+
+<MudText Typo="Typo.h5" HtmlTag="h2" Class="mb-2">@Text["Machines.Title"]</MudText>
+
+<MudGrid Spacing="2" Class="mb-2">
+    <MudItem xs="12" sm="6" md="6">
+        @* UC02 step 1: the engineer types part of the VIN from the machine plate. *@
+        <MudTextField T="string" @bind-Value="_search" Label="@Text["Machines.Search"]" Variant="Variant.Outlined" Margin="Margin.Dense"
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Clearable="true"
+                      DebounceInterval="400" OnDebounceIntervalElapsed="SearchAsync" OnClearButtonClick="ClearAsync"
+                      MaxLength="FleetSearch.MaxSearchLength" InputMode="InputMode.search" data-testid="machines-search" />
+    </MudItem>
+    <MudItem xs="6" sm="3" md="3">
+        <MudSelect T="short?" Value="_warehouseId" ValueChanged="WarehouseChangedAsync" Label="@Text["Stock.Hub"]" Variant="Variant.Outlined"
+                   Dense="true" data-testid="machines-hub">
+            <MudSelectItem T="short?" Value="null">@Text["Stock.AllHubs"]</MudSelectItem>
+            @foreach (var warehouse in _warehouses)
+            {
+                <MudSelectItem T="short?" Value="warehouse.Id">@warehouse.Code · @warehouse.Name</MudSelectItem>
+            }
+        </MudSelect>
+    </MudItem>
+    <MudItem xs="6" sm="3" md="3">
+        <MudSelect T="string" Value="_dueStatus" ValueChanged="DueStatusChangedAsync" Label="@Text["Machines.DueStatus"]" Variant="Variant.Outlined"
+                   Dense="true" data-testid="machines-due">
+            <MudSelectItem T="string" Value="@(null)">@Text["Machines.AllDueStatuses"]</MudSelectItem>
+            @foreach (var status in DueStatuses)
+            {
+                <MudSelectItem T="string" Value="status">@Text["DueStatus." + status]</MudSelectItem>
+            }
+        </MudSelect>
+    </MudItem>
+</MudGrid>
+
+@if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-3" data-testid="machines-error">@_error</MudAlert>
+}
+
+@* Below the sm breakpoint (the engineer's tablet in portrait, a phone) each row is shown as a card. *@
+<MudDataGrid @ref="_grid" T="MachineSummary" ServerData="LoadAsync" RowsPerPage="FleetSearch.DefaultPageSize" Hover="true" Dense="true"
+             Outlined="true" Elevation="0" Breakpoint="Breakpoint.Sm" SortMode="SortMode.None" Filterable="false"
+             RowClick="OpenRow" RowStyle="cursor: pointer" data-testid="machines-grid">
+    <Columns>
+        <PropertyColumn Property="m => m.Vin" Title="@Text["Machines.Vin"]" />
+        <TemplateColumn Title="@Text["Machines.Model"]">
+            <CellTemplate>@context.Item.BrandCode @context.Item.ModelName</CellTemplate>
+        </TemplateColumn>
+        <PropertyColumn Property="m => m.CustomerCode" Title="@Text["Machines.Customer"]" />
+        <PropertyColumn Property="m => m.WarehouseCode" Title="@Text["Stock.Hub"]" />
+        <TemplateColumn Title="@Text["Machines.EngineHours"]">
+            <CellTemplate>@Hours(context.Item.EngineHours)</CellTemplate>
+        </TemplateColumn>
+        <TemplateColumn Title="@Text["Machines.NextService"]">
+            <CellTemplate>
+                @if (context.Item.NextService is { OpenOrderThreshold: { } ordered } planned)
+                {
+                    <span>@planned.PlanName · @Text["Plan.Ordered", Hours(ordered)]</span>
+                }
+                else if (context.Item.NextService is { } next)
+                {
+                    <span>@next.PlanName · @(next.RemainingHours > 0 ? Text["Machines.RemainingHours", Hours(next.RemainingHours)] : Text["Plan.Overdue", Hours(-next.RemainingHours)])</span>
+                }
+                else
+                {
+                    <span>@Text["Machines.NoPlans"]</span>
+                }
+            </CellTemplate>
+        </TemplateColumn>
+        <TemplateColumn Title="@Text["Machines.DueStatus"]">
+            <CellTemplate>
+                @if (context.Item.NextService is { } next)
+                {
+                    <MaintenanceDueChip Status="@next.Status" />
+                }
+            </CellTemplate>
+        </TemplateColumn>
+        <TemplateColumn Title="" CellClass="text-right">
+            <CellTemplate>
+                <MudButton Href="@MachineHref(context.Item.Id)" Size="Size.Small" Variant="Variant.Text" Color="Color.Primary" Class="touch-target"
+                           aria-label="@Text["Machines.Open", context.Item.Vin].Value">@Text["Stock.Open"]</MudButton>
+            </CellTemplate>
+        </TemplateColumn>
+    </Columns>
+    <NoRecordsContent>
+        <MudText>@(_error is null ? Text["Machines.None"] : Text["Machines.Unavailable"])</MudText>
+    </NoRecordsContent>
+    <LoadingContent>
+        <MudText>@Text["Machines.Loading"]</MudText>
+    </LoadingContent>
+    <PagerContent>
+        <MudDataGridPager T="MachineSummary" PageSizeOptions="PageSizes" />
+    </PagerContent>
+</MudDataGrid>
+
+@code {
+    private static readonly int[] PageSizes = [10, FleetSearch.DefaultPageSize, 50, FleetSearch.MaxPageSize];
+
+    private static readonly string[] DueStatuses =
+        [MaintenanceDueStatuses.Overdue, MaintenanceDueStatuses.DueSoon, MaintenanceDueStatuses.Planned, MaintenanceDueStatuses.Ok];
+
+    private MudDataGrid<MachineSummary>? _grid;
+    private IReadOnlyList<WarehouseResponse> _warehouses = [];
+    private short? _warehouseId;
+    private string? _dueStatus;
+    private string? _search;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Prerendering has no session cookie to call the API with; the page loads once WebAssembly runs.
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        var warehouses = await Inventory.ListWarehousesAsync();
+        if (warehouses.IsSuccess)
+        {
+            _warehouses = warehouses.Value!;
+        }
+    }
+
+    /// <summary>Server paging for the grid (0-based pages in MudDataGrid, 1-based in the API).</summary>
+    private async Task<GridData<MachineSummary>> LoadAsync(GridState<MachineSummary> state, CancellationToken cancellationToken)
+    {
+        if (!RendererInfo.IsInteractive)
+        {
+            return new GridData<MachineSummary> { Items = [], TotalItems = 0 };
+        }
+
+        var result = await Fleet.ListMachinesAsync(_search, _warehouseId, _dueStatus, state.Page + 1, state.PageSize, cancellationToken);
+        SetError(result.IsSuccess ? null : Messages.Describe(result.Problem!));
+        return result.IsSuccess
+            ? new GridData<MachineSummary> { Items = result.Value!.Items, TotalItems = result.Value.TotalCount }
+            : new GridData<MachineSummary> { Items = [], TotalItems = 0 };
+    }
+
+    private void SetError(string? error)
+    {
+        if (error != _error)
+        {
+            // The alert belongs to the page, which the grid's own reload doesn't re-render.
+            _error = error;
+            StateHasChanged();
+        }
+    }
+
+    private async Task WarehouseChangedAsync(short? warehouseId)
+    {
+        _warehouseId = warehouseId;
+        await ReloadAsync();
+    }
+
+    private async Task DueStatusChangedAsync(string? status)
+    {
+        _dueStatus = status;
+        await ReloadAsync();
+    }
+
+    private Task SearchAsync(string? _) => ReloadAsync();
+
+    private Task ClearAsync(MouseEventArgs _)
+    {
+        _search = null;
+        return ReloadAsync();
+    }
+
+    /// <summary>A new filter starts at the first page; NavigateTo reloads the server data.</summary>
+    private async Task ReloadAsync()
+    {
+        if (_grid is null)
+        {
+            return;
+        }
+
+        if (_grid.CurrentPage != 0)
+        {
+            _grid.NavigateTo(Page.First);
+        }
+        else
+        {
+            await _grid.ReloadServerData();
+        }
+    }
+
+    private void OpenRow(DataGridRowClickEventArgs<MachineSummary> args) => Navigation.NavigateTo(MachineHref(args.Item.Id));
+
+    private static string MachineHref(long id) => string.Create(CultureInfo.InvariantCulture, $"fleet/machines/{id}");
+
+    private static string Hours(decimal value) => value.ToString("#,0.#", CultureInfo.CurrentCulture);
+}

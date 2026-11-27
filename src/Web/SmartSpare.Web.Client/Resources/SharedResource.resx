@@ -657,4 +657,274 @@
   <data name="Password.SignInAgain" xml:space="preserve">
     <value>After the change you sign in again with the new password.</value>
   </data>
+  <data name="Fleet.Pages" xml:space="preserve">
+    <value>Fleet pages</value>
+  </data>
+  <data name="Fleet.Tab.Machines" xml:space="preserve">
+    <value>Machines</value>
+  </data>
+  <data name="Machines.Title" xml:space="preserve">
+    <value>Machines</value>
+  </data>
+  <data name="Machines.Search" xml:space="preserve">
+    <value>Search by VIN</value>
+  </data>
+  <data name="Machines.DueStatus" xml:space="preserve">
+    <value>Maintenance</value>
+  </data>
+  <data name="Machines.AllDueStatuses" xml:space="preserve">
+    <value>Any maintenance status</value>
+  </data>
+  <data name="Machines.Vin" xml:space="preserve">
+    <value>VIN</value>
+  </data>
+  <data name="Machines.Model" xml:space="preserve">
+    <value>Model</value>
+  </data>
+  <data name="Machines.Customer" xml:space="preserve">
+    <value>Customer</value>
+  </data>
+  <data name="Machines.EngineHours" xml:space="preserve">
+    <value>Engine hours</value>
+  </data>
+  <data name="Machines.NextService" xml:space="preserve">
+    <value>Next service</value>
+  </data>
+  <data name="Machines.RemainingHours" xml:space="preserve">
+    <value>{0} h to go</value>
+  </data>
+  <data name="Machines.NoPlans" xml:space="preserve">
+    <value>No maintenance plans</value>
+  </data>
+  <data name="Machines.Open" xml:space="preserve">
+    <value>Open machine {0}</value>
+  </data>
+  <data name="Machines.None" xml:space="preserve">
+    <value>No machines match the filters.</value>
+  </data>
+  <data name="Machines.Unavailable" xml:space="preserve">
+    <value>The machines could not be loaded.</value>
+  </data>
+  <data name="Machines.Loading" xml:space="preserve">
+    <value>Loading machines…</value>
+  </data>
+  <data name="DueStatus.overdue" xml:space="preserve">
+    <value>Overdue</value>
+  </data>
+  <data name="DueStatus.dueSoon" xml:space="preserve">
+    <value>Due soon</value>
+  </data>
+  <data name="DueStatus.planned" xml:space="preserve">
+    <value>Order planned</value>
+  </data>
+  <data name="DueStatus.ok" xml:space="preserve">
+    <value>OK</value>
+  </data>
+  <data name="OrderStatus.draft" xml:space="preserve">
+    <value>Draft</value>
+  </data>
+  <data name="OrderStatus.partsReserved" xml:space="preserve">
+    <value>Parts reserved</value>
+  </data>
+  <data name="OrderStatus.inProgress" xml:space="preserve">
+    <value>In progress</value>
+  </data>
+  <data name="OrderStatus.completed" xml:space="preserve">
+    <value>Completed</value>
+  </data>
+  <data name="OrderStatus.cancelled" xml:space="preserve">
+    <value>Cancelled</value>
+  </data>
+  <data name="KitStatus.reserving" xml:space="preserve">
+    <value>Reserving parts…</value>
+  </data>
+  <data name="KitStatus.reserved" xml:space="preserve">
+    <value>Kit reserved</value>
+  </data>
+  <data name="KitStatus.partial" xml:space="preserve">
+    <value>Kit partly reserved</value>
+  </data>
+  <data name="KitStatus.notHeld" xml:space="preserve">
+    <value>No parts reserved</value>
+  </data>
+  <data name="KitStatus.issued" xml:space="preserve">
+    <value>Kit issued</value>
+  </data>
+  <data name="KitStatus.released" xml:space="preserve">
+    <value>Kit released</value>
+  </data>
+  <data name="KitStatus.noParts" xml:space="preserve">
+    <value>No parts</value>
+  </data>
+  <data name="ReadingSource.manual" xml:space="preserve">
+    <value>Entered by hand</value>
+  </data>
+  <data name="ReadingSource.telematics" xml:space="preserve">
+    <value>Telematics</value>
+  </data>
+  <data name="ReadingSource.serviceVisit" xml:space="preserve">
+    <value>Service visit</value>
+  </data>
+  <data name="ReadingSource.import" xml:space="preserve">
+    <value>Import</value>
+  </data>
+  <data name="Machine.Loading" xml:space="preserve">
+    <value>Loading the machine…</value>
+  </data>
+  <data name="Machine.HomeHub" xml:space="preserve">
+    <value>home hub {0}</value>
+  </data>
+  <data name="Machine.LastReading" xml:space="preserve">
+    <value>Last reading {0}</value>
+  </data>
+  <data name="Machine.Usage" xml:space="preserve">
+    <value>About {0} h a day</value>
+  </data>
+  <data name="Machine.UsageUnknown" xml:space="preserve">
+    <value>Daily use not known yet</value>
+  </data>
+  <data name="Machine.Condition" xml:space="preserve">
+    <value>Operating condition {0} (interval × {1})</value>
+  </data>
+  <data name="Machine.LogHours" xml:space="preserve">
+    <value>Log engine hours</value>
+  </data>
+  <data name="Machine.LogHoursFor" xml:space="preserve">
+    <value>Log engine hours for {0}</value>
+  </data>
+  <data name="Machine.Plans" xml:space="preserve">
+    <value>Maintenance plans</value>
+  </data>
+  <data name="Machine.Orders" xml:space="preserve">
+    <value>Service orders</value>
+  </data>
+  <data name="Machine.NoOrders" xml:space="preserve">
+    <value>No service orders for this machine.</value>
+  </data>
+  <data name="Machine.Readings" xml:space="preserve">
+    <value>Recent readings</value>
+  </data>
+  <data name="Plan.Interval" xml:space="preserve">
+    <value>Every {0} h (OEM {1} h)</value>
+  </data>
+  <data name="Plan.NextAt" xml:space="preserve">
+    <value>Next service at {0} h</value>
+  </data>
+  <data name="Plan.ToGo" xml:space="preserve">
+    <value>{0} h to go</value>
+  </data>
+  <data name="Plan.Overdue" xml:space="preserve">
+    <value>{0} h overdue</value>
+  </data>
+  <data name="Plan.Projected" xml:space="preserve">
+    <value>Expected by hours: {0}</value>
+  </data>
+  <data name="Plan.Calendar" xml:space="preserve">
+    <value>Due by calendar: {0}</value>
+  </data>
+  <data name="Plan.Unknown" xml:space="preserve">
+    <value>not known</value>
+  </data>
+  <data name="Plan.Trigger.engineHours" xml:space="preserve">
+    <value>The engine hours reach the service first.</value>
+  </data>
+  <data name="Plan.Trigger.calendar" xml:space="preserve">
+    <value>The calendar interval ends first.</value>
+  </data>
+  <data name="Orders.Number" xml:space="preserve">
+    <value>Number</value>
+  </data>
+  <data name="Orders.Status" xml:space="preserve">
+    <value>Status</value>
+  </data>
+  <data name="Orders.Repair" xml:space="preserve">
+    <value>Repair</value>
+  </data>
+  <data name="Reading.Hours" xml:space="preserve">
+    <value>Engine hours</value>
+  </data>
+  <data name="Reading.Last" xml:space="preserve">
+    <value>Last reading: {0} h on {1}</value>
+  </data>
+  <data name="Reading.NoneYet" xml:space="preserve">
+    <value>No readings yet</value>
+  </data>
+  <data name="Reading.Earlier" xml:space="preserve">
+    <value>The hours were read earlier</value>
+  </data>
+  <data name="Reading.ReadAt" xml:space="preserve">
+    <value>Time read</value>
+  </data>
+  <data name="Reading.Source" xml:space="preserve">
+    <value>Source</value>
+  </data>
+  <data name="Reading.Save" xml:space="preserve">
+    <value>Save reading</value>
+  </data>
+  <data name="Reading.Cancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="Reading.Done" xml:space="preserve">
+    <value>Done</value>
+  </data>
+  <data name="Reading.Saved" xml:space="preserve">
+    <value>Engine hours saved: {0} h.</value>
+  </data>
+  <data name="Reading.Replayed" xml:space="preserve">
+    <value>This reading was already saved: {0} h.</value>
+  </data>
+  <data name="Reading.Drafted" xml:space="preserve">
+    <value>Service orders created</value>
+  </data>
+  <data name="Reading.DraftedOrder" xml:space="preserve">
+    <value>{0} for the service at {1} h</value>
+  </data>
+  <data name="Reading.KitReserving" xml:space="preserve">
+    <value>The parts are being reserved at the home hub; the order shows them in a moment.</value>
+  </data>
+  <data name="ReadingProblem.Missing" xml:space="preserve">
+    <value>Enter the engine hours.</value>
+  </data>
+  <data name="ReadingProblem.NotANumber" xml:space="preserve">
+    <value>Enter the engine hours as a number, for example 1505.5.</value>
+  </data>
+  <data name="ReadingProblem.OutOfRange" xml:space="preserve">
+    <value>Engine hours are between 0 and 100,000.</value>
+  </data>
+  <data name="ReadingProblem.TooManyDecimals" xml:space="preserve">
+    <value>Use at most one decimal, for example 1505.5.</value>
+  </data>
+  <data name="ReadingProblem.BelowLastReading" xml:space="preserve">
+    <value>The hours cannot be lower than the last reading ({0} h). Check the hour meter.</value>
+  </data>
+  <data name="ReadingProblem.BeforeLastReading" xml:space="preserve">
+    <value>The time must be after the last reading.</value>
+  </data>
+  <data name="ReadingProblem.InTheFuture" xml:space="preserve">
+    <value>The time cannot be in the future.</value>
+  </data>
+  <data name="Problem.SS100" xml:space="preserve">
+    <value>The engine hours are lower than the last reading. Check the hour meter and enter the current value.</value>
+  </data>
+  <data name="Problem.SS101" xml:space="preserve">
+    <value>These engine hours are not possible: the engine cannot run more hours than have passed since the last reading. Check the value and the time.</value>
+  </data>
+  <data name="Problem.SS102" xml:space="preserve">
+    <value>This machine is not active, so no readings can be recorded for it.</value>
+  </data>
+  <data name="Problem.SS103" xml:space="preserve">
+    <value>The time is before the last reading. Enter the time the hours were read.</value>
+  </data>
+  <data name="Problem.SS104" xml:space="preserve">
+    <value>The time is in the future. Enter the time the hours were read.</value>
+  </data>
+  <data name="Problem.Fleet.ReadingConflict" xml:space="preserve">
+    <value>A different reading was already saved for this machine at that time. Reload the machine to see it.</value>
+  </data>
+  <data name="Plan.Ordered" xml:space="preserve">
+    <value>Ordered: the service at {0} h</value>
+  </data>
+  <data name="Plan.ThenAt" xml:space="preserve">
+    <value>Then at {0} h</value>
+  </data>
 </root>

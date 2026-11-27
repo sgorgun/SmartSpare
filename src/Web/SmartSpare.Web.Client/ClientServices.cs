@@ -1,3 +1,5 @@
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using SmartSpare.Web.Client.Features.Fleet;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,12 +30,14 @@ public static class ClientServices
         services.AddAuthorizationCore(AppPolicies.Register);
         services.AddCascadingAuthenticationState();
         services.AddScoped<ProblemMessages>();
+        services.TryAddSingleton(TimeProvider.System);
 
         // One typed client per module. The handler chain is composed per DI scope instead of through IHttpClientFactory:
         // the factory creates handlers in their own scope, where AntiforgeryStateProvider (which takes the persisted token
         // once) and NavigationManager would be different, uninitialised instances.
         services.AddScoped(sp => new IdentityClient(CreateHttpClient(sp)));
         services.AddScoped(sp => new InventoryClient(CreateHttpClient(sp)));
+        services.AddScoped(sp => new FleetClient(CreateHttpClient(sp)));
         return services;
     }
 
