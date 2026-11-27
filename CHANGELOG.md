@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-27
+
 Stage 6: Fleet ([STAGE_6_PLAN.md](docs/stage-6/STAGE_6_PLAN.md)). The core of the diploma topic: customer machines,
 engine hours, the maintenance due calculation and service orders, whose kits Inventory reserves, issues and releases
 through integration events; the screens for the service engineer's tablet; retention of delivered messages and a
@@ -307,7 +309,9 @@ Stage 1: solution skeleton.
 - Architecture tests for module boundaries.
 - CI for build, format check and tests, with locked-mode restore and Dependabot.
 
-[Unreleased]: https://github.com/sgorgun/SmartSpare/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/sgorgun/SmartSpare/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/sgorgun/SmartSpare/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/sgorgun/SmartSpare/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/sgorgun/SmartSpare/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/sgorgun/SmartSpare/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/sgorgun/SmartSpare/compare/v0.2.0...v0.2.1
