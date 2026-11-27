@@ -24,12 +24,13 @@ internal static partial class DemoDataCommand
         IResourceBuilder<PostgresServerResource> postgres,
         IResourceBuilder<ParameterResource> migratorPassword,
         IResourceBuilder<ParameterResource> demoUserPassword,
+        IResourceBuilder<ParameterResource> superadminPassword,
         string migrationRunnerProject)
     {
         postgres.WithCommand(
             name: "load-demo-data",
             displayName: "Load demo data",
-            executeCommand: context => ExecuteAsync(context, postgres.Resource, migratorPassword.Resource, demoUserPassword.Resource, migrationRunnerProject),
+            executeCommand: context => ExecuteAsync(context, postgres.Resource, migratorPassword.Resource, demoUserPassword.Resource, superadminPassword.Resource, migrationRunnerProject),
             commandOptions: new CommandOptions
             {
                 Description = "Loads the T001 demo dataset (2,000 SKUs) into an empty smartspare database and sets the demo users' password.",
@@ -43,11 +44,13 @@ internal static partial class DemoDataCommand
         PostgresServerResource postgres,
         ParameterResource migratorPassword,
         ParameterResource demoUserPassword,
+        ParameterResource superadminPassword,
         string migrationRunnerProject)
     {
         var cancellationToken = context.CancellationToken;
         var migrator = await migratorPassword.GetValueAsync(cancellationToken).ConfigureAwait(false);
         var demo = await demoUserPassword.GetValueAsync(cancellationToken).ConfigureAwait(false);
+        var superadmin = await superadminPassword.GetValueAsync(cancellationToken).ConfigureAwait(false) ?? string.Empty;
         var admin = await postgres.ConnectionStringExpression.GetValueAsync(cancellationToken).ConfigureAwait(false);
         if (string.IsNullOrEmpty(migrator) || string.IsNullOrEmpty(demo) || string.IsNullOrEmpty(admin))
         {
@@ -76,6 +79,7 @@ internal static partial class DemoDataCommand
                 ["ConnectionStrings__postgres"] = admin,
                 ["Migrations__Passwords__Migrator"] = migrator,
                 ["SMARTSPARE_DEMO_USER_PASSWORD"] = demo,
+                ["SMARTSPARE_SUPERADMIN_PASSWORD"] = superadmin,
             },
             cancellationToken).ConfigureAwait(false);
 

@@ -15,6 +15,15 @@ public static class DemoPasswords
 {
     public const string PasswordVariable = "SMARTSPARE_DEMO_USER_PASSWORD";
 
+    /// <summary>
+    /// The password of the demo superadministrator (ADR 0028), a parameter of its own (<c>superadmin-password</c> in
+    /// Aspire, Key Vault in Azure); without it the account keeps the placeholder hash and cannot sign in.
+    /// </summary>
+    public const string SuperadministratorPasswordVariable = "SMARTSPARE_SUPERADMIN_PASSWORD";
+
+    /// <summary>The demo superadministrator of T001 (not one of <see cref="DemoUserIds"/>).</summary>
+    public static Guid SuperadministratorId { get; } = Guid.Parse("00000000-0000-4000-8000-000000000013");
+
     /// <summary>The 12 demo users of T001 (fixed ids <c>00000000-0000-4000-8000-000000000001</c> … <c>…012</c>).</summary>
     public static IReadOnlyList<Guid> DemoUserIds { get; } =
         [.. Enumerable.Range(1, 12).Select(n => Guid.Parse($"00000000-0000-4000-8000-{n:D12}"))];
@@ -23,7 +32,8 @@ public static class DemoPasswords
     /// Hashes <paramref name="password"/> once per demo user (own salt) and stores it; returns the number of users updated.
     /// Anonymised users (T001 anonymises one former employee, GDPR Art. 17) keep their NULL hash and are skipped.
     /// </summary>
-    public static async Task<int> SetAsync(string migratorConnectionString, string password, CancellationToken cancellationToken)
+    public static async Task<int> SetAsync(
+        string migratorConnectionString, string password, CancellationToken cancellationToken, string? superadministratorPassword = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(migratorConnectionString);
         ArgumentException.ThrowIfNullOrWhiteSpace(password);
@@ -73,6 +83,16 @@ public static class DemoPasswords
                 connection, transaction);
             update.Parameters.AddWithValue("hash", hasher.HashPassword(DemoUser.Instance, password));
             update.Parameters.AddWithValue("id", id);
+            updated += await update.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        if (!string.IsNullOrWhiteSpace(superadministratorPassword))
+        {
+            await using var update = new NpgsqlCommand(
+                "UPDATE iam.app_user SET password_hash = @hash, security_stamp = gen_random_uuid() WHERE id = @id AND anonymised_at IS NULL",
+                connection, transaction);
+            update.Parameters.AddWithValue("hash", hasher.HashPassword(DemoUser.Instance, superadministratorPassword));
+            update.Parameters.AddWithValue("id", SuperadministratorId);
             updated += await update.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
 

@@ -55,7 +55,7 @@ public sealed class DemoDatabaseFixture : IAsyncLifetime
             throw new InvalidOperationException($"T001 failed: {result.Stderr}");
         }
 
-        await DemoPasswords.SetAsync(MigratorConnectionString, Password, ct);
+        await DemoPasswords.SetAsync(MigratorConnectionString, Password, ct, superadministratorPassword: Password);
     }
 
     public async Task<T> ScalarAsync<T>(string sql)

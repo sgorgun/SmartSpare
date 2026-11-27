@@ -79,7 +79,9 @@ switch (command)
             return 1;
         }
 
-        var updated = await DemoPasswords.SetAsync(options.BuildMigratorConnectionString(), password, CancellationToken.None).ConfigureAwait(false);
+        var updated = await DemoPasswords.SetAsync(
+            options.BuildMigratorConnectionString(), password, CancellationToken.None,
+            builder.Configuration[DemoPasswords.SuperadministratorPasswordVariable]).ConfigureAwait(false);
         Console.WriteLine($"Set the password of {updated} demo users (anonymised users are skipped).");
         return 0;
 

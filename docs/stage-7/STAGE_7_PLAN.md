@@ -557,6 +557,17 @@ Effort: **S** ≈ a quarter day, **M** ≈ half a day, **L** ≈ a full day, at 
 - **Deviation from 3.1:** the reason rule is an insert trigger rather than a `CHECK NOT VALID`, because the ledger is append-only and partitioned; the effect is the same.
 - **New policy:** `ManageCatalog` (planners, administrators). It only adds rows to the golden matrix; no existing right changed.
 
+**As built, 7x3b (#191):**
+- **The Superadministrator** is a locked position (`iam.position.is_locked`) whose locked role holds every permission. The reader returns the whole catalogue for it, so permissions added later are included.
+- **Refused:**
+  - editing or archiving the position or the role (422);
+  - putting the role in any other template (422 `Identity.SuperadministratorRole`);
+  - moving anyone into or out of the position unless the caller is a superadministrator (403 `Identity.SuperadministratorOnly`), and never oneself (403 SS301);
+  - removing, deactivating or anonymising the last active one (409 `Identity.LastSuperadministrator`).
+- **Demo data:** `superadmin.smartspare` (E0013), with its password from the new Aspire parameter `superadmin-password` (`SMARTSPARE_SUPERADMIN_PASSWORD`); the Key Vault secret comes with stage 10 (#85).
+- **Tests:** T03 shows that it holds every permission and writes at every hub, but stays bound by the four-eyes rule (SS301) and the ledger (SS200). The golden matrix gains this user only.
+- **Not built:** the log-based Grafana alert on its sign-in, which is not a one-line change (no sign-in log event exists yet), filed as #199.
+
 **As built, 7x3a (part of #191; 7x3 is split as stage 6 split its large PRs, and 7x3b adds the superadministrator with its guards):**
 - **Roles as data:** `Role` is an aggregate holding its permissions, with lock and archive flags. The API under `/api/v1/identity/roles` lists, reads (ETag), creates, edits permissions (If-Match), archives and restores roles; `/permissions` serves the catalogue. Permissions `Organisation.Role.View` and `.Edit`.
 - **Locked Administrator:** the built-in Administrator role cannot be edited or archived (422).

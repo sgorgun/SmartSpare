@@ -33,6 +33,9 @@ public sealed class AccessMatrixTests(DemoDatabaseFixture database) : IAsyncLife
         "tomas.radzevicius", "rasa.kazlauskiene", "darius.petraitis", "mantas.petrauskas", "jonas.balciunas",
         "egle.stankeviciute", "lukas.vaitkus", "ruta.jankauskaite", "ignas.zukauskas", "vida.mockute",
         "admin.smartspare", "paulius.urbonas",
+
+        // ADR 0028 (PR 7x3b): emergency access with every permission and no scope limit.
+        "superadmin.smartspare",
     ];
 
     private static readonly JsonSerializerOptions Json = new() { WriteIndented = true };

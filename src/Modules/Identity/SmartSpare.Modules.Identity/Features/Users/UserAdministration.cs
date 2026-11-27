@@ -83,7 +83,7 @@ internal sealed class UserReader(IQueryHandler<ListUsersQuery, PagedResponse<Use
 /// <summary>The shared steps of the administrative commands: load the user, refuse anonymised users and changes to oneself.</summary>
 internal sealed class UserAdministration(
     IdentityDbContext db, IUnitOfWork<IdentityDbContext> unitOfWork, AdminSession admin, ICurrentUser currentUser, TimeProvider clock,
-    UserReader reader, IdentityFunctions functions)
+    UserReader reader, IdentityFunctions functions, Infrastructure.Identity.RightsGuard guard)
     : ICommandHandler<UnlockUserCommand, UserSummary>,
       ICommandHandler<DeactivateUserCommand, UserSummary>,
       ICommandHandler<AnonymiseUserCommand, UserSummary>
@@ -91,10 +91,22 @@ internal sealed class UserAdministration(
     public Task<Result<UserSummary>> Handle(UnlockUserCommand command, CancellationToken cancellationToken) =>
         ChangeAsync(command.Id, user => user.Unlock(), cancellationToken);
 
-    public Task<Result<UserSummary>> Handle(DeactivateUserCommand command, CancellationToken cancellationToken) =>
-        command.Id == currentUser.UserId
-            ? Task.FromResult<Result<UserSummary>>(UserErrors.OwnAdministration)
-            : ChangeAsync(command.Id, user => user.Deactivate(clock.GetUtcNow()), cancellationToken);
+    public async Task<Result<UserSummary>> Handle(DeactivateUserCommand command, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        if (command.Id == currentUser.UserId)
+        {
+            return UserErrors.OwnAdministration;
+        }
+
+        if (await LosesLastSuperadministratorAsync(command.Id, cancellationToken).ConfigureAwait(false))
+        {
+            return RoleErrors.LastSuperadministrator;
+        }
+
+        return await ChangeAsync(command.Id, user => user.Deactivate(clock.GetUtcNow()), cancellationToken).ConfigureAwait(false);
+    }
+
 
     /// <summary>
     /// GDPR erasure of the account's employee through <c>iam.anonymise_employee</c> (ADR 0026), which also erases the
@@ -110,9 +122,22 @@ internal sealed class UserAdministration(
             return UserErrors.NotFound;
         }
 
+        if (await guard.LosesLastSuperadministratorAsync(employee.Value, cancellationToken).ConfigureAwait(false))
+        {
+            return RoleErrors.LastSuperadministrator;
+        }
+
         await admin.EnterAsync(cancellationToken).ConfigureAwait(false);
         await functions.AnonymiseEmployeeAsync(employee.Value, cancellationToken).ConfigureAwait(false);
         return await reader.ReadAsync(command.Id, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Whether the account belongs to the last active superadministrator (ADR 0028).</summary>
+    private async Task<bool> LosesLastSuperadministratorAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        var employeeId = await db.Set<AppUser>().AsNoTracking().Where(u => u.Id == userId).Select(u => (Guid?)u.EmployeeId)
+            .SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+        return employeeId is { } id && await guard.LosesLastSuperadministratorAsync(id, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<Result<UserSummary>> ChangeAsync(Guid id, Action<AppUser> change, CancellationToken cancellationToken)

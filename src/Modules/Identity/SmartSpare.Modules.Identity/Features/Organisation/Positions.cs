@@ -1,6 +1,7 @@
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using SmartSpare.ApiContracts;
+using SmartSpare.ApiContracts.Authorization;
 using SmartSpare.ApiContracts.Identity;
 using SmartSpare.Infrastructure.Messaging;
 using SmartSpare.Infrastructure.Persistence;
@@ -105,6 +106,11 @@ internal sealed class PositionAdministration(
 
         return await ChangeAsync(command.Id, command.Version, async position =>
         {
+            if (position.IsLocked)
+            {
+                return RoleErrors.PositionLocked;
+            }
+
             // ADR 0028: nobody changes the role template of their own position.
             if (await guard.CurrentEmployeeAsync(cancellationToken).ConfigureAwait(false) is { } me && me.PositionId == position.Id)
             {
@@ -142,6 +148,11 @@ internal sealed class PositionAdministration(
     public Task<Result<PositionSummary>> Handle(ArchivePositionCommand command, CancellationToken cancellationToken) =>
         ChangeAsync(command.Id, command.Version, async position =>
         {
+            if (position.IsLocked)
+            {
+                return RoleErrors.PositionLocked;
+            }
+
             if (await db.Set<Employee>().AsNoTracking().AnyAsync(e => e.PositionId == position.Id && !e.IsArchived, cancellationToken).ConfigureAwait(false))
             {
                 return OrganisationErrors.PositionInUse;
@@ -189,6 +200,11 @@ internal sealed class PositionAdministration(
     private async Task<Result<IReadOnlySet<short>>> RoleIdsAsync(IReadOnlyList<string> codes, CancellationToken cancellationToken)
     {
         var distinct = codes.Distinct(StringComparer.Ordinal).ToArray();
+        if (distinct.Contains(AppRoles.Superadministrator, StringComparer.Ordinal))
+        {
+            return RoleErrors.SuperadministratorRole;
+        }
+
         var found = await db.Set<Role>().AsNoTracking().Where(r => distinct.Contains(r.Code)).Select(r => new { r.Id, r.IsArchived })
             .ToListAsync(cancellationToken).ConfigureAwait(false);
         if (found.Count != distinct.Length)

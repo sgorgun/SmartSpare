@@ -71,7 +71,7 @@ SET LOCAL ROLE smartspare_inventory;
 SELECT pg_temp.expect_error($$SELECT iam.apply_responsibilities('warehouse', 1::smallint, now(), '{}', '{}')$$, '42501',
                             'ADR 0026: only the Identity logins may apply responsibility changes');
 SET LOCAL ROLE smartspare_api;
-SELECT pg_temp.ok((SELECT count(*) = 11 AND bool_and(coalesce(pg_temp.identity_v3_iterations(password_hash), 0) >= 220000)
+SELECT pg_temp.ok((SELECT count(*) = 12 AND bool_and(coalesce(pg_temp.identity_v3_iterations(password_hash), 0) >= 220000)
                    FROM iam.app_user WHERE id::text LIKE '00000000-0000-4000-8000-0000000000__' AND anonymised_at IS NULL),
                   'app_write: reads the Identity V3 hashes of the demo users for login (PBKDF2-HMAC-SHA512, >= 220,000 iterations)');
 SELECT pg_temp.act_as('jonas.balciunas');
@@ -109,6 +109,27 @@ SELECT pg_temp.ok((SELECT array_agg(obj ORDER BY obj) FROM (
                   = ARRAY['audit.v_audit_log_masked', 'forecast.v_recommendation_explained', 'mart.v_data_quality',
                           'procurement.v_purchase_order_overview'],
                   'Only Identity and Reporting SQL reads iam: no other function, Reporting''s masked audit view and two TRANSITIONAL views');
+
+-- Superadministrator (ADR 0028): every permission, no scope limit, but never past the database invariants or the
+-- four-eyes rule. Prepared as the owner (a pending order of the superadministrator), checked as the API login.
+RESET ROLE;
+UPDATE procurement.purchase_order SET created_by = '00000000-0000-4000-8000-000000000013', total_amount = greatest(total_amount, 6000)
+ WHERE id = (SELECT min(id) FROM procurement.purchase_order WHERE status = 'pending_approval');
+SET LOCAL ROLE smartspare_api;
+SELECT pg_temp.act_as('superadmin.smartspare');
+SELECT pg_temp.ok((SELECT count(*) FROM iam.permission) = cardinality(util.current_app_permissions()),
+                  'ADR 0028: the superadministrator holds every permission of the catalogue');
+SELECT pg_temp.ok(util.require_hub((SELECT max(id) FROM inventory.warehouse)) = util.current_app_user(),
+                  'ADR 0028: the superadministrator writes at every hub without an assignment');
+SELECT pg_temp.expect_error(
+    $$SELECT procurement.approve_purchase_order((SELECT min(id) FROM procurement.purchase_order WHERE status = 'pending_approval'))$$,
+    'SS301', 'ADR 0028: the four-eyes rule binds the superadministrator too (own order above the threshold)');
+SELECT pg_temp.expect_error(
+    $$INSERT INTO inventory.stock_movement (occurred_at, warehouse_id, part_id, movement_type_code, quantity, note, adjustment_reason_id, created_by)
+      SELECT now(), b.warehouse_id, b.part_id, 'ADJUSTMENT_OUT', b.on_hand_qty + 1000, 'superadmin probe',
+             (SELECT id FROM inventory.adjustment_reason WHERE code = 'LOST'), util.current_app_user()
+      FROM inventory.stock_balance b ORDER BY b.warehouse_id, b.part_id LIMIT 1$$,
+    'SS200', 'ADR 0028: the superadministrator cannot take stock below zero (ledger invariant)');
 
 -- app_ml (jobs) --------------------------------------------------------------------------
 SET LOCAL ROLE smartspare_jobs;

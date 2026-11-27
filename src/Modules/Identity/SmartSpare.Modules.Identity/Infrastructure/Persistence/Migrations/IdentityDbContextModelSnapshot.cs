@@ -459,6 +459,12 @@ namespace SmartSpare.Modules.Identity.Infrastructure.Persistence.Migrations
                         .HasDefaultValueSql("false")
                         .HasComment("Archived instead of deleted; cannot be chosen for employees.");
 
+                    b.Property<bool>("IsLocked")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_locked")
+                        .HasDefaultValueSql("false")
+                        .HasComment("A built-in position that cannot be changed or archived (the Superadministrator, ADR 0028).");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("character varying(120)")

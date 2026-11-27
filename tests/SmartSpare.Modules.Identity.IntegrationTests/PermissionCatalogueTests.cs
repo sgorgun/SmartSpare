@@ -34,11 +34,14 @@ public sealed class PermissionCatalogueTests(IdentityDatabaseFixture database)
 
         var bundles = await new RolePermissionReader(db).GetAsync(Ct);
 
-        bundles.Keys.Order(StringComparer.Ordinal).ShouldBe(AppRoles.All.Order(StringComparer.Ordinal));
+        bundles.Keys.Order(StringComparer.Ordinal).ShouldBe(AppRoles.All.Append(AppRoles.Superadministrator).Order(StringComparer.Ordinal));
         foreach (var role in AppRoles.All)
         {
             bundles[role].ShouldBe([.. DefaultRoles.Bundles[role].Order(StringComparer.Ordinal)], role);
         }
+
+        bundles[AppRoles.Superadministrator].ShouldBe([.. Permissions.All.Select(p => p.Name).Order(StringComparer.Ordinal)],
+            "the Superadministrator holds every permission, including any added after its seed (ADR 0028)");
     }
 
     [Fact]

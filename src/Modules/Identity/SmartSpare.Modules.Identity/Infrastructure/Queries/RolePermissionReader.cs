@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using SmartSpare.ApiContracts.Authorization;
 using SmartSpare.Modules.Identity.Contracts;
 using SmartSpare.Modules.Identity.Domain;
 using SmartSpare.Modules.Identity.Infrastructure.Persistence;
@@ -14,7 +15,12 @@ internal sealed class RolePermissionReader(IdentityDbContext db) : IRolePermissi
                           join r in db.Set<Role>().AsNoTracking() on rp.RoleId equals r.Id
                           select new { r.Code, rp.Permission })
             .ToListAsync(cancellationToken).ConfigureAwait(false);
-        return rows.GroupBy(r => r.Code, StringComparer.Ordinal)
+        var map = rows.GroupBy(r => r.Code, StringComparer.Ordinal)
             .ToDictionary(g => g.Key, g => (IReadOnlyList<string>)[.. g.Select(r => r.Permission).Order(StringComparer.Ordinal)], StringComparer.Ordinal);
+
+        // The Superadministrator holds every permission of the catalogue, including any added after its seed (ADR 0028).
+        map[AppRoles.Superadministrator] = await db.Set<PermissionDefinition>().AsNoTracking().OrderBy(p => p.Code).Select(p => p.Code)
+            .ToListAsync(cancellationToken).ConfigureAwait(false);
+        return map;
     }
 }
