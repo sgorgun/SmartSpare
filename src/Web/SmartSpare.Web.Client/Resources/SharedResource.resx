@@ -1404,4 +1404,121 @@
   <data name="Responsibles.Saved" xml:space="preserve">
     <value>Responsible employees saved.</value>
   </data>
+  <data name="Inventory.Tab.AdjustmentReasons" xml:space="preserve">
+    <value>Adjustment reasons</value>
+  </data>
+  <data name="Catalog.Save" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="Catalog.Cancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="Catalog.Search" xml:space="preserve">
+    <value>Search by code or name</value>
+  </data>
+  <data name="Catalog.History" xml:space="preserve">
+    <value>History</value>
+  </data>
+  <data name="Catalog.None" xml:space="preserve">
+    <value>Nothing found.</value>
+  </data>
+  <data name="Catalog.Loading" xml:space="preserve">
+    <value>Loading…</value>
+  </data>
+  <data name="Catalog.ArchiveConfirm" xml:space="preserve">
+    <value>Archive {0}?</value>
+  </data>
+  <data name="Catalog.ArchiveBlocked" xml:space="preserve">
+    <value>{0} cannot be archived while it is in use:</value>
+  </data>
+  <data name="Catalog.ChangedMeanwhile" xml:space="preserve">
+    <value>Someone changed this record in the meantime. The form now shows their version; make your change again and save.</value>
+  </data>
+  <data name="History.Title" xml:space="preserve">
+    <value>History of {0}</value>
+  </data>
+  <data name="History.None" xml:space="preserve">
+    <value>No changes recorded.</value>
+  </data>
+  <data name="History.More" xml:space="preserve">
+    <value>Show older changes</value>
+  </data>
+  <data name="History.System" xml:space="preserve">
+    <value>The system</value>
+  </data>
+  <data name="History.Empty" xml:space="preserve">
+    <value>(empty)</value>
+  </data>
+  <data name="History.Reason" xml:space="preserve">
+    <value>Reason: {0}</value>
+  </data>
+  <data name="History.Action.created" xml:space="preserve">
+    <value>{0} created it</value>
+  </data>
+  <data name="History.Action.changed" xml:space="preserve">
+    <value>{0} changed it</value>
+  </data>
+  <data name="History.Action.archived" xml:space="preserve">
+    <value>{0} archived it</value>
+  </data>
+  <data name="History.Action.restored" xml:space="preserve">
+    <value>{0} restored it</value>
+  </data>
+  <data name="History.Action.deleted" xml:space="preserve">
+    <value>{0} deleted it</value>
+  </data>
+  <data name="History.Set" xml:space="preserve">
+    <value>{0}: {1}</value>
+  </data>
+  <data name="History.Cleared" xml:space="preserve">
+    <value>{0}: {1} → (empty)</value>
+  </data>
+  <data name="History.Changed" xml:space="preserve">
+    <value>{0}: {1} → {2}</value>
+  </data>
+  <data name="Reasons.Title" xml:space="preserve">
+    <value>Adjustment reasons</value>
+  </data>
+  <data name="Reasons.Intro" xml:space="preserve">
+    <value>Why stock is corrected. Every stock adjustment names one of these reasons; archived reasons stay on past adjustments but cannot be chosen.</value>
+  </data>
+  <data name="Reasons.New" xml:space="preserve">
+    <value>New reason</value>
+  </data>
+  <data name="Reasons.Edit" xml:space="preserve">
+    <value>Edit reason {0}</value>
+  </data>
+  <data name="Reasons.Code" xml:space="preserve">
+    <value>Code</value>
+  </data>
+  <data name="Reasons.CodeHelp" xml:space="preserve">
+    <value>Capital letters, digits or underscores, e.g. DAMAGED. Fixed after creation.</value>
+  </data>
+  <data name="Reasons.Name" xml:space="preserve">
+    <value>Name</value>
+  </data>
+  <data name="Reasons.Direction" xml:space="preserve">
+    <value>Direction</value>
+  </data>
+  <data name="Reasons.Direction.IN" xml:space="preserve">
+    <value>Surplus only</value>
+  </data>
+  <data name="Reasons.Direction.OUT" xml:space="preserve">
+    <value>Shortage only</value>
+  </data>
+  <data name="Reasons.Direction.BOTH" xml:space="preserve">
+    <value>Surplus or shortage</value>
+  </data>
+  <data name="Reasons.RequiresNote" xml:space="preserve">
+    <value>Note required</value>
+  </data>
+  <data name="Reasons.Yes" xml:space="preserve">
+    <value>Yes</value>
+  </data>
+  <data name="Reasons.No" xml:space="preserve">
+    <value>No</value>
+  </data>
+  <data name="Reasons.Saved" xml:space="preserve">
+    <value>Saved {0}.</value>
+  </data>
 </root>

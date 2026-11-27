@@ -7,9 +7,9 @@ namespace SmartSpare.Web.Client.Http;
 
 /// <summary>
 /// The parts of an RFC 9457 ProblemDetails the client shows: the stable <c>code</c> (SS1xx–SS4xx, SS-AUTH-xxx) and the
-/// W3C <c>traceId</c> the user can quote (#60, #72).
+/// W3C <c>traceId</c> the user can quote (#60, #72), and the <c>reasons</c> of an archive refusal (SS501, ADR 0025).
 /// </summary>
-public sealed record ProblemInfo(int Status, string? Code, string? Title, string? Detail, string? TraceId)
+public sealed record ProblemInfo(int Status, string? Code, string? Title, string? Detail, string? TraceId, IReadOnlyList<string>? Reasons = null)
 {
     public const string MediaType = "application/problem+json";
 
@@ -28,7 +28,7 @@ public sealed record ProblemInfo(int Status, string? Code, string? Title, string
         try
         {
             var body = await response.Content.ReadFromJsonAsync<ProblemBody>(Json, cancellationToken).ConfigureAwait(false);
-            return new ProblemInfo(body?.Status ?? status, body?.Code, body?.Title, body?.Detail, body?.TraceId);
+            return new ProblemInfo(body?.Status ?? status, body?.Code, body?.Title, body?.Detail, body?.TraceId, body?.Reasons);
         }
         catch (JsonException)
         {
@@ -41,7 +41,8 @@ public sealed record ProblemInfo(int Status, string? Code, string? Title, string
         [property: JsonPropertyName("code")] string? Code,
         [property: JsonPropertyName("title")] string? Title,
         [property: JsonPropertyName("detail")] string? Detail,
-        [property: JsonPropertyName("traceId")] string? TraceId);
+        [property: JsonPropertyName("traceId")] string? TraceId,
+        [property: JsonPropertyName("reasons")] string[]? Reasons);
 }
 
 /// <summary>Result of an API call: the value on success, otherwise the problem (STAGE_3_PLAN section 8.5).</summary>

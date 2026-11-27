@@ -534,6 +534,14 @@ Effort: **S** ≈ a quarter day, **M** ≈ half a day, **L** ≈ a full day, at 
 - **Deviation from 3.1:** the reason rule is an insert trigger rather than a `CHECK NOT VALID`, because the ledger is append-only and partitioned; the effect is the same.
 - **New policy:** `ManageCatalog` (planners, administrators). It only adds rows to the golden matrix; no existing right changed.
 
+**As built, 7f2 (#187):**
+- **Components in `Features/MasterData`:** `CatalogClient` (any catalogue route), `CatalogPage<T>`, `CatalogEditor`, `ArchiveAction`, `HistoryPanel` and `CatalogAutocomplete`, used by the adjustment reasons screen (`/inventory/adjustment-reasons`, a new Inventory tab).
+  - `CatalogPage<T>` has search as you type, the archived switch, paging, and cards below `sm`.
+  - `ArchiveAction` asks for confirmation and lists the SS501 reasons, which the client now reads from the problem details.
+  - `HistoryPanel` shows "Rasa K. changed it", each field old → new, with older changes on request.
+  - `CatalogAutocomplete` offers active entries only and is a combobox for keyboard and screen readers.
+- **Deviation from 2.7:** the editor is an **inline panel** above the list, as on the existing organisation screens, not a dialog that turns into a full page on phones. It is full width on a phone and needs no viewport detection; a 409 shows the current version with a notice.
+
 Total: 3 S, 15 M, 9 L (7x1–7x4 added at the second checkpoint) ≈ 14.75 PR-days of nominal effort in 9 calendar days.
 
 ---
