@@ -81,7 +81,7 @@ gh release create v0.2.0 --generate-notes
 
 Dependabot opens grouped weekly pull requests for NuGet packages and GitHub Actions. They follow the same rules: green CI, then squash and merge. Packages versioned with the runtime (`Microsoft.Extensions.*`, `Microsoft.AspNetCore.*`, EF Core, Npgsql) only get updates within the .NET 10 line (ADR 0007).
 
-Dependabot updates the lock file of the project that references a package, but not the lock files of projects that depend on it, so CI fails at `dotnet restore --locked-mode` with NU1004. Fix it on the Dependabot branch:
+Dependabot updates the lock file of the project that references a package, but not the lock files of projects that depend on it, so CI fails at `dotnet restore --locked-mode` with NU1004. The refresh stays **manual, by decision of the product owner (#17)**: no GitHub App and no personal access token gets write access to the repository for it. The maintainer fixes it on the Dependabot branch, from their own account:
 
 ```
 gh pr checkout <number>
@@ -89,3 +89,5 @@ dotnet restore SmartSpare.slnx --force-evaluate
 git commit -am "build(deps): refresh lock files"
 git push
 ```
+
+The push comes from the maintainer's account on purpose: a push made with the workflow's `GITHUB_TOKEN` would not start CI again, and an App or token able to push would be a standing credential with write access. After the push, CI runs on the updated branch; merge when it is green.
