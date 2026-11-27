@@ -8,6 +8,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- Schedule of 27 November 2026 (ARCHITECTURE_DECISIONS §13): application, thesis and presentation ready by 23 December,
+  pre-defence on 3 January 2027. Stage 7: 29 Nov – 1 Dec; 8: 2–7 Dec; 9: 8–9 Dec; 10: 10–11 Dec. Code freeze on 12 December,
+  then a full review on 12–13 December; stage 11 is limited to fixes from that review and the expert reviews.
+- The architecture tests also run in Debug, where the compiler emits different IL (`tools/check.sh architecture-debug`,
+  closes [#125]).
+- The schema diff against the V016 baseline is a CI gate (`tools/check.sh schema-diff`, closes [#126]).
+- An architecture test keeps Quartz in the single host only, so scheduled jobs never run twice in the services topology.
+
 ## [0.6.0] - 2026-11-27
 
 Stage 6: Fleet ([STAGE_6_PLAN.md](docs/stage-6/STAGE_6_PLAN.md)). The core of the diploma topic: customer machines,
