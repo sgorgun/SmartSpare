@@ -252,3 +252,7 @@
 +RETURN QUERY SELECT a\.occurred_at, a\.action, a\.user_id, a\.changed_columns, a\.old_values, a\.new_values, a\.reason, count\(\*\) OVER \(\) FROM audit\.audit_log a
 +v_needed +varchar\(4\);
 +v_needed := CASE NEW\.movement_type_code WHEN 'ADJUSTMENT_IN' THEN 'IN' ELSE 'OUT' END;
+
+# PR 7x1 (ADR 0028): the permission catalogue mirrored from code and the role bundles.
++\biam\.(permission|role_permission)\b
++ix_role_permission_permission

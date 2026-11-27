@@ -47,7 +47,7 @@ internal static class StockOverviewEndpoint
                     .ConfigureAwait(false);
                 return result.ToHttpResult();
             })
-            .RequireAuthorization(AppPolicies.ReadInventory)
+            .RequireAuthorization(Permissions.Inventory.Stock.View)
             .WithName("GetStockOverview")
             .WithSummary("Lists the stock of every stocked part per hub.")
             .WithDescription(
@@ -55,7 +55,7 @@ internal static class StockOverviewEndpoint
                 + "maximum stock, the quantity dispatched to the hub by transfers and not yet received (inTransit), and a "
                 + "status: out (nothing available), belowSafety (available below the safety stock), aboveMax (on hand above "
                 + "the maximum) or ok. Ordered by hub code and OEM part number; totalCount counts all matches. In-transit "
-                + "quantities from purchase orders are added in stage 7. Policy ReadInventory; reads are not brand-scoped.")
+                + "quantities from purchase orders are added in stage 7. Permission Inventory.Stock.View; reads are not brand-scoped.")
             .Produces<PagedResponse<StockRow>>()
             .ProducesValidationProblem()
             .ProducesProblem(StatusCodes.Status401Unauthorized)

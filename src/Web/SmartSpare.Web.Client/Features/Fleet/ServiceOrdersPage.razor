@@ -1,5 +1,5 @@
 @page "/fleet/service-orders"
-@attribute [Authorize(Policy = AppPolicies.ReadFleet)]
+@attribute [Authorize(Policy = Permissions.Fleet.ServiceOrder.View)]
 @using System.Globalization
 @using SmartSpare.ApiContracts.Fleet
 @using SmartSpare.ApiContracts.Inventory
@@ -17,7 +17,7 @@
 
 <div class="d-flex align-center flex-wrap mb-2">
     <MudText Typo="Typo.h5" HtmlTag="h2" Class="mr-auto">@Text["Orders.Title"]</MudText>
-    <AuthorizeView Policy="@AppPolicies.ManageServiceOrders">
+    <AuthorizeView Policy="@Permissions.Fleet.ServiceOrder.Create">
         <MudButton Href="fleet/service-orders/new" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
                    Class="touch-target" data-testid="orders-new">@Text["Orders.New"]</MudButton>
     </AuthorizeView>

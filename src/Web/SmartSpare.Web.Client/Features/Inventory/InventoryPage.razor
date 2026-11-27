@@ -1,5 +1,5 @@
 @page "/inventory"
-@attribute [Authorize(Policy = AppPolicies.ReadInventory)]
+@attribute [Authorize(Policy = Permissions.Inventory.Part.View)]
 @using SmartSpare.ApiContracts.Inventory
 @inject IStringLocalizer<SharedResource> Text
 @inject InventoryClient Inventory

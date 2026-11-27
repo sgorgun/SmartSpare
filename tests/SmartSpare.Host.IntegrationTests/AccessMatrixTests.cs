@@ -107,17 +107,25 @@ public sealed class AccessMatrixTests(DemoDatabaseFixture database) : IAsyncLife
             return new UserAccess(false, [], [], [], new(StringComparer.Ordinal), new(StringComparer.Ordinal), new(StringComparer.Ordinal), new(StringComparer.Ordinal));
         }
 
-        var principal = new ClaimsPrincipal(new ClaimsIdentity(session.Value.Claims, "matrix", AppClaimTypes.Name, AppClaimTypes.Role));
+        // The BFF adds the permissions from the roles on every request (ADR 0028); the matrix does what the BFF does.
+        ClaimsPrincipal principal;
+        await using (var transformScope = _host.Services.CreateAsyncScope())
+        {
+            principal = await transformScope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Authentication.IClaimsTransformation>()
+                .TransformAsync(new ClaimsPrincipal(new ClaimsIdentity(session.Value.Claims, "matrix", AppClaimTypes.Name, AppClaimTypes.Role)));
+        }
+
         var authorization = _host.Services.GetRequiredService<IAuthorizationService>();
 
+        // One row per permission of the catalogue (before PR 7x1: one per role policy; the mapping is in STAGE_7_PLAN 1.8).
         var policies = new SortedDictionary<string, bool>(StringComparer.Ordinal);
-        foreach (var policy in AppPolicies.Roles.Keys)
+        foreach (var permission in Permissions.All.Select(p => p.Name))
         {
-            policies[policy] = (await authorization.AuthorizeAsync(principal, policy)).Succeeded;
+            policies[permission] = (await authorization.AuthorizeAsync(principal, permission)).Succeeded;
         }
 
         var scoped = new SortedDictionary<string, SortedDictionary<string, bool>>(StringComparer.Ordinal);
-        foreach (var (policy, requirement) in BrandScopeRequirements.ByPolicy)
+        foreach (var (policy, requirement) in BrandScopeRequirements.ByPermission)
         {
             var perBrand = new SortedDictionary<string, bool>(StringComparer.Ordinal);
             foreach (var (id, code) in _brands)

@@ -1,5 +1,5 @@
 @page "/fleet/machines/{Id:long}"
-@attribute [Authorize(Policy = AppPolicies.ReadFleet)]
+@attribute [Authorize(Policy = Permissions.Fleet.Machine.View)]
 @using System.Globalization
 @using SmartSpare.ApiContracts.Fleet
 @inject IStringLocalizer<SharedResource> Text
@@ -52,7 +52,7 @@ else
                     @(_machine.UsagePerDay is { } usage ? Text["Machine.Usage", Hours(usage)] : Text["Machine.UsageUnknown"])
                 </MudText>
                 <MudText Typo="Typo.body2">@Text["Machine.Condition", _machine.OperatingCondition, _machine.IntervalFactor.ToString("0.##", CultureInfo.CurrentCulture)]</MudText>
-                <AuthorizeView Policy="@AppPolicies.RecordServiceWork">
+                <AuthorizeView Policy="@Permissions.Fleet.EngineHours.Record">
                     @* One-hand action: on phones and tablets the button stays at the bottom of the screen. *@
                     <div class="bottom-action mt-4">
                         <MudButton OnClick="OpenEntry" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large" FullWidth="true"
@@ -102,7 +102,7 @@ else
         <MudItem xs="12" md="6">
             <div class="d-flex align-center mb-2">
                 <MudText Typo="Typo.h6" HtmlTag="h3" Class="mr-auto">@Text["Machine.Orders"]</MudText>
-                <AuthorizeView Policy="@AppPolicies.ManageServiceOrders">
+                <AuthorizeView Policy="@Permissions.Fleet.ServiceOrder.Create">
                     <MudButton Href="@NewOrderHref(machine.Id)" Variant="Variant.Text" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
                                Class="touch-target" data-testid="machine-new-order">@Text["Orders.New"]</MudButton>
                 </AuthorizeView>

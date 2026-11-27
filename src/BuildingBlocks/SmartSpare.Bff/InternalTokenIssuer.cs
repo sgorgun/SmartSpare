@@ -14,7 +14,7 @@ namespace SmartSpare.Bff;
 public sealed class InternalTokenIssuer(InternalTokenKeyRing keys, TimeProvider time)
 {
     private static readonly HashSet<string> ForwardedClaimTypes =
-        new(StringComparer.Ordinal) { AppClaimTypes.Subject, AppClaimTypes.Name, AppClaimTypes.Role, AppClaimTypes.Brand, AppClaimTypes.Warehouse };
+        new(StringComparer.Ordinal) { AppClaimTypes.Subject, AppClaimTypes.Name, AppClaimTypes.Role, AppClaimTypes.Brand, AppClaimTypes.Warehouse, AppClaimTypes.Permission };
 
     private readonly JsonWebTokenHandler _handler = new();
 

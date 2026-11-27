@@ -1,5 +1,5 @@
 @page "/inventory/transfers/new"
-@attribute [Authorize(Policy = AppPolicies.PlanInventory)]
+@attribute [Authorize(Policy = Permissions.Inventory.Transfer.Create)]
 @using System.Globalization
 @using SmartSpare.ApiContracts.Inventory
 @inject IStringLocalizer<SharedResource> Text

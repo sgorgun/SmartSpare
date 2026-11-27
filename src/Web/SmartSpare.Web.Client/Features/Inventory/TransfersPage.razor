@@ -1,5 +1,5 @@
 @page "/inventory/transfers"
-@attribute [Authorize(Policy = AppPolicies.ReadInventory)]
+@attribute [Authorize(Policy = Permissions.Inventory.Transfer.View)]
 @using System.Globalization
 @using SmartSpare.ApiContracts.Inventory
 @inject IStringLocalizer<SharedResource> Text
@@ -14,7 +14,7 @@
 
 <div class="d-flex align-center flex-wrap mb-2">
     <MudText Typo="Typo.h5" HtmlTag="h2" Class="mr-auto">@Text["Transfers.Title"]</MudText>
-    <AuthorizeView Policy="@AppPolicies.PlanInventory">
+    <AuthorizeView Policy="@Permissions.Inventory.Transfer.Create">
         <MudButton Href="inventory/transfers/new" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
                    data-testid="new-transfer">@Text["Transfers.New"]</MudButton>
     </AuthorizeView>

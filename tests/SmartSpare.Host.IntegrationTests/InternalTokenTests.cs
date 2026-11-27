@@ -17,6 +17,26 @@ namespace SmartSpare.Host.IntegrationTests;
 /// </summary>
 public sealed class InternalTokenTests(FakeIdentityHostFactory factory) : IClassFixture<FakeIdentityHostFactory>
 {
+    /// <summary>The size budget of an internal token (ADR 0028): it carries the permissions, the cookie does not.</summary>
+    private const int TokenBudgetBytes = 8 * 1024;
+
+    [Fact]
+    public void A_token_with_every_permission_stays_within_the_8_KB_budget()
+    {
+        // The worst case: every permission of the catalogue (a superadministrator), every role, brands and hubs.
+        var claims = new List<Claim> { new(AppClaimTypes.Subject, Guid.NewGuid().ToString()), new(AppClaimTypes.Name, "superadmin.smartspare") };
+        claims.AddRange(AppRoles.All.Select(r => new Claim(AppClaimTypes.Role, r)));
+        claims.AddRange(Permissions.All.Select(p => new Claim(AppClaimTypes.Permission, p.Name)));
+        claims.AddRange(Enumerable.Range(1, 12).Select(b => new Claim(AppClaimTypes.Brand, b.ToString(System.Globalization.CultureInfo.InvariantCulture))));
+        claims.AddRange(Enumerable.Range(1, 6).Select(h => new Claim(AppClaimTypes.Warehouse, h.ToString(System.Globalization.CultureInfo.InvariantCulture))));
+
+        var token = factory.Token(new ClaimsPrincipal(new ClaimsIdentity(claims, "test")));
+
+        TestContext.Current.SendDiagnosticMessage($"Internal token with all {Permissions.All.Count} permissions: {Encoding.ASCII.GetByteCount(token)} bytes");
+        Encoding.ASCII.GetByteCount(token).ShouldBeLessThan(TokenBudgetBytes);
+        new JsonWebToken(token).Claims.Count(c => c.Type == AppClaimTypes.Permission).ShouldBe(Permissions.All.Count, "the permissions travel in the token");
+    }
+
     [Fact]
     public async Task Module_endpoints_give_the_same_results_with_the_cookie_and_with_an_internal_token()
     {

@@ -5,25 +5,31 @@ using SmartSpare.Infrastructure.Security;
 namespace SmartSpare.ArchitectureTests;
 
 /// <summary>
-/// Parity rule of STAGE_3_PLAN section 3.2: a policy that fronts a SQL business function allows exactly the roles of
-/// that function's <c>util.require_role(...)</c> call. The test reads <c>db/sql/</c> like the other architecture tests read
+/// Parity rule of STAGE_3_PLAN section 3.2, on permissions since ADR 0028: the default roles that hold the permission an
+/// endpoint requires are exactly the roles of the SQL function's <c>util.require_role(...)</c> call (until PR 7x2 turns
+/// that call into <c>util.require_permission</c>). The test reads <c>db/sql/</c> like the other architecture tests read
 /// the repository, so a role list changed on one side only, or a new SQL function without a policy, fails the build.
 /// </summary>
 public sealed partial class PolicySqlRoleParityTests
 {
-    /// <summary>The policy table of section 3.2: each policy and the SQL functions it fronts.</summary>
+    /// <summary>Each permission that fronts SQL business functions, and those functions.</summary>
     private static readonly Dictionary<string, string[]> Fronts = new(StringComparer.Ordinal)
     {
-        [AppPolicies.Administration] = ["iam.anonymise_user", "iam.anonymise_employee"],
-        [AppPolicies.PlanInventory] = ["inventory.flag_exceptional_demand", "procurement.submit_purchase_order", "procurement.export_purchase_order"],
-        [AppPolicies.ApproveTransfer] = ["inventory.approve_transfer"],
-        [AppPolicies.CancelTransfer] = ["inventory.cancel_transfer"],
-        [AppPolicies.MoveStock] = ["inventory.dispatch_transfer", "inventory.receive_transfer", "procurement.receive_purchase_order_line"],
-        [AppPolicies.RecordServiceWork] = ["fleet.log_engine_hours", "fleet.complete_service_order"],
-        [AppPolicies.ManageServiceOrders] = ["fleet.create_service_order_draft", "fleet.cancel_service_order"],
-        [AppPolicies.ApprovePurchaseOrder] = ["procurement.approve_purchase_order"],
-        [AppPolicies.CancelPurchaseOrder] = ["procurement.cancel_purchase_order"],
-        [AppPolicies.DecideRecommendation] = ["forecast.decide_recommendation"],
+        [Permissions.Organisation.Employee.Anonymise] = ["iam.anonymise_user", "iam.anonymise_employee"],
+        [Permissions.Inventory.Demand.Flag] = ["inventory.flag_exceptional_demand"],
+        [Permissions.Procurement.PurchaseOrder.Create] = ["procurement.submit_purchase_order", "procurement.export_purchase_order"],
+        [Permissions.Inventory.Transfer.Approve] = ["inventory.approve_transfer"],
+        [Permissions.Inventory.Transfer.Cancel] = ["inventory.cancel_transfer"],
+        [Permissions.Inventory.Transfer.Dispatch] = ["inventory.dispatch_transfer"],
+        [Permissions.Inventory.Transfer.Receive] = ["inventory.receive_transfer"],
+        [Permissions.Procurement.PurchaseOrder.Receive] = ["procurement.receive_purchase_order_line"],
+        [Permissions.Fleet.EngineHours.Record] = ["fleet.log_engine_hours"],
+        [Permissions.Fleet.ServiceOrder.Complete] = ["fleet.complete_service_order"],
+        [Permissions.Fleet.ServiceOrder.Create] = ["fleet.create_service_order_draft"],
+        [Permissions.Fleet.ServiceOrder.Cancel] = ["fleet.cancel_service_order"],
+        [Permissions.Procurement.PurchaseOrder.Approve] = ["procurement.approve_purchase_order"],
+        [Permissions.Procurement.PurchaseOrder.Cancel] = ["procurement.cancel_purchase_order"],
+        [Permissions.Forecasting.Recommendation.Decide] = ["forecast.decide_recommendation"],
     };
 
     private static readonly Lazy<IReadOnlyDictionary<string, IReadOnlySet<string>>> SqlRoles = new(ReadSqlRoleChecks);
@@ -44,7 +50,7 @@ public sealed partial class PolicySqlRoleParityTests
         return data;
     }
 
-    public static TheoryData<string> BrandScopedPolicies => [.. BrandScopeRequirements.ByPolicy.Keys];
+    public static TheoryData<string> BrandScopedPolicies => [.. BrandScopeRequirements.ByPermission.Keys];
 
     [Theory]
     [MemberData(nameof(MappedFunctions))]
@@ -53,7 +59,7 @@ public sealed partial class PolicySqlRoleParityTests
         SqlRoles.Value.ShouldContainKey(function, $"{function} has no util.require_role call in db/sql/");
 
         var sql = SqlRoles.Value[function].Order(StringComparer.Ordinal).ToList();
-        var api = AppPolicies.Roles[policy].Order(StringComparer.Ordinal).ToList();
+        var api = DefaultRoles.Bundles.Where(r => r.Value.Contains(policy)).Select(r => r.Key).Order(StringComparer.Ordinal).ToList();
 
         api.ShouldBe(sql, $"policy {policy} [{string.Join(", ", api)}] differs from {function} [{string.Join(", ", sql)}]");
     }
@@ -68,7 +74,7 @@ public sealed partial class PolicySqlRoleParityTests
     [MemberData(nameof(MappedFunctions))]
     public void The_api_role_may_execute_every_fronted_function(string policy, string function)
     {
-        var role = policy == AppPolicies.Administration ? "app_admin" : "app_write";
+        var role = policy.StartsWith("Organisation.", StringComparison.Ordinal) ? "app_admin" : "app_write";
 
         SqlExecuteGrants.Value.ShouldContainKey(function, $"{function} (policy {policy}) has no GRANT EXECUTE in db/sql/");
         SqlExecuteGrants.Value[function].ShouldContain(role, $"{function} (policy {policy}) is not executable by {role}");
@@ -91,13 +97,8 @@ public sealed partial class PolicySqlRoleParityTests
 
     [Theory]
     [MemberData(nameof(BrandScopedPolicies))]
-    public void Brand_scope_unscoped_roles_plus_the_scoped_role_equal_the_policy_roles(string policy)
-    {
-        var requirement = BrandScopeRequirements.ByPolicy[policy];
-
-        requirement.UnscopedRoles.Append(requirement.ScopedRole).Order(StringComparer.Ordinal)
-            .ShouldBe(AppPolicies.Roles[policy].Order(StringComparer.Ordinal));
-    }
+    public void A_brand_scoped_action_refines_its_own_permission(string permission) =>
+        BrandScopeRequirements.ByPermission[permission].Permission.ShouldBe(permission);
 
     /// <summary>Function name → roles of its <c>util.require_role(...)</c> calls, from every <c>CREATE FUNCTION</c> in db/sql/.</summary>
     private static Dictionary<string, IReadOnlySet<string>> ReadSqlRoleChecks()

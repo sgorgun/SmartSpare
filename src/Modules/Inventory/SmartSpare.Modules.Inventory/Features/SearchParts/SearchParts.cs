@@ -42,13 +42,13 @@ internal static class SearchPartsEndpoint
                 var result = await handler.Handle(new SearchPartsQuery(search, page, pageSize), cancellationToken).ConfigureAwait(false);
                 return result.ToHttpResult();
             })
-            .RequireAuthorization(AppPolicies.ReadInventory)
+            .RequireAuthorization(Permissions.Inventory.Part.View)
             .WithName("SearchParts")
             .WithSummary("Searches the parts catalogue.")
             .WithDescription(
                 "Active parts whose OEM part number or description contains the search text, ordered by OEM part number, "
-                + "one page at a time; totalCount is the number of all matches. Every role may read the catalogue "
-                + "(policy ReadInventory), and reads are not limited to the user's brands.")
+                + "one page at a time; totalCount is the number of all matches. Every default role may read the catalogue "
+                + "(permission Inventory.Part.View), and reads are not limited to the user's brands.")
             .Produces<PagedResponse<PartSummary>>()
             .ProducesValidationProblem()
             .ProducesProblem(StatusCodes.Status401Unauthorized)

@@ -58,22 +58,22 @@ internal sealed class ServiceOrderAccess(ICurrentUser user)
     {
         ArgumentNullException.ThrowIfNull(order);
         var actions = new List<string>();
-        if (May(AppPolicies.RecordServiceWork) && order.CanStart().IsSuccess)
+        if (May(Permissions.Fleet.ServiceOrder.Start) && order.CanStart().IsSuccess)
         {
             actions.Add(ServiceOrderActions.Start);
         }
 
-        if (May(AppPolicies.RecordServiceWork) && order.CanComplete().IsSuccess)
+        if (May(Permissions.Fleet.ServiceOrder.Complete) && order.CanComplete().IsSuccess)
         {
             actions.Add(ServiceOrderActions.Complete);
         }
 
-        if (May(AppPolicies.ManageServiceOrders) && order.CanCancel().IsSuccess)
+        if (May(Permissions.Fleet.ServiceOrder.Cancel) && order.CanCancel().IsSuccess)
         {
             actions.Add(ServiceOrderActions.Cancel);
         }
 
-        if (May(AppPolicies.ManageServiceOrders) && order.CanChangeLines().IsSuccess)
+        if (May(Permissions.Fleet.ServiceOrder.Edit) && order.CanChangeLines().IsSuccess)
         {
             actions.Add(ServiceOrderActions.EditLines);
         }
@@ -81,5 +81,5 @@ internal sealed class ServiceOrderAccess(ICurrentUser user)
         return actions;
     }
 
-    public bool May(string policy) => AppPolicies.Roles[policy].Intersect(user.Roles, StringComparer.Ordinal).Any();
+    public bool May(string permission) => user.Permissions.Contains(permission);
 }

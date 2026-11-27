@@ -1,5 +1,5 @@
 @page "/inventory/imports"
-@attribute [Authorize(Policy = AppPolicies.ImportData)]
+@attribute [Authorize(Policy = Permissions.Inventory.Import.View)]
 @using System.Globalization
 @using SmartSpare.ApiContracts.Inventory
 @inject IStringLocalizer<SharedResource> Text

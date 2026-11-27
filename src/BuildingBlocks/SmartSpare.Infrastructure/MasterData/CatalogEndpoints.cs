@@ -49,7 +49,7 @@ public static class CatalogEndpoints
                 (await Service<TContext, TRecord, TId, TDto, TWrite>(http, d).ListAsync(search?[..Math.Min(search.Length, CatalogLimits.MaxSearchLength)], archived, sort, page, pageSize, cancellationToken)
                     .ConfigureAwait(false)).ToHttpResult())
             .WithTags(d.Tag)
-            .RequireAuthorization(d.ReadPolicy)
+            .RequireAuthorization(d.ViewPermission)
             .WithName($"List{d.OperationNoun}s")
             .WithSummary($"Lists {d.Noun}s.")
             .WithDescription($"Active (or archived) {d.Noun}s whose code or name contains the search text, sorted and paged. {d.Rules}")
@@ -64,7 +64,7 @@ public static class CatalogEndpoints
                 [Description("Text contained in the code or the name.")] string? search = null,
                 [Description("At most this many entries, 1 to 50.")] int limit = CatalogLimits.DefaultLookupLimit) =>
                 Results.Ok(await Service<TContext, TRecord, TId, TDto, TWrite>(http, d).LookupAsync(search?[..Math.Min(search.Length, CatalogLimits.MaxSearchLength)], limit, cancellationToken).ConfigureAwait(false)))
-            .RequireAuthorization(d.ReadPolicy)
+            .RequireAuthorization(d.ViewPermission)
             .WithName($"Lookup{d.OperationNoun}s")
             .WithSummary($"Finds active {d.Noun}s for an autocomplete field.")
             .WithDescription($"Active {d.Noun}s only (archived ones cannot be chosen), by code, as code, name and a short detail.")
@@ -83,7 +83,7 @@ public static class CatalogEndpoints
                 var result = await Service<TContext, TRecord, TId, TDto, TWrite>(http, d).GetAsync(key, cancellationToken).ConfigureAwait(false);
                 return result.IsSuccess ? new ETagResult(TypedResults.Ok(result.Value), d.VersionOf(result.Value)) : result.Error.ToProblem();
             })
-            .RequireAuthorization(d.ReadPolicy)
+            .RequireAuthorization(d.ViewPermission)
             .WithName($"Get{d.OperationNoun}")
             .WithSummary($"Returns one {d.Noun}.")
             .WithDescription($"The {d.Noun}; the ETag header carries its version for If-Match.")
@@ -115,7 +115,7 @@ public static class CatalogEndpoints
                         key.ToString(null, System.Globalization.CultureInfo.InvariantCulture), page, pageSize, d.FieldLabels, cancellationToken)
                     .ConfigureAwait(false));
             })
-            .RequireAuthorization(d.ReadPolicy)
+            .RequireAuthorization(d.ViewPermission)
             .WithName($"Get{d.OperationNoun}History")
             .WithSummary($"Returns the change history of one {d.Noun}.")
             .WithDescription("Newest first: when, who (first name and initial; none for the system), what changed (field, old and new value) and the reason given.")
@@ -141,7 +141,7 @@ public static class CatalogEndpoints
                     : result.Error.ToProblem();
             })
             .WithTags(d.Tag)
-            .RequireAuthorization(d.WritePolicy)
+            .RequireAuthorization(d.CreatePermission)
             .WithName($"Create{d.OperationNoun}")
             .WithSummary($"Creates a {d.Noun}.")
             .WithDescription($"The code is stored in capitals and must be unused (409 Catalog.CodeTaken). {d.Rules}")
@@ -168,7 +168,7 @@ public static class CatalogEndpoints
                     ? (await Service<TContext, TRecord, TId, TDto, TWrite>(http, d).UpdateAsync(key, body, Versions.Parse(ifMatch), cancellationToken).ConfigureAwait(false)).ToHttpResult()
                     : CatalogErrors.BodyRequired.ToProblem();
             })
-            .RequireAuthorization(d.WritePolicy)
+            .RequireAuthorization(d.EditPermission)
             .WithName($"Update{d.OperationNoun}")
             .WithSummary($"Changes a {d.Noun}.")
             .WithDescription("Needs If-Match with the version read (missing: 400 Catalog.VersionRequired; stale: 409). The code stays as it is; "
@@ -209,7 +209,7 @@ public static class CatalogEndpoints
                 Key<TId>(id) is { } key
                     ? (await run(Service<TContext, TRecord, TId, TDto, TWrite>(http, d), key, Versions.Parse(ifMatch), cancellationToken).ConfigureAwait(false)).ToHttpResult()
                     : CatalogErrors.NotFound.ToProblem())
-            .RequireAuthorization(d.WritePolicy)
+            .RequireAuthorization(d.ArchivePermission)
             .WithName(name)
             .WithSummary(summary)
             .WithDescription(description)

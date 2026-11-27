@@ -52,14 +52,14 @@ internal static class ListMovementsEndpoint
                     .ConfigureAwait(false);
                 return result.ToHttpResult();
             })
-            .RequireAuthorization(AppPolicies.ReadInventory)
+            .RequireAuthorization(Permissions.Inventory.Stock.View)
             .WithName("ListMovements")
             .WithSummary("Lists stock ledger movements, newest first.")
             .WithDescription(
                 "The append-only stock ledger with the signed effect of each movement on the on-hand stock (imported "
                 + "historical demand has no effect) and its source document: the transfer order number, an external "
                 + "reference, an import batch, a service or purchase order line. Without from, the last 90 days are listed. "
-                + "Policy ReadInventory.")
+                + "Permission Inventory.Stock.View.")
             .Produces<PagedResponse<MovementRow>>()
             .ProducesValidationProblem()
             .ProducesProblem(StatusCodes.Status401Unauthorized)

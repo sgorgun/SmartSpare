@@ -32,7 +32,7 @@ public sealed class MachinePagesTests : ClientTestContext
         Services.AddScoped<InventoryClient>(_ => new FakeWarehouses());
         Services.AddSingleton<TimeProvider>(_time);
         Services.AddLogging();
-        Services.AddAuthorizationCore(AppPolicies.Register);
+        Services.AddPermissionAuthorization();
         Services.AddTransient<IAuthorizationService, DefaultAuthorizationService>();
         UseWebAssemblyRenderer();
         Render<MudPopoverProvider>();

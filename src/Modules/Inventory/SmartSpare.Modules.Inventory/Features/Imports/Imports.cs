@@ -169,7 +169,7 @@ internal static class ImportEndpoints
                     ? Results.Created($"/api/v1/inventory/imports/{result.Value.Batch.Id}", result.Value)
                     : result.Error.ToProblem();
             })
-            .RequireAuthorization(AppPolicies.ImportData)
+            .RequireAuthorization(Permissions.Inventory.Import.Run)
             .RequireRateLimiting(RateLimitPolicy)
             .WithMetadata(new RequestSizeLimitAttribute(ImportLimits.MaxFileBytes + (64 * 1024)))
             .DisableAntiforgery()
@@ -183,7 +183,7 @@ internal static class ImportEndpoints
                 + "into staging and loaded into the catalogue or the demand ledger in one transaction (raw → staging → core). "
                 + "If more than 5 % of the rows are invalid nothing is loaded and the batch is answered with status failed "
                 + "(still 201): the report lists the row errors. The same file cannot be imported twice (409 "
-                + "Inventory.ImportDuplicate). At most 10 MB, 50,000 rows and 5 imports a minute. Policy ImportData "
+                + "Inventory.ImportDuplicate). At most 10 MB, 50,000 rows and 5 imports a minute. Permission Inventory.Import.Run "
                 + "(administrators and inventory planners).")
             .Produces<ImportBatchDetails>(StatusCodes.Status201Created)
             .ProducesValidationProblem()
@@ -203,10 +203,10 @@ internal static class ImportEndpoints
                 [Description("Page number, from 1.")] int page = 1,
                 [Description("Batches per page, 1 to 100.")] int pageSize = ImportLimits.DefaultPageSize) =>
                 (await handler.Handle(new ListImportsQuery(page, pageSize), cancellationToken).ConfigureAwait(false)).ToHttpResult())
-            .RequireAuthorization(AppPolicies.ImportData)
+            .RequireAuthorization(Permissions.Inventory.Import.View)
             .WithName("ListImports")
             .WithSummary("Lists import batches, newest first.")
-            .WithDescription("Every import batch with its load report. Policy ImportData.")
+            .WithDescription("Every import batch with its load report. Permission Inventory.Import.View.")
             .Produces<PagedResponse<ImportBatchResponse>>()
             .ProducesValidationProblem()
             .ProducesProblem(StatusCodes.Status401Unauthorized)
@@ -222,12 +222,12 @@ internal static class ImportEndpoints
                 IQueryHandler<GetImportQuery, ImportBatchDetails> handler,
                 CancellationToken cancellationToken) =>
                 (await handler.Handle(new GetImportQuery(id), cancellationToken).ConfigureAwait(false)).ToHttpResult())
-            .RequireAuthorization(AppPolicies.ImportData)
+            .RequireAuthorization(Permissions.Inventory.Import.View)
             .WithName("GetImport")
             .WithSummary("Returns an import batch with its row errors.")
             .WithDescription(
                 "The batch, its load report and its first 200 row errors in file order, with the total count. An unknown "
-                + "id gives 404 with code Inventory.ImportNotFound. Policy ImportData.")
+                + "id gives 404 with code Inventory.ImportNotFound. Permission Inventory.Import.View.")
             .Produces<ImportBatchDetails>()
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)

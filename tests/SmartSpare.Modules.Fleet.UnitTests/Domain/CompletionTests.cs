@@ -152,6 +152,8 @@ public sealed class CompletionTests
 
         IReadOnlyCollection<string> ICurrentUser.Roles => roles;
 
+        IReadOnlyCollection<string> ICurrentUser.Permissions => [.. SmartSpare.ApiContracts.Authorization.DefaultRoles.Of(roles)];
+
         public IReadOnlyCollection<short> WarehouseIds => [];
     }
 }

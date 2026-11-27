@@ -527,6 +527,39 @@ namespace SmartSpare.Modules.Identity.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("SmartSpare.Modules.Identity.Domain.PermissionDefinition", b =>
+                {
+                    b.Property<string>("Code")
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("code")
+                        .HasColumnOrder(0)
+                        .HasComment("Permission name, e.g. Inventory.Transfer.Approve.");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("description")
+                        .HasColumnOrder(2)
+                        .HasComment("What the permission allows.");
+
+                    b.Property<string>("Module")
+                        .IsRequired()
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("module")
+                        .HasColumnOrder(1)
+                        .HasComment("Module, for grouping in the UI.");
+
+                    b.HasKey("Code")
+                        .HasName("pk_permission");
+
+                    b.ToTable("permission", "iam", t =>
+                        {
+                            t.HasComment("The fixed permission catalogue defined in code (<Module>.<Resource>.<Action>, ADR 0028); roles bundle these.");
+
+                            t.HasCheckConstraint("ck_permission_code", "((code)::text ~ '^[A-Z][A-Za-z]+\\.[A-Z][A-Za-z]+\\.[A-Z][A-Za-z]+$'::text)");
+                        });
+                });
+
             modelBuilder.Entity("SmartSpare.Modules.Identity.Domain.Role", b =>
                 {
                     b.Property<short>("Id")
@@ -569,6 +602,32 @@ namespace SmartSpare.Modules.Identity.Infrastructure.Persistence.Migrations
                             t.HasComment("Application (RBAC) roles from the BA: BRAND_MANAGER, SERVICE_ENGINEER, WAREHOUSE_KEEPER, INVENTORY_PLANNER, SPONSOR, ADMINISTRATOR.");
 
                             t.HasCheckConstraint("ck_role_code", "((code)::text ~ '^[A-Z_]{3,30}$'::text)");
+                        });
+                });
+
+            modelBuilder.Entity("SmartSpare.Modules.Identity.Domain.RolePermission", b =>
+                {
+                    b.Property<short>("RoleId")
+                        .HasColumnType("smallint")
+                        .HasColumnName("role_id")
+                        .HasColumnOrder(0)
+                        .HasComment("Reference to iam.role.");
+
+                    b.Property<string>("Permission")
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("permission")
+                        .HasColumnOrder(1)
+                        .HasComment("Reference to iam.permission.");
+
+                    b.HasKey("RoleId", "Permission")
+                        .HasName("pk_role_permission");
+
+                    b.HasIndex("Permission")
+                        .HasDatabaseName("ix_role_permission_permission");
+
+                    b.ToTable("role_permission", "iam", t =>
+                        {
+                            t.HasComment("Role bundles: a role grants exactly these permissions (additive, no deny rules; ADR 0028).");
                         });
                 });
 
@@ -663,6 +722,23 @@ namespace SmartSpare.Modules.Identity.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_position_role_position");
+                });
+
+            modelBuilder.Entity("SmartSpare.Modules.Identity.Domain.RolePermission", b =>
+                {
+                    b.HasOne("SmartSpare.Modules.Identity.Domain.PermissionDefinition", null)
+                        .WithMany()
+                        .HasForeignKey("Permission")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_role_permission_permission");
+
+                    b.HasOne("SmartSpare.Modules.Identity.Domain.Role", null)
+                        .WithMany()
+                        .HasForeignKey("RoleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_role_permission_role");
                 });
 
             modelBuilder.Entity("SmartSpare.Modules.Identity.Infrastructure.Persistence.EmployeeResponsibility", b =>

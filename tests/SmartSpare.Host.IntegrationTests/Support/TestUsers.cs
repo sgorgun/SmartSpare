@@ -99,3 +99,14 @@ internal sealed class FakeCredentialVerifier : ICredentialVerifier
         }
     }
 }
+
+/// <summary>
+/// <see cref="IRolePermissions"/> without a database, for the hosts that use <see cref="FakeCredentialVerifier"/>: the
+/// default bundles (ADR 0028), as the seeded database holds them.
+/// </summary>
+internal sealed class FakeRolePermissions : IRolePermissions
+{
+    public Task<IReadOnlyDictionary<string, IReadOnlyList<string>>> GetAsync(CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyDictionary<string, IReadOnlyList<string>>>(
+            DefaultRoles.Bundles.ToDictionary(r => r.Key, r => (IReadOnlyList<string>)[.. r.Value], StringComparer.Ordinal));
+}

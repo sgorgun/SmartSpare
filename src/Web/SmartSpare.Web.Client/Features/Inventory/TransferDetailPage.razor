@@ -1,5 +1,5 @@
 @page "/inventory/transfers/{Id:long}"
-@attribute [Authorize(Policy = AppPolicies.ReadInventory)]
+@attribute [Authorize(Policy = Permissions.Inventory.Transfer.View)]
 @using System.Globalization
 @using SmartSpare.ApiContracts.Inventory
 @inject IStringLocalizer<SharedResource> Text

@@ -87,7 +87,7 @@ public static class BffEndpoints
             .WithName("BffMe")
             .WithSummary("Returns the current user of the session.")
             .WithDescription(
-                "Built from the claims of the cookie, without a database call. Anonymous callers get 200 with "
+                "Built from the claims of the session; the permissions come from the roles (ADR 0028, cached). Anonymous callers get 200 with "
                 + "isAuthenticated false and empty lists, so the client can check the session without an error.")
             .WithResponseExample(StatusCodes.Status200OK, new CurrentUserResponse(
                 IsAuthenticated: true,
@@ -95,7 +95,8 @@ public static class BffEndpoints
                 UserName: ExampleUser,
                 Roles: [AppRoles.BrandManager],
                 BrandIds: [1, 5],
-                HomeWarehouseIds: []));
+                HomeWarehouseIds: [],
+                Permissions: [Permissions.Inventory.Transfer.Approve, Permissions.Inventory.Transfer.View]));
 
         group.MapGet("/antiforgery", Antiforgery)
             .AllowAnonymous()
@@ -159,7 +160,8 @@ public static class BffEndpoints
             UserName: user.FindFirstValue(AppClaimTypes.Name),
             Roles: [.. user.FindAll(AppClaimTypes.Role).Select(c => c.Value).Order(StringComparer.Ordinal)],
             BrandIds: [.. user.FindAll(AppClaimTypes.Brand).Select(c => ParseShort(c.Value)).OfType<short>().Order()],
-            HomeWarehouseIds: [.. user.FindAll(AppClaimTypes.Warehouse).Select(c => ParseShort(c.Value)).OfType<short>().Order()]));
+            HomeWarehouseIds: [.. user.FindAll(AppClaimTypes.Warehouse).Select(c => ParseShort(c.Value)).OfType<short>().Order()],
+            Permissions: [.. user.FindAll(AppClaimTypes.Permission).Select(c => c.Value).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)]));
     }
 
     /// <summary>A fresh request token for the current principal (fallback; normally it comes with the prerendered page).</summary>

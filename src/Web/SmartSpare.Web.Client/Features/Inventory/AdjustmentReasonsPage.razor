@@ -1,5 +1,5 @@
 @page "/inventory/adjustment-reasons"
-@attribute [Authorize(Policy = AppPolicies.ReadInventory)]
+@attribute [Authorize(Policy = Permissions.Inventory.AdjustmentReason.View)]
 @using SmartSpare.ApiContracts.Inventory
 @using SmartSpare.Web.Client.Features.MasterData
 @inject IStringLocalizer<SharedResource> Text
@@ -71,7 +71,7 @@
     {
         if (AuthenticationState is not null)
         {
-            _mayEdit = (await Authorization.AuthorizeAsync((await AuthenticationState).User, AppPolicies.ManageCatalog)).Succeeded;
+            _mayEdit = (await Authorization.AuthorizeAsync((await AuthenticationState).User, Permissions.Inventory.AdjustmentReason.Edit)).Succeeded;
         }
     }
 

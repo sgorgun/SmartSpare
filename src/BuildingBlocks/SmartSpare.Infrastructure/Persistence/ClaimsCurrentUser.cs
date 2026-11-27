@@ -25,6 +25,9 @@ public sealed class ClaimsCurrentUser(IHttpContextAccessor httpContextAccessor) 
     public IReadOnlyCollection<string> Roles =>
         User is { } user ? [.. user.FindAll(AppClaimTypes.Role).Select(c => c.Value)] : [];
 
+    public IReadOnlyCollection<string> Permissions =>
+        User is { } user ? [.. user.FindAll(AppClaimTypes.Permission).Select(c => c.Value).Distinct(StringComparer.Ordinal)] : [];
+
     public IReadOnlyCollection<short> WarehouseIds =>
         User is { } user
             ? [.. user.FindAll(AppClaimTypes.Warehouse)

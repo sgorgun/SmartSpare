@@ -12,8 +12,8 @@ namespace SmartSpare.Modules.Inventory.Features.AdjustmentReasons;
 
 /// <summary>
 /// The adjustment reasons catalogue under <c>/api/v1/inventory/adjustment-reasons</c> (STAGE_7_PLAN 3.1), built by the
-/// shared master-data mechanism (ADR 0025). Every role reads it (the stock screen offers the reasons); planners and
-/// administrators maintain it. Nothing blocks archiving: past adjustments keep their reason.
+/// shared master-data mechanism (ADR 0025). Every default role reads it (the stock screen offers the reasons); the
+/// default planner and administrator roles maintain it. Nothing blocks archiving: past adjustments keep their reason.
 /// </summary>
 internal static class AdjustmentReasonCatalog
 {
@@ -24,8 +24,10 @@ internal static class AdjustmentReasonCatalog
         Tag = "Adjustment reasons",
         Noun = "adjustment reason",
         OperationNoun = "AdjustmentReason",
-        ReadPolicy = AppPolicies.ReadInventory,
-        WritePolicy = AppPolicies.ManageCatalog,
+        ViewPermission = Permissions.Inventory.AdjustmentReason.View,
+        CreatePermission = Permissions.Inventory.AdjustmentReason.Create,
+        EditPermission = Permissions.Inventory.AdjustmentReason.Edit,
+        ArchivePermission = Permissions.Inventory.AdjustmentReason.Archive,
         AuditTable = "inventory." + Infrastructure.Persistence.Configurations.AdjustmentReasonConfiguration.Table,
         Projection = r => new AdjustmentReasonDto(
             r.Id, r.Code, r.Name, r.Direction, r.RequiresNote, r.IsArchived, Versions.Format(EF.Property<uint>(r, "xmin"))),
@@ -43,7 +45,7 @@ internal static class AdjustmentReasonCatalog
             ["direction"] = "Direction",
             ["requires_note"] = "Note required",
         },
-        Rules = "Policy ReadInventory to read, ManageCatalog (planners, administrators) to change.",
+        Rules = "Permissions Inventory.AdjustmentReason.View to read and .Create, .Edit, .Archive to change (default roles: planners and administrators change).",
         Example = new AdjustmentReasonDto(2, "DAMAGED", "Damaged in storage", AdjustmentDirections.Out, false, false, "8841"),
         WriteExample = new AdjustmentReasonWrite("DAMAGED", "Damaged in storage", AdjustmentDirections.Out, false),
         LookupExample = new CatalogLookupItem(2, "DAMAGED", "Damaged in storage", AdjustmentDirections.Out),

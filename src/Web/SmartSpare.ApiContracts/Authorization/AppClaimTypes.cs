@@ -22,6 +22,12 @@ public static class AppClaimTypes
     /// <summary>Home warehouse id (<c>iam.app_user.home_warehouse_id</c>), 0..1.</summary>
     public const string Warehouse = "ss:warehouse";
 
+    /// <summary>
+    /// A permission of the user (ADR 0028), 0..n. Added server-side from the user's roles on every request (never stored
+    /// in the cookie); carried in the internal token and the client's authentication state.
+    /// </summary>
+    public const string Permission = "ss:perm";
+
     /// <summary>Cookie session id, carried into internal tokens (ADR 0016 section 2).</summary>
     public const string SessionId = "sid";
 }

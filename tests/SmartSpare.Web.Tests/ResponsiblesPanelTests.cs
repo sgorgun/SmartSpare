@@ -29,7 +29,7 @@ public sealed class ResponsiblesPanelTests : ClientTestContext
         Services.AddScoped<InventoryClient>(_ => _inventory);
         Services.AddScoped<IdentityClient>(_ => new FakeOrganisationClient());
         Services.AddLogging();
-        Services.AddAuthorizationCore(AppPolicies.Register);
+        Services.AddPermissionAuthorization();
         Services.AddTransient<IAuthorizationService, DefaultAuthorizationService>();
         UseWebAssemblyRenderer();
         Render<MudPopoverProvider>();

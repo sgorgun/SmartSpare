@@ -86,6 +86,7 @@ public sealed class IdentityModuleInstaller : IModuleInstaller
         services.AddScoped<Infrastructure.Identity.AccountStamps>();
         services.AddScoped<Infrastructure.Identity.AdministratorGuard>();
         services.AddScoped<IEmployeeDirectory, Infrastructure.Queries.EmployeeDirectory>();
+        services.AddScoped<IRolePermissions, Infrastructure.Queries.RolePermissionReader>();
     }
 
     /// <summary>

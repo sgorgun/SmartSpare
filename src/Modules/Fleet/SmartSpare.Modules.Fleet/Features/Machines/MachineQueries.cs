@@ -67,7 +67,7 @@ internal static class MachineQueryEndpoints
                 [Description("Rows per page, 1 to 100.")] int pageSize = FleetSearch.DefaultPageSize) =>
                 (await handler.Handle(new ListMachinesQuery(search, warehouseId, status, dueStatus, page, pageSize), cancellationToken)
                     .ConfigureAwait(false)).ToHttpResult())
-            .RequireAuthorization(AppPolicies.ReadFleet)
+            .RequireAuthorization(Permissions.Fleet.Machine.View)
             .WithName("ListMachines")
             .WithSummary("Lists customer machines with their engine hours and next service.")
             .WithDescription(
@@ -75,7 +75,7 @@ internal static class MachineQueryEndpoints
                 + "time of the latest reading. nextService is the most urgent maintenance plan of the machine with its due "
                 + "calculation (MAINTENANCE_PLANNING.md): next engine-hour threshold, remaining hours, projected and calendar due "
                 + "dates, the earlier of the two, and a status (overdue, dueSoon, planned, ok). Ordered by urgency, then VIN; "
-                + "totalCount counts all matches. Policy ReadFleet.")
+                + "totalCount counts all matches. Permission Fleet.Machine.View.")
             .Produces<PagedResponse<MachineSummary>>()
             .ProducesValidationProblem()
             .ProducesProblem(StatusCodes.Status401Unauthorized)
@@ -90,13 +90,13 @@ internal static class MachineQueryEndpoints
                 IQueryHandler<GetMachineQuery, MachineDetails> handler,
                 CancellationToken cancellationToken) =>
                 (await handler.Handle(new GetMachineQuery(id), cancellationToken).ConfigureAwait(false)).ToHttpResult())
-            .RequireAuthorization(AppPolicies.ReadFleet)
+            .RequireAuthorization(Permissions.Fleet.Machine.View)
             .WithName("GetMachine")
             .WithSummary("Returns the machine card with every maintenance plan and its due calculation.")
             .WithDescription(
                 "The machine card of the engineer's tablet (WF03): machine data, operating condition and its interval factor, the "
                 + "average engine hours per day over the last year of readings, every active plan of the model with its due "
-                + "calculation (most urgent first) and the five latest readings. Policy ReadFleet.")
+                + "calculation (most urgent first) and the five latest readings. Permission Fleet.Machine.View.")
             .Produces<MachineDetails>()
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
@@ -112,13 +112,13 @@ internal static class MachineQueryEndpoints
                 [Description("Page number, from 1.")] int page = 1,
                 [Description("Rows per page, 1 to 100.")] int pageSize = FleetSearch.DefaultPageSize) =>
                 (await handler.Handle(new ListReadingsQuery(id, page, pageSize), cancellationToken).ConfigureAwait(false)).ToHttpResult())
-            .RequireAuthorization(AppPolicies.ReadFleet)
+            .RequireAuthorization(Permissions.Fleet.Machine.View)
             .WithName("ListMachineReadings")
             .WithSummary("Lists the engine-hour readings of a machine, newest first.")
             .WithDescription(
                 "The odometer history (US05): time, engine hours, source (manual, telematics, serviceVisit, import) and the user "
                 + "who recorded it. Readings are never edited; decreasing, implausible and out-of-order values were refused when "
-                + "they were entered (SS100–SS103). Policy ReadFleet.")
+                + "they were entered (SS100–SS103). Permission Fleet.Machine.View.")
             .Produces<PagedResponse<ReadingRow>>()
             .ProducesValidationProblem()
             .ProducesProblem(StatusCodes.Status401Unauthorized)

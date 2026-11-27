@@ -145,9 +145,12 @@ public sealed class ModuleBoundaryTests
         Solution.PackageReferences("SmartSpare.ApiContracts").ShouldAllBe(p => allowedPackages.Contains(p));
         Solution.FrameworkReferences("SmartSpare.ApiContracts").ShouldBeEmpty();
         Solution.ProjectReferences("SmartSpare.ApiContracts").ShouldBeEmpty();
+        // The permission policy provider (ADR 0028) registers itself and reads AuthorizationOptions: the two abstractions
+        // the Authorization package already brings, both available in the browser.
+        string[] allowedAssemblies = [.. allowedPackages, "Microsoft.Extensions.DependencyInjection.Abstractions", "Microsoft.Extensions.Options"];
         Solution.ApiContracts.GetReferencedAssemblies().Select(a => a.Name!)
             .ShouldAllBe(n => n == "System.Runtime" || n.StartsWith("System.", StringComparison.Ordinal) || n == "netstandard"
-                              || allowedPackages.Contains(n));
+                              || allowedAssemblies.Contains(n));
     }
 
     [Fact]

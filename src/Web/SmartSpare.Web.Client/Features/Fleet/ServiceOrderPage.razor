@@ -1,5 +1,5 @@
 @page "/fleet/service-orders/{Id:long}"
-@attribute [Authorize(Policy = AppPolicies.ReadFleet)]
+@attribute [Authorize(Policy = Permissions.Fleet.ServiceOrder.View)]
 @implements IDisposable
 @using System.Globalization
 @using SmartSpare.ApiContracts.Fleet

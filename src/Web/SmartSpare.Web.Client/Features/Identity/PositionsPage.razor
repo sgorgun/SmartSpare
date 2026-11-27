@@ -1,5 +1,5 @@
 @page "/admin/positions"
-@attribute [Authorize(Policy = AppPolicies.Administration)]
+@attribute [Authorize(Policy = Permissions.Organisation.Position.View)]
 @using SmartSpare.ApiContracts.Identity
 @inject IStringLocalizer<SharedResource> Text
 @inject IdentityClient Identity

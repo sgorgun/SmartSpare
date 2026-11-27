@@ -1,80 +1,51 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace SmartSpare.ApiContracts.Authorization;
 
 /// <summary>
-/// Authorization policies of SmartSpare (STAGE_3_PLAN section 3.2), registered by the host and the client with
-/// <see cref="Register"/>. Policies are claims-only (ADR 0012) and never name an authentication scheme.
-/// <para>
-/// Parity rule: a policy that fronts a SQL business function allows exactly the roles of that function's
-/// <c>util.require_role(...)</c> call (<c>PolicySqlRoleParityTests</c>). Brand scope and warehouse match are resource
-/// checks on top of the role gate and never widen it.
-/// </para>
+/// Authorization of SmartSpare (ADR 0028): every policy is a permission of <see cref="Permissions"/>, built on demand
+/// by <see cref="PermissionPolicyProvider"/>; a fallback policy requires an authenticated user, so an endpoint without
+/// metadata is never public by accident (anonymous endpoints opt out with <c>AllowAnonymous</c>). Policies never name
+/// a role or an authentication scheme. Brand and hub scope are resource checks on top (ADR 0026) and never widen it.
 /// </summary>
 public static class AppPolicies
 {
-    public const string Administration = nameof(Administration);
-    public const string PlanInventory = nameof(PlanInventory);
-    public const string ApproveTransfer = nameof(ApproveTransfer);
-    public const string CancelTransfer = nameof(CancelTransfer);
-    public const string MoveStock = nameof(MoveStock);
-    public const string RecordServiceWork = nameof(RecordServiceWork);
-    public const string ManageServiceOrders = nameof(ManageServiceOrders);
-    public const string ApprovePurchaseOrder = nameof(ApprovePurchaseOrder);
-    public const string CancelPurchaseOrder = nameof(CancelPurchaseOrder);
-    public const string DecideRecommendation = nameof(DecideRecommendation);
-    public const string ReadAudit = nameof(ReadAudit);
-    public const string ReadInventory = nameof(ReadInventory);
-    public const string ImportData = nameof(ImportData);
-    public const string ReadFleet = nameof(ReadFleet);
-    public const string ManageCatalog = nameof(ManageCatalog);
-
-    /// <summary>The roles each policy allows: the table of STAGE_3_PLAN section 3.2.</summary>
-    public static IReadOnlyDictionary<string, IReadOnlyList<string>> Roles { get; } = new Dictionary<string, IReadOnlyList<string>>
-    {
-        [Administration] = [AppRoles.Administrator],
-        [PlanInventory] = [AppRoles.BrandManager, AppRoles.InventoryPlanner],
-        [ApproveTransfer] = [AppRoles.BrandManager, AppRoles.InventoryPlanner],
-        [CancelTransfer] = [AppRoles.BrandManager, AppRoles.InventoryPlanner, AppRoles.Administrator],
-        [MoveStock] = [AppRoles.WarehouseKeeper, AppRoles.Administrator],
-        [RecordServiceWork] = [AppRoles.ServiceEngineer, AppRoles.Administrator],
-        [ManageServiceOrders] = [AppRoles.ServiceEngineer, AppRoles.BrandManager, AppRoles.Administrator],
-        [ApprovePurchaseOrder] = [AppRoles.BrandManager, AppRoles.Sponsor],
-        [CancelPurchaseOrder] = [AppRoles.BrandManager, AppRoles.Sponsor, AppRoles.Administrator],
-        [DecideRecommendation] = [AppRoles.BrandManager, AppRoles.InventoryPlanner],
-        [ReadAudit] = [AppRoles.Sponsor, AppRoles.Administrator],
-
-        // CSV import of the part catalogue and the demand history (STAGE_5_PLAN 3.2): a planning and support task.
-        // staging.process_batch has no role check of its own, so this policy is the control.
-        [ImportData] = [AppRoles.Administrator, AppRoles.InventoryPlanner],
-
-        // Catalogue maintenance (STAGE_7_PLAN 6.1): brands, manufacturers, parts, analogues, adjustment reasons and the
-        // other Inventory catalogues. Fronts no SQL business function; planners own the catalogue, administrators support.
-        [ManageCatalog] = [AppRoles.InventoryPlanner, AppRoles.Administrator],
-
-        // Read policies (stages 5–9) front no SQL function and are never brand-scoped (section 3.3 rule 1). Every role
-        // works with parts and stock: planners and managers plan, keepers move, engineers fit parts, sponsors approve
-        // purchases, administrators support. A user without any role is still refused.
-        [ReadInventory] = AppRoles.All,
-
-        // Fleet reads (STAGE_6_PLAN 4.2): engineers service the machines, planners see the kit demand, keepers prepare
-        // kits, managers and sponsors follow the fleet, administrators support. Customers are pseudonymous codes.
-        [ReadFleet] = AppRoles.All,
-    };
-
-    /// <summary>
-    /// Registers every policy, and a fallback policy that requires an authenticated user, so an endpoint without
-    /// metadata is never public by accident (anonymous endpoints opt out with <c>AllowAnonymous</c>).
-    /// </summary>
+    /// <summary>The fallback policy (an authenticated user). Permission policies come from the provider.</summary>
     public static void Register(AuthorizationOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
-
         options.FallbackPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build();
+    }
 
-        foreach (var (name, roles) in Roles)
+    /// <summary>Authorization with the permission policies, for the hosts, the services and the WebAssembly client.</summary>
+    public static IServiceCollection AddPermissionAuthorization(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        services.AddAuthorizationCore(Register);
+        services.Replace(ServiceDescriptor.Singleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>());
+        return services;
+    }
+}
+
+/// <summary>
+/// Turns a permission name into the policy "authenticated, with this <see cref="AppClaimTypes.Permission"/> claim"
+/// (ADR 0028), the ASP.NET Core permission-based pattern; any other name falls back to the registered policies. An
+/// unknown name has no policy, which the authorization service refuses with an exception rather than allowing.
+/// </summary>
+public sealed class PermissionPolicyProvider(IOptions<AuthorizationOptions> options) : DefaultAuthorizationPolicyProvider(options)
+{
+    public override async Task<AuthorizationPolicy?> GetPolicyAsync(string policyName)
+    {
+        if (Permissions.Exists(policyName))
         {
-            options.AddPolicy(name, policy => policy.RequireAuthenticatedUser().RequireRole(roles));
+            return new AuthorizationPolicyBuilder().RequireAuthenticatedUser().RequireClaim(AppClaimTypes.Permission, policyName).Build();
         }
+
+        // Other names (registered policies, and names such as YARP's "default") go to the default provider; an unknown
+        // name returns null, and the authorization service then refuses it with an exception, never by allowing.
+        return await base.GetPolicyAsync(policyName).ConfigureAwait(false);
     }
 }

@@ -9,16 +9,16 @@ public static class ServiceAuthentication
 {
     /// <summary>
     /// JwtBearer for internal tokens as the only scheme: no cookie, no antiforgery, so a service accepts nothing a browser
-    /// could send. Every endpoint needs an authenticated caller (fallback policy); module policies are the same as in the
-    /// single host (<see cref="AppPolicies"/>, brand scope), plus <see cref="InternalTokenDefaults.GatewayOnlyPolicy"/>.
+    /// could send. Every endpoint needs an authenticated caller (fallback policy); the permissions come in the internal token the
+    /// gateway issued and the policies are the same as in the single host (<see cref="AppPolicies"/>, brand scope), plus <see cref="InternalTokenDefaults.GatewayOnlyPolicy"/>.
     /// </summary>
     public static IServiceCollection AddServiceAuthentication(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
         services.AddAuthentication(InternalTokenDefaults.Scheme).AddInternalToken();
+        services.AddPermissionAuthorization();
         services.AddAuthorization(options =>
         {
-            AppPolicies.Register(options);
             AddGatewayOnlyPolicy(options);
             options.FallbackPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build();
         });

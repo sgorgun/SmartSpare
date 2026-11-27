@@ -49,6 +49,7 @@ public sealed class SecurityTestHost : IAsyncLifetime
         builder.Services.AddBff();
         builder.Services.AddSingleHostAuthentication();
         builder.Services.AddSingleton<ICredentialVerifier>(Verifier);
+        builder.Services.AddSingleton<IRolePermissions, FakeRolePermissions>();
         builder.Services.AddSingleton<TimeProvider>(Time);
         builder.Services.AddSingleton<IStartupFilter, TestClientIp>();
 
@@ -93,12 +94,12 @@ public sealed class SecurityTestHost : IAsyncLifetime
             ? Results.Ok(new { document.State })
             : Results.NotFound());
 
-        MapAction(api, "/transfers/{id:int}/approve", AppPolicies.ApproveTransfer, BrandScopeRequirements.ApproveTransferScope, "approved");
-        MapAction(api, "/transfers/{id:int}/cancel", AppPolicies.CancelTransfer, BrandScopeRequirements.CancelTransferScope, "cancelled");
-        MapAction(api, "/purchase-orders/{id:int}/approve", AppPolicies.ApprovePurchaseOrder, BrandScopeRequirements.ApprovePurchaseOrderScope, "approved");
-        MapAction(api, "/purchase-orders/{id:int}/cancel", AppPolicies.CancelPurchaseOrder, BrandScopeRequirements.CancelPurchaseOrderScope, "cancelled");
+        MapAction(api, "/transfers/{id:int}/approve", Permissions.Inventory.Transfer.Approve, BrandScopeRequirements.ApproveTransferScope, "approved");
+        MapAction(api, "/transfers/{id:int}/cancel", Permissions.Inventory.Transfer.Cancel, BrandScopeRequirements.CancelTransferScope, "cancelled");
+        MapAction(api, "/purchase-orders/{id:int}/approve", Permissions.Procurement.PurchaseOrder.Approve, BrandScopeRequirements.ApprovePurchaseOrderScope, "approved");
+        MapAction(api, "/purchase-orders/{id:int}/cancel", Permissions.Procurement.PurchaseOrder.Cancel, BrandScopeRequirements.CancelPurchaseOrderScope, "cancelled");
 
-        api.MapGet("/audit", () => Results.Ok()).RequireAuthorization(AppPolicies.ReadAudit);
+        api.MapGet("/audit", () => Results.Ok()).RequireAuthorization(Permissions.Audit.Log.View);
         api.MapPost("/echo", () => Results.Ok(new { ok = true }));
         api.MapGet("/business-error", () => Error.BusinessRule("SS201", "Donor warehouse would fall below its safety stock.").ToProblem());
         api.MapGet("/validation-error", () =>

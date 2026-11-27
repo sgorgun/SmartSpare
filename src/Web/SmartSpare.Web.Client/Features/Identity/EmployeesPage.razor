@@ -1,5 +1,5 @@
 @page "/admin/employees"
-@attribute [Authorize(Policy = AppPolicies.Administration)]
+@attribute [Authorize(Policy = Permissions.Organisation.Employee.View)]
 @using System.Globalization
 @using SmartSpare.ApiContracts.Identity
 @inject IStringLocalizer<SharedResource> Text

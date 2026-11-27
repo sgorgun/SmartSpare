@@ -21,7 +21,7 @@ public sealed class NavigationAndHttpTests : ClientTestContext
         // The real policies and authorization service. bUnit pre-registers a placeholder service that AddAuthorizationCore
         // (TryAdd) would leave in place, so the default service is registered explicitly.
         Services.AddLogging();
-        Services.AddAuthorizationCore(AppPolicies.Register);
+        Services.AddPermissionAuthorization();
         Services.AddTransient<IAuthorizationService, DefaultAuthorizationService>();
         UseWebAssemblyRenderer();
     }

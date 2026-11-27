@@ -138,7 +138,7 @@ internal static class RecordReadingEndpoint
                     ? Results.Ok(result.Value)
                     : Results.Created($"/api/v1/fleet/machines/{id}/readings", result.Value);
             })
-            .RequireAuthorization(AppPolicies.RecordServiceWork)
+            .RequireAuthorization(Permissions.Fleet.EngineHours.Record)
             .WithName("RecordReading")
             .WithSummary("Records an engine-hour reading and drafts the services that became due.")
             .WithDescription(
@@ -150,7 +150,7 @@ internal static class RecordReadingEndpoint
                 + "reserves each kit right after (ServiceOrderDrafted → ServiceKitReserved). "
                 + "Concurrent readings of one machine are handled one after the other. Posting an identical reading again (same "
                 + "time and hours) is a safe retry: 200 with the stored reading and replayed = true; a different value at the "
-                + "same time is a 409. Policy RecordServiceWork (service engineers, administrators), the same roles as "
+                + "same time is a 409. Permission Fleet.EngineHours.Record, the same roles as "
                 + "fleet.log_engine_hours; no brand or home-hub scope.")
             .Accepts<RecordReadingRequest>("application/json")
             .Produces<RecordReadingResponse>(StatusCodes.Status201Created)

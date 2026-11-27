@@ -64,6 +64,7 @@ public class HostFactory : WebApplicationFactory<Program>
             if (Verifier is not null)
             {
                 services.AddSingleton<ICredentialVerifier>(Verifier);
+                services.AddSingleton<IRolePermissions, FakeRolePermissions>();
             }
 
             ExtraServices?.Invoke(services);

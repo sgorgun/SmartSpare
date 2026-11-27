@@ -33,7 +33,9 @@ public abstract class ClientTestContext : BunitContext
 
     protected static ClaimsPrincipal User(string name, params string[] roles) =>
         new(new ClaimsIdentity(
-            roles.Select(r => new Claim(AppClaimTypes.Role, r)).Append(new Claim(AppClaimTypes.Name, name)),
+            roles.Select(r => new Claim(AppClaimTypes.Role, r))
+                .Concat(DefaultRoles.Of(roles).Select(p => new Claim(AppClaimTypes.Permission, p)))   // what the BFF serializes (ADR 0028)
+                .Append(new Claim(AppClaimTypes.Name, name)),
             "test",
             AppClaimTypes.Name,
             AppClaimTypes.Role));

@@ -22,7 +22,7 @@ public sealed class OrganisationPagesTests : ClientTestContext
     {
         Services.AddScoped<IdentityClient>(_ => _identity);
         Services.AddLogging();
-        Services.AddAuthorizationCore(AppPolicies.Register);
+        Services.AddPermissionAuthorization();
         Services.AddTransient<IAuthorizationService, DefaultAuthorizationService>();
         UseWebAssemblyRenderer();
         Render<MudPopoverProvider>();

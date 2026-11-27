@@ -86,14 +86,14 @@ internal static class ChangeStockLevelsEndpoint
                 var result = await handler.Handle(command, cancellationToken).ConfigureAwait(false);
                 return result.ToHttpResult();
             })
-            .RequireAuthorization(AppPolicies.PlanInventory)
+            .RequireAuthorization(Permissions.Inventory.Stock.EditLevels)
             .WithName("ChangeStockLevels")
             .WithSummary("Changes the safety and maximum stock of a part in a hub.")
             .WithDescription(
                 "Sets the safety stock (zero or more) and the maximum stock (empty, or not below the safety stock). The "
                 + "If-Match header must carry the ETag returned with the position; if someone changed the levels since, the "
                 + "answer is 409 with code Database.ConcurrencyConflict and nothing is saved. Returns the updated overview "
-                + "row. Policy PlanInventory (brand managers and inventory planners).")
+                + "row. Permission Inventory.Stock.EditLevels.")
             .Accepts<ChangeStockLevelsRequest>("application/json")
             .Produces<StockRow>()
             .ProducesValidationProblem()
@@ -184,7 +184,7 @@ internal static class AdjustStockEndpoint
                     ? Results.Json(result.Value, statusCode: StatusCodes.Status201Created)
                     : result.Error.ToProblem();
             })
-            .RequireAuthorization(AppPolicies.MoveStock)
+            .RequireAuthorization(Permissions.Inventory.Stock.Adjust)
             .WithName("AdjustStock")
             .WithSummary("Posts a stock count correction in a hub.")
             .WithDescription(
@@ -192,7 +192,7 @@ internal static class AdjustStockEndpoint
                 + "(GET /adjustment-reasons/lookup) must be active (422 SS500) and allow the direction (422 Inventory.ReasonDirection); "
                 + "a note is needed when the reason says so. A keeper may correct only the own hub (403, code SS302). A shortage larger than the available "
                 + "stock is refused by the ledger with 409, code SS200. Returns the movement id and the position after it. "
-                + "Policy MoveStock (warehouse keepers and administrators).")
+                + "Permission Inventory.Stock.Adjust.")
             .Accepts<StockAdjustmentRequest>("application/json")
             .Produces<StockAdjustmentResponse>(StatusCodes.Status201Created)
             .ProducesValidationProblem()

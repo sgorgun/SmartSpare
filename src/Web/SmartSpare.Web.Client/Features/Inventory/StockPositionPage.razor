@@ -1,5 +1,5 @@
 @page "/inventory/stock/{WarehouseId:int}/{PartId:long}"
-@attribute [Authorize(Policy = AppPolicies.ReadInventory)]
+@attribute [Authorize(Policy = Permissions.Inventory.Stock.View)]
 @using System.Globalization
 @using SmartSpare.ApiContracts.Inventory
 @using SmartSpare.ApiContracts.MasterData
@@ -183,8 +183,8 @@ else
         if (AuthenticationState is not null)
         {
             var user = (await AuthenticationState).User;
-            _mayPlan = (await Authorization.AuthorizeAsync(user, AppPolicies.PlanInventory)).Succeeded;
-            _mayMove = (await Authorization.AuthorizeAsync(user, AppPolicies.MoveStock)).Succeeded;
+            _mayPlan = (await Authorization.AuthorizeAsync(user, Permissions.Inventory.Stock.EditLevels)).Succeeded;
+            _mayMove = (await Authorization.AuthorizeAsync(user, Permissions.Inventory.Stock.Adjust)).Succeeded;
         }
 
         if (_mayMove && _reasons.Count == 0 && await Inventory.LookupAdjustmentReasonsAsync() is { IsSuccess: true } reasons)
