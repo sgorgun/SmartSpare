@@ -30,6 +30,9 @@ internal sealed partial class CredentialVerifier(
     /// <summary>Audit reason of every write during sign-in (STAGE_3_PLAN section 2.2).</summary>
     public const string SignInReason = "sign-in";
 
+    /// <summary>Attempts of one sign-in when the account changes concurrently (a rights change rotating the stamp).</summary>
+    private const int MaxSignInAttempts = 3;
+
     private static readonly Lock DummyHashLock = new();
     private static string? s_dummyHash;
 
@@ -47,6 +50,28 @@ internal sealed partial class CredentialVerifier(
             return IdentityContractErrors.InvalidCredentials;
         }
 
+        // A concurrent change of the account (a rights change rotating the stamp, ADR 0026, or another sign-in) makes the
+        // save of the sign-in fail on xmin; the attempt is repeated on the fresh row, so the sign-in never fails with a 500.
+        var attempt = 0;
+        while (true)
+        {
+            attempt++;
+            try
+            {
+                return await SignInOnceAsync(user, password, cancellationToken).ConfigureAwait(false);
+            }
+            catch (DbUpdateConcurrencyException) when (attempt < MaxSignInAttempts)
+            {
+                db.ChangeTracker.Clear();
+                user = await users.FindByIdAsync(user.Id.ToString()).ConfigureAwait(false)
+                       ?? throw new InvalidOperationException("The user disappeared during sign-in.");
+                LogConcurrentChange(logger, user.Id);
+            }
+        }
+    }
+
+    private async Task<Result<VerifiedSession>> SignInOnceAsync(AppUser user, string password, CancellationToken cancellationToken)
+    {
         var strategy = db.Database.CreateExecutionStrategy();
         return await strategy.ExecuteAsync(
             async ct =>
@@ -121,6 +146,9 @@ internal sealed partial class CredentialVerifier(
             LogWrongPassword(logger, userId);
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Sign-in of user {UserId} repeated after a concurrent change of the account")]
+    private static partial void LogConcurrentChange(ILogger logger, Guid userId);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Sign-in refused: unknown user name")]
     private static partial void LogUnknownUser(ILogger logger);
