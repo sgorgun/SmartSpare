@@ -1,0 +1,1200 @@
+{
+  "admin.smartspare": {
+    "SignsIn": true,
+    "Roles": [
+      "ADMINISTRATOR"
+    ],
+    "Brands": [],
+    "Hubs": [],
+    "Policies": {
+      "Administration": true,
+      "ApprovePurchaseOrder": false,
+      "ApproveTransfer": false,
+      "CancelPurchaseOrder": true,
+      "CancelTransfer": true,
+      "DecideRecommendation": false,
+      "ImportData": true,
+      "ManageServiceOrders": true,
+      "MoveStock": true,
+      "PlanInventory": false,
+      "ReadAudit": true,
+      "ReadFleet": true,
+      "ReadInventory": true,
+      "RecordServiceWork": true
+    },
+    "BrandScopedActions": {
+      "ApprovePurchaseOrder": {
+        "CASE": false,
+        "CLAAS": false,
+        "CLAAS\u002BJD": false,
+        "FENDT": false,
+        "JD": false,
+        "LEMKEN": false,
+        "MF": false,
+        "NH": false,
+        "VAD": false
+      },
+      "ApproveTransfer": {
+        "CASE": false,
+        "CLAAS": false,
+        "CLAAS\u002BJD": false,
+        "FENDT": false,
+        "JD": false,
+        "LEMKEN": false,
+        "MF": false,
+        "NH": false,
+        "VAD": false
+      },
+      "CancelPurchaseOrder": {
+        "CASE": true,
+        "CLAAS": true,
+        "CLAAS\u002BJD": true,
+        "FENDT": true,
+        "JD": true,
+        "LEMKEN": true,
+        "MF": true,
+        "NH": true,
+        "VAD": true
+      },
+      "CancelTransfer": {
+        "CASE": true,
+        "CLAAS": true,
+        "CLAAS\u002BJD": true,
+        "FENDT": true,
+        "JD": true,
+        "LEMKEN": true,
+        "MF": true,
+        "NH": true,
+        "VAD": true
+      },
+      "DecideRecommendation": {
+        "CASE": false,
+        "CLAAS": false,
+        "CLAAS\u002BJD": false,
+        "FENDT": false,
+        "JD": false,
+        "LEMKEN": false,
+        "MF": false,
+        "NH": false,
+        "VAD": false
+      }
+    },
+    "HubWrites": {
+      "KLP": "201",
+      "KNS": "201",
+      "MRJ": "201",
+      "PNV": "201",
+      "SIA": "201",
+      "UTN": "201",
+      "VLN": "201"
+    },
+    "Reads": {
+      "machines:KLP": 200,
+      "machines:KNS": 200,
+      "machines:MRJ": 200,
+      "machines:PNV": 200,
+      "machines:SIA": 200,
+      "machines:UTN": 200,
+      "machines:VLN": 200,
+      "stock:KLP": 200,
+      "stock:KNS": 200,
+      "stock:MRJ": 200,
+      "stock:PNV": 200,
+      "stock:SIA": 200,
+      "stock:UTN": 200,
+      "stock:VLN": 200
+    }
+  },
+  "darius.petraitis": {
+    "SignsIn": true,
+    "Roles": [
+      "BRAND_MANAGER",
+      "SPONSOR"
+    ],
+    "Brands": [
+      "CASE",
+      "FENDT",
+      "MF",
+      "NH"
+    ],
+    "Hubs": [],
+    "Policies": {
+      "Administration": false,
+      "ApprovePurchaseOrder": true,
+      "ApproveTransfer": true,
+      "CancelPurchaseOrder": true,
+      "CancelTransfer": true,
+      "DecideRecommendation": true,
+      "ImportData": false,
+      "ManageServiceOrders": true,
+      "MoveStock": false,
+      "PlanInventory": true,
+      "ReadAudit": true,
+      "ReadFleet": true,
+      "ReadInventory": true,
+      "RecordServiceWork": false
+    },
+    "BrandScopedActions": {
+      "ApprovePurchaseOrder": {
+        "CASE": true,
+        "CLAAS": true,
+        "CLAAS\u002BJD": true,
+        "FENDT": true,
+        "JD": true,
+        "LEMKEN": true,
+        "MF": true,
+        "NH": true,
+        "VAD": true
+      },
+      "ApproveTransfer": {
+        "CASE": true,
+        "CLAAS": false,
+        "CLAAS\u002BJD": false,
+        "FENDT": true,
+        "JD": false,
+        "LEMKEN": false,
+        "MF": true,
+        "NH": true,
+        "VAD": false
+      },
+      "CancelPurchaseOrder": {
+        "CASE": true,
+        "CLAAS": true,
+        "CLAAS\u002BJD": true,
+        "FENDT": true,
+        "JD": true,
+        "LEMKEN": true,
+        "MF": true,
+        "NH": true,
+        "VAD": true
+      },
+      "CancelTransfer": {
+        "CASE": true,
+        "CLAAS": false,
+        "CLAAS\u002BJD": false,
+        "FENDT": true,
+        "JD": false,
+        "LEMKEN": false,
+        "MF": true,
+        "NH": true,
+        "VAD": false
+      },
+      "DecideRecommendation": {
+        "CASE": true,
+        "CLAAS": false,
+        "CLAAS\u002BJD": false,
+        "FENDT": true,
+        "JD": false,
+        "LEMKEN": false,
+        "MF": true,
+        "NH": true,
+        "VAD": false
+      }
+    },
+    "HubWrites": {
+      "KLP": "403 SS-AUTH-004",
+      "KNS": "403 SS-AUTH-004",
+      "MRJ": "403 SS-AUTH-004",
+      "PNV": "403 SS-AUTH-004",
+      "SIA": "403 SS-AUTH-004",
+      "UTN": "403 SS-AUTH-004",
+      "VLN": "403 SS-AUTH-004"
+    },
+    "Reads": {
+      "machines:KLP": 200,
+      "machines:KNS": 200,
+      "machines:MRJ": 200,
+      "machines:PNV": 200,
+      "machines:SIA": 200,
+      "machines:UTN": 200,
+      "machines:VLN": 200,
+      "stock:KLP": 200,
+      "stock:KNS": 200,
+      "stock:MRJ": 200,
+      "stock:PNV": 200,
+      "stock:SIA": 200,
+      "stock:UTN": 200,
+      "stock:VLN": 200
+    }
+  },
+  "egle.stankeviciute": {
+    "SignsIn": true,
+    "Roles": [
+      "WAREHOUSE_KEEPER"
+    ],
+    "Brands": [],
+    "Hubs": [
+      "KLP"
+    ],
+    "Policies": {
+      "Administration": false,
+      "ApprovePurchaseOrder": false,
+      "ApproveTransfer": false,
+      "CancelPurchaseOrder": false,
+      "CancelTransfer": false,
+      "DecideRecommendation": false,
+      "ImportData": false,
+      "ManageServiceOrders": false,
+      "MoveStock": true,
+      "PlanInventory": false,
+      "ReadAudit": false,
+      "ReadFleet": true,
+      "ReadInventory": true,
+      "RecordServiceWork": false
+    },
+    "BrandScopedActions": {
+      "ApprovePurchaseOrder": {
+        "CASE": false,
+        "CLAAS": false,
+        "CLAAS\u002BJD": false,
+        "FENDT": false,
+        "JD": false,
+        "LEMKEN": false,
+        "MF": false,
+        "NH": false,
+        "VAD": false
+      },
+      "ApproveTransfer": {
+        "CASE": false,
+        "CLAAS": false,
+        "CLAAS\u002BJD": false,
+        "FENDT": false,
+        "JD": false,
+        "LEMKEN": false,
+        "MF": false,
+        "NH": false,
+        "VAD": false
+      },
+      "CancelPurchaseOrder": {
+        "CASE": false,
+        "CLAAS": false,
+        "CLAAS\u002BJD": false,
+        "FENDT": false,
+        "JD": false,
+        "LEMKEN": false,
+        "MF": false,
+        "NH": false,
+        "VAD": false
+      },
+      "CancelTransfer": {
+        "CASE": false,
+        "CLAAS": false,
+        "CLAAS\u002BJD": false,
+        "FENDT": false,
+        "JD": false,
+        "LEMKEN": false,
+        "MF": false,
+        "NH": false,
+        "VAD": false
+      },
+      "DecideRecommendation": {
+        "CASE": false,
+        "CLAAS": false,
+        "CLAAS\u002BJD": false,
+        "FENDT": false,
+        "JD": false,
+        "LEMKEN": false,
+        "MF": false,
+        "NH": false,
+        "VAD": false
+      }
+    },
+    "HubWrites": {
+      "KLP": "201",
+      "KNS": "403 SS302",
+      "MRJ": "403 SS302",
+      "PNV": "403 SS302",
+      "SIA": "403 SS302",
+      "UTN": "403 SS302",
+      "VLN": "403 SS302"
+    },
+    "Reads": {
+      "machines:KLP": 200,
+      "machines:KNS": 200,
+      "machines:MRJ": 200,
+      "machines:PNV": 200,
+      "machines:SIA": 200,
+      "machines:UTN": 200,
+      "machines:VLN": 200,
+      "stock:KLP": 200,
+      "stock:KNS": 200,
+      "stock:MRJ": 200,
+      "stock:PNV": 200,
+      "stock:SIA": 200,
+      "stock:UTN": 200,
+      "stock:VLN": 200
+    }
+  },
+  "ignas.zukauskas": {
+    "SignsIn": true,
+    "Roles": [
+      "INVENTORY_PLANNER"
+    ],
+    "Brands": [],
+    "Hubs": [],
+    "Policies": {
+      "Administration": false,
+      "ApprovePurchaseOrder": false,
+      "ApproveTransfer": true,
+      "CancelPurchaseOrder": false,
+      "CancelTransfer": true,
+      "DecideRecommendation": true,
+      "ImportData": true,
+      "ManageServiceOrders": false,
+      "MoveStock": false,
+      "PlanInventory": true,
+      "ReadAudit": false,
+      "ReadFleet": true,
+      "ReadInventory": true,
+      "RecordServiceWork": false
+    },
+    "BrandScopedActions": {
+      "ApprovePurchaseOrder": {
+        "CASE": false,
+        "CLAAS": false,
+        "CLAAS\u002BJD": false,
+        "FENDT": false,
+        "JD": false,
+        "LEMKEN": false,
+        "MF": false,
+        "NH": false,
+        "VAD": false
+      },
+      "ApproveTransfer": {
+        "CASE": true,
+        "CLAAS": true,
+        "CLAAS\u002BJD": true,
+        "FENDT": true,
+        "JD": true,
+        "LEMKEN": true,
+        "MF": true,
+        "NH": true,
+        "VAD": true
+      },
+      "CancelPurchaseOrder": {
+        "CASE": false,
+        "CLAAS": false,
+        "CLAAS\u002BJD": false,
+        "FENDT": false,
+        "JD": false,
+        "LEMKEN": false,
+        "MF": false,
+        "NH": false,
+        "VAD": false
+      },
+      "CancelTransfer": {
+        "CASE": true,
+        "CLAAS": true,
+        "CLAAS\u002BJD": true,
+        "FENDT": true,
+        "JD": true,
+        "LEMKEN": true,
+        "MF": true,
+        "NH": true,
+        "VAD": true
+      },
+      "DecideRecommendation": {
+        "CASE": true,
+        "CLAAS": true,
+        "CLAAS\u002BJD": true,
+        "FENDT": true,
+        "JD": true,
+        "LEMKEN": true,
+        "MF": true,
+        "NH": true,
+        "VAD": true
+      }
+    },
+    "HubWrites": {
+      "KLP": "403 SS-AUTH-004",
+      "KNS": "403 SS-AUTH-004",
+      "MRJ": "403 SS-AUTH-004",
+      "PNV": "403 SS-AUTH-004",
+      "SIA": "403 SS-AUTH-004",
+      "UTN": "403 SS-AUTH-004",
+      "VLN": "403 SS-AUTH-004"
+    },
+    "Reads": {
+      "machines:KLP": 200,
+      "machines:KNS": 200,
+      "machines:MRJ": 200,
+      "machines:PNV": 200,
+      "machines:SIA": 200,
+      "machines:UTN": 200,
+      "machines:VLN": 200,
+      "stock:KLP": 200,
+      "stock:KNS": 200,
+      "stock:MRJ": 200,
+      "stock:PNV": 200,
+      "stock:SIA": 200,
+      "stock:UTN": 200,
+      "stock:VLN": 200
+    }
+  },
+  "jonas.balciunas": {
+    "SignsIn": true,
+    "Roles": [
+      "SERVICE_ENGINEER"
+    ],
+    "Brands": [],
+    "Hubs": [
+      "KNS"
+    ],
+    "Policies": {
+      "Administration": false,
+      "ApprovePurchaseOrder": false,
+      "ApproveTransfer": false,
+      "CancelPurchaseOrder": false,
+      "CancelTransfer": false,
+      "DecideRecommendation": false,
+      "ImportData": false,
+      "ManageServiceOrders": true,
+      "MoveStock": false,
+      "PlanInventory": false,
+      "ReadAudit": false,
+      "ReadFleet": true,
+      "ReadInventory": true,
+      "RecordServiceWork": true
+    },
+    "BrandScopedActions": {
+      "ApprovePurchaseOrder": {
+        "CASE": false,
+        "CLAAS": false,
+        "CLAAS\u002BJD": false,
+        "FENDT": false,
+        "JD": false,
+        "LEMKEN": false,
+        "MF": false,
+        "NH": false,
+        "VAD": false
+      },
+      "ApproveTransfer": {
+        "CASE": false,
+        "CLAAS": false,
+        "CLAAS\u002BJD": false,
+        "FENDT": false,
+        "JD": false,
+        "LEMKEN": false,
+        "MF": false,
+        "NH": false,
+        "VAD": false
+      },
+      "CancelPurchaseOrder": {
+        "CASE": false,
+        "CLAAS": false,
+        "CLAAS\u002BJD": false,
+        "FENDT": false,
+        "JD": false,
+        "LEMKEN": false,
+        "MF": false,
+        "NH": false,
+        "VAD": false
+      },
+      "CancelTransfer": {
+        "CASE": false,
+        "CLAAS": false,
+        "CLAAS\u002BJD": false,
+        "FENDT": false,
+        "JD": false,
+        "LEMKEN": false,
+        "MF": false,
+        "NH": false,
+        "VAD": false
+      },
+      "DecideRecommendation": {
+        "CASE": false,
+        "CLAAS": false,
+        "CLAAS\u002BJD": false,
+        "FENDT": false,
+        "JD": false,
+        "LEMKEN": false,
+        "MF": false,
+        "NH": false,
+        "VAD": false
+      }
+    },
+    "HubWrites": {
+      "KLP": "403 SS-AUTH-004",
+      "KNS": "403 SS-AUTH-004",
+      "MRJ": "403 SS-AUTH-004",
+      "PNV": "403 SS-AUTH-004",
+      "SIA": "403 SS-AUTH-004",
+      "UTN": "403 SS-AUTH-004",
+      "VLN": "403 SS-AUTH-004"
+    },
+    "Reads": {
+      "machines:KLP": 200,
+      "machines:KNS": 200,
+      "machines:MRJ": 200,
+      "machines:PNV": 200,
+      "machines:SIA": 200,
+      "machines:UTN": 200,
+      "machines:VLN": 200,
+      "stock:KLP": 200,
+      "stock:KNS": 200,
+      "stock:MRJ": 200,
+      "stock:PNV": 200,
+      "stock:SIA": 200,
+      "stock:UTN": 200,
+      "stock:VLN": 200
+    }
+  },
+  "lukas.vaitkus": {
+    "SignsIn": true,
+    "Roles": [
+      "WAREHOUSE_KEEPER"
+    ],
+    "Brands": [],
+    "Hubs": [
+      "PNV"
+    ],
+    "Policies": {
+      "Administration": false,
+      "ApprovePurchaseOrder": false,
+      "ApproveTransfer": false,
+      "CancelPurchaseOrder": false,
+      "CancelTransfer": false,
+      "DecideRecommendation": false,
+      "ImportData": false,
+      "ManageServiceOrders": false,
+      "MoveStock": true,
+      "PlanInventory": false,
+      "ReadAudit": false,
+      "ReadFleet": true,
+      "ReadInventory": true,
+      "RecordServiceWork": false
+    },
+    "BrandScopedActions": {
+      "ApprovePurchaseOrder": {
+        "CASE": false,
+        "CLAAS": false,
+        "CLAAS\u002BJD": false,
+        "FENDT": false,
+        "JD": false,
+        "LEMKEN": false,
+        "MF": false,
+        "NH": false,
+        "VAD": false
+      },
+      "ApproveTransfer": {
+        "CASE": false,
+        "CLAAS": false,
+        "CLAAS\u002BJD": false,
+        "FENDT": false,
+        "JD": false,
+        "LEMKEN": false,
+        "MF": false,
+        "NH": false,
+        "VAD": false
+      },
+      "CancelPurchaseOrder": {
+        "CASE": false,
+        "CLAAS": false,
+        "CLAAS\u002BJD": false,
+        "FENDT": false,
+        "JD": false,
+        "LEMKEN": false,
+        "MF": false,
+        "NH": false,
+        "VAD": false
+      },
+      "CancelTransfer": {
+        "CASE": false,
+        "CLAAS": false,
+        "CLAAS\u002BJD": false,
+        "FENDT": false,
+        "JD": false,
+        "LEMKEN": false,
+        "MF": false,
+        "NH": false,
+        "VAD": false
+      },
+      "DecideRecommendation": {
+        "CASE": false,
+        "CLAAS": false,
+        "CLAAS\u002BJD": false,
+        "FENDT": false,
+        "JD": false,
+        "LEMKEN": false,
+        "MF": false,
+        "NH": false,
+        "VAD": false
+      }
+    },
+    "HubWrites": {
+      "KLP": "403 SS302",
+      "KNS": "403 SS302",
+      "MRJ": "403 SS302",
+      "PNV": "201",
+      "SIA": "403 SS302",
+      "UTN": "403 SS302",
+      "VLN": "403 SS302"
+    },
+    "Reads": {
+      "machines:KLP": 200,
+      "machines:KNS": 200,
+      "machines:MRJ": 200,
+      "machines:PNV": 200,
+      "machines:SIA": 200,
+      "machines:UTN": 200,
+      "machines:VLN": 200,
+      "stock:KLP": 200,
+      "stock:KNS": 200,
+      "stock:MRJ": 200,
+      "stock:PNV": 200,
+      "stock:SIA": 200,
+      "stock:UTN": 200,
+      "stock:VLN": 200
+    }
+  },
+  "mantas.petrauskas": {
+    "SignsIn": true,
+    "Roles": [
+      "SERVICE_ENGINEER"
+    ],
+    "Brands": [],
+    "Hubs": [
+      "PNV"
+    ],
+    "Policies": {
+      "Administration": false,
+      "ApprovePurchaseOrder": false,
+      "ApproveTransfer": false,
+      "CancelPurchaseOrder": false,
+      "CancelTransfer": false,
+      "DecideRecommendation": false,
+      "ImportData": false,
+      "ManageServiceOrders": true,
+      "MoveStock": false,
+      "PlanInventory": false,
+      "ReadAudit": false,
+      "ReadFleet": true,
+      "ReadInventory": true,
+      "RecordServiceWork": true
+    },
+    "BrandScopedActions": {
+      "ApprovePurchaseOrder": {
+        "CASE": false,
+        "CLAAS": false,
+        "CLAAS\u002BJD": false,
+        "FENDT": false,
+        "JD": false,
+        "LEMKEN": false,
+        "MF": false,
+        "NH": false,
+        "VAD": false
+      },
+      "ApproveTransfer": {
+        "CASE": false,
+        "CLAAS": false,
+        "CLAAS\u002BJD": false,
+        "FENDT": false,
+        "JD": false,
+        "LEMKEN": false,
+        "MF": false,
+        "NH": false,
+        "VAD": false
+      },
+      "CancelPurchaseOrder": {
+        "CASE": false,
+        "CLAAS": false,
+        "CLAAS\u002BJD": false,
+        "FENDT": false,
+        "JD": false,
+        "LEMKEN": false,
+        "MF": false,
+        "NH": false,
+        "VAD": false
+      },
+      "CancelTransfer": {
+        "CASE": false,
+        "CLAAS": false,
+        "CLAAS\u002BJD": false,
+        "FENDT": false,
+        "JD": false,
+        "LEMKEN": false,
+        "MF": false,
+        "NH": false,
+        "VAD": false
+      },
+      "DecideRecommendation": {
+        "CASE": false,
+        "CLAAS": false,
+        "CLAAS\u002BJD": false,
+        "FENDT": false,
+        "JD": false,
+        "LEMKEN": false,
+        "MF": false,
+        "NH": false,
+        "VAD": false
+      }
+    },
+    "HubWrites": {
+      "KLP": "403 SS-AUTH-004",
+      "KNS": "403 SS-AUTH-004",
+      "MRJ": "403 SS-AUTH-004",
+      "PNV": "403 SS-AUTH-004",
+      "SIA": "403 SS-AUTH-004",
+      "UTN": "403 SS-AUTH-004",
+      "VLN": "403 SS-AUTH-004"
+    },
+    "Reads": {
+      "machines:KLP": 200,
+      "machines:KNS": 200,
+      "machines:MRJ": 200,
+      "machines:PNV": 200,
+      "machines:SIA": 200,
+      "machines:UTN": 200,
+      "machines:VLN": 200,
+      "stock:KLP": 200,
+      "stock:KNS": 200,
+      "stock:MRJ": 200,
+      "stock:PNV": 200,
+      "stock:SIA": 200,
+      "stock:UTN": 200,
+      "stock:VLN": 200
+    }
+  },
+  "paulius.urbonas": {
+    "SignsIn": false,
+    "Roles": [],
+    "Brands": [],
+    "Hubs": [],
+    "Policies": {},
+    "BrandScopedActions": {},
+    "HubWrites": {},
+    "Reads": {}
+  },
+  "rasa.kazlauskiene": {
+    "SignsIn": true,
+    "Roles": [
+      "BRAND_MANAGER"
+    ],
+    "Brands": [
+      "JD",
+      "VAD"
+    ],
+    "Hubs": [],
+    "Policies": {
+      "Administration": false,
+      "ApprovePurchaseOrder": true,
+      "ApproveTransfer": true,
+      "CancelPurchaseOrder": true,
+      "CancelTransfer": true,
+      "DecideRecommendation": true,
+      "ImportData": false,
+      "ManageServiceOrders": true,
+      "MoveStock": false,
+      "PlanInventory": true,
+      "ReadAudit": false,
+      "ReadFleet": true,
+      "ReadInventory": true,
+      "RecordServiceWork": false
+    },
+    "BrandScopedActions": {
+      "ApprovePurchaseOrder": {
+        "CASE": false,
+        "CLAAS": false,
+        "CLAAS\u002BJD": false,
+        "FENDT": false,
+        "JD": true,
+        "LEMKEN": false,
+        "MF": false,
+        "NH": false,
+        "VAD": true
+      },
+      "ApproveTransfer": {
+        "CASE": false,
+        "CLAAS": false,
+        "CLAAS\u002BJD": false,
+        "FENDT": false,
+        "JD": true,
+        "LEMKEN": false,
+        "MF": false,
+        "NH": false,
+        "VAD": true
+      },
+      "CancelPurchaseOrder": {
+        "CASE": false,
+        "CLAAS": false,
+        "CLAAS\u002BJD": false,
+        "FENDT": false,
+        "JD": true,
+        "LEMKEN": false,
+        "MF": false,
+        "NH": false,
+        "VAD": true
+      },
+      "CancelTransfer": {
+        "CASE": false,
+        "CLAAS": false,
+        "CLAAS\u002BJD": false,
+        "FENDT": false,
+        "JD": true,
+        "LEMKEN": false,
+        "MF": false,
+        "NH": false,
+        "VAD": true
+      },
+      "DecideRecommendation": {
+        "CASE": false,
+        "CLAAS": false,
+        "CLAAS\u002BJD": false,
+        "FENDT": false,
+        "JD": true,
+        "LEMKEN": false,
+        "MF": false,
+        "NH": false,
+        "VAD": true
+      }
+    },
+    "HubWrites": {
+      "KLP": "403 SS-AUTH-004",
+      "KNS": "403 SS-AUTH-004",
+      "MRJ": "403 SS-AUTH-004",
+      "PNV": "403 SS-AUTH-004",
+      "SIA": "403 SS-AUTH-004",
+      "UTN": "403 SS-AUTH-004",
+      "VLN": "403 SS-AUTH-004"
+    },
+    "Reads": {
+      "machines:KLP": 200,
+      "machines:KNS": 200,
+      "machines:MRJ": 200,
+      "machines:PNV": 200,
+      "machines:SIA": 200,
+      "machines:UTN": 200,
+      "machines:VLN": 200,
+      "stock:KLP": 200,
+      "stock:KNS": 200,
+      "stock:MRJ": 200,
+      "stock:PNV": 200,
+      "stock:SIA": 200,
+      "stock:UTN": 200,
+      "stock:VLN": 200
+    }
+  },
+  "ruta.jankauskaite": {
+    "SignsIn": true,
+    "Roles": [
+      "WAREHOUSE_KEEPER"
+    ],
+    "Brands": [],
+    "Hubs": [
+      "VLN"
+    ],
+    "Policies": {
+      "Administration": false,
+      "ApprovePurchaseOrder": false,
+      "ApproveTransfer": false,
+      "CancelPurchaseOrder": false,
+      "CancelTransfer": false,
+      "DecideRecommendation": false,
+      "ImportData": false,
+      "ManageServiceOrders": false,
+      "MoveStock": true,
+      "PlanInventory": false,
+      "ReadAudit": false,
+      "ReadFleet": true,
+      "ReadInventory": true,
+      "RecordServiceWork": false
+    },
+    "BrandScopedActions": {
+      "ApprovePurchaseOrder": {
+        "CASE": false,
+        "CLAAS": false,
+        "CLAAS\u002BJD": false,
+        "FENDT": false,
+        "JD": false,
+        "LEMKEN": false,
+        "MF": false,
+        "NH": false,
+        "VAD": false
+      },
+      "ApproveTransfer": {
+        "CASE": false,
+        "CLAAS": false,
+        "CLAAS\u002BJD": false,
+        "FENDT": false,
+        "JD": false,
+        "LEMKEN": false,
+        "MF": false,
+        "NH": false,
+        "VAD": false
+      },
+      "CancelPurchaseOrder": {
+        "CASE": false,
+        "CLAAS": false,
+        "CLAAS\u002BJD": false,
+        "FENDT": false,
+        "JD": false,
+        "LEMKEN": false,
+        "MF": false,
+        "NH": false,
+        "VAD": false
+      },
+      "CancelTransfer": {
+        "CASE": false,
+        "CLAAS": false,
+        "CLAAS\u002BJD": false,
+        "FENDT": false,
+        "JD": false,
+        "LEMKEN": false,
+        "MF": false,
+        "NH": false,
+        "VAD": false
+      },
+      "DecideRecommendation": {
+        "CASE": false,
+        "CLAAS": false,
+        "CLAAS\u002BJD": false,
+        "FENDT": false,
+        "JD": false,
+        "LEMKEN": false,
+        "MF": false,
+        "NH": false,
+        "VAD": false
+      }
+    },
+    "HubWrites": {
+      "KLP": "403 SS302",
+      "KNS": "403 SS302",
+      "MRJ": "403 SS302",
+      "PNV": "403 SS302",
+      "SIA": "403 SS302",
+      "UTN": "403 SS302",
+      "VLN": "201"
+    },
+    "Reads": {
+      "machines:KLP": 200,
+      "machines:KNS": 200,
+      "machines:MRJ": 200,
+      "machines:PNV": 200,
+      "machines:SIA": 200,
+      "machines:UTN": 200,
+      "machines:VLN": 200,
+      "stock:KLP": 200,
+      "stock:KNS": 200,
+      "stock:MRJ": 200,
+      "stock:PNV": 200,
+      "stock:SIA": 200,
+      "stock:UTN": 200,
+      "stock:VLN": 200
+    }
+  },
+  "tomas.radzevicius": {
+    "SignsIn": true,
+    "Roles": [
+      "BRAND_MANAGER"
+    ],
+    "Brands": [
+      "CLAAS",
+      "LEMKEN"
+    ],
+    "Hubs": [],
+    "Policies": {
+      "Administration": false,
+      "ApprovePurchaseOrder": true,
+      "ApproveTransfer": true,
+      "CancelPurchaseOrder": true,
+      "CancelTransfer": true,
+      "DecideRecommendation": true,
+      "ImportData": false,
+      "ManageServiceOrders": true,
+      "MoveStock": false,
+      "PlanInventory": true,
+      "ReadAudit": false,
+      "ReadFleet": true,
+      "ReadInventory": true,
+      "RecordServiceWork": false
+    },
+    "BrandScopedActions": {
+      "ApprovePurchaseOrder": {
+        "CASE": false,
+        "CLAAS": true,
+        "CLAAS\u002BJD": false,
+        "FENDT": false,
+        "JD": false,
+        "LEMKEN": true,
+        "MF": false,
+        "NH": false,
+        "VAD": false
+      },
+      "ApproveTransfer": {
+        "CASE": false,
+        "CLAAS": true,
+        "CLAAS\u002BJD": false,
+        "FENDT": false,
+        "JD": false,
+        "LEMKEN": true,
+        "MF": false,
+        "NH": false,
+        "VAD": false
+      },
+      "CancelPurchaseOrder": {
+        "CASE": false,
+        "CLAAS": true,
+        "CLAAS\u002BJD": false,
+        "FENDT": false,
+        "JD": false,
+        "LEMKEN": true,
+        "MF": false,
+        "NH": false,
+        "VAD": false
+      },
+      "CancelTransfer": {
+        "CASE": false,
+        "CLAAS": true,
+        "CLAAS\u002BJD": false,
+        "FENDT": false,
+        "JD": false,
+        "LEMKEN": true,
+        "MF": false,
+        "NH": false,
+        "VAD": false
+      },
+      "DecideRecommendation": {
+        "CASE": false,
+        "CLAAS": true,
+        "CLAAS\u002BJD": false,
+        "FENDT": false,
+        "JD": false,
+        "LEMKEN": true,
+        "MF": false,
+        "NH": false,
+        "VAD": false
+      }
+    },
+    "HubWrites": {
+      "KLP": "403 SS-AUTH-004",
+      "KNS": "403 SS-AUTH-004",
+      "MRJ": "403 SS-AUTH-004",
+      "PNV": "403 SS-AUTH-004",
+      "SIA": "403 SS-AUTH-004",
+      "UTN": "403 SS-AUTH-004",
+      "VLN": "403 SS-AUTH-004"
+    },
+    "Reads": {
+      "machines:KLP": 200,
+      "machines:KNS": 200,
+      "machines:MRJ": 200,
+      "machines:PNV": 200,
+      "machines:SIA": 200,
+      "machines:UTN": 200,
+      "machines:VLN": 200,
+      "stock:KLP": 200,
+      "stock:KNS": 200,
+      "stock:MRJ": 200,
+      "stock:PNV": 200,
+      "stock:SIA": 200,
+      "stock:UTN": 200,
+      "stock:VLN": 200
+    }
+  },
+  "vida.mockute": {
+    "SignsIn": true,
+    "Roles": [
+      "SPONSOR"
+    ],
+    "Brands": [],
+    "Hubs": [],
+    "Policies": {
+      "Administration": false,
+      "ApprovePurchaseOrder": true,
+      "ApproveTransfer": false,
+      "CancelPurchaseOrder": true,
+      "CancelTransfer": false,
+      "DecideRecommendation": false,
+      "ImportData": false,
+      "ManageServiceOrders": false,
+      "MoveStock": false,
+      "PlanInventory": false,
+      "ReadAudit": true,
+      "ReadFleet": true,
+      "ReadInventory": true,
+      "RecordServiceWork": false
+    },
+    "BrandScopedActions": {
+      "ApprovePurchaseOrder": {
+        "CASE": true,
+        "CLAAS": true,
+        "CLAAS\u002BJD": true,
+        "FENDT": true,
+        "JD": true,
+        "LEMKEN": true,
+        "MF": true,
+        "NH": true,
+        "VAD": true
+      },
+      "ApproveTransfer": {
+        "CASE": false,
+        "CLAAS": false,
+        "CLAAS\u002BJD": false,
+        "FENDT": false,
+        "JD": false,
+        "LEMKEN": false,
+        "MF": false,
+        "NH": false,
+        "VAD": false
+      },
+      "CancelPurchaseOrder": {
+        "CASE": true,
+        "CLAAS": true,
+        "CLAAS\u002BJD": true,
+        "FENDT": true,
+        "JD": true,
+        "LEMKEN": true,
+        "MF": true,
+        "NH": true,
+        "VAD": true
+      },
+      "CancelTransfer": {
+        "CASE": false,
+        "CLAAS": false,
+        "CLAAS\u002BJD": false,
+        "FENDT": false,
+        "JD": false,
+        "LEMKEN": false,
+        "MF": false,
+        "NH": false,
+        "VAD": false
+      },
+      "DecideRecommendation": {
+        "CASE": false,
+        "CLAAS": false,
+        "CLAAS\u002BJD": false,
+        "FENDT": false,
+        "JD": false,
+        "LEMKEN": false,
+        "MF": false,
+        "NH": false,
+        "VAD": false
+      }
+    },
+    "HubWrites": {
+      "KLP": "403 SS-AUTH-004",
+      "KNS": "403 SS-AUTH-004",
+      "MRJ": "403 SS-AUTH-004",
+      "PNV": "403 SS-AUTH-004",
+      "SIA": "403 SS-AUTH-004",
+      "UTN": "403 SS-AUTH-004",
+      "VLN": "403 SS-AUTH-004"
+    },
+    "Reads": {
+      "machines:KLP": 200,
+      "machines:KNS": 200,
+      "machines:MRJ": 200,
+      "machines:PNV": 200,
+      "machines:SIA": 200,
+      "machines:UTN": 200,
+      "machines:VLN": 200,
+      "stock:KLP": 200,
+      "stock:KNS": 200,
+      "stock:MRJ": 200,
+      "stock:PNV": 200,
+      "stock:SIA": 200,
+      "stock:UTN": 200,
+      "stock:VLN": 200
+    }
+  }
+}

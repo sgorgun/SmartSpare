@@ -449,6 +449,8 @@ Effort: **S** ≈ a quarter day, **M** ≈ half a day, **L** ≈ a full day, at 
 | **7v** (#175) | Bicep settings, metrics, dashboard panels | S | 7q | `what-if` clean (read-only, the owner's terminal if needed); dashboards provisioned locally |
 | **7w** (#176) | API_DOCUMENTATION, FRONTEND flows, README, CHANGELOG, BACKEND_REQUIREMENTS, exit-criteria evidence; tag v0.7.0, release, close the milestone | M | all | released |
 
+**7c is split into three PRs (28 November 2026),** each green and merged before the next, as 6g and 6h were: **7c1** the golden access matrix only, recorded on `main` before any authorization code changes (`AccessMatrixTests`, `AccessMatrix/access-matrix.json`); **7c2** the organisation model, migration step 1 and derived roles, with `/admin/users` read-only so `main` stays demo-ready; **7c3** the position and employee screens and ADR 0026. All three belong to #156.
+
 Total: 3 S, 12 M, 8 L ≈ 14.75 PR-days of nominal effort in 9 calendar days.
 
 ---
