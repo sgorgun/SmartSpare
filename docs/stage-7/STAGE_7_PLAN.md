@@ -135,6 +135,53 @@ In three steps so that nothing is destructive until the derived rights are prove
 | Migration | `AccessMigrationTests`: a database built to the last stage 6 migration with T001 loaded, migrated to the end of 7e, gives the same golden matrix. |
 | Events | `ResponsibilitiesChanged` contract test; redelivery and out-of-order delivery are no-ops; topology test: an assignment change in the Inventory service reaches the Identity service over RabbitMQ. |
 
+### 1.8 Permissions, roles as data and guardrails (ADR 0028)
+
+Added at the product owner's second checkpoint (27 November 2026). It follows the model of ASP.NET Core permission-based authorization, ABP and Odoo: permissions are fixed in code, roles are data, and data scope stays as it is. PRs 7x1–7x4, placed right after 7f2. That is before the first procurement catalogue (7k), as asked, and early enough that 7g–7j are built on permissions directly instead of being rewritten.
+
+**Layer 1: permissions in code (the only fixed part).**
+- `SmartSpare.ApiContracts.Authorization.Permissions`: a stable catalogue named `<Module>.<Resource>.<Action>`.
+  - Actions: `View`, `Create`, `Edit`, `Archive`, plus special ones (`Approve`, `Cancel`, `Dispatch`, `Receive`, `Adjust`, `Import`, `Export`, `ManageAssignments`, `Decide`).
+  - Every catalogue and document gets its own set; `ManageCatalog` and the other role policies of section 6 are replaced.
+  - Each permission has a module, a group and a description for the UI.
+- `iam.permission` mirrors the catalogue (seeded by migration; a test fails if code and table differ). Adding a permission means adding a constant and a seed row in a new migration.
+- **API:** `.RequirePermission(Permissions.Inventory.Transfer.Approve)` through a `PermissionPolicyProvider`, which builds the policy `perm:<name>` on demand. No endpoint names a role.
+- **SQL:** `util.require_permission('<name>')` reads `app.user_permissions`, which the `SessionContextInterceptor` sets beside `app.user_id`. It raises SS301 like `util.require_role`, which it replaces in all 12 scripts (about 25 calls), by new scripts that redefine the functions. Applied scripts stay untouched (#152).
+- **Parity:** `PolicySqlPermissionParityTests` checks that every endpoint fronting a SQL function requires exactly the permission the function checks.
+
+**Layer 2: roles are data.**
+- `iam.role` gains `name`, `description`, `is_locked`, archiving and `xmin`; `iam.role_permission (role_id, permission)` holds the bundle.
+- Positions keep their role template (`iam.position_role`, one or more roles). Effective permissions are the union of the roles of the employee's position: additive only, no deny rules.
+- Administrators edit roles in the UI.
+- **Seeded default roles reproduce today's rights exactly.** The six current roles keep their codes, and each gets the permissions of the policies section 6 gives it today.
+- **Golden matrix:** the endpoint probes, roles, brands and hubs stay identical. The policy rows become permission rows (policies no longer exist); this is the one intended difference, listed in the test.
+- **Transport:**
+  - The cookie keeps id, name, stamp and role codes. The BFF adds the permissions per request from a server-side role → permissions map, cached and refreshed at the 30-second session check. Permissions never go into the cookie.
+  - The 2-minute internal token to the services carries the permissions; a test measures its size against a budget of 8 KB (the platform limits are far above that). The size goes into ADR 0028.
+  - The web client gets its permissions from `/bff/user`.
+
+**Layer 3: data scope stays.** Brand and hub assignments limit writes (ADR 0026), unchanged.
+
+**Guardrails.**
+- **Separation of duties:** a short declarative list in code (`DutyConflicts`) of permission pairs no role and no position (the union of its roles) may hold together.
+  - First pair: `Procurement.PurchaseOrder.Create` + `Procurement.Supplier.Edit`.
+  - Saving a role or a position template that breaks a pair gives 409 `Organisation.DutyConflict` with the pair.
+  - Self-approval stays forbidden (four-eyes, 5.1).
+- **No self-granting:** this is the second rule asked for ("`Organisation.Role.Edit` + being able to grant yourself rights"). It is a rule rather than a pair, because rights flow from position to role. A user may not:
+  - change a role they hold;
+  - change the template of their own position;
+  - change their own employee's position.
+
+  Each refusal is 403 SS301. Interpretation to confirm, see 14.2.
+- **Locks:**
+  - the built-in Administrator role is locked: it cannot be edited, archived or deleted;
+  - the last active administrator keeps the role (ADR 0026, kept);
+  - nobody changes their own roles or position (above).
+- **Audit and refresh:** every change to a role, its permissions or a position template is audited by the trigger. It rotates the security stamp of every account that holds the role or position, so sessions take the new rights within 30 seconds.
+- **Effective rights screen:** each permission is shown with its origin, permission ← role ← position; scope ← assignment.
+
+**Not in scope (deliberately; listed in ADR 0028 as considered and rejected):** role inheritance, field-level permissions, deny rules, time-limited grants, external policy engines (OPA, Cedar).
+
 ---
 
 ## 2. Generic master-data mechanism (ADR 0025)
@@ -332,6 +379,8 @@ All carry the acting user (`IActedByUser`, ADR 0024); consumers check at most `u
 
 ## 6. Policies
 
+**Superseded by permissions (1.8, PR 7x1).** The table stays as the definition of the seeded default roles: each role gets the permissions of every policy listed for it. `ManageSuppliers` is the exception (14.2).
+
 | Policy | Roles | Fronts (SQL parity) | New? |
 |---|---|---|---|
 | `Administration` | ADMINISTRATOR | employees, positions, accounts, rights-bearing assignments, `iam.anonymise_employee`, the approval threshold | existing, wider |
@@ -417,6 +466,20 @@ Docs are updated **in the PR that changes the behaviour** (ADRs with their imple
 | Sat 5 Dec | 7r, 7s, 7v | procurement screens, E2E, infrastructure |
 | Sun 6 Dec | 7t, 7u, 7w | documentation, release v0.7.0 |
 
+*Revised at the second checkpoint (27 November 2026, evening).* 7a–7f1 were merged on 27 November, a day and a half ahead of the table above. The permissions PRs go right after 7f2:
+
+| Day | PRs | State of `main` at the end of the day |
+|---|---|---|
+| Sat 28 Nov | 7f2, 7x1, 7x2 | catalogue screens; endpoints and SQL check permissions |
+| Sun 29 Nov | 7x3, 7x4, 7g | roles as data with guardrails and the matrix screen; CSV |
+| Mon 30 Nov | 7h, 7i | brands, manufacturers, parts, analogues |
+| Tue 1 Dec | 7j, 7k | warehouses, routes, suppliers, part suppliers |
+| Wed 2 Dec | 7l, 7m | Fleet master data and service works — **expert reviews start** |
+| Thu 3 Dec | 7n, 7o | documents use the catalogues; purchase orders |
+| Fri 4 Dec | 7p, 7q, 7r | expected receipts, goods receipt, procurement screens |
+| Sat 5 Dec | 7s, 7v, 7t | E2E, infrastructure, requirements |
+| Sun 6 Dec | 7u, 7w | documentation, release v0.7.0 |
+
 ---
 
 ## 12. Pull requests
@@ -431,6 +494,10 @@ Effort: **S** ≈ a quarter day, **M** ≈ half a day, **L** ≈ a full day, at 
 | **7d** (#157) | A2 (scope), A3, A5: shared assignment pattern (entity, helper, endpoints, panel), `catalog.brand_responsible` (FK to `ref.brand` until 7h), `inventory.warehouse_responsible`, `ResponsibilitiesChanged`, Identity projection and consumer, stamp rotation, `app.warehouse_ids`, `util.require_hub`, migration step 2, publish job; topology round trip | L | 7c | golden matrix equal except the listed keeper case; event redelivery and order tests; parity incl. hub |
 | **7e** (#158) | A4: 30-second session check setting; drift view must be empty; migration step 3 (drops); "no direct path" architecture and SQL tests; README demo users table | M | 7d | legacy tables gone; revocation within the interval; drift empty in CI |
 | **7f** (#159) | M1–M3: record base, Fluent helper, `MapCatalog`, guards, history function and panel, `Versions` in BuildingBlocks, web components; first catalogue **adjustment reasons** + required reason on adjustments; ADR 0025 | L | 7e | generic endpoints tested once on the real catalogue; SS500/SS501; history shows who, what, when |
+| **7x1** (#189) | 1.8 layer 1 and 2 read side: `Permissions` catalogue, `iam.permission`, `iam.role_permission` with the default bundles, `PermissionPolicyProvider` and `RequirePermission`, every endpoint and the web client switched from role policies to permissions, server-side permission resolution in the BFF, internal token size measured; ADR 0028 | L | 7f2 | golden matrix: probes, roles, brands, hubs identical; policy rows → permission rows; code/table parity test |
+| **7x2** (#190) | `util.require_permission`, `app.user_permissions`, every SQL function switched (new scripts), `PolicySqlPermissionParityTests`, T03 | M | 7x1 | parity test; SQL suite green; no `util.require_role` call left outside the frozen scripts |
+| **7x3** (#191) | Roles as data: role API (create, edit permissions, archive; Administrator locked), `DutyConflicts` (409 with the pair), no self-granting (SS301), stamp rotation on role and template changes, audit | M | 7x2 | SoD, lock, self-grant and refresh tests (fake clock); matrix unchanged |
+| **7x4** (#192) | Roles × permissions matrix screen (grouped by module, search), effective rights with origin (permission ← role ← position, scope ← assignment), demo data docs | M | 7x3 | bUnit; a role edit refreshes a session within 30 s (integration) |
 | **7g** (#160) | M4: shared CSV parser, template, export, import with rolled-back dry run, duplicates, gate, upsert; parts and demand-history pipeline gain dry run, template, export | M | 7f | dry run = commit result (test); 5 % gate; parts import unchanged otherwise |
 | **7h** (#161) | C1 brand move, manufacturers, `part.manufacturer_id`, `BrandCatalogChanged` + Fleet snapshot, brand and manufacturer responsibles | M | 7g | schema diff with the move recorded; Fleet machine list shows brands from the snapshot |
 | **7i** (#162) | Parts CRUD (create, edit, archive with guard, `PartCatalogChanged` on every write), part responsibles, analogue rework (C2) with views and the part page tabs; ADR 0027 | L | 7h | SS502 rules incl. a concurrent cycle; snapshots updated on edit; archive guard |
@@ -467,9 +534,18 @@ Effort: **S** ≈ a quarter day, **M** ≈ half a day, **L** ≈ a full day, at 
 - **Deviation from 3.1:** the reason rule is an insert trigger rather than a `CHECK NOT VALID`, because the ledger is append-only and partitioned; the effect is the same.
 - **New policy:** `ManageCatalog` (planners, administrators). It only adds rows to the golden matrix; no existing right changed.
 
-Total: 3 S, 12 M, 8 L ≈ 14.75 PR-days of nominal effort in 9 calendar days.
+Total: 3 S, 15 M, 9 L (7x1–7x4 added at the second checkpoint) ≈ 14.75 PR-days of nominal effort in 9 calendar days.
 
 ---
+
+### 12.1 Found during the stage
+
+| PR | Finding | Kind | Fix |
+|---|---|---|---|
+| #186 | **Security fix.** The rights projection (`iam.employee_responsibility`, `iam.responsibility_source`) was writable by `app_write`, so every application login, including the Inventory and Fleet service logins, could change anyone's brand scope and hubs directly. 1.7 asked for exactly this T03 test, and 7d did not deliver it. | security | Direct privileges revoked; `iam.apply_responsibilities` (SECURITY DEFINER) is the only write path, executable only by the logins that host Identity; T03 +4; the privilege self-check flags direct writes. |
+| #186 | The account kept emptied copies of the employee's name, e-mail and phone (7e deviation). | privacy | Dropped by a forward-only Reporting migration after the masked audit view moved to the employee. |
+| #188 | A one-statement save outside the command pipeline runs without a transaction, so the session context is never set and the audit row has no user. | audit | Catalogue writes run in an explicit unit-of-work transaction. |
+| #183 | A sign-in that met a concurrent stamp rotation failed with 500. | correctness | The sign-in retries on the fresh row. |
 
 ## 13. Exit criteria, risk, dates and the cut order
 
@@ -477,14 +553,14 @@ Total: 3 S, 12 M, 8 L ≈ 14.75 PR-days of nominal effort in 9 calendar days.
 
 1. No user exists without an employee; hub scoping guards writes only, reads stay unscoped; roles, brand scope and hub access are derived only from positions and assignments, shown with their origin; no endpoint or screen edits rights directly (architecture, reflection and SQL tests).
 2. A change of position, template or assignment, or a deactivation, takes effect within the 30-second session check; sign-in is refused at once for a deactivated employee (tests with a fake clock).
-3. Policy/SQL parity holds for roles and hubs; the golden access matrix is unchanged by the migration except the documented keeper case.
+3. Endpoints and SQL functions check permissions, never role names, and permission/SQL parity holds; roles are data with the Administrator role locked, separation of duties and no self-granting enforced, and every role or template change audited and effective within 30 seconds; the golden access matrix keeps its probes identical (permission rows instead of policy rows, and the documented keeper case).
 4. Every catalogue of section 3 offers search (trigram), filters, paging, If-Match, archive with guards, history, CSV template, dry-run import with the 5 % gate, and export; each lives in its owning module and reaches other modules only by events or Contracts queries.
 5. Part analogues enforce type, direction, uniqueness and acyclicity in the database; the group and successor views exist.
 6. Documents pick only active entries and refuse archived references; service works drive plan and order kits without changing the reservation flow.
 7. Purchase orders released by a configurable threshold, with four-eyes approval above it and brand scope; goods receipt reaches Inventory as `RECEIPT_PO` through `GoodsReceiptPosted` in both topologies; MODULE_MAPPING X12–X14 done; #13 closed.
 8. Employee anonymisation; grants and SQL tests for every new object; schema diff and SQL suite green; OpenAPI complete with examples and codes.
 9. "Load demo data" fills every catalogue; the three E2E scenarios pass at three viewports; unit coverage of business logic ≥ 70 % with the three figures reported.
-10. ADRs 0025–0027, requirements and traceability, regenerated database docs, diagrams, README, CHANGELOG done.
+10. ADRs 0025–0028, requirements and traceability, regenerated database docs, diagrams, README, CHANGELOG done.
 
 ### 13.2 The riskiest PR and how it is protected
 
@@ -499,8 +575,11 @@ Total: 3 S, 12 M, 8 L ≈ 14.75 PR-days of nominal effort in 9 calendar days.
 
 Honestly: **only at the pace of stage 6, with no slack for surprises.** The nominal effort is about 14.75 PR-days for 9 calendar days; stage 6 delivered 20 PRs in two days, so the plan fits at that pace with roughly two days of margin. The risks are breadth (about 16 catalogue screens), the authorization rework needing a second iteration, CI time for three E2E scenarios at three widths, and fixes from the expert reviews from 2 December, which take priority over new scope. The checkpoint is **30 November**: if 7c–7e are not merged by then, the cut order applies from that day and the owner is told the same day.
 
+*Second checkpoint (27 November 2026):* the permissions work adds about **2.5 PR-days** (7x1 L, 7x2–7x4 M), so the total goes from 14.75 to about 17.25 PR-days. 7a–7f1 are done a day and a half early, so **6 December still holds at the current pace, but the margin falls from about two days to about half a day.** The expert-review fixes from 2 December are the main threat. The next checkpoint is **1 December**: if 7x1–7x4 and 7g are not merged by then, the cut order applies. In the cut order, the matrix screen's search and grouping come after the history panel (item 1b); permission enforcement, separation of duties, the locks and the stamp rotation are never cut.
+
 **Cut order** (no catalogue is cut; each cut becomes an issue, `future`, because the later stages have their own scope):
 1. The history **panel** in the screens (the endpoint and the audit stay).
+   1b. Search and module grouping on the roles × permissions screen (a plain sorted grid stays).
 2. CSV **import** for the low-volume catalogues (positions, adjustment reasons, manufacturers, machine models, routes); template and export stay; parts, part suppliers, suppliers, analogues and employees keep import.
 3. E2E scenario C at phone width.
 4. Service works on **repair** orders (plans and drafts with works stay).
@@ -510,7 +589,9 @@ Honestly: **only at the pace of stage 6, with no slack for surprises.** The nomi
 
 ---
 
-## 14. Review decisions (product owner, 27 November 2026)
+## 14. Review decisions
+
+### 14.1 Plan approval (product owner, 27 November 2026)
 
 | # | Question | Decision |
 |---|---|---|
@@ -524,3 +605,15 @@ Honestly: **only at the pace of stage 6, with no slack for surprises.** The nomi
 **Corrections:**
 1. Stage 8 pooling never rewrites history: `inventory.stock_movement` stays append-only, and demand is pooled at forecast time through a mapping view (section 8).
 2. Hub scoping applies to writes only; reads stay unscoped across hubs and brands (stage 3 decision), and the golden access matrix covers the reads (1.2, 1.7).
+
+### 14.2 Second checkpoint (product owner, 27 November 2026)
+
+- 7c–7e and 7f1 accepted, including the T03 finding, recorded as a security fix in 12.1.
+- **Permissions model** (1.8, ADR 0028, PRs 7x1–7x4) added before the first procurement catalogue.
+
+**Interpretations made in this plan, to be confirmed or corrected:**
+1. "`Organisation.Role.Edit` + being able to grant yourself rights" is a no-self-granting rule (1.8), not a permission pair. Rights flow position → role, so the dangerous act is editing a role you hold or your own position.
+2. `Procurement.Supplier.Edit` goes to the Administrator role only by default, instead of `ManageSuppliers` for brand managers, planners and administrators (section 6). Brand managers and planners create purchase orders, and the first conflict pair forbids holding both. Supplier editing does not exist yet (7k), so no current right changes.
+3. The locked Administrator role holds today's administrator rights plus the organisation permissions, not every permission: "reproduce today's rights exactly" rules out giving it purchase order creation, and the first pair would forbid it anyway.
+4. The golden matrix's policy rows become permission rows; the endpoint probes, roles, brands and hubs must stay identical.
+5. The internal token carries the permissions (measured, budget 8 KB). The cookie does not.
