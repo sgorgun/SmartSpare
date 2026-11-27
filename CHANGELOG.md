@@ -36,6 +36,9 @@ scheduler in the single host.
 - The service-order API: list, detail with kit status (including "reserving") and `allowedActions`, create (planned or
   repair), start, complete (an identical repeat is a safe retry) and cancel, each conflict a 409 with a code ([#134],
   [#135], [#136]).
+- Editing the kit of an open service order: `PUT /service-orders/{id}/lines` with the whole kit, a changed quantity
+  replaced by a new line, `ServiceOrderLinesChanged` → Inventory releases removed lines and reserves new ones; the
+  "Edit parts" panel on the order detail (closes [#140]).
 - [ADR 0024](docs/adr/0024-acting-user-of-integration-events-and-jobs.md): events carry the acting user for attribution
   only; jobs act as the named system user ([#133]).
 - Screens: machine list and card, engine-hours entry (decimal keypad, rules checked before sending, SS100–SS104 as
@@ -410,3 +413,4 @@ Stage 1: solution skeleton.
 [#142]: https://github.com/sgorgun/SmartSpare/pull/142
 [#125]: https://github.com/sgorgun/SmartSpare/issues/125
 [#126]: https://github.com/sgorgun/SmartSpare/issues/126
+[#140]: https://github.com/sgorgun/SmartSpare/issues/140
