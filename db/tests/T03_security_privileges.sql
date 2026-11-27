@@ -39,7 +39,7 @@ SELECT pg_temp.ok((SELECT rolpassword IS NULL OR rolpassword LIKE 'SCRAM-SHA-256
 -- app_read (reporting): business data yes, personal data only masked ----------------
 SET LOCAL ROLE smartspare_reporting;
 SELECT pg_temp.ok((SELECT count(*) > 0 FROM inventory.v_stock_overview), 'app_read: reads stock overview');
-SELECT pg_temp.expect_error($$SELECT email FROM iam.app_user LIMIT 1$$, '42501', 'app_read: cannot read e-mail column');
+SELECT pg_temp.expect_error($$SELECT email FROM iam.employee LIMIT 1$$, '42501', 'app_read: cannot read the employee''s e-mail column');
 SELECT pg_temp.expect_error($$SELECT password_hash FROM iam.app_user LIMIT 1$$, '42501', 'app_read: cannot read password hashes');
 SELECT pg_temp.ok((SELECT email_masked = 't***@d***.example' AND full_name_masked = 'T. R***' AND phone_masked = '+370 *** **001'
                    FROM iam.v_app_user_masked WHERE user_name = 'tomas.radzevicius'), 'app_read: masked name / e-mail / phone');
