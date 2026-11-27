@@ -87,15 +87,16 @@ public sealed class ActingUser
 /// <summary>
 /// Passes the session context to PostgreSQL at the start of every transaction of a module DbContext:
 ///   SELECT set_config('app.user_id', @user, true), set_config('app.reason', @reason, true),
-///          set_config('app.user_roles', @roles, true), set_config('app.warehouse_ids', @warehouses, true)
+///          set_config('app.user_roles', @roles, true), set_config('app.warehouse_ids', @warehouses, true),
+///          set_config('app.user_permissions', @permissions, true)
 /// <c>app.user_roles</c> is the comma-separated list of role codes, <c>app.warehouse_ids</c> the sorted hub ids the user may
-/// write at (ADR 0026).
+/// write at (ADR 0026), <c>app.user_permissions</c> the permissions of the request (ADR 0028).
 /// The third argument <c>true</c> makes the values transaction-local: they vanish at commit or
 /// rollback, so a pooled connection never carries them to the next request. An empty value means
 /// "none" (util.current_app_user() returns NULL, e.g. for background jobs).
 /// The database reads them in the audit triggers (audit.audit_log.user_id, reason), in the role checks of
-/// business functions (util.require_role reads app.user_roles) and in the hub checks of writes (util.require_hub reads
-/// app.warehouse_ids). Commands run inside a transaction opened by the transaction decorator, so every write is
+/// business functions (util.require_permission reads app.user_permissions) and in the hub checks of writes
+/// (util.require_hub reads app.warehouse_ids and the hub scope permission). Commands run inside a transaction opened by the transaction decorator, so every write is
 /// attributed. An <see cref="ActingUser"/> set in the scope takes precedence over <see cref="ICurrentUser"/>.
 /// Trust model: MODULE_MAPPING section 3.6.
 /// </summary>
@@ -103,7 +104,8 @@ public sealed class SessionContextInterceptor(ICurrentUser currentUser, ActingUs
 {
     private const string Sql =
         "SELECT set_config('app.user_id', @user, true), set_config('app.reason', @reason, true), "
-        + "set_config('app.user_roles', @roles, true), set_config('app.warehouse_ids', @warehouses, true)";
+        + "set_config('app.user_roles', @roles, true), set_config('app.warehouse_ids', @warehouses, true), "
+        + "set_config('app.user_permissions', @permissions, true)";
 
     public override DbTransaction TransactionStarted(DbConnection connection, TransactionEndEventData eventData, DbTransaction result)
     {
@@ -120,7 +122,7 @@ public sealed class SessionContextInterceptor(ICurrentUser currentUser, ActingUs
         return result;
     }
 
-    /// <summary>Role codes joined with ','; a code that could break the list is left out rather than trusted.</summary>
+    /// <summary>Role codes (or permission names) joined with ','; a value that could break the list is left out rather than trusted.</summary>
     internal static string RolesValue(IEnumerable<string> roles) =>
         string.Join(',', roles
             .Where(r => !string.IsNullOrWhiteSpace(r) && !r.Contains(',', StringComparison.Ordinal))
@@ -143,6 +145,7 @@ public sealed class SessionContextInterceptor(ICurrentUser currentUser, ActingUs
         AddParameter(command, "reason", (acting ? actingUser.Reason : currentUser.Reason) ?? string.Empty);
         AddParameter(command, "roles", acting ? string.Empty : RolesValue(currentUser.Roles));
         AddParameter(command, "warehouses", acting ? string.Empty : WarehousesValue(currentUser.WarehouseIds));
+        AddParameter(command, "permissions", acting ? string.Empty : RolesValue(currentUser.Permissions));
         return command;
     }
 

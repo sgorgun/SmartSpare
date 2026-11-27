@@ -5,12 +5,11 @@ using SmartSpare.Infrastructure.Security;
 namespace SmartSpare.ArchitectureTests;
 
 /// <summary>
-/// Parity rule of STAGE_3_PLAN section 3.2, on permissions since ADR 0028: the default roles that hold the permission an
-/// endpoint requires are exactly the roles of the SQL function's <c>util.require_role(...)</c> call (until PR 7x2 turns
-/// that call into <c>util.require_permission</c>). The test reads <c>db/sql/</c> like the other architecture tests read
+/// Parity rule of STAGE_3_PLAN section 3.2, on permissions since ADR 0028 (PR 7x2): a SQL business function checks exactly
+/// the permission its endpoint requires, with <c>util.require_permission('...')</c>, and no role code any more. The test reads <c>db/sql/</c> like the other architecture tests read
 /// the repository, so a role list changed on one side only, or a new SQL function without a policy, fails the build.
 /// </summary>
-public sealed partial class PolicySqlRoleParityTests
+public sealed partial class PolicySqlPermissionParityTests
 {
     /// <summary>Each permission that fronts SQL business functions, and those functions.</summary>
     private static readonly Dictionary<string, string[]> Fronts = new(StringComparer.Ordinal)
@@ -54,14 +53,11 @@ public sealed partial class PolicySqlRoleParityTests
 
     [Theory]
     [MemberData(nameof(MappedFunctions))]
-    public void Policy_allows_exactly_the_roles_of_the_sql_function(string policy, string function)
+    public void The_sql_function_checks_exactly_the_permission_of_its_endpoint(string policy, string function)
     {
-        SqlRoles.Value.ShouldContainKey(function, $"{function} has no util.require_role call in db/sql/");
+        SqlRoles.Value.ShouldContainKey(function, $"{function} has no permission check in db/sql/");
 
-        var sql = SqlRoles.Value[function].Order(StringComparer.Ordinal).ToList();
-        var api = DefaultRoles.Bundles.Where(r => r.Value.Contains(policy)).Select(r => r.Key).Order(StringComparer.Ordinal).ToList();
-
-        api.ShouldBe(sql, $"policy {policy} [{string.Join(", ", api)}] differs from {function} [{string.Join(", ", sql)}]");
+        SqlRoles.Value[function].ToList().ShouldBe([policy], $"{function} must check {policy} with util.require_permission and no role code");
     }
 
     /// <summary>
@@ -86,7 +82,7 @@ public sealed partial class PolicySqlRoleParityTests
         var mapped = Fronts.Values.SelectMany(f => f).ToHashSet(StringComparer.Ordinal);
 
         SqlRoles.Value.Keys.Where(f => !mapped.Contains(f)).Order(StringComparer.Ordinal)
-            .ShouldBeEmpty("a SQL function with a role check needs a policy row in STAGE_3_PLAN section 3.2 and here");
+            .ShouldBeEmpty("a SQL function with a permission check needs its endpoint's permission here");
     }
 
     [Fact]
@@ -115,8 +111,10 @@ public sealed partial class PolicySqlRoleParityTests
             {
                 var end = i + 1 < starts.Count ? starts[i + 1].Index : text.Length;
                 var body = text[starts[i].Index..end];
+                // The checks of this definition: permission names, and role codes (marked "role:") of any util.require_role left.
                 var roles = RequireRole().Matches(body)
-                    .SelectMany(call => QuotedRole().Matches(call.Groups["args"].Value).Select(r => r.Groups["role"].Value))
+                    .SelectMany(call => QuotedRole().Matches(call.Groups["args"].Value).Select(r => "role:" + r.Groups["role"].Value))
+                    .Concat(RequirePermission().Matches(body).Select(m => m.Groups["permission"].Value))
                     .ToHashSet(StringComparer.Ordinal);
 
                 if (roles.Count > 0)
@@ -167,4 +165,7 @@ public sealed partial class PolicySqlRoleParityTests
 
     [GeneratedRegex(@"'(?<role>[A-Z_]+)'")]
     private static partial Regex QuotedRole();
+
+    [GeneratedRegex(@"util\.require_permission\s*\(\s*'(?<permission>[A-Za-z.]+)'\s*\)", RegexOptions.IgnoreCase)]
+    private static partial Regex RequirePermission();
 }

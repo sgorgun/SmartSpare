@@ -178,7 +178,7 @@ public sealed class CancellationApiTests(IdentityDatabaseFixture database) : IAs
         await using var connection = new NpgsqlConnection(database.ApiConnectionString);
         await connection.OpenAsync(Ct);
         await using var transaction = await connection.BeginTransactionAsync(Ct);
-        await using (var context = new NpgsqlCommand("SELECT set_config('app.user_id', @u, true), set_config('app.user_roles', 'SERVICE_ENGINEER', true)", connection, transaction))
+        await using (var context = new NpgsqlCommand("SELECT set_config('app.user_id', @u, true), set_config('app.user_roles', 'SERVICE_ENGINEER', true), set_config('app.user_permissions', '" + string.Join(',', SmartSpare.ApiContracts.Authorization.DefaultRoles.Bundles["SERVICE_ENGINEER"]) + "', true)", connection, transaction))
         {
             context.Parameters.AddWithValue("u", Engineer.Id.ToString());
             await context.ExecuteNonQueryAsync(Ct);

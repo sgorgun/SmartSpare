@@ -256,3 +256,10 @@
 # PR 7x1 (ADR 0028): the permission catalogue mirrored from code and the role bundles.
 +\biam\.(permission|role_permission)\b
 +ix_role_permission_permission
+
+# PR 7x2 (ADR 0028): the business functions check permissions (util.require_permission) instead of role codes, and
+# util.require_hub opens every hub for Organisation.Scope.AllHubs instead of the ADMINISTRATOR role.
+-CREATE FUNCTION (iam|inventory|fleet|procurement|forecast)\.[a-z_]+\(.*util\.require_role\(
++CREATE FUNCTION (iam|inventory|fleet|procurement|forecast)\.[a-z_]+\(.*util\.require_permission\('
++util\.(current_app_permissions|require_permission)\b
++BEGIN IF NOT \(p_permission = ANY \(util\.current_app_permissions\(\)\)\) THEN RAISE EXCEPTION 'User % lacks the permission %'

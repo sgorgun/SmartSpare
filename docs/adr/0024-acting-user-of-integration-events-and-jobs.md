@@ -29,7 +29,7 @@ The question is whose identity this work carries, and whether a message can give
 |---|---|---|
 | Consumers act as `ActorId` | `IntegrationEventDelivery.DeliverAsync` | `KitReservationFlowTests` (holds `created_by` = the engineer who logged the reading) |
 | Acting user has no roles or warehouse | `SessionContextInterceptor.CreateCommand` | `SessionContextTests.An_acting_user_during_sign_in_has_no_roles` (a request with Administrator role, acting user without roles) |
-| Consumer SQL needs a user, not a role | `db/sql/inventory/0007_service_kit_reservation.sql` | T02 kit assertions; `PolicySqlRoleParityTests` (no role check, so no policy) |
+| Consumer SQL needs a user, not a role | `db/sql/inventory/0007_service_kit_reservation.sql` | T02 kit assertions; `PolicySqlPermissionParityTests` (no role check, so no policy) |
 | Jobs act as the system user | `JobRunner.RunAsync` | `JobRunnerTests.A_job_acts_as_the_named_system_user_without_roles`; `KitExpiryTests` (audit rows of expired holds: `user_id` = `SystemUser.Id`, reason `job:inventory.reservation-expiry`) |
 
 Before this ADR the expiry job ran without any user (`app.user_id` empty); PR "event attribution" added rule 3 to `JobRunner`. The consumers already followed rules 1 and 2.

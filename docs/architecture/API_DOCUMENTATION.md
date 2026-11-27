@@ -124,7 +124,7 @@ Identity are described in full:
 Every endpoint requires a permission of the code catalogue (`<Module>.<Resource>.<Action>`, ADR 0028), never a role.
 The seeded default roles hold every `View` permission, so every role reads, but a user without one does not. Reads are
 never brand-scoped (STAGE_3_PLAN §3.3). An endpoint that fronts a SQL function requires the permission the function
-checks, verified by `PolicySqlRoleParityTests` including the EXECUTE grants. The Procurement, Forecasting and Reporting documents
+checks, verified by `PolicySqlPermissionParityTests` including the EXECUTE grants. The Procurement, Forecasting and Reporting documents
 fill as stages 7–9 add `/api/v1` endpoints, each with its summary, response types and examples (#54).
 
 ## 3. Conventions

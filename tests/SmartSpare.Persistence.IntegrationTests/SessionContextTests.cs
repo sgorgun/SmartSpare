@@ -31,6 +31,8 @@ public sealed class SessionContextTests(MigratedDatabaseFixture database)
         var session = await SessionAsync(context);
         session.UserId.ShouldBe(UserId.ToString());
         session.Roles.ShouldBe($"{AppRoles.Sponsor},{AppRoles.WarehouseKeeper}");
+        session.Permissions.ShouldBe(string.Join(',', DefaultRoles.Of([AppRoles.WarehouseKeeper, AppRoles.Sponsor]).Order(StringComparer.Ordinal)),
+            "ADR 0028: the permissions of the request reach util.require_permission");
         session.Warehouses.ShouldBe("3,5");
         session.WarehouseFunction.ShouldBe("{3,5}");
         (await RequireSponsorAsync(context)).ShouldBe(UserId.ToString());
@@ -165,7 +167,8 @@ public sealed class SessionContextTests(MigratedDatabaseFixture database)
                    current_setting('app.reason', true)            AS "Reason",
                    current_setting('app.user_roles', true)        AS "Roles",
                    current_setting('app.warehouse_ids', true)     AS "Warehouses",
-                   util.current_warehouse_ids()::text             AS "WarehouseFunction"
+                   util.current_warehouse_ids()::text             AS "WarehouseFunction",
+                   current_setting('app.user_permissions', true)  AS "Permissions"
             """).SingleAsync(Ct);
 
     private static Task<string> RequireSponsorAsync(DbContext context) =>
@@ -173,5 +176,5 @@ public sealed class SessionContextTests(MigratedDatabaseFixture database)
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    private sealed record Session(string? UserId, string? Reason, string? Roles, string? Warehouses, string? WarehouseFunction);
+    private sealed record Session(string? UserId, string? Reason, string? Roles, string? Warehouses, string? WarehouseFunction, string? Permissions);
 }
