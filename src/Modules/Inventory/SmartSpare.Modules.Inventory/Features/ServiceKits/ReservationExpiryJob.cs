@@ -9,7 +9,7 @@ namespace SmartSpare.Modules.Inventory.Features.ServiceKits;
 /// Expires service-kit holds after their 7 days (STAGE_6_PLAN 5.5, MODULE_MAPPING X5, #12): one transaction expires the
 /// overdue holds at the job's clock (<see cref="TimeProvider"/>, so tests move time instead of editing data) and writes
 /// <see cref="ServiceKitReservationExpired"/> with their lines to the outbox. <c>--job inventory.reservation-expiry</c> in
-/// the services topology (a Container Apps cron job from stage 10); the single host gets its scheduler with #30.
+/// the services topology (a Container Apps cron job from stage 10); every 15 minutes from Quartz in the single host (#30).
 /// </summary>
 internal sealed class ReservationExpiryJob(ServiceKitStore store, EfUnitOfWork<InventoryDbContext> unitOfWork, TimeProvider time) : IJob
 {

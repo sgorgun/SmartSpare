@@ -109,7 +109,17 @@ public interface IOutboxStore
 
     /// <summary>Parked messages and the oldest message still waiting for delivery (#31).</summary>
     Task<OutboxStatus> GetStatusAsync(IServiceProvider scopedServices, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Deletes one batch of delivered outbox rows and of handled inbox rows older than the cut-offs through
+    /// <c>&lt;schema&gt;.purge_processed_messages</c> (#30); undelivered rows are never deleted.
+    /// </summary>
+    Task<MessagePurge> PurgeAsync(
+        IServiceProvider scopedServices, DateTimeOffset outboxBefore, DateTimeOffset inboxBefore, int batch, CancellationToken cancellationToken);
 }
+
+/// <summary>How many rows one purge call deleted from a module's outbox and inbox.</summary>
+public sealed record MessagePurge(int OutboxDeleted, int InboxDeleted);
 
 /// <summary>Health of one module's outbox: parked messages and the oldest undelivered one.</summary>
 public sealed record OutboxStatus(string Schema, long Exhausted, DateTimeOffset? OldestPending);
@@ -189,6 +199,32 @@ public sealed class EfOutboxStore<TContext>(string schema) : IOutboxStore
 
             await transaction.CommitAsync(ct).ConfigureAwait(false);
             return batch.Count;
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<MessagePurge> PurgeAsync(
+        IServiceProvider scopedServices, DateTimeOffset outboxBefore, DateTimeOffset inboxBefore, int batch, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(scopedServices);
+        var context = scopedServices.GetRequiredService<TContext>();
+        var strategy = context.Database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync(async ct =>
+        {
+            // A transaction of its own, so the session context (the job's system user, ADR 0024) applies to the call.
+            await using var transaction = await context.Database.BeginTransactionAsync(ct).ConfigureAwait(false);
+            var connection = context.Database.GetDbConnection();
+            MessagePurge purge;
+            await using (var command = Command(connection, transaction.GetDbTransaction(),
+                $"SELECT outbox_deleted, inbox_deleted FROM \"{Schema}\".purge_processed_messages(@outbox, @inbox, @batch)",
+                ("outbox", outboxBefore), ("inbox", inboxBefore), ("batch", batch)))
+            await using (var reader = await command.ExecuteReaderAsync(ct).ConfigureAwait(false))
+            {
+                await reader.ReadAsync(ct).ConfigureAwait(false);
+                purge = new MessagePurge(reader.GetInt32(0), reader.GetInt32(1));
+            }
+
+            await transaction.CommitAsync(ct).ConfigureAwait(false);
+            return purge;
         }, cancellationToken).ConfigureAwait(false);
     }
 

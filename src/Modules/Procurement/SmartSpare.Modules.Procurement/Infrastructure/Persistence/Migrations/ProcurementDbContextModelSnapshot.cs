@@ -197,7 +197,6 @@ namespace SmartSpare.Modules.Procurement.Infrastructure.Persistence.Migrations
                         .HasComment("Time of the exported event.");
 
                     b.Property<bool>("IsUrgent")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
                         .HasColumnName("is_urgent")
                         .HasColumnOrder(5)
@@ -212,7 +211,6 @@ namespace SmartSpare.Modules.Procurement.Infrastructure.Persistence.Migrations
                         .HasComment("Business document number (assigned by trigger).");
 
                     b.Property<PoStatus>("Status")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("procurement.po_status")
                         .HasColumnName("status")
                         .HasColumnOrder(4)
@@ -503,7 +501,6 @@ namespace SmartSpare.Modules.Procurement.Infrastructure.Persistence.Migrations
                         .HasComment("Time the record was created.");
 
                     b.Property<bool>("IsPreferred")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
                         .HasColumnName("is_preferred")
                         .HasColumnOrder(7)

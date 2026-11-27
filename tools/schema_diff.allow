@@ -173,3 +173,9 @@
 +^BEGIN WITH released AS \( UPDATE inventory\.stock_reservation r SET status = 'released' WHERE r\.id IN
 +^RETURN v_released;$
 +^v_released integer;$
+
+# PR 6m (#30, STAGE_6_PLAN 8): retention of delivered integration events, one SECURITY DEFINER function per module
+# schema with an outbox (migrations MessageRetention, db/sql/<module>/*_message_retention.sql); the job outbox-retention
+# calls it, so the application roles keep no DELETE on outbox_message / inbox_message.
++purge_processed_messages
++^GET DIAGNOSTICS (outbox|inbox)_deleted = ROW_COUNT;$
