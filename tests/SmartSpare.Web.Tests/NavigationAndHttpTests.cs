@@ -28,10 +28,10 @@ public sealed class NavigationAndHttpTests : ClientTestContext
 
     public static TheoryData<string, string[], string[]> MenuCases => new()
     {
-        { AppRoles.WarehouseKeeper, ["inventory", "procurement", "reporting"], ["fleet", "forecasting"] },
+        { AppRoles.WarehouseKeeper, ["inventory", "fleet", "procurement", "reporting"], ["forecasting"] },
         { AppRoles.BrandManager, ["inventory", "fleet", "procurement", "forecasting", "reporting"], [] },
         { AppRoles.ServiceEngineer, ["inventory", "fleet", "reporting"], ["procurement", "forecasting"] },
-        { AppRoles.Sponsor, ["inventory", "procurement", "reporting"], ["fleet", "forecasting"] },
+        { AppRoles.Sponsor, ["inventory", "fleet", "procurement", "reporting"], ["forecasting"] },
     };
 
     [Theory]

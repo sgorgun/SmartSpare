@@ -1,0 +1,31 @@
+@using SmartSpare.ApiContracts.Fleet
+@inject IStringLocalizer<SharedResource> Text
+
+@* The kit of a service order with its icon and text, never colour alone (WCAG 2.1 AA). "Reserving" means Inventory has
+   not answered yet: the order was drafted and its ServiceKitReserved is still on its way. *@
+<StatusChip Label="@Text["KitStatus." + Status]" Icon="@Icon" Color="@Color" />
+
+@code {
+    [Parameter, EditorRequired]
+    public string Status { get; set; } = KitStatuses.Reserving;
+
+    private string Icon => Status switch
+    {
+        KitStatuses.Reserving => Icons.Material.Filled.HourglassTop,
+        KitStatuses.Reserved => Icons.Material.Filled.Inventory,
+        KitStatuses.Partial => Icons.Material.Filled.RemoveShoppingCart,
+        KitStatuses.NotHeld => Icons.Material.Filled.ProductionQuantityLimits,
+        KitStatuses.Issued => Icons.Material.Filled.TaskAlt,
+        KitStatuses.Released => Icons.Material.Filled.Undo,
+        _ => Icons.Material.Filled.Remove,
+    };
+
+    private Color Color => Status switch
+    {
+        KitStatuses.Reserving => Color.Info,
+        KitStatuses.Reserved => Color.Success,
+        KitStatuses.Partial or KitStatuses.NotHeld => Color.Warning,
+        KitStatuses.Issued => Color.Success,
+        _ => Color.Default,
+    };
+}

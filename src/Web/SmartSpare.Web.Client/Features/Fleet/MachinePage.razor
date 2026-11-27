@@ -1,0 +1,207 @@
+@page "/fleet/machines/{Id:long}"
+@attribute [Authorize(Policy = AppPolicies.ReadFleet)]
+@using System.Globalization
+@using SmartSpare.ApiContracts.Fleet
+@inject IStringLocalizer<SharedResource> Text
+@inject FleetClient Fleet
+@inject ProblemMessages Messages
+@inject ISnackbar Snackbar
+
+<PageTitle>@(_machine?.Machine.Vin ?? Text["Machines.Title"].Value)</PageTitle>
+
+<MudText Typo="Typo.h4" HtmlTag="h1" Class="mb-2">@Text["Nav.Fleet"]</MudText>
+<FleetTabs />
+
+@if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-3" data-testid="machine-error">@_error</MudAlert>
+}
+
+@if (_machine is null)
+{
+    @if (_error is null)
+    {
+        <MudProgressLinear Indeterminate="true" Class="my-4" aria-label="@Text["Machine.Loading"]" />
+        <MudText>@Text["Machine.Loading"]</MudText>
+    }
+}
+else
+{
+    var machine = _machine.Machine;
+    @* The machine card (WF03): the engineer's tablet is the primary layout, so the hours and the plans come first. *@
+    <div class="d-flex align-center flex-wrap mb-1">
+        <MudText Typo="Typo.h5" HtmlTag="h2" Class="mr-3" data-testid="machine-vin">@machine.Vin</MudText>
+        @if (machine.NextService is { } next)
+        {
+            <span data-testid="machine-due"><MaintenanceDueChip Status="@next.Status" /></span>
+        }
+    </div>
+    <MudText Class="mb-3">
+        @machine.BrandCode @machine.ModelName (@_machine.ManufactureYear) · @machine.CustomerCode · @Text["Machine.HomeHub", machine.WarehouseCode]
+    </MudText>
+
+    <MudGrid Spacing="3">
+        <MudItem xs="12" md="4">
+            <MudPaper Outlined="true" Class="pa-4" data-testid="machine-hours">
+                <MudText Typo="Typo.overline" HtmlTag="h3">@Text["Machines.EngineHours"]</MudText>
+                <MudText Typo="Typo.h3" HtmlTag="p">@Hours(machine.EngineHours) h</MudText>
+                <MudText Typo="Typo.body2">
+                    @(machine.LastReadingAt is { } at ? Text["Machine.LastReading", Time(at)] : Text["Reading.NoneYet"])
+                </MudText>
+                <MudText Typo="Typo.body2">
+                    @(_machine.UsagePerDay is { } usage ? Text["Machine.Usage", Hours(usage)] : Text["Machine.UsageUnknown"])
+                </MudText>
+                <MudText Typo="Typo.body2">@Text["Machine.Condition", _machine.OperatingCondition, _machine.IntervalFactor.ToString("0.##", CultureInfo.CurrentCulture)]</MudText>
+                <AuthorizeView Policy="@AppPolicies.RecordServiceWork">
+                    @* One-hand action: on phones and tablets the button stays at the bottom of the screen. *@
+                    <div class="bottom-action mt-4">
+                        <MudButton OnClick="OpenEntry" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large" FullWidth="true"
+                                   StartIcon="@Icons.Material.Filled.Speed" Class="touch-target" data-testid="log-hours">@Text["Machine.LogHours"]</MudButton>
+                    </div>
+                </AuthorizeView>
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" md="8">
+            <MudText Typo="Typo.h6" HtmlTag="h3" Class="mb-2">@Text["Machine.Plans"]</MudText>
+            @if (_machine.Plans.Count == 0)
+            {
+                <MudText>@Text["Machines.NoPlans"]</MudText>
+            }
+            <MudGrid Spacing="2" data-testid="machine-plans">
+                @foreach (var plan in _machine.Plans)
+                {
+                    <MudItem xs="12" sm="6">
+                        <MudPaper Outlined="true" Class="pa-3" aria-label="@plan.PlanName">
+                            <div class="d-flex align-center justify-space-between flex-wrap">
+                                <MudText Typo="Typo.subtitle1" HtmlTag="h4"><b>@plan.PlanName</b></MudText>
+                                <MaintenanceDueChip Status="@plan.Status" />
+                            </div>
+                            <MudText Typo="Typo.body2">@Text["Plan.Interval", Hours(plan.EffectiveInterval), plan.IntervalHours]</MudText>
+                            @if (plan.OpenOrderThreshold is { } ordered)
+                            {
+                                @* An open order counts as the service done (parity with fleet.fn_maintenance_due): say which one. *@
+                                <MudText Typo="Typo.body2"><b>@Text["Plan.Ordered", Hours(ordered)]</b></MudText>
+                            }
+                            <MudText Typo="Typo.body2">
+                                @Text[plan.OpenOrderThreshold is null ? "Plan.NextAt" : "Plan.ThenAt", Hours(plan.DueEngineHours)] ·
+                                @(plan.RemainingHours > 0 ? Text["Plan.ToGo", Hours(plan.RemainingHours)] : Text["Plan.Overdue", Hours(-plan.RemainingHours)])
+                            </MudText>
+                            <MudText Typo="Typo.body2">@Text["Plan.Projected", Date(plan.ProjectedDueDate)]</MudText>
+                            @if (plan.IntervalMonths is not null)
+                            {
+                                <MudText Typo="Typo.body2">@Text["Plan.Calendar", Date(plan.CalendarDueDate)]</MudText>
+                            }
+                            <MudText Typo="Typo.caption">@Text["Plan.Trigger." + plan.Trigger]</MudText>
+                        </MudPaper>
+                    </MudItem>
+                }
+            </MudGrid>
+        </MudItem>
+
+        <MudItem xs="12" md="6">
+            <MudText Typo="Typo.h6" HtmlTag="h3" Class="mb-2">@Text["Machine.Orders"]</MudText>
+            @if (_orders.Count == 0)
+            {
+                <MudText>@Text["Machine.NoOrders"]</MudText>
+            }
+            else
+            {
+                @* Two columns, so the table fits a phone: the order with its service, then its status and kit. *@
+                <MudSimpleTable Dense="true" Outlined="true" Elevation="0" Class="overflow-x-auto" data-testid="machine-orders">
+                    <thead><tr><th>@Text["Orders.Number"]</th><th>@Text["Orders.Status"]</th></tr></thead>
+                    <tbody>
+                        @foreach (var order in _orders)
+                        {
+                            <tr>
+                                <td>
+                                    <MudText Typo="Typo.body2">@order.Number</MudText>
+                                    <MudText Typo="Typo.caption">@(order.PlanName ?? Text["Orders.Repair"].Value)</MudText>
+                                </td>
+                                <td>
+                                    <div class="d-flex flex-wrap gap-1">
+                                        <ServiceOrderStatusChip Status="@order.Status" />
+                                        <KitStatusChip Status="@order.KitStatus" />
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </MudSimpleTable>
+            }
+        </MudItem>
+
+        <MudItem xs="12" md="6">
+            <MudText Typo="Typo.h6" HtmlTag="h3" Class="mb-2">@Text["Machine.Readings"]</MudText>
+            <MudSimpleTable Dense="true" Outlined="true" Elevation="0" data-testid="machine-readings">
+                <thead><tr><th>@Text["Reading.ReadAt"]</th><th>@Text["Machines.EngineHours"]</th><th>@Text["Reading.Source"]</th></tr></thead>
+                <tbody>
+                    @foreach (var reading in _machine.RecentReadings)
+                    {
+                        <tr><td>@Time(reading.ReadAt)</td><td>@Hours(reading.Hours)</td><td>@Text["ReadingSource." + reading.Source]</td></tr>
+                    }
+                </tbody>
+            </MudSimpleTable>
+        </MudItem>
+    </MudGrid>
+
+    <MudDialog @bind-Visible="_entryOpen" Options="EntryOptions" aria-labelledby="entry-title">
+        <TitleContent>
+            <MudText Typo="Typo.h6" HtmlTag="h2" id="entry-title">@Text["Machine.LogHoursFor", machine.Vin]</MudText>
+        </TitleContent>
+        <DialogContent>
+            <EngineHoursEntry Machine="_machine" OnSaved="SavedAsync" OnClose="() => _entryOpen = false" />
+        </DialogContent>
+    </MudDialog>
+}
+
+@code {
+    private static readonly DialogOptions EntryOptions = new() { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = true, CloseButton = true };
+
+    [Parameter]
+    public long Id { get; set; }
+
+    private MachineDetails? _machine;
+    private IReadOnlyList<ServiceOrderSummary> _orders = [];
+    private string? _error;
+    private bool _entryOpen;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        var result = await Fleet.GetMachineAsync(Id);
+        _machine = result.IsSuccess ? result.Value : null;
+        _error = result.IsSuccess ? null : Messages.Describe(result.Problem!);
+        if (result.IsSuccess)
+        {
+            var orders = await Fleet.ListServiceOrdersAsync(null, null, Id, 1, 10);
+            _orders = orders.IsSuccess ? orders.Value!.Items : [];
+        }
+    }
+
+    private void OpenEntry() => _entryOpen = true;
+
+    /// <summary>The card shows the new hours and due status at once; the dialog stays open on its summary.</summary>
+    private async Task SavedAsync(RecordReadingResponse saved)
+    {
+        var entry = _machine;
+        await LoadAsync();
+        _machine ??= entry;
+        Snackbar.Add(Text["Reading.Saved", Hours(saved.EngineHours)], Severity.Success);
+    }
+
+    private static string Hours(decimal value) => value.ToString("#,0.#", CultureInfo.CurrentCulture);
+
+    private static string Time(DateTimeOffset at) => at.ToLocalTime().ToString("g", CultureInfo.CurrentCulture);
+
+    private string Date(DateOnly? date) => date?.ToString("d", CultureInfo.CurrentCulture) ?? Text["Plan.Unknown"].Value;
+}

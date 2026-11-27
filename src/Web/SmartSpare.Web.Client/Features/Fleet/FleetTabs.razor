@@ -1,0 +1,25 @@
+@inject IStringLocalizer<SharedResource> Text
+@inject NavigationManager Navigation
+
+@* The pages of the Fleet area. Only pages that exist are linked, so main stays demo-ready. *@
+<MudToolBar Dense="true" Gutters="false" Class="mb-3 flex-wrap" aria-label="@Text["Fleet.Pages"]">
+    @foreach (var (href, key, icon) in Pages)
+    {
+        var current = IsCurrent(href);
+        <MudButton Href="@href" Variant="@(current ? Variant.Filled : Variant.Text)" Color="Color.Primary" StartIcon="@icon"
+                   Class="mr-2 mb-1 touch-target" aria-current="@(current ? "page" : null)">@Text[key]</MudButton>
+    }
+</MudToolBar>
+
+@code {
+    private static readonly (string Href, string Key, string Icon)[] Pages =
+    [
+        ("fleet/machines", "Fleet.Tab.Machines", Icons.Material.Filled.Agriculture),
+    ];
+
+    private bool IsCurrent(string href)
+    {
+        var path = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?')[0].TrimEnd('/');
+        return path == href || path.StartsWith(href + "/", StringComparison.Ordinal) || (href == "fleet/machines" && path == "fleet");
+    }
+}

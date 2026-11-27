@@ -1,0 +1,185 @@
+@using System.Globalization
+@using SmartSpare.ApiContracts.Fleet
+@inject IStringLocalizer<SharedResource> Text
+@inject FleetClient Fleet
+@inject ProblemMessages Messages
+@inject TimeProvider Time
+
+@* The engine-hours entry of the machine card (STAGE_6_PLAN section 6, UC02 steps 2–7). The hours field opens the decimal
+   keypad on phones and tablets; the rules are checked here first and again on the server (SS100–SS104). *@
+@if (_saved is { } saved)
+{
+    <div role="status" data-testid="reading-saved">
+        <MudText Class="mb-2">
+            @(saved.Replayed ? Text["Reading.Replayed", Hours(saved.EngineHours)] : Text["Reading.Saved", Hours(saved.EngineHours)])
+        </MudText>
+        @if (saved.DraftedOrders.Count > 0)
+        {
+            <MudText Typo="Typo.subtitle2" HtmlTag="h3">@Text["Reading.Drafted"]</MudText>
+            <MudList T="string" Dense="true" data-testid="reading-drafted">
+                @foreach (var order in saved.DraftedOrders)
+                {
+                    <MudListItem T="string" Icon="@Icons.Material.Filled.EditNote">
+                        @Text["Reading.DraftedOrder", order.Number, Hours(order.DueEngineHours)]
+                    </MudListItem>
+                }
+            </MudList>
+            <MudText Typo="Typo.body2" Class="mb-2">@Text["Reading.KitReserving"]</MudText>
+        }
+    </div>
+    <MudButton OnClick="Close" Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Class="touch-target" data-testid="reading-done">
+        @Text["Reading.Done"]
+    </MudButton>
+}
+else
+{
+    <MudTextField T="string" @ref="_hoursField" Value="_hours" ValueChanged="HoursChanged" Immediate="true" AutoFocus="true"
+                  Label="@Text["Reading.Hours"]" Variant="Variant.Outlined" InputMode="DecimalInput" Adornment="Adornment.End"
+                  AdornmentText="h" Error="_problem != EngineHoursProblem.None" ErrorText="@ProblemText"
+                  HelperText="@LastReadingText" HelperTextOnFocus="false" autocomplete="off" enterkeyhint="done" data-testid="reading-hours" />
+
+    <MudCheckBox T="bool" Value="_earlier" ValueChanged="EarlierChanged" Label="@Text["Reading.Earlier"]" Class="mt-2" data-testid="reading-earlier" />
+    @if (_earlier)
+    {
+        <MudTextField T="string" @bind-Value="_readAtText" InputType="InputType.DateTimeLocal" Label="@Text["Reading.ReadAt"]"
+                      Variant="Variant.Outlined" Margin="Margin.Dense" data-testid="reading-time" />
+    }
+
+    <MudSelect T="string" @bind-Value="_source" Label="@Text["Reading.Source"]" Variant="Variant.Outlined" Dense="true" Class="mt-3"
+               data-testid="reading-source">
+        @foreach (var source in RecordReadingRequestValidator.AllowedSources)
+        {
+            <MudSelectItem T="string" Value="source">@Text["ReadingSource." + source]</MudSelectItem>
+        }
+    </MudSelect>
+
+    @if (_serverError is not null)
+    {
+        <MudAlert Severity="Severity.Error" Class="mt-3" data-testid="reading-error">@_serverError</MudAlert>
+    }
+
+    <div class="d-flex mt-4">
+        <MudButton OnClick="SaveAsync" Disabled="_busy" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large"
+                   StartIcon="@Icons.Material.Filled.Save" Class="flex-grow-1 mr-2 touch-target" data-testid="reading-save">
+            @Text["Reading.Save"]
+        </MudButton>
+        <MudButton OnClick="Close" Disabled="_busy" Variant="Variant.Text" Size="Size.Large" Class="touch-target">@Text["Reading.Cancel"]</MudButton>
+    </div>
+}
+
+@code {
+    /// <summary>Opens the numeric keypad with a decimal separator on phones and tablets.</summary>
+    private const InputMode DecimalInput = InputMode.@decimal;
+
+    private MudTextField<string>? _hoursField;
+    private string? _hours;
+    private bool _earlier;
+    private string? _readAtText;
+    private string _source = ReadingSources.Manual;
+    private EngineHoursProblem _problem;
+    private string? _serverError;
+    private bool _busy;
+    private RecordReadingResponse? _saved;
+
+    /// <summary>
+    /// The time of the attempt, kept while the entry is unchanged: pressing save again after a lost answer sends the
+    /// identical reading, which the server answers as a replay instead of storing it twice.
+    /// </summary>
+    private DateTimeOffset? _attemptAt;
+
+    [Parameter, EditorRequired]
+    public MachineDetails Machine { get; set; } = null!;
+
+    /// <summary>Called after a reading was stored (or replayed), so the card can reload.</summary>
+    [Parameter]
+    public EventCallback<RecordReadingResponse> OnSaved { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    private ReadingRow? LastReading => Machine.RecentReadings.Count > 0 ? Machine.RecentReadings[0] : null;
+
+    private string LastReadingText => LastReading is { } last
+        ? Text["Reading.Last", Hours(last.Hours), last.ReadAt.ToLocalTime().ToString("g", CultureInfo.CurrentCulture)].Value
+        : Text["Reading.NoneYet"].Value;
+
+    private string? ProblemText
+    {
+        get
+        {
+            if (_problem == EngineHoursProblem.None)
+            {
+                return null;
+            }
+
+            var last = LastReading is { } reading ? Hours(reading.Hours) : string.Empty;
+            return Text["ReadingProblem." + _problem, last].Value;
+        }
+    }
+
+    private void HoursChanged(string? value)
+    {
+        _hours = value;
+        _attemptAt = null;
+        _serverError = null;
+        if (_problem != EngineHoursProblem.None)
+        {
+            _problem = Check(Time.GetUtcNow());
+        }
+    }
+
+    private void EarlierChanged(bool earlier)
+    {
+        _earlier = earlier;
+        _attemptAt = null;
+        _readAtText ??= Time.GetLocalNow().ToString("yyyy-MM-ddTHH:mm", CultureInfo.InvariantCulture);
+    }
+
+    private DateTimeOffset ReadAt(DateTimeOffset now)
+    {
+        if (_earlier && DateTime.TryParse(_readAtText, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out var local))
+        {
+            return new DateTimeOffset(local, Time.LocalTimeZone.GetUtcOffset(local));
+        }
+
+        return _attemptAt ?? now;
+    }
+
+    private EngineHoursProblem Check(DateTimeOffset now) =>
+        EngineHoursInput.Check(_hours, ReadAt(now), LastReading?.Hours, LastReading?.ReadAt, now);
+
+    private async Task SaveAsync()
+    {
+        var now = Time.GetUtcNow();
+        _problem = Check(now);
+        _serverError = null;
+        if (_problem != EngineHoursProblem.None)
+        {
+            if (_hoursField is not null)
+            {
+                await _hoursField.FocusAsync();
+            }
+
+            return;
+        }
+
+        var readAt = ReadAt(now);
+        _attemptAt = readAt;
+        _busy = true;
+        var result = await Fleet.RecordReadingAsync(Machine.Machine.Id, new RecordReadingRequest(EngineHoursInput.Parse(_hours)!.Value, readAt, _source));
+        _busy = false;
+        if (!result.IsSuccess)
+        {
+            // SS100–SS104 and 409 read as plain sentences with their reference (ProblemMessages).
+            _serverError = Messages.Describe(result.Problem!);
+            return;
+        }
+
+        _saved = result.Value;
+        await OnSaved.InvokeAsync(_saved);
+    }
+
+    private Task Close() => OnClose.InvokeAsync();
+
+    private static string Hours(decimal value) => value.ToString("#,0.#", CultureInfo.CurrentCulture);
+}
