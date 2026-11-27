@@ -14,7 +14,7 @@ namespace SmartSpare.Bff;
 public sealed class InternalTokenIssuer(InternalTokenKeyRing keys, TimeProvider time)
 {
     private static readonly HashSet<string> ForwardedClaimTypes =
-        new(StringComparer.Ordinal) { AppClaimTypes.Subject, AppClaimTypes.Name, AppClaimTypes.Role, AppClaimTypes.Brand, AppClaimTypes.Warehouse, AppClaimTypes.Permission };
+        new(StringComparer.Ordinal) { AppClaimTypes.Subject, AppClaimTypes.Name, AppClaimTypes.Role, AppClaimTypes.Brand, AppClaimTypes.Warehouse };
 
     private readonly JsonWebTokenHandler _handler = new();
 
@@ -57,6 +57,9 @@ public sealed class InternalTokenIssuer(InternalTokenKeyRing keys, TimeProvider 
             .Where(c => ForwardedClaimTypes.Contains(c.Type))
             .Select(c => new Claim(c.Type, c.Value))
             .Append(new Claim(AppClaimTypes.SessionId, sessionId))
+            // The permissions as a compact bitset with its catalogue version (ADR 0028), not as names.
+            .Append(new Claim(AppClaimTypes.PermissionSet, PermissionBitset.Encode(user.FindAll(AppClaimTypes.Permission).Select(c => c.Value))))
+            .Append(new Claim(AppClaimTypes.PermissionVersion, Permissions.CatalogueVersion.ToString(System.Globalization.CultureInfo.InvariantCulture)))
             .Append(new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N")));
 
         var now = time.GetUtcNow().UtcDateTime;

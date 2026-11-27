@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.DependencyInjection;
@@ -42,9 +43,24 @@ public static class InternalTokenAuthentication
                     RoleClaimType = AppClaimTypes.Role,
                     AuthenticationType = InternalTokenDefaults.AuthenticationType,
                 };
+                options.Events = new JwtBearerEvents { OnTokenValidated = ExpandPermissions };
             });
 
         return builder;
+    }
+
+    /// <summary>
+    /// Turns the token's <see cref="AppClaimTypes.PermissionSet"/> bitset back into <see cref="AppClaimTypes.Permission"/>
+    /// claims (ADR 0028), so policies read the same claims whichever scheme authenticated the request.
+    /// </summary>
+    internal static Task ExpandPermissions(TokenValidatedContext context)
+    {
+        if (context.Principal?.Identity is ClaimsIdentity identity && identity.FindFirst(AppClaimTypes.PermissionSet) is { } set)
+        {
+            identity.AddClaims(PermissionBitset.Decode(set.Value).Select(p => new Claim(AppClaimTypes.Permission, p)));
+        }
+
+        return Task.CompletedTask;
     }
 
     /// <summary>Binds <see cref="InternalTokenOptions"/> and registers the <see cref="InternalTokenKeyRing"/> once.</summary>
