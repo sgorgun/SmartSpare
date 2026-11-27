@@ -162,7 +162,7 @@ public sealed class StockFeatureTests
     public async Task A_keeper_of_another_hub_is_refused_before_the_database()
     {
         await using var db = OfflineContext();
-        var keeper = new FixedUser(Guid.NewGuid(), HomeWarehouseId: 5);
+        var keeper = new FixedUser(Guid.NewGuid(), WarehouseIds: [5]);
         var handler = new AdjustStockCommandHandler(db, new EfUnitOfWork<InventoryDbContext>(db), keeper, TimeProvider.System);
 
         var result = await handler.Handle(new AdjustStockCommand(3, 1042, -1, "Wrong hub"), TestContext.Current.CancellationToken);
@@ -174,7 +174,7 @@ public sealed class StockFeatureTests
     private static InventoryDbContext OfflineContext() =>
         new(new DbContextOptionsBuilder<InventoryDbContext>().UseNpgsql("Host=offline.invalid;Database=none").Options);
 
-    private sealed record FixedUser(Guid? UserId, short? HomeWarehouseId) : ICurrentUser
+    private sealed record FixedUser(Guid? UserId, IReadOnlyCollection<short> WarehouseIds) : ICurrentUser
     {
         public string? Reason => null;
 

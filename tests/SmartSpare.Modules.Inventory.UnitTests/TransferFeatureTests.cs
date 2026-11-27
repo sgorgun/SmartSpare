@@ -1,3 +1,4 @@
+using SmartSpare.SharedKernel;
 using System.Security.Claims;
 using FluentValidation.TestHelper;
 using Microsoft.AspNetCore.Authorization;
@@ -30,19 +31,19 @@ public sealed class TransferFeatureTests
     public void Candidate_steps_follow_the_state_machine_and_the_home_hub()
     {
         var order = Proposed();
-        TransferAccess.Candidates(order, null).ShouldBe([TransferActions.Approve, TransferActions.Cancel]);
+        TransferAccess.Candidates(order, HubRights.Everywhere).ShouldBe([TransferActions.Approve, TransferActions.Cancel]);
 
         order.Approve(Guid.NewGuid(), Now);
-        TransferAccess.Candidates(order, null).ShouldBe([TransferActions.Cancel, TransferActions.Dispatch]);
-        TransferAccess.Candidates(order, Klp).ShouldBe([TransferActions.Cancel, TransferActions.Dispatch]);
-        TransferAccess.Candidates(order, Pnv).ShouldBe([TransferActions.Cancel]);
+        TransferAccess.Candidates(order, HubRights.Everywhere).ShouldBe([TransferActions.Cancel, TransferActions.Dispatch]);
+        TransferAccess.Candidates(order, HubRights.At(Klp)).ShouldBe([TransferActions.Cancel, TransferActions.Dispatch]);
+        TransferAccess.Candidates(order, HubRights.At(Pnv)).ShouldBe([TransferActions.Cancel]);
 
-        order.Dispatch(Guid.NewGuid(), Klp, Now);
-        TransferAccess.Candidates(order, Pnv).ShouldBe([TransferActions.Receive]);
-        TransferAccess.Candidates(order, Klp).ShouldBeEmpty();
+        order.Dispatch(Guid.NewGuid(), HubRights.At(Klp), Now);
+        TransferAccess.Candidates(order, HubRights.At(Pnv)).ShouldBe([TransferActions.Receive]);
+        TransferAccess.Candidates(order, HubRights.At(Klp)).ShouldBeEmpty();
 
-        order.Receive(Guid.NewGuid(), Pnv, Now);
-        TransferAccess.Candidates(order, null).ShouldBeEmpty();
+        order.Receive(Guid.NewGuid(), HubRights.At(Pnv), Now);
+        TransferAccess.Candidates(order, HubRights.Everywhere).ShouldBeEmpty();
     }
 
     public static TheoryData<string, string, short[], bool> Matrix => new()
@@ -142,7 +143,7 @@ public sealed class TransferFeatureTests
         var keeper = Guid.NewGuid();
         var order = Proposed();
         order.Approve(planner, Now);
-        order.Dispatch(keeper, Klp, Now.AddHours(1));
+        order.Dispatch(keeper, HubRights.At(Klp), Now.AddHours(1));
 
         TransferDetailsReader.Timeline(order).Select(s => (s.Step, s.UserId)).ShouldBe(
             [("requested", (Guid?)Requester), ("approved", planner), ("dispatched", keeper)]);

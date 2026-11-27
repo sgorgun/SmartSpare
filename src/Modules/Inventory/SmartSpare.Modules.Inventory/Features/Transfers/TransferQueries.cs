@@ -77,7 +77,7 @@ internal sealed class TransferAccess(
     public async Task<IReadOnlyList<string>> AllowedActionsAsync(TransferOrder order, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(order);
-        var candidates = Candidates(order, user.HomeWarehouseId);
+        var candidates = Candidates(order, HubAccess.Of(user));
         if (candidates.Count == 0)
         {
             return [];
@@ -96,8 +96,8 @@ internal sealed class TransferAccess(
         return allowed;
     }
 
-    /// <summary>The steps the state machine allows now, for a user with <paramref name="homeWarehouseId"/>.</summary>
-    internal static IReadOnlyList<string> Candidates(TransferOrder order, short? homeWarehouseId)
+    /// <summary>The steps the state machine allows now, for a user who may write at <paramref name="hubs"/>.</summary>
+    internal static IReadOnlyList<string> Candidates(TransferOrder order, HubRights hubs)
     {
         var candidates = new List<string>();
         if (order.CanApprove().IsSuccess)
@@ -110,12 +110,12 @@ internal sealed class TransferAccess(
             candidates.Add(TransferActions.Cancel);
         }
 
-        if (order.CanDispatch(homeWarehouseId).IsSuccess)
+        if (order.CanDispatch(hubs).IsSuccess)
         {
             candidates.Add(TransferActions.Dispatch);
         }
 
-        if (order.CanReceive(homeWarehouseId).IsSuccess)
+        if (order.CanReceive(hubs).IsSuccess)
         {
             candidates.Add(TransferActions.Receive);
         }

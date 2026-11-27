@@ -192,3 +192,12 @@
 -COMMENT ON VIEW iam\.v_app_user_masked IS 'User directory with masked personal data \(name
 +COMMENT ON VIEW iam\.v_app_user_masked IS 'User directory with masked personal data from the employee
 +CREATE VIEW iam\.v_app_user_masked AS .*JOIN iam\.employee e
+
+# PR 7d1 (STAGE_7_PLAN 1.2, ADR 0026 decision 5): hub access is a list and guards writes only. util.current_warehouse_ids
+# and util.require_hub read app.warehouse_ids; inventory.dispatch_transfer and receive_transfer check util.require_hub
+# instead of comparing one home hub (so their statements are split differently from the baseline).
++util\.(current_warehouse_ids|require_hub)\(
++PERFORM util\.require_hub\(v_order\.(from|to)_warehouse_id\)
+-^v_home   smallint;
+-^FOR v_line IN SELECT l\.id, l\.part_id, l\.quantity, p\.unit_cost FROM inventory\.transfer_order_line l JOIN catalog\.part p
+-^INSERT INTO inventory\.stock_movement \(occurred_at, warehouse_id, part_id, movement_type_code, quantity, unit_cost, transfer_order_line_id, created_by\) SELECT greatest

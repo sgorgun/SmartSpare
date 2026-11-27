@@ -62,7 +62,7 @@ public sealed class BffTests(FakeIdentityHostFactory factory) : IClassFixture<Fa
         me.UserName.ShouldBe(user.UserName);
         me.Roles.ShouldBe([AppRoles.BrandManager, AppRoles.Sponsor]);
         me.BrandIds.ShouldBe([(short)1, (short)5]);
-        me.HomeWarehouseId.ShouldBe((short)3);
+        me.HomeWarehouseIds.ShouldBe([(short)3]);
     }
 
     [Fact]

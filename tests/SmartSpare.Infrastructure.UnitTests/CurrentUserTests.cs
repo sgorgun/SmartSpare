@@ -26,7 +26,7 @@ public sealed class CurrentUserTests
 
         user.UserId.ShouldBe(id);
         user.Roles.ShouldBe([AppRoles.WarehouseKeeper, AppRoles.Sponsor], ignoreOrder: true);
-        user.HomeWarehouseId.ShouldBe((short)4);
+        user.WarehouseIds.ShouldBe([(short)4]);
     }
 
     [Fact]
@@ -39,7 +39,7 @@ public sealed class CurrentUserTests
         {
             user.UserId.ShouldBeNull();
             user.Roles.ShouldBeEmpty();
-            user.HomeWarehouseId.ShouldBeNull();
+            user.WarehouseIds.ShouldBeEmpty();
         }
     }
 

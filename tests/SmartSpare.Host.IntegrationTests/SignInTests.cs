@@ -192,7 +192,7 @@ public abstract class SignInMatrix(IdentityDatabaseFixture database) : IAsyncLif
         using var browser = _host.NewBrowser();
         await LoginOrFailAsync(browser, U("it.both"));
         var me = await browser.MeAsync();
-        var principal = TestUser.ClaimsFor(me.UserId!.Value, me.UserName!, me.Roles, me.BrandIds, me.HomeWarehouseId);
+        var principal = TestUser.ClaimsFor(me.UserId!.Value, me.UserName!, me.Roles, me.BrandIds, me.HomeWarehouseIds.Count == 0 ? null : me.HomeWarehouseIds[0]);
 
         using var other = _host.NewBrowser();
         var viaToken = await other.MeAsync(bearer: _host.Token(new System.Security.Claims.ClaimsPrincipal(

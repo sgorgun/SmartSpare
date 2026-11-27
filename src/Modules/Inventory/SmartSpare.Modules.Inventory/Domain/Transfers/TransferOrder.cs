@@ -188,9 +188,9 @@ internal sealed class TransferOrder : AggregateRoot<long>
     }
 
     /// <summary>US11: an approved order is dispatched by a keeper of the donor hub (or a user without a home hub).</summary>
-    public Result Dispatch(Guid userId, short? homeWarehouseId, DateTimeOffset now)
+    public Result Dispatch(Guid userId, HubRights hubs, DateTimeOffset now)
     {
-        var allowed = CanDispatch(homeWarehouseId);
+        var allowed = CanDispatch(hubs);
         if (allowed.IsFailure)
         {
             return allowed;
@@ -203,9 +203,9 @@ internal sealed class TransferOrder : AggregateRoot<long>
     }
 
     /// <summary>US11: a dispatched order is received by a keeper of the recipient hub (or a user without a home hub).</summary>
-    public Result Receive(Guid userId, short? homeWarehouseId, DateTimeOffset now)
+    public Result Receive(Guid userId, HubRights hubs, DateTimeOffset now)
     {
-        var allowed = CanReceive(homeWarehouseId);
+        var allowed = CanReceive(hubs);
         if (allowed.IsFailure)
         {
             return allowed;
@@ -249,28 +249,27 @@ internal sealed class TransferOrder : AggregateRoot<long>
         return _lines.Count == 0 ? InventoryErrors.NoLines : Result.Success();
     }
 
-    public Result CanDispatch(short? homeWarehouseId)
+    public Result CanDispatch(HubRights hubs)
     {
         if (Status != TransferStatus.Approved)
         {
             return InventoryErrors.InvalidTransition("transfer order", Status, "dispatched");
         }
 
-        return IsAtHub(homeWarehouseId, FromWarehouseId) ? Result.Success() : InventoryErrors.NotYourWarehouse;
+        return hubs.Allows(FromWarehouseId) ? Result.Success() : InventoryErrors.NotYourWarehouse;
     }
 
-    public Result CanReceive(short? homeWarehouseId)
+    public Result CanReceive(HubRights hubs)
     {
         if (Status != TransferStatus.Dispatched)
         {
             return InventoryErrors.InvalidTransition("transfer order", Status, "received");
         }
 
-        return IsAtHub(homeWarehouseId, ToWarehouseId) ? Result.Success() : InventoryErrors.NotYourWarehouse;
+        return hubs.Allows(ToWarehouseId) ? Result.Success() : InventoryErrors.NotYourWarehouse;
     }
 
     /// <summary>A user without a home hub acts for every hub; a keeper only for the own one (SS302 parity).</summary>
-    private static bool IsAtHub(short? homeWarehouseId, short warehouseId) => homeWarehouseId is null || homeWarehouseId == warehouseId;
 
     public Result CanCancel() =>
         Status is TransferStatus.Proposed or TransferStatus.Approved
