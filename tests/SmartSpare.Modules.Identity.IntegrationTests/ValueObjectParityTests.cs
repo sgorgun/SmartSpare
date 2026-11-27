@@ -25,9 +25,10 @@ public sealed class ValueObjectParityTests(IdentityDatabaseFixture database)
 
     [Theory]
     [MemberData(nameof(ValueObjectCases.EmailAddresses), MemberType = typeof(ValueObjectCases))]
-    public async Task EmailAddress_cases_match_ck_app_user_email(string value, bool valid)
+    public async Task EmailAddress_cases_match_ck_employee_email(string value, bool valid)
     {
-        var accepted = await InsertAcceptedAsync("parity.user", value, "ck_app_user_email");
+        // The e-mail is the employee's (ADR 0026); the value object guards iam.employee.email.
+        var accepted = await InsertAcceptedAsync("parity.user", value, "ck_employee_email");
         accepted.ShouldBe(valid);
     }
 
@@ -38,10 +39,10 @@ public sealed class ValueObjectParityTests(IdentityDatabaseFixture database)
         await connection.OpenAsync(ct);
         await using var transaction = await connection.BeginTransactionAsync(ct);
         await using var insert = new NpgsqlCommand(
-            "WITH e AS (INSERT INTO iam.employee (code, full_name, position_id) "
-            + "SELECT 'E' || lpad((coalesce((SELECT max(substr(code, 2)::int) FROM iam.employee), 0) + 1)::text, 6, '0'), 'Parity Test', id "
+            "WITH e AS (INSERT INTO iam.employee (code, full_name, email, position_id) "
+            + "SELECT 'E' || lpad((coalesce((SELECT max(substr(code, 2)::int) FROM iam.employee), 0) + 1)::text, 6, '0'), 'Parity Test', @e, id "
             + "FROM iam.position WHERE code = 'INVENTORY_PLANNER' RETURNING id) "
-            + "INSERT INTO iam.app_user (employee_id, user_name, email, full_name, password_hash) SELECT e.id, @u, @e, 'Parity Test', @h FROM e",
+            + "INSERT INTO iam.app_user (employee_id, user_name, password_hash) SELECT e.id, @u, @h FROM e",
             connection, transaction);
         insert.Parameters.AddWithValue("u", userName);
         insert.Parameters.AddWithValue("e", email);

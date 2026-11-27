@@ -34,7 +34,7 @@ internal sealed class ListUsersQueryHandler(IdentityDbContext db, IWarehouseQuer
     private const string PageSql =
         """
         SELECT v.id, v.user_name, v.full_name_masked, v.email_masked, v.is_active,
-               coalesce(u.lockout_end > now(), false) AS is_locked_out, v.is_anonymised, v.home_warehouse_id,
+               coalesce(u.lockout_end > now(), false) AS is_locked_out, v.is_anonymised,
                coalesce(v.roles::text[], ARRAY[]::text[]) AS roles,
                coalesce((SELECT array_agg(b.code::text ORDER BY b.code) FROM iam.employee_responsibility r
                          JOIN ref.assignment_role ar ON ar.record_kind = r.record_kind AND ar.code = r.assignment_role AND ar.grants_scope
@@ -84,7 +84,6 @@ internal sealed record UserRow(
     bool IsActive,
     bool IsLockedOut,
     bool IsAnonymised,
-    short? HomeWarehouseId,
     string[] Roles,
     string[] Brands,
     short[] BrandIds,

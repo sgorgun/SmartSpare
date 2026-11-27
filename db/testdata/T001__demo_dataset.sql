@@ -76,14 +76,14 @@ FROM (VALUES
 ) AS e (id, code, fn, email, ph, position, hired)
 JOIN iam.position p ON p.code = e.position;
 
-INSERT INTO iam.app_user (id, employee_id, user_name, email, full_name, phone, password_hash, home_warehouse_id, is_active)
-SELECT u.id::uuid, u.id::uuid, u.un, u.un || '@dealer.example', u.fn, u.ph,
+INSERT INTO iam.app_user (id, employee_id, user_name, password_hash, is_active)
+SELECT u.id::uuid, u.id::uuid, u.un,
        -- No password hashes in Git (#7): a random placeholder with a valid ASP.NET Core Identity V3 header
        -- (marker 0x01, PRF HMAC-SHA512, 220,000 iterations, salt length 16) and random salt + subkey, so the
        -- format CHECK and the header test pass but no password verifies. MigrationRunner set-demo-passwords
        -- then stores real hashes of SMARTSPARE_DEMO_USER_PASSWORD (db/scripts/load_testdata.sh runs both).
        translate(encode('\x010000000200035b6000000010'::bytea || gen_random_bytes(48), 'base64'), E'\n', ''),
-       w.id, u.act
+       u.act
 FROM (VALUES
  ('00000000-0000-4000-8000-000000000001','tomas.radzevicius','Tomas Radzevičius','+370 612 10001',NULL,true),
  ('00000000-0000-4000-8000-000000000002','rasa.kazlauskiene','Rasa Kazlauskienė','+370 612 10002',NULL,true),
@@ -97,26 +97,10 @@ FROM (VALUES
  ('00000000-0000-4000-8000-000000000010','vida.mockute','Vida Mockutė','+370 612 10010',NULL,true),
  ('00000000-0000-4000-8000-000000000011','admin.smartspare','SmartSpare Administrator',NULL,NULL,true),
  ('00000000-0000-4000-8000-000000000012','paulius.urbonas','Paulius Urbonas','+370 612 10012','KNS',true)
-) AS u (id, un, fn, ph, wh, act)
-LEFT JOIN inventory.warehouse w ON w.code = u.wh;
-
--- Legacy shadow of the roles (iam.user_role), equal to the positions' templates; dropped in PR 7e.
-INSERT INTO iam.user_role (user_id, role_id, granted_by)
-SELECT ('00000000-0000-4000-8000-0000000000' || x.n)::uuid, r.id, '00000000-0000-4000-8000-000000000011'::uuid
-FROM (VALUES ('01','BRAND_MANAGER'), ('02','BRAND_MANAGER'), ('03','BRAND_MANAGER'), ('03','SPONSOR'),
-             ('04','SERVICE_ENGINEER'), ('05','SERVICE_ENGINEER'), ('06','WAREHOUSE_KEEPER'),
-             ('07','WAREHOUSE_KEEPER'), ('08','WAREHOUSE_KEEPER'), ('09','INVENTORY_PLANNER'),
-             ('10','SPONSOR'), ('11','ADMINISTRATOR'), ('12','SERVICE_ENGINEER')) AS x (n, role)
-JOIN iam.role r ON r.code = x.role;
-
-INSERT INTO iam.user_brand (user_id, brand_id)
-SELECT ('00000000-0000-4000-8000-0000000000' || x.n)::uuid, b.id
-FROM (VALUES ('01','CLAAS'), ('01','LEMKEN'), ('02','JD'), ('02','VAD'),
-             ('03','FENDT'), ('03','MF'), ('03','CASE'), ('03','NH')) AS x (n, brand)
-JOIN ref.brand b ON b.code = x.brand;
+) AS u (id, un, fn, ph, wh, act);
 
 -- Responsible employees (ADR 0026): who manages which brand and who keeps or is based at which hub. They give the
--- demo users exactly the rights the legacy lists above give; the rest are assignments without rights. Identity's
+-- demo users their brand scope and hubs; the rest are assignments without rights. Identity's
 -- projection (fed by ResponsibilitiesChanged) is filled as if the events had been delivered.
 INSERT INTO catalog.brand_responsible (brand_id, employee_id, record_kind, assignment_role)
 SELECT b.id, x.emp::uuid, 'brand', x.role

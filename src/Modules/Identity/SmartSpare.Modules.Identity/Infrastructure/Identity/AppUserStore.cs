@@ -19,7 +19,7 @@ internal sealed class AppUserStore(IdentityDbContext db, OrganisationReader orga
 {
     private const string NotSupportedInStage3 = "User administration is not available yet (#46).";
 
-    private IQueryable<AppUser> Users => db.Set<AppUser>().Include(u => u.Roles).Include(u => u.Brands);
+    private IQueryable<AppUser> Users => db.Set<AppUser>();
 
     public void Dispose()
     {

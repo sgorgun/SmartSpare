@@ -11,14 +11,14 @@ namespace SmartSpare.Bff;
 /// <summary>
 /// Events of the auth cookie (STAGE_3_PLAN section 1.3, ADR 0016 section 3).
 /// <list type="bullet">
-/// <item>Every <see cref="BffDefaults.SessionCheckInterval"/> the session is re-validated through
+/// <item>Every <see cref="SessionCheckOptions.CheckInterval"/> (30 seconds by default) the session is re-validated through
 /// <see cref="ICredentialVerifier.ValidateSessionAsync"/>: a revoked session (stamp rotated, user deactivated or anonymised)
 /// is rejected, so the request is anonymous and gets 401; changed roles or brands re-issue the cookie with the new
 /// claims. This replaces Identity's <c>SecurityStampValidator</c>, so the host and the gateway behave the same.</item>
 /// <item>For <c>/api</c> and <c>/bff</c> the cookie handler answers 401 and 403 instead of redirecting to HTML.</item>
 /// </list>
 /// </summary>
-internal sealed class BffCookieEvents(ICredentialVerifier verifier) : CookieAuthenticationEvents
+internal sealed class BffCookieEvents(ICredentialVerifier verifier, Microsoft.Extensions.Options.IOptions<SessionCheckOptions> sessionOptions) : CookieAuthenticationEvents
 {
     public override async Task ValidatePrincipal(CookieValidatePrincipalContext context)
     {
@@ -35,7 +35,7 @@ internal sealed class BffCookieEvents(ICredentialVerifier verifier) : CookieAuth
             ? parsed
             : context.Properties.IssuedUtc ?? DateTimeOffset.MinValue;
 
-        if (now - validatedAt < BffDefaults.SessionCheckInterval)
+        if (now - validatedAt < sessionOptions.Value.CheckInterval)
         {
             return;
         }

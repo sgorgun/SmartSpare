@@ -67,8 +67,7 @@ public sealed class IdentityDatabaseFixture : IAsyncLifetime
             INSERT INTO iam.employee (id, code, full_name, position_id)
             SELECT @id, 'E' || lpad((coalesce((SELECT max(substr(code, 2)::int) FROM iam.employee), 0) + 1)::text, 6, '0'), 'Test User', p.id
             FROM iam.position p WHERE p.code = 'T_' || upper(left(replace(@id::text, '-', ''), 12));
-            INSERT INTO iam.app_user (id, employee_id, user_name, email, full_name, password_hash) VALUES (@id, @id, @name, @name || '@dealer.example', 'Test User', @hash);
-            INSERT INTO iam.user_role (user_id, role_id) SELECT @id, r.id FROM iam.role r WHERE r.code = ANY(@roles);
+            INSERT INTO iam.app_user (id, employee_id, user_name, password_hash) VALUES (@id, @id, @name, @hash);
             INSERT INTO catalog.brand_responsible (brand_id, employee_id, record_kind, assignment_role)
             SELECT b.id, @id, 'brand', 'BRAND_MANAGER' FROM ref.brand b WHERE b.code = ANY(@brands);
             INSERT INTO iam.employee_responsibility (record_kind, record_id, employee_id, assignment_role)

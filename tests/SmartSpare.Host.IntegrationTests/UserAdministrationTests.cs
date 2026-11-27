@@ -49,8 +49,8 @@ public sealed class UserAdministrationTests(IdentityDatabaseFixture database) : 
         user.Rights.ShouldContain(r => r.Kind == "Role" && r.Value == AppRoles.WarehouseKeeper && r.Origin == "Position");
         user.EmailMasked.ShouldNotBe($"{_tag}.keeper@dealer.example", "personal data is masked");
         (await database.ScalarAsync<bool>("SELECT password_hash LIKE 'AQAAAA%' FROM iam.app_user WHERE id = @id", ("id", id))).ShouldBeTrue();
-        (await database.ScalarAsync<long>("SELECT count(*) FROM iam.user_role WHERE user_id = @id", ("id", id)))
-            .ShouldBe(0, "roles are never written to the account (ADR 0026)");
+        (await database.ScalarAsync<bool>("SELECT to_regclass('iam.user_role') IS NULL"))
+            .ShouldBeTrue("roles are never stored on the account (ADR 0026)");
     }
 
     [Fact]

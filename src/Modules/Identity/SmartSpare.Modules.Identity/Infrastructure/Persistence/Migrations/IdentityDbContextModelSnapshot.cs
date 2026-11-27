@@ -187,13 +187,6 @@ namespace SmartSpare.Modules.Identity.Infrastructure.Persistence.Migrations
                         .HasDefaultValueSql("now()")
                         .HasComment("Time the record was created.");
 
-                    b.Property<string>("Email")
-                        .IsRequired()
-                        .HasColumnType("citext")
-                        .HasColumnName("email")
-                        .HasColumnOrder(2)
-                        .HasComment("PERSONAL DATA (GDPR). Corporate e-mail; masked by util.mask_email for read-only roles.");
-
                     b.Property<Guid>("EmployeeId")
                         .HasColumnType("uuid")
                         .HasColumnName("employee_id")
@@ -206,19 +199,6 @@ namespace SmartSpare.Modules.Identity.Infrastructure.Persistence.Migrations
                         .HasColumnName("failed_login_count")
                         .HasColumnOrder(8)
                         .HasDefaultValueSql("0");
-
-                    b.Property<string>("FullName")
-                        .IsRequired()
-                        .HasColumnType("character varying(150)")
-                        .HasColumnName("full_name")
-                        .HasColumnOrder(3)
-                        .HasComment("PERSONAL DATA (GDPR). Masked by util.mask_name for read-only roles.");
-
-                    b.Property<short?>("HomeWarehouseId")
-                        .HasColumnType("smallint")
-                        .HasColumnName("home_warehouse_id")
-                        .HasColumnOrder(10)
-                        .HasComment("Reference to inventory.warehouse.");
 
                     b.Property<bool>("IsActive")
                         .ValueGeneratedOnAdd()
@@ -244,12 +224,6 @@ namespace SmartSpare.Modules.Identity.Infrastructure.Persistence.Migrations
                         .HasColumnName("password_hash")
                         .HasColumnOrder(5)
                         .HasComment("ASP.NET Core Identity V3 hash (PBKDF2-HMAC-SHA512, 220,000 iterations; older hashes are rehashed at sign-in). Plain text is impossible by CHECK.");
-
-                    b.Property<string>("Phone")
-                        .HasColumnType("character varying(30)")
-                        .HasColumnName("phone")
-                        .HasColumnOrder(4)
-                        .HasComment("PERSONAL DATA (GDPR). Masked by util.mask_phone for read-only roles.");
 
                     b.Property<Guid>("SecurityStamp")
                         .ValueGeneratedOnAdd()
@@ -282,9 +256,6 @@ namespace SmartSpare.Modules.Identity.Infrastructure.Persistence.Migrations
                     b.HasKey("Id")
                         .HasName("pk_app_user");
 
-                    b.HasAlternateKey("Email")
-                        .HasName("uq_app_user_email");
-
                     b.HasAlternateKey("UserName")
                         .HasName("uq_app_user_user_name");
 
@@ -292,24 +263,17 @@ namespace SmartSpare.Modules.Identity.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("uq_app_user_employee");
 
-                    b.HasIndex("HomeWarehouseId")
-                        .HasDatabaseName("ix_app_user_home_warehouse");
-
                     b.ToTable("app_user", "iam", t =>
                         {
-                            t.HasComment("Dealership employees using SmartSpare. Contains personal data (full_name, email, phone): masked for app_read / app_audit.");
+                            t.HasComment("User accounts of employees (ADR 0026): what sign-in needs. The person's name and contacts are the employee's.");
 
                             t.HasCheckConstraint("ck_app_user_active_has_password", "((password_hash IS NOT NULL) OR (NOT is_active))");
 
                             t.HasCheckConstraint("ck_app_user_anonymised_inactive", "((anonymised_at IS NULL) OR (NOT is_active))");
 
-                            t.HasCheckConstraint("ck_app_user_email", "(email ~ '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$'::citext)");
-
                             t.HasCheckConstraint("ck_app_user_failed_logins", "((failed_login_count >= 0) AND (failed_login_count <= 100))");
 
                             t.HasCheckConstraint("ck_app_user_password_hash_format", "((password_hash IS NULL) OR (password_hash ~ '^AQAAAA[A-Za-z0-9+/]{76,}={0,2}$'::text))");
-
-                            t.HasCheckConstraint("ck_app_user_phone", "((phone IS NULL) OR ((phone)::text ~ '^\\+?[0-9 ()-]{7,20}$'::text))");
 
                             t.HasCheckConstraint("ck_app_user_user_name", "((user_name ~ '^[a-z0-9._-]{3,50}$'::citext) AND ((user_name)::text = lower((user_name)::text)))");
                         });
@@ -608,75 +572,6 @@ namespace SmartSpare.Modules.Identity.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("SmartSpare.Modules.Identity.Domain.UserBrandAssignment", b =>
-                {
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("user_id")
-                        .HasColumnOrder(0)
-                        .HasComment("Reference to iam.app_user.");
-
-                    b.Property<short>("Id")
-                        .HasColumnType("smallint")
-                        .HasColumnName("brand_id")
-                        .HasColumnOrder(1)
-                        .HasComment("Reference to ref.brand.");
-
-                    b.HasKey("UserId", "Id")
-                        .HasName("pk_user_brand");
-
-                    b.HasIndex("Id")
-                        .HasDatabaseName("ix_user_brand_brand");
-
-                    b.ToTable("user_brand", "iam", t =>
-                        {
-                            t.HasComment("M:N brand manager <-> brands they are responsible for (e.g. persona Tomas: Claas and Lemken).");
-                        });
-                });
-
-            modelBuilder.Entity("SmartSpare.Modules.Identity.Domain.UserRoleAssignment", b =>
-                {
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("user_id")
-                        .HasColumnOrder(0)
-                        .HasComment("Reference to iam.app_user.");
-
-                    b.Property<short>("Id")
-                        .HasColumnType("smallint")
-                        .HasColumnName("role_id")
-                        .HasColumnOrder(1)
-                        .HasComment("Reference to iam.role.");
-
-                    b.Property<DateTimeOffset>("GrantedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("granted_at")
-                        .HasColumnOrder(2)
-                        .HasDefaultValueSql("now()")
-                        .HasComment("Time of the granted event.");
-
-                    b.Property<Guid?>("GrantedBy")
-                        .HasColumnType("uuid")
-                        .HasColumnName("granted_by")
-                        .HasColumnOrder(3)
-                        .HasComment("User who performed the step (iam.app_user).");
-
-                    b.HasKey("UserId", "Id")
-                        .HasName("pk_user_role");
-
-                    b.HasIndex("GrantedBy")
-                        .HasDatabaseName("ix_user_role_granted_by");
-
-                    b.HasIndex("Id")
-                        .HasDatabaseName("ix_user_role_role");
-
-                    b.ToTable("user_role", "iam", t =>
-                        {
-                            t.HasComment("M:N user <-> role assignment.");
-                        });
-                });
-
             modelBuilder.Entity("SmartSpare.Modules.Identity.Infrastructure.Persistence.EmployeeResponsibility", b =>
                 {
                     b.Property<string>("RecordKind")
@@ -707,21 +602,6 @@ namespace SmartSpare.Modules.Identity.Infrastructure.Persistence.Migrations
                             t.HasComment("Projection of the rights-bearing responsible employees of brands and warehouses (ADR 0026); written only by the ResponsibilitiesChanged consumer.");
 
                             t.HasCheckConstraint("ck_employee_responsibility_kind", "record_kind IN ('brand', 'warehouse')");
-                        });
-                });
-
-            modelBuilder.Entity("SmartSpare.Modules.Identity.Infrastructure.Persistence.RefBrand", b =>
-                {
-                    b.Property<short>("Id")
-                        .HasColumnType("smallint")
-                        .HasColumnName("id");
-
-                    b.HasKey("Id")
-                        .HasName("pk_brand");
-
-                    b.ToTable("brand", "ref", t =>
-                        {
-                            t.ExcludeFromMigrations();
                         });
                 });
 
@@ -785,46 +665,6 @@ namespace SmartSpare.Modules.Identity.Infrastructure.Persistence.Migrations
                         .HasConstraintName("fk_position_role_position");
                 });
 
-            modelBuilder.Entity("SmartSpare.Modules.Identity.Domain.UserBrandAssignment", b =>
-                {
-                    b.HasOne("SmartSpare.Modules.Identity.Infrastructure.Persistence.RefBrand", null)
-                        .WithMany()
-                        .HasForeignKey("Id")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_user_brand_brand");
-
-                    b.HasOne("SmartSpare.Modules.Identity.Domain.AppUser", null)
-                        .WithMany("Brands")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_user_brand_user");
-                });
-
-            modelBuilder.Entity("SmartSpare.Modules.Identity.Domain.UserRoleAssignment", b =>
-                {
-                    b.HasOne("SmartSpare.Modules.Identity.Domain.AppUser", null)
-                        .WithMany()
-                        .HasForeignKey("GrantedBy")
-                        .OnDelete(DeleteBehavior.SetNull)
-                        .HasConstraintName("fk_user_role_granted_by");
-
-                    b.HasOne("SmartSpare.Modules.Identity.Domain.Role", null)
-                        .WithMany()
-                        .HasForeignKey("Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_user_role_role");
-
-                    b.HasOne("SmartSpare.Modules.Identity.Domain.AppUser", null)
-                        .WithMany("Roles")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_user_role_user");
-                });
-
             modelBuilder.Entity("SmartSpare.Modules.Identity.Infrastructure.Persistence.EmployeeResponsibility", b =>
                 {
                     b.HasOne("SmartSpare.Modules.Identity.Domain.Organisation.Employee", null)
@@ -833,13 +673,6 @@ namespace SmartSpare.Modules.Identity.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_employee_responsibility_employee");
-                });
-
-            modelBuilder.Entity("SmartSpare.Modules.Identity.Domain.AppUser", b =>
-                {
-                    b.Navigation("Brands");
-
-                    b.Navigation("Roles");
                 });
 
             modelBuilder.Entity("SmartSpare.Modules.Identity.Domain.Organisation.Position", b =>

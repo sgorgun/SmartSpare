@@ -16,21 +16,7 @@ public sealed class UserAdministrationTests
     private static readonly DateTimeOffset Now = new(2026, 11, 27, 9, 0, 0, TimeSpan.Zero);
 
     private static AppUser NewUser() => AppUser.Create(
-        Guid.NewGuid(), Guid.NewGuid(), UserName.Create("rasa.petrauskiene").Value, EmailAddress.Create("rasa@dealer.example").Value, "Rasa Petrauskienė", null, Hash);
-
-    [Fact]
-    public void A_new_home_hub_rotates_the_stamp_because_it_is_a_claim()
-    {
-        var user = NewUser();
-        var stamp = user.SecurityStamp;
-
-        user.SetHomeWarehouse(3);
-        user.SecurityStamp.ShouldNotBe(stamp);
-
-        var after = user.SecurityStamp;
-        user.SetHomeWarehouse(3);
-        user.SecurityStamp.ShouldBe(after);
-    }
+        Guid.NewGuid(), Guid.NewGuid(), UserName.Create("rasa.petrauskiene").Value, Hash);
 
     [Fact]
     public void Unlocking_ends_the_lockout_and_resets_the_counter()

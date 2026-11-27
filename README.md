@@ -155,6 +155,29 @@ The data stays in the `smartspare-*` volumes.
    inventory, procurement, reporting). The menu follows the user's roles; every endpoint checks its own policy on the
    server. Sign out from the account menu at the top right.
 
+**Demo users.** Every account is created from an employee, and its rights follow from the organisation (ADR 0026): roles
+from the employee's position, brand scope from brand-manager assignments, hubs from keeper or service-base assignments.
+All of them sign in with the AppHost parameter `demo-user-password`; no password is stored in Git. Reads are never
+scoped: every role sees every hub and brand; the brands and hubs below limit approvals and stock changes.
+
+| User | Employee | Position | Roles | Brand scope | Hubs (write access) |
+|---|---|---|---|---|---|
+| `tomas.radzevicius` | E0001 | Brand manager | BRAND_MANAGER | CLAAS, LEMKEN | — |
+| `rasa.kazlauskiene` | E0002 | Brand manager | BRAND_MANAGER | JD, VAD | — |
+| `darius.petraitis` | E0003 | Commercial director | BRAND_MANAGER, SPONSOR | FENDT, MF, CASE, NH | — |
+| `mantas.petrauskas` | E0004 | Service engineer | SERVICE_ENGINEER | — | PNV (service base) |
+| `jonas.balciunas` | E0005 | Service engineer | SERVICE_ENGINEER | — | KNS (service base) |
+| `egle.stankeviciute` | E0006 | Warehouse keeper | WAREHOUSE_KEEPER | — | KLP (keeper) |
+| `lukas.vaitkus` | E0007 | Warehouse keeper | WAREHOUSE_KEEPER | — | PNV (keeper) |
+| `ruta.jankauskaite` | E0008 | Warehouse keeper | WAREHOUSE_KEEPER | — | VLN (keeper) |
+| `ignas.zukauskas` | E0009 | Inventory planner | INVENTORY_PLANNER | — | — |
+| `vida.mockute` | E0010 | Managing director | SPONSOR | — | — |
+| `admin.smartspare` | E0011 | System administrator | ADMINISTRATOR | — | every hub (administrator) |
+| `paulius.urbonas` | E0012 | (left, anonymised) | — | — | cannot sign in |
+
+Eight more employees (E0101–E0108, an accountant, workshop foremen, keepers of UTN and MRJ, a planner) have no account:
+not every employee works in SmartSpare. The table matches T001, whose rights `AccessMatrixTests` checks on every build.
+
 An error message ends with `Reference: <trace id>`; [docs/operations/TRACING.md](docs/operations/TRACING.md) shows how
 to find that request's trace. The same flow runs in CI as a Playwright test in Chromium (`tools/check.sh e2e`).
 
