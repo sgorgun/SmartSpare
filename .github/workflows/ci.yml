@@ -79,6 +79,19 @@ jobs:
       - name: Verify the EF-built database with the SQL suite
         run: tools/check.sh database
 
+      # The EF-built schema against the frozen V016 baseline (#126): any difference not documented with its reason in
+      # tools/schema_diff.allow fails the job.
+      - name: Schema diff against the V016 baseline
+        run: tools/check.sh schema-diff
+
+      - name: Upload the schema diff
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: schema-diff
+          path: artifacts/schema-diff
+          if-no-files-found: ignore
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v7
