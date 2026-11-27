@@ -196,9 +196,9 @@ The gateway keeps its key ring in a directory (`DataProtection:KeysDirectory`, l
 
 | Task | Command |
 |---|---|
-| **All checks, exactly as CI** (Docker running) | `tools/check.sh` — stale terms, locked restore, Release build with `-warnaserror` (including the SonarQube C# rules), format, duplication, check-model, vulnerable packages, tests with the coverage gate (≥ 70 % of business logic), integration tests, database verification |
+| **All checks, exactly as CI** (Docker running) | `tools/check.sh` — stale terms, locked restore, Release build with `-warnaserror` (including the SonarQube C# rules), format, duplication, check-model, vulnerable packages, tests (the architecture tests in Debug as well) with the coverage gate (≥ 70 % of business logic), integration tests, database verification |
 | Checks without Docker (the CI "Build and test" job) | `tools/check.sh fast` |
-| Selected checks | `tools/check.sh <step> ...` with steps `stale-terms restore vulnerabilities build format duplication check-model test coverage integration database` |
+| Selected checks | `tools/check.sh <step> ...` with steps `stale-terms deploy-paths restore vulnerabilities build format duplication check-model test architecture-debug coverage coverage-all integration database coverage-combined` |
 | End-to-end smoke test (Docker; installs Chromium) | `tools/check.sh restore build e2e` — Playwright signs in and out in Chromium; screenshots in `TestResults/e2e` |
 | Schema diff (Docker) | `tools/schema_diff.sh` — EF-built schema vs. the frozen V016 baseline |
 

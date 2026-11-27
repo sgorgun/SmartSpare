@@ -9,7 +9,7 @@
 #   tools/check.sh e2e             # optional: the Playwright smoke test (Docker and Chromium; CI job "End-to-end")
 #   tools/check.sh topology        # optional: gateway + services + PostgreSQL + RabbitMQ (Docker; CI job "Topology test")
 #
-# Steps: stale-terms deploy-paths restore vulnerabilities build format duplication check-model test coverage coverage-all integration database
+# Steps: stale-terms deploy-paths restore vulnerabilities build format duplication check-model test architecture-debug coverage coverage-all integration database
 # coverage-combined; optional: e2e topology (they need a build first, e.g. tools/check.sh restore build e2e topology)
 # Everything runs in the Release configuration, like CI. Test results and coverage (XPlat Code Coverage, as in CI) go
 # to TestResults/: the unit tests' to TestResults/<run>/, the integration tests' to TestResults/integration/<run>/.
@@ -83,6 +83,14 @@ step_test() {
   run_tests "Category!=Integration&Category!=E2E&Category!=Topology" \
     --logger trx --results-directory "$RESULTS" \
     --collect "XPlat Code Coverage"
+}
+
+# The architecture tests once more in Debug (#125): the compiler emits different IL in Debug (#124: a large string switch
+# calls <PrivateImplementationDetails> there, not in Release), so a rule can pass in CI and fail in an IDE run. Only this
+# project and what it references are built in Debug, to their own bin/Debug folders.
+step_architecture_debug() {
+  dotnet build tests/SmartSpare.ArchitectureTests --no-restore --configuration Debug -warnaserror
+  dotnet test tests/SmartSpare.ArchitectureTests --no-build --configuration Debug
 }
 
 # Coverage figures (#63, defined by layer on 27 November 2026, BACKEND_REQUIREMENTS):
@@ -208,7 +216,7 @@ report_containers() {
   fi
 }
 
-FAST=(stale-terms deploy-paths restore vulnerabilities build format duplication check-model test coverage coverage-all)
+FAST=(stale-terms deploy-paths restore vulnerabilities build format duplication check-model test architecture-debug coverage coverage-all)
 ALL=("${FAST[@]}" integration database coverage-combined)
 OPTIONAL=(e2e topology)
 
