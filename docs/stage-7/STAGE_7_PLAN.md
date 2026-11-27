@@ -180,6 +180,28 @@ Added at the product owner's second checkpoint (27 November 2026). It follows th
 - **Audit and refresh:** every change to a role, its permissions or a position template is audited by the trigger. It rotates the security stamp of every account that holds the role or position, so sessions take the new rights within 30 seconds.
 - **Effective rights screen:** each permission is shown with its origin, permission ← role ← position; scope ← assignment.
 
+**Mapping: old policy → new permissions (PR 7x1).** The default roles hold exactly these. The golden matrix kept its endpoint probes, roles, brands and hubs identical; only its rows changed, from policies to permissions.
+
+| Old policy | Roles | New permission(s) |
+|---|---|---|
+| `Administration` | ADMINISTRATOR | `Organisation.Employee.View/Create/Edit/Archive/Anonymise`, `Organisation.Position.View/Create/Edit/Archive`, `Organisation.Account.View/Create/Edit`, `Organisation.Role.View/Edit`, `Inventory.Brand.ManageAssignments`, `Inventory.Warehouse.ManageAssignments` |
+| `PlanInventory` | BRAND_MANAGER, INVENTORY_PLANNER | `Inventory.Stock.EditLevels`, `Inventory.Demand.Flag`, `Inventory.Transfer.Create`, `Procurement.PurchaseOrder.Create` |
+| `ApproveTransfer` | BRAND_MANAGER, INVENTORY_PLANNER | `Inventory.Transfer.Approve` |
+| `CancelTransfer` | BRAND_MANAGER, INVENTORY_PLANNER, ADMINISTRATOR | `Inventory.Transfer.Cancel` |
+| `MoveStock` | WAREHOUSE_KEEPER, ADMINISTRATOR | `Inventory.Stock.Adjust`, `Inventory.Transfer.Dispatch`, `Inventory.Transfer.Receive`, `Procurement.PurchaseOrder.Receive` |
+| `RecordServiceWork` | SERVICE_ENGINEER, ADMINISTRATOR | `Fleet.EngineHours.Record`, `Fleet.ServiceOrder.Start`, `Fleet.ServiceOrder.Complete` |
+| `ManageServiceOrders` | SERVICE_ENGINEER, BRAND_MANAGER, ADMINISTRATOR | `Fleet.ServiceOrder.Create`, `Fleet.ServiceOrder.Edit`, `Fleet.ServiceOrder.Cancel` |
+| `ApprovePurchaseOrder` | BRAND_MANAGER, SPONSOR | `Procurement.PurchaseOrder.Approve` |
+| `CancelPurchaseOrder` | BRAND_MANAGER, SPONSOR, ADMINISTRATOR | `Procurement.PurchaseOrder.Cancel` |
+| `DecideRecommendation` | BRAND_MANAGER, INVENTORY_PLANNER | `Forecasting.Recommendation.Decide` |
+| `ReadAudit` | SPONSOR, ADMINISTRATOR | `Audit.Log.View` |
+| `ImportData` | ADMINISTRATOR, INVENTORY_PLANNER | `Inventory.Import.View`, `Inventory.Import.Run` |
+| `ManageCatalog` | INVENTORY_PLANNER, ADMINISTRATOR | `Inventory.AdjustmentReason.Create/Edit/Archive` |
+| `ReadInventory` | all six | `Inventory.Part.View`, `Inventory.Brand.View`, `Inventory.Warehouse.View`, `Inventory.Stock.View`, `Inventory.Transfer.View`, `Inventory.AdjustmentReason.View` |
+| `ReadFleet` | all six | `Fleet.Machine.View`, `Fleet.ServiceOrder.View` |
+| *(hub rule: ADMINISTRATOR unrestricted)* | ADMINISTRATOR | `Organisation.Scope.AllHubs` |
+| *(brand scope: unscoped roles per action)* | INVENTORY_PLANNER (approve and cancel transfer, decide), ADMINISTRATOR (cancel transfer and purchase order), SPONSOR (approve and cancel purchase order) | `Inventory.Transfer.ApproveAnyBrand`, `Inventory.Transfer.CancelAnyBrand`, `Forecasting.Recommendation.DecideAnyBrand`, `Procurement.PurchaseOrder.ApproveAnyBrand`, `Procurement.PurchaseOrder.CancelAnyBrand` |
+
 **Not in scope (deliberately; listed in ADR 0028 as considered and rejected):** role inheritance, field-level permissions, deny rules, time-limited grants, external policy engines (OPA, Cedar).
 
 ---
@@ -534,6 +556,11 @@ Effort: **S** ≈ a quarter day, **M** ≈ half a day, **L** ≈ a full day, at 
 - **Deviation from 3.1:** the reason rule is an insert trigger rather than a `CHECK NOT VALID`, because the ledger is append-only and partitioned; the effect is the same.
 - **New policy:** `ManageCatalog` (planners, administrators). It only adds rows to the golden matrix; no existing right changed.
 
+**As built, 7x1 (#189):**
+- **Permissions:** 55 permissions in code (`Permissions`), `iam.permission` and `iam.role_permission` seeded from them, `PermissionPolicyProvider`, and every endpoint, page and menu entry on permissions. Brand and hub scope are permissions too. Brand scope uses an any-brand variant per action, not one global "all brands" permission, so a brand manager who is also a sponsor stays brand-scoped for transfers, as before.
+- **Transport:** permissions are added server-side per request from the role codes (`PermissionClaimsTransformation`, 30-second cache, `IRolePermissions` in process or over HTTP for the gateway). They are never in the cookie. They reach the internal token (worst case 3,062 bytes, budget 8 KB, tested), the client's authentication state and `/bff/me`.
+- **Golden matrix:** the endpoint probes, roles, brands and hubs are identical; the rows are now permissions. The superadministrator follows in 7x3 together with its guards, so that no window lets an administrator move into that position.
+
 **As built, 7f2 (#187):**
 - **Components in `Features/MasterData`:** `CatalogClient` (any catalogue route), `CatalogPage<T>`, `CatalogEditor`, `ArchiveAction`, `HistoryPanel` and `CatalogAutocomplete`, used by the adjustment reasons screen (`/inventory/adjustment-reasons`, a new Inventory tab).
   - `CatalogPage<T>` has search as you type, the archived switch, paging, and cards below `sm`.
@@ -625,3 +652,10 @@ Honestly: **only at the pace of stage 6, with no slack for surprises.** The nomi
 3. The locked Administrator role holds today's administrator rights plus the organisation permissions, not every permission: "reproduce today's rights exactly" rules out giving it purchase order creation, and the first pair would forbid it anyway.
 4. The golden matrix's policy rows become permission rows; the endpoint probes, roles, brands and hubs must stay identical.
 5. The internal token carries the permissions (measured, budget 8 KB). The cookie does not.
+
+**Owner's answers (27 November 2026, evening):**
+1. Approved: editing a role you hold, or the template or assignments of your own position, is refused with 403.
+2. Approved: supplier editing goes to Administrator only by default; ADR 0028 notes that a dealer can build a "procurement master data" role later.
+3. **Changed.** Administrator stays system administration under normal rules. In addition there is a **Superadministrator**: a locked position whose locked role template holds every permission, with no scope limit and no SoD validation. Superadministrators are ordinary employees in that position. Only another superadministrator moves someone into or out of it, never themselves, and the last one cannot be removed (409). It does not bypass database invariants or the self-approval ban. Demo data has one, with the password from the new parameter `superadmin-password`. Built in 7x1/7x3 (no separate PR).
+4. Approved, with the mapping table "old policy → new permission(s)" in the 7x1 PR and above.
+5. Approved: permissions are computed server-side, the internal token carries them, there is an 8 KB budget test, and the figure is in ADR 0028.
