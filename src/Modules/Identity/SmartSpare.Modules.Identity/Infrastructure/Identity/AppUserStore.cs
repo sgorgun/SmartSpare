@@ -11,7 +11,7 @@ namespace SmartSpare.Modules.Identity.Infrastructure.Identity;
 /// algorithms (password check, rehash, lockout). Read-only for users and roles in stage 3: creating users and changing
 /// roles is user administration (#46).
 /// </summary>
-internal sealed class AppUserStore(IdentityDbContext db) :
+internal sealed class AppUserStore(IdentityDbContext db, OrganisationReader organisation) :
     IUserPasswordStore<AppUser>,
     IUserSecurityStampStore<AppUser>,
     IUserLockoutStore<AppUser>,
@@ -143,16 +143,9 @@ internal sealed class AppUserStore(IdentityDbContext db) :
 
     // ---- IUserRoleStore (read-only) -----------------------------------------------------------------------------
 
-    public async Task<IList<string>> GetRolesAsync(AppUser user, CancellationToken cancellationToken)
-    {
-        var roleIds = NotNull(user).Roles.Select(r => r.RoleId).ToList();
-        return await db.Set<Role>().AsNoTracking()
-            .Where(r => roleIds.Contains(r.Id))
-            .OrderBy(r => r.Code)
-            .Select(r => r.Code)
-            .ToListAsync(cancellationToken)
-            .ConfigureAwait(false);
-    }
+    /// <summary>The roles of the employee's position (ADR 0026); <c>iam.user_role</c> is only a shadow until PR 7e.</summary>
+    public async Task<IList<string>> GetRolesAsync(AppUser user, CancellationToken cancellationToken) =>
+        (await organisation.RightsForClaimsAsync(NotNull(user), cancellationToken).ConfigureAwait(false)).Roles.ToList();
 
     public async Task<bool> IsInRoleAsync(AppUser user, string roleName, CancellationToken cancellationToken) =>
         (await GetRolesAsync(user, cancellationToken).ConfigureAwait(false)).Contains(roleName, StringComparer.Ordinal);

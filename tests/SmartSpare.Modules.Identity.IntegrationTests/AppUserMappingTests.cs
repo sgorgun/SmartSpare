@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using SmartSpare.Modules.Identity.Domain;
+using SmartSpare.Modules.Identity.Domain.Organisation;
 
 namespace SmartSpare.Modules.Identity;
 
@@ -30,6 +31,7 @@ public sealed class AppUserMappingTests(IdentityDatabaseFixture database)
             user.AssignRole(sponsor, Now, null);
             user.AssignBrand(brands[0]);
             user.AssignBrand(brands[1]);
+            context.Add(await EmployeeAsync(context, id));
             context.Add(user);
             await context.SaveChangesAsync(ct);
         }
@@ -66,6 +68,7 @@ public sealed class AppUserMappingTests(IdentityDatabaseFixture database)
         var id = Guid.NewGuid();
         await using (var context = database.CreateContext())
         {
+            context.Add(await EmployeeAsync(context, id));
             context.Add(NewUser(id));
             await context.SaveChangesAsync(ct);
         }
@@ -90,8 +93,9 @@ public sealed class AppUserMappingTests(IdentityDatabaseFixture database)
         var mixed = $"Mixed.{id:N}"[..20];
         await using (var context = database.CreateContext())
         {
+            context.Add(await EmployeeAsync(context, id));
             context.Add(AppUser.Create(
-                id, UserName.Create(mixed).Value, EmailAddress.Create($"{id:N}@dealer.example").Value, "Mapping Test", null, Hash));
+                id, id, UserName.Create(mixed).Value, EmailAddress.Create($"{id:N}@dealer.example").Value, "Mapping Test", null, Hash));
             await context.SaveChangesAsync(ct);
         }
 
@@ -109,7 +113,15 @@ public sealed class AppUserMappingTests(IdentityDatabaseFixture database)
     }
 
     private static AppUser NewUser(Guid id) => AppUser.Create(
-        id, UserName.Create($"u{id:N}"[..20]).Value, EmailAddress.Create($"{id:N}@dealer.example").Value, "Mapping Test", null, Hash);
+        id, id, UserName.Create($"u{id:N}"[..20]).Value, EmailAddress.Create($"{id:N}@dealer.example").Value, "Mapping Test", null, Hash);
+
+    /// <summary>The employee every account belongs to (ADR 0026), with the same id as the account.</summary>
+    private static async Task<Employee> EmployeeAsync(DbContext context, Guid id)
+    {
+        var planner = await context.Set<Position>().Where(p => p.Code == "INVENTORY_PLANNER").Select(p => p.Id).SingleAsync(TestContext.Current.CancellationToken);
+        var code = "E" + (BitConverter.ToUInt32(id.ToByteArray(), 0) % 900000 + 100000).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        return Employee.Create(id, code, new EmployeeDetails("Mapping Test", null, null, planner, null)).Value;
+    }
 
     private static Task<AppUser> LoadAsync(DbContext context, Guid id) =>
         context.Set<AppUser>().Include(u => u.Roles).Include(u => u.Brands).SingleAsync(u => u.Id == id, TestContext.Current.CancellationToken);

@@ -38,7 +38,10 @@ public sealed class ValueObjectParityTests(IdentityDatabaseFixture database)
         await connection.OpenAsync(ct);
         await using var transaction = await connection.BeginTransactionAsync(ct);
         await using var insert = new NpgsqlCommand(
-            "INSERT INTO iam.app_user (user_name, email, full_name, password_hash) VALUES (@u, @e, 'Parity Test', @h)",
+            "WITH e AS (INSERT INTO iam.employee (code, full_name, position_id) "
+            + "SELECT 'E' || lpad((coalesce((SELECT max(substr(code, 2)::int) FROM iam.employee), 0) + 1)::text, 6, '0'), 'Parity Test', id "
+            + "FROM iam.position WHERE code = 'INVENTORY_PLANNER' RETURNING id) "
+            + "INSERT INTO iam.app_user (employee_id, user_name, email, full_name, password_hash) SELECT e.id, @u, @e, 'Parity Test', @h FROM e",
             connection, transaction);
         insert.Parameters.AddWithValue("u", userName);
         insert.Parameters.AddWithValue("e", email);

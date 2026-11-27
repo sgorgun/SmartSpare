@@ -194,6 +194,12 @@ namespace SmartSpare.Modules.Identity.Infrastructure.Persistence.Migrations
                         .HasColumnOrder(2)
                         .HasComment("PERSONAL DATA (GDPR). Corporate e-mail; masked by util.mask_email for read-only roles.");
 
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("employee_id")
+                        .HasColumnOrder(15)
+                        .HasComment("The employee the account belongs to (iam.employee); never null.");
+
                     b.Property<short>("FailedLoginCount")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("smallint")
@@ -282,6 +288,10 @@ namespace SmartSpare.Modules.Identity.Infrastructure.Persistence.Migrations
                     b.HasAlternateKey("UserName")
                         .HasName("uq_app_user_user_name");
 
+                    b.HasIndex("EmployeeId")
+                        .IsUnique()
+                        .HasDatabaseName("uq_app_user_employee");
+
                     b.HasIndex("HomeWarehouseId")
                         .HasDatabaseName("ix_app_user_home_warehouse");
 
@@ -302,6 +312,254 @@ namespace SmartSpare.Modules.Identity.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("ck_app_user_phone", "((phone IS NULL) OR ((phone)::text ~ '^\\+?[0-9 ()-]{7,20}$'::text))");
 
                             t.HasCheckConstraint("ck_app_user_user_name", "((user_name ~ '^[a-z0-9._-]{3,50}$'::citext) AND ((user_name)::text = lower((user_name)::text)))");
+                        });
+                });
+
+            modelBuilder.Entity("SmartSpare.Modules.Identity.Domain.Organisation.Employee", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasColumnOrder(0)
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<DateTimeOffset?>("AnonymisedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("anonymised_at")
+                        .HasColumnOrder(11)
+                        .HasComment("Set by iam.anonymise_employee() (GDPR Art. 17).");
+
+                    b.Property<DateTimeOffset?>("ArchivedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("archived_at")
+                        .HasColumnOrder(9);
+
+                    b.Property<Guid?>("ArchivedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("archived_by")
+                        .HasColumnOrder(10);
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("code")
+                        .HasColumnOrder(1)
+                        .HasComment("Employee number, e.g. E0001.");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasColumnOrder(12)
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("Email")
+                        .HasColumnType("citext")
+                        .HasColumnName("email")
+                        .HasColumnOrder(3)
+                        .HasComment("PERSONAL DATA (GDPR). Corporate e-mail.");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("full_name")
+                        .HasColumnOrder(2)
+                        .HasComment("PERSONAL DATA (GDPR). Masked by util.mask_name for read-only roles.");
+
+                    b.Property<DateOnly?>("HiredOn")
+                        .HasColumnType("date")
+                        .HasColumnName("hired_on")
+                        .HasColumnOrder(6);
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_archived")
+                        .HasColumnOrder(8)
+                        .HasDefaultValueSql("false")
+                        .HasComment("TRUE = left the company; the account cannot sign in.");
+
+                    b.Property<DateOnly?>("LeftOn")
+                        .HasColumnType("date")
+                        .HasColumnName("left_on")
+                        .HasColumnOrder(7)
+                        .HasComment("Set when the employee is archived (left the company).");
+
+                    b.Property<string>("Phone")
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("phone")
+                        .HasColumnOrder(4)
+                        .HasComment("PERSONAL DATA (GDPR).");
+
+                    b.Property<short>("PositionId")
+                        .HasColumnType("smallint")
+                        .HasColumnName("position_id")
+                        .HasColumnOrder(5)
+                        .HasComment("The position; its role template gives the account's roles.");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasColumnOrder(13)
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id")
+                        .HasName("pk_employee");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasDatabaseName("uq_employee_code");
+
+                    b.HasIndex("Email")
+                        .IsUnique()
+                        .HasDatabaseName("uq_employee_email");
+
+                    b.HasIndex("FullName")
+                        .HasDatabaseName("ix_employee_full_name_trgm");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("FullName"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("FullName"), new[] { "gin_trgm_ops" });
+
+                    b.HasIndex("PositionId")
+                        .HasDatabaseName("ix_employee_position");
+
+                    b.ToTable("employee", "iam", t =>
+                        {
+                            t.HasComment("Employees of the dealership: the single source of who is who (ADR 0026). Contains personal data (full_name, email, phone).");
+
+                            t.HasCheckConstraint("ck_employee_anonymised_archived", "((anonymised_at IS NULL) OR is_archived)");
+
+                            t.HasCheckConstraint("ck_employee_archived", "((is_archived AND (archived_at IS NOT NULL) AND (left_on IS NOT NULL)) OR ((NOT is_archived) AND (archived_at IS NULL)))");
+
+                            t.HasCheckConstraint("ck_employee_code", "((code)::text ~ '^E[0-9]{4,6}$'::text)");
+
+                            t.HasCheckConstraint("ck_employee_dates", "((left_on IS NULL) OR (hired_on IS NULL) OR (left_on >= hired_on))");
+
+                            t.HasCheckConstraint("ck_employee_email", "((email IS NULL) OR (email ~ '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$'::citext))");
+
+                            t.HasCheckConstraint("ck_employee_phone", "((phone IS NULL) OR ((phone)::text ~ '^\\+?[0-9 ()-]{7,20}$'::text))");
+                        });
+                });
+
+            modelBuilder.Entity("SmartSpare.Modules.Identity.Domain.Organisation.Position", b =>
+                {
+                    b.Property<short>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("smallint")
+                        .HasColumnName("id")
+                        .HasColumnOrder(0)
+                        .HasComment("Surrogate primary key.");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<short>("Id"));
+
+                    b.Property<DateTimeOffset?>("ArchivedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("archived_at")
+                        .HasColumnOrder(5);
+
+                    b.Property<Guid?>("ArchivedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("archived_by")
+                        .HasColumnOrder(6)
+                        .HasComment("User who archived the position (iam.app_user).");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("code")
+                        .HasColumnOrder(1)
+                        .HasComment("Business key, e.g. BRAND_MANAGER.");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasColumnOrder(7)
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("description")
+                        .HasColumnOrder(3);
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_archived")
+                        .HasColumnOrder(4)
+                        .HasDefaultValueSql("false")
+                        .HasComment("Archived instead of deleted; cannot be chosen for employees.");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("name")
+                        .HasColumnOrder(2)
+                        .HasComment("Display name.");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasColumnOrder(8)
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id")
+                        .HasName("pk_position");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasDatabaseName("uq_position_code");
+
+                    b.HasIndex("Name")
+                        .HasDatabaseName("ix_position_name_trgm");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Name"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Name"), new[] { "gin_trgm_ops" });
+
+                    b.ToTable("position", "iam", t =>
+                        {
+                            t.HasComment("Job positions of the dealership; the role template of a position gives its employees their application roles (ADR 0026).");
+
+                            t.HasCheckConstraint("ck_position_archived", "((is_archived AND (archived_at IS NOT NULL)) OR ((NOT is_archived) AND (archived_at IS NULL)))");
+
+                            t.HasCheckConstraint("ck_position_code", "((code)::text ~ '^[A-Z0-9_]{2,30}$'::text)");
+                        });
+                });
+
+            modelBuilder.Entity("SmartSpare.Modules.Identity.Domain.Organisation.PositionRole", b =>
+                {
+                    b.Property<short>("PositionId")
+                        .HasColumnType("smallint")
+                        .HasColumnName("position_id")
+                        .HasColumnOrder(0);
+
+                    b.Property<short>("Id")
+                        .HasColumnType("smallint")
+                        .HasColumnName("role_id")
+                        .HasColumnOrder(1)
+                        .HasComment("Reference to iam.role.");
+
+                    b.HasKey("PositionId", "Id")
+                        .HasName("pk_position_role");
+
+                    b.HasIndex("Id")
+                        .HasDatabaseName("ix_position_role_role");
+
+                    b.ToTable("position_role", "iam", t =>
+                        {
+                            t.HasComment("Role template: the application roles every employee of the position has.");
                         });
                 });
 
@@ -434,6 +692,43 @@ namespace SmartSpare.Modules.Identity.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("SmartSpare.Modules.Identity.Domain.AppUser", b =>
+                {
+                    b.HasOne("SmartSpare.Modules.Identity.Domain.Organisation.Employee", null)
+                        .WithOne()
+                        .HasForeignKey("SmartSpare.Modules.Identity.Domain.AppUser", "EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_app_user_employee");
+                });
+
+            modelBuilder.Entity("SmartSpare.Modules.Identity.Domain.Organisation.Employee", b =>
+                {
+                    b.HasOne("SmartSpare.Modules.Identity.Domain.Organisation.Position", null)
+                        .WithMany()
+                        .HasForeignKey("PositionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_employee_position");
+                });
+
+            modelBuilder.Entity("SmartSpare.Modules.Identity.Domain.Organisation.PositionRole", b =>
+                {
+                    b.HasOne("SmartSpare.Modules.Identity.Domain.Role", null)
+                        .WithMany()
+                        .HasForeignKey("Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_position_role_role");
+
+                    b.HasOne("SmartSpare.Modules.Identity.Domain.Organisation.Position", null)
+                        .WithMany("Roles")
+                        .HasForeignKey("PositionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_position_role_position");
+                });
+
             modelBuilder.Entity("SmartSpare.Modules.Identity.Domain.UserBrandAssignment", b =>
                 {
                     b.HasOne("SmartSpare.Modules.Identity.Infrastructure.Persistence.RefBrand", null)
@@ -478,6 +773,11 @@ namespace SmartSpare.Modules.Identity.Infrastructure.Persistence.Migrations
                 {
                     b.Navigation("Brands");
 
+                    b.Navigation("Roles");
+                });
+
+            modelBuilder.Entity("SmartSpare.Modules.Identity.Domain.Organisation.Position", b =>
+                {
                     b.Navigation("Roles");
                 });
 #pragma warning restore 612, 618

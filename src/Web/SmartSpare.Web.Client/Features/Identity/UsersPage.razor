@@ -1,6 +1,5 @@
 @page "/admin/users"
 @attribute [Authorize(Policy = AppPolicies.Administration)]
-@using System.Globalization
 @using SmartSpare.ApiContracts.Identity
 @inject IStringLocalizer<SharedResource> Text
 @inject IdentityClient Identity
@@ -9,11 +8,8 @@
 
 <PageTitle>@Text["Users.Title"]</PageTitle>
 
-<div class="d-flex align-center flex-wrap mb-2">
-    <MudText Typo="Typo.h4" HtmlTag="h1" Class="mr-auto">@Text["Users.Title"]</MudText>
-    <MudButton OnClick="StartCreate" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd"
-               data-testid="new-user">@Text["Users.New"]</MudButton>
-</div>
+<MudText Typo="Typo.h4" HtmlTag="h1" Class="mb-1">@Text["Users.Title"]</MudText>
+<MudText Typo="Typo.body2" Class="mb-3" data-testid="rights-origin-note">@Text["Users.RightsFromOrganisation"]</MudText>
 
 <MudTextField T="string" @bind-Value="_search" Label="@Text["Users.Search"]" Variant="Variant.Outlined" Margin="Margin.Dense"
               Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Clearable="true" DebounceInterval="400"
@@ -27,35 +23,15 @@
 @if (_editing is not null && _options is not null)
 {
     <MudPaper Outlined="true" Class="pa-4 mb-4" data-testid="user-form">
-        <MudText Typo="Typo.h6" HtmlTag="h2" Class="mb-2">@(_editing.Id is null ? Text["Users.New"] : Text["Users.EditAccess", _editing.UserName ?? string.Empty])</MudText>
-        @if (_editing.Id is null)
-        {
-            <MudGrid Spacing="2">
-                <MudItem xs="12" sm="6"><MudTextField T="string" @bind-Value="_editing.UserName" Label="@Text["Users.UserName"]" Variant="Variant.Outlined" Margin="Margin.Dense" data-testid="user-name" /></MudItem>
-                <MudItem xs="12" sm="6"><MudTextField T="string" @bind-Value="_editing.FullName" Label="@Text["Users.FullName"]" Variant="Variant.Outlined" Margin="Margin.Dense" data-testid="full-name" /></MudItem>
-                <MudItem xs="12" sm="6"><MudTextField T="string" @bind-Value="_editing.Email" Label="@Text["Users.Email"]" Variant="Variant.Outlined" Margin="Margin.Dense" InputType="InputType.Email" data-testid="email" /></MudItem>
-                <MudItem xs="12" sm="6"><MudTextField T="string" @bind-Value="_editing.Password" Label="@Text["Users.InitialPassword"]" Variant="Variant.Outlined" Margin="Margin.Dense" InputType="InputType.Password" HelperText="@Text["Users.PasswordRule"]" data-testid="password" /></MudItem>
-            </MudGrid>
-        }
-
-        <MudText Typo="Typo.subtitle2" Class="mt-3">@Text["Users.Roles"]</MudText>
-        <div class="d-flex flex-wrap" data-testid="role-choices">
-            @foreach (var role in _options.Roles)
+        <MudText Typo="Typo.h6" HtmlTag="h2" Class="mb-2">@Text["Users.EditAccess", _editing.UserName ?? string.Empty]</MudText>
+        <MudText Typo="Typo.body2" Class="mb-2">@Text["Users.BrandsUntilAssignments"]</MudText>
+        <MudText Typo="Typo.subtitle2" Class="mt-2">@Text["Users.Brands"]</MudText>
+        <div class="d-flex flex-wrap" data-testid="brand-choices">
+            @foreach (var brand in _options.Brands)
             {
-                <MudCheckBox T="bool" Value="_editing.Roles.Contains(role)" ValueChanged="@(on => Toggle(_editing.Roles, role, on))" Label="@Text["Role." + role]" />
+                <MudCheckBox T="bool" Value="_editing.Brands.Contains(brand)" ValueChanged="@(on => Toggle(_editing.Brands, brand, on))" Label="@brand" />
             }
         </div>
-
-        @if (_editing.Roles.Contains(AppRoles.BrandManager))
-        {
-            <MudText Typo="Typo.subtitle2" Class="mt-2">@Text["Users.Brands"]</MudText>
-            <div class="d-flex flex-wrap" data-testid="brand-choices">
-                @foreach (var brand in _options.Brands)
-                {
-                    <MudCheckBox T="bool" Value="_editing.Brands.Contains(brand)" ValueChanged="@(on => Toggle(_editing.Brands, brand, on))" Label="@brand" />
-                }
-            </div>
-        }
 
         <MudSelect T="short?" @bind-Value="_editing.HomeWarehouseId" Label="@Text["Users.HomeHub"]" Variant="Variant.Outlined" Dense="true" Class="mt-2" data-testid="home-hub">
             <MudSelectItem T="short?" Value="null">@Text["Users.NoHub"]</MudSelectItem>
@@ -82,11 +58,24 @@
     <Columns>
         <PropertyColumn Property="u => u.UserName" Title="@Text["Users.UserName"]" />
         <PropertyColumn Property="u => u.FullNameMasked" Title="@Text["Users.FullName"]" />
-        <TemplateColumn Title="@Text["Users.Roles"]">
-            <CellTemplate>@string.Join(", ", context.Item.Roles.Select(r => Text["Role." + r].Value))@(context.Item.Brands.Count > 0 ? $" ({string.Join(", ", context.Item.Brands)})" : string.Empty)</CellTemplate>
-        </TemplateColumn>
-        <TemplateColumn Title="@Text["Users.HomeHub"]">
-            <CellTemplate>@HubCode(context.Item.HomeWarehouseId)</CellTemplate>
+        <PropertyColumn Property="u => u.PositionName" Title="@Text["Users.Position"]" />
+        <TemplateColumn Title="@Text["Users.Rights"]">
+            <CellTemplate>
+                <div data-testid="user-rights">
+                    @if (context.Item.InactiveReason is { } reason)
+                    {
+                        <MudText Typo="Typo.body2">@reason</MudText>
+                    }
+                    @foreach (var right in context.Item.Rights)
+                    {
+                        <MudText Typo="Typo.body2">@RightText(right)</MudText>
+                    }
+                    @foreach (var right in context.Item.WithoutEffect)
+                    {
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">@Text["Users.WithoutEffect", RightText(right)]</MudText>
+                    }
+                </div>
+            </CellTemplate>
         </TemplateColumn>
         <TemplateColumn Title="@Text["Stock.Status"]">
             <CellTemplate>
@@ -184,12 +173,6 @@
         return new GridData<UserSummary> { Items = result.Value!.Items, TotalItems = result.Value.TotalCount };
     }
 
-    private void StartCreate()
-    {
-        _formError = null;
-        _editing = new UserForm();
-    }
-
     private void StartEdit(UserSummary user)
     {
         _formError = null;
@@ -197,7 +180,6 @@
         {
             Id = user.Id,
             UserName = user.UserName,
-            Roles = [.. user.Roles],
             Brands = [.. user.Brands],
             HomeWarehouseId = user.HomeWarehouseId,
         };
@@ -210,30 +192,15 @@
             return;
         }
 
-        var access = new UserAccessRequest(
-            [.. form.Roles], form.Roles.Contains(AppRoles.BrandManager) ? [.. form.Brands] : [], form.HomeWarehouseId);
+        var access = new UserAccessRequest([.. form.Brands], form.HomeWarehouseId);
         _busy = true;
         try
         {
-            if (form.Id is { } id)
+            _formError = Validate(new UserAccessRequestValidator(), access);
+            if (_formError is null && form.Id is { } id)
             {
-                _formError = Validate(new UserAccessRequestValidator(), access);
-                if (_formError is null)
-                {
-                    var result = await Identity.UpdateUserAccessAsync(id, access);
-                    _formError = result.IsSuccess ? null : Messages.Describe(result.Problem!);
-                }
-            }
-            else
-            {
-                var request = new CreateUserRequest(form.UserName ?? string.Empty, form.Email ?? string.Empty, form.FullName ?? string.Empty, null,
-                    form.Password ?? string.Empty, access);
-                _formError = Validate(new CreateUserRequestValidator(), request);
-                if (_formError is null)
-                {
-                    var result = await Identity.CreateUserAsync(request);
-                    _formError = result.IsSuccess ? null : Messages.Describe(result.Problem!);
-                }
+                var result = await Identity.UpdateUserAccessAsync(id, access);
+                _formError = result.IsSuccess ? null : Messages.Describe(result.Problem!);
             }
         }
         finally
@@ -284,8 +251,12 @@
         }
     }
 
-    private string HubCode(short? id) =>
-        id is null ? string.Empty : _options?.Hubs.FirstOrDefault(h => h.Id == id)?.Code ?? id.Value.ToString(CultureInfo.InvariantCulture);
+    /// <summary>"Role Brand manager — from position Brand manager": the right and where it comes from (ADR 0026).</summary>
+    private string RightText(EffectiveRightDto right)
+    {
+        var value = right.Kind == "Role" ? Text["Role." + right.Value].Value : right.Value;
+        return Text["Users.Right." + right.Kind + "." + right.Origin, value, right.OriginName];
+    }
 
     private static void Toggle(List<string> values, string value, bool on)
     {
@@ -308,14 +279,6 @@
         public Guid? Id { get; init; }
 
         public string? UserName { get; set; }
-
-        public string? FullName { get; set; }
-
-        public string? Email { get; set; }
-
-        public string? Password { get; set; }
-
-        public List<string> Roles { get; init; } = [];
 
         public List<string> Brands { get; init; } = [];
 

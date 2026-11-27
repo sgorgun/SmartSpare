@@ -16,7 +16,9 @@ internal static class UserEndpoints
 {
     private static readonly UserSummary Example = new(
         Guid.Parse("00000000-0000-4000-8000-000000000009"), "ignas.zukauskas", "I. Ž.", "i***@dealer.example", IsActive: true,
-        IsLockedOut: false, IsAnonymised: false, HomeWarehouseId: null, Roles: [AppRoles.InventoryPlanner], Brands: [], LastLoginAt: null);
+        IsLockedOut: false, IsAnonymised: false, HomeWarehouseId: null, Roles: [AppRoles.InventoryPlanner], Brands: [], LastLoginAt: null,
+        EmployeeId: Guid.Parse("00000000-0000-4000-8000-000000000009"), EmployeeCode: "E0009", PositionName: "Inventory planner",
+        Rights: [new EffectiveRightDto("Role", AppRoles.InventoryPlanner, "Position", "Inventory planner")], WithoutEffect: [], InactiveReason: null);
 
     public static void Map(IEndpointRouteBuilder v1)
     {
@@ -30,10 +32,12 @@ internal static class UserEndpoints
                 [Description("Users per page, 1 to 100.")] int pageSize = UserLimits.DefaultPageSize) =>
                 (await handler.Handle(new ListUsersQuery(search, page, pageSize), cancellationToken).ConfigureAwait(false)).ToHttpResult())
             .WithName("ListUsers")
-            .WithSummary("Lists users with masked personal data.")
+            .WithSummary("Lists user accounts with their effective rights.")
             .WithDescription(
-                "The user directory from iam.v_app_user_masked: user name, masked name and e-mail, status, lockout, roles, "
-                + "brands and home hub, ordered by user name. Policy Administration.")
+                "The accounts from iam.v_app_user_masked: user name, the employee's masked name and e-mail, status, lockout and "
+                + "every effective right with its origin (role from the position, brand and hub from assignments; ADR 0026), "
+                + "ordered by user name. Rights are read-only here: they change with the employee's position and assignments. "
+                + "Policy Administration.")
             .Produces<PagedResponse<UserSummary>>()
             .ProducesValidationProblem()
             .ProducesProblem(StatusCodes.Status401Unauthorized)
@@ -53,40 +57,16 @@ internal static class UserEndpoints
                 [AppRoles.BrandManager, AppRoles.InventoryPlanner], ["CLAAS", "JD"], [new HubOption(3, "KLP", "Klaipėda")]))
             .WithResponseExample(StatusCodes.Status401Unauthorized, Problem(Error.Failure(ProblemCodes.Unauthenticated, "Unauthorized"), 401));
 
-        users.MapPost("", async (CreateUserRequest request, ICommandHandler<CreateUserCommand, Guid> handler, CancellationToken cancellationToken) =>
-            {
-                var result = await handler.Handle(new CreateUserCommand(request), cancellationToken).ConfigureAwait(false);
-                return result.IsSuccess
-                    ? Results.Created($"/api/v1/identity/users/{result.Value}", new { id = result.Value })
-                    : result.Error.ToProblem();
-            })
-            .WithName("CreateUser")
-            .WithSummary("Creates a user with an initial password, roles, brands and home hub.")
-            .WithDescription(
-                "The user name is stored in lower case; the password follows the policy (at least 12 characters, 4 different). "
-                + "Brands go only to brand managers; the home hub must be an active hub (checked with the Inventory module). "
-                + "A used user name or e-mail gives 409 Identity.UserNameTaken. Policy Administration; written as app_admin.")
-            .Accepts<CreateUserRequest>("application/json")
-            .Produces(StatusCodes.Status201Created)
-            .ProducesValidationProblem()
-            .ProducesProblem(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status403Forbidden)
-            .ProducesProblem(StatusCodes.Status409Conflict)
-            .WithRequestExample(new CreateUserRequest("rasa.petrauskiene", "rasa.petrauskiene@dealer.example", "Rasa Petrauskienė", null,
-                "a long initial password", new UserAccessRequest([AppRoles.WarehouseKeeper], [], 3)))
-            .WithResponseExample(StatusCodes.Status400BadRequest, Problem(UserErrors.UnknownWarehouse, 400))
-            .WithResponseExample(StatusCodes.Status409Conflict, Problem(UserErrors.UserNameTaken, 409));
-
         users.MapPut("/{id:guid}/access", async (
                 [Description("User id.")] Guid id, UserAccessRequest request,
                 ICommandHandler<UpdateUserAccessCommand, UserSummary> handler, CancellationToken cancellationToken) =>
                 (await handler.Handle(new UpdateUserAccessCommand(id, request), cancellationToken).ConfigureAwait(false)).ToHttpResult())
             .WithName("UpdateUserAccess")
-            .WithSummary("Sets the roles, brands and home hub of a user.")
+            .WithSummary("Sets the brands and home hub of a user (until PR 7d).")
             .WithDescription(
-                "Replaces the user's roles, brands and home hub; every change rotates the security stamp, so the user's sessions "
-                + "pick up the new claims at their next check. An administrator cannot remove the own Administrator role (422 "
-                + "Identity.OwnAdministration). Policy Administration; written as app_admin.")
+                "Replaces the user's brands and home hub; every change rotates the security stamp, so the user's sessions pick up "
+                + "the new claims at their next check. Roles are not set here: they come from the employee's position. Brands give "
+                + "an approval scope only while the position grants BRAND_MANAGER. Policy Administration; written as app_admin.")
             .Accepts<UserAccessRequest>("application/json")
             .Produces<UserSummary>()
             .ProducesValidationProblem()
@@ -94,7 +74,7 @@ internal static class UserEndpoints
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
-            .WithRequestExample(new UserAccessRequest([AppRoles.BrandManager], ["CLAAS"], null))
+            .WithRequestExample(new UserAccessRequest(["CLAAS"], null))
             .WithResponseExample(StatusCodes.Status200OK, Example)
             .WithResponseExample(StatusCodes.Status404NotFound, Problem(UserErrors.NotFound, 404))
             .WithResponseExample(StatusCodes.Status422UnprocessableEntity, Problem(UserErrors.OwnAdministration, 422));
@@ -104,9 +84,10 @@ internal static class UserEndpoints
         MapAction<DeactivateUserCommand>(users, "deactivate", id => new DeactivateUserCommand(id), "DeactivateUser", "Deactivates a user.",
             "No new sign-ins; existing sessions end at their next check. An administrator cannot deactivate the own account (422 "
             + "Identity.OwnAdministration). Policy Administration.");
-        MapAction<AnonymiseUserCommand>(users, "anonymise", id => new AnonymiseUserCommand(id), "AnonymiseUser", "Anonymises a user (GDPR).",
-            "Erases the personal data with iam.anonymise_user; the row stays for audit references and the user can never sign in "
-            + "again. An administrator cannot anonymise the own account (403, SS301). Policy Administration.");
+        MapAction<AnonymiseUserCommand>(users, "anonymise", id => new AnonymiseUserCommand(id), "AnonymiseUser", "Anonymises a user's employee (GDPR).",
+            "Erases the personal data of the account's employee and of the account with iam.anonymise_employee; the rows stay for "
+            + "audit references and the account can never sign in again. An administrator cannot anonymise the own account (403, "
+            + "SS301). Policy Administration.");
 
         v1.MapPost("/me/password", async (ChangePasswordRequest request, ICommandHandler<ChangeOwnPasswordCommand> handler, CancellationToken cancellationToken) =>
                 (await handler.Handle(new ChangeOwnPasswordCommand(request), cancellationToken).ConfigureAwait(false)).ToHttpResult())

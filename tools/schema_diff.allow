@@ -179,3 +179,16 @@
 # calls it, so the application roles keep no DELETE on outbox_message / inbox_message.
 +purge_processed_messages
 +^GET DIAGNOSTICS (outbox|inbox)_deleted = ROW_COUNT;$
+
+# PR 7c2 (STAGE_7_PLAN 1.1 and 1.6, ADR 0026): the organisation in Identity. Positions with role templates and employees;
+# every account belongs to an employee (iam.app_user.employee_id); roles come from the employee's position, so
+# iam.user_has_role and iam.v_app_user_masked read the position; GDPR erasure of an employee (iam.anonymise_employee).
++(iam\."position"|iam\.position_role|iam\.employee\b|iam\.v_employee_masked|iam\.anonymise_employee|fk_app_user_employee|uq_app_user_employee|ix_employee_|ix_position_|uq_employee_|uq_position_code|iam\.app_user\.employee_id|SELECT\(employee_id\) ON TABLE iam\.app_user|trg_(employee|position)_updated_at)
++(BEGIN SELECT id INTO v_account FROM iam\.app_user|^v_account uuid;|IF v_account|IF NOT FOUND THEN RAISE EXCEPTION 'Employee %|UPDATE iam\.employee SET full_name = 'Anonymised Employee')
+-COMMENT ON FUNCTION iam\.user_has_role\(.*'TRUE if the active user has at least one of the given role codes\.'
+-CREATE FUNCTION iam\.user_has_role\(.*FROM iam\.user_role ur
++COMMENT ON FUNCTION iam\.user_has_role\(.*employee holds a position
++CREATE FUNCTION iam\.user_has_role\(.*JOIN iam\.employee e
+-COMMENT ON VIEW iam\.v_app_user_masked IS 'User directory with masked personal data \(name
++COMMENT ON VIEW iam\.v_app_user_masked IS 'User directory with masked personal data from the employee
++CREATE VIEW iam\.v_app_user_masked AS .*JOIN iam\.employee e

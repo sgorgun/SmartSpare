@@ -171,14 +171,15 @@ public abstract class SignInMatrix(IdentityDatabaseFixture database) : IAsyncLif
     }
 
     [Fact]
-    public async Task A_role_change_reaches_the_cookie_at_the_next_check()
+    public async Task A_change_of_the_position_template_reaches_the_cookie_at_the_next_check()
     {
         var id = await database.CreateUserAsync(U("it.promoted"), [AppRoles.BrandManager], []);
         using var browser = _host.NewBrowser();
         await LoginOrFailAsync(browser, U("it.promoted"));
 
         await database.ExecuteAsync(
-            "INSERT INTO iam.user_role (user_id, role_id) SELECT @id, id FROM iam.role WHERE code = 'SPONSOR'", ("id", id));
+            "INSERT INTO iam.position_role (position_id, role_id) SELECT e.position_id, r.id FROM iam.employee e, iam.role r WHERE e.id = @id AND r.code = 'SPONSOR'",
+            ("id", id));
         _host.Time.Advance(BffDefaults.SessionCheckInterval);
 
         (await browser.MeAsync()).Roles.ShouldBe([AppRoles.BrandManager, AppRoles.Sponsor]);

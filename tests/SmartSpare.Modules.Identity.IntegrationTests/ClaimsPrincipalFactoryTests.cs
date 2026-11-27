@@ -18,8 +18,10 @@ public sealed class ClaimsPrincipalFactoryTests(IdentityDatabaseFixture database
     {
         var id = Guid.NewGuid();
         await database.ExecuteAsync($"""
-            INSERT INTO iam.app_user (id, user_name, email, full_name, phone, password_hash, home_warehouse_id)
-            VALUES ('{id}', 'claims.user', 'claims.user@dealer.example', 'Claims Person', '+370 600 00000',
+            INSERT INTO iam.employee (id, code, full_name, position_id)
+            SELECT '{id}', 'E9001', 'Claims Person', id FROM iam.position WHERE code = 'COMMERCIAL_DIRECTOR';
+            INSERT INTO iam.app_user (id, employee_id, user_name, email, full_name, phone, password_hash, home_warehouse_id)
+            VALUES ('{id}', '{id}', 'claims.user', 'claims.user@dealer.example', 'Claims Person', '+370 600 00000',
                     'AQAAAAIAA1tgAAAAE{new string('A', 67)}', 3);
             INSERT INTO iam.user_role (user_id, role_id) SELECT '{id}', id FROM iam.role WHERE code IN ('BRAND_MANAGER', 'SPONSOR');
             INSERT INTO iam.user_brand (user_id, brand_id) SELECT '{id}', id FROM ref.brand WHERE code IN ('CLAAS', 'LEMKEN');

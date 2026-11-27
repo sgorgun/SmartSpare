@@ -83,6 +83,9 @@ public sealed class IdentityModuleInstaller : IModuleInstaller
         services.AddScoped<Infrastructure.Persistence.IdentityFunctions>();
         services.AddScoped<Features.Users.AccessResolver>();
         services.AddScoped<Features.Users.UserReader>();
+        services.AddScoped<Infrastructure.Identity.OrganisationReader>();
+        services.AddScoped<Infrastructure.Identity.AccountStamps>();
+        services.AddScoped<Infrastructure.Identity.AdministratorGuard>();
     }
 
     /// <summary>
@@ -121,6 +124,8 @@ public sealed class IdentityModuleInstaller : IModuleInstaller
         // The versioned business API (ADR 0012), described in the module's OpenAPI document (ADR 0019).
         var v1 = endpoints.MapGroup($"/api/v1/{Name}").WithTags("Identity");
         Features.Users.UserEndpoints.Map(v1);
+        Features.Organisation.PositionEndpoints.Map(v1);
+        Features.Organisation.EmployeeEndpoints.Map(v1);
     }
 
     public void MapInternalEndpoints(IEndpointRouteBuilder endpoints) => Features.InternalChecks.InternalCheckEndpoints.Map(endpoints);

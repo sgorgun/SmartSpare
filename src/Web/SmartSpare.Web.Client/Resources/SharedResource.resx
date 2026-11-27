@@ -1164,4 +1164,28 @@
   <data name="KitEditor.Saved" xml:space="preserve">
     <value>Parts of {0} saved; the hub is reserving the changes.</value>
   </data>
+  <data name="Users.RightsFromOrganisation" xml:space="preserve">
+    <value>Rights are not edited here. Roles come from the employee's position, brands and hubs from the employee's assignments; each right shows where it comes from.</value>
+  </data>
+  <data name="Users.BrandsUntilAssignments" xml:space="preserve">
+    <value>Brands give an approval scope only while the employee's position includes the brand manager role.</value>
+  </data>
+  <data name="Users.Position" xml:space="preserve">
+    <value>Position</value>
+  </data>
+  <data name="Users.Rights" xml:space="preserve">
+    <value>Effective rights</value>
+  </data>
+  <data name="Users.WithoutEffect" xml:space="preserve">
+    <value>{0} (no effect)</value>
+  </data>
+  <data name="Users.Right.Role.Position" xml:space="preserve">
+    <value>Role {0}: from position {1}</value>
+  </data>
+  <data name="Users.Right.Brand.BrandAssignment" xml:space="preserve">
+    <value>Brand {0}: from {1}</value>
+  </data>
+  <data name="Users.Right.Hub.WarehouseAssignment" xml:space="preserve">
+    <value>Hub {0}: from {1}</value>
+  </data>
 </root>

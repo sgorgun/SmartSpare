@@ -59,15 +59,16 @@ LANGUAGE sql AS $$
 $$;
 
 -- Acts as a signed-in user the way SessionContextInterceptor does (MODULE_MAPPING 3.6): app.user_id,
--- app.user_roles (the user's active role codes) and app.home_warehouse_id. The application takes roles and
--- warehouse from the claims; the tests read them from iam.
+-- app.user_roles (the role template of the employee's position, ADR 0026) and app.home_warehouse_id. The
+-- application takes roles and warehouse from the claims; the tests read them from iam.
 CREATE OR REPLACE FUNCTION pg_temp.act_as(p_user_name text) RETURNS uuid
 LANGUAGE sql AS $$
     SELECT set_config('app.user_roles', coalesce((SELECT string_agg(r.code, ',' ORDER BY r.code)
                                                   FROM iam.app_user u
-                                                  JOIN iam.user_role ur ON ur.user_id = u.id
-                                                  JOIN iam.role r ON r.id = ur.role_id
-                                                  WHERE u.user_name = p_user_name AND u.is_active), ''), false),
+                                                  JOIN iam.employee e ON e.id = u.employee_id
+                                                  JOIN iam.position_role pr ON pr.position_id = e.position_id
+                                                  JOIN iam.role r ON r.id = pr.role_id
+                                                  WHERE u.user_name = p_user_name AND u.is_active AND NOT e.is_archived), ''), false),
            set_config('app.home_warehouse_id', coalesce((SELECT home_warehouse_id::text FROM iam.app_user
                                                          WHERE user_name = p_user_name), ''), false);
     SELECT set_config('app.user_id', (SELECT id::text FROM iam.app_user WHERE user_name = p_user_name), false)::uuid

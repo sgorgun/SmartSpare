@@ -27,7 +27,7 @@ internal sealed class IdentityFunctions(IdentityDbContext db)
                     "SELECT id AS \"Value\" FROM ref.brand WHERE code = ANY(@codes)", new NpgsqlParameter<string[]>("codes", [.. codes]))
                 .ToListAsync(cancellationToken).ConfigureAwait(false);
 
-    /// <summary>GDPR erasure through <c>iam.anonymise_user</c> (role check and self-protection in SQL, SS301).</summary>
-    public Task AnonymiseAsync(Guid userId, CancellationToken cancellationToken) =>
-        db.Database.ExecuteSqlAsync($"SELECT iam.anonymise_user({userId})", cancellationToken);
+    /// <summary>GDPR erasure of an employee and the account through <c>iam.anonymise_employee</c> (role check and self-protection in SQL, SS301).</summary>
+    public Task AnonymiseEmployeeAsync(Guid employeeId, CancellationToken cancellationToken) =>
+        db.Database.ExecuteSqlAsync($"SELECT iam.anonymise_employee({employeeId})", cancellationToken);
 }

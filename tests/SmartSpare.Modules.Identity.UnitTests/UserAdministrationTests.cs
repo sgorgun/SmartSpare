@@ -16,19 +16,18 @@ public sealed class UserAdministrationTests
     private static readonly DateTimeOffset Now = new(2026, 11, 27, 9, 0, 0, TimeSpan.Zero);
 
     private static AppUser NewUser() => AppUser.Create(
-        Guid.NewGuid(), UserName.Create("rasa.petrauskiene").Value, EmailAddress.Create("rasa@dealer.example").Value, "Rasa Petrauskienė", null, Hash);
+        Guid.NewGuid(), Guid.NewGuid(), UserName.Create("rasa.petrauskiene").Value, EmailAddress.Create("rasa@dealer.example").Value, "Rasa Petrauskienė", null, Hash);
 
     [Fact]
-    public void Applying_access_grants_and_revokes_exactly_the_difference()
+    public void Applying_access_changes_exactly_the_brands_and_hub_and_never_the_roles()
     {
         var user = NewUser();
         user.AssignRole(2, Now, null);
-        user.AssignRole(5, Now, null);
         user.AssignBrand(1);
 
-        AccessResolver.Apply(user, new AccessResolver.Resolved([5, 7], [3], HomeWarehouseId: 4), Now, grantedBy: Guid.NewGuid());
+        AccessResolver.Apply(user, new AccessResolver.Resolved([3], HomeWarehouseId: 4));
 
-        user.Roles.Select(r => r.RoleId).ShouldBe(new short[] { 5, 7 }, ignoreOrder: true);
+        user.Roles.Select(r => r.RoleId).ShouldBe([(short)2], "roles come from the employee's position (ADR 0026)");
         user.Brands.Select(b => b.BrandId).ShouldBe([(short)3]);
         user.HomeWarehouseId.ShouldBe((short)4);
     }
@@ -37,10 +36,10 @@ public sealed class UserAdministrationTests
     public void Applying_the_same_access_keeps_the_sessions()
     {
         var user = NewUser();
-        AccessResolver.Apply(user, new AccessResolver.Resolved([5], [1], 3), Now, null);
+        AccessResolver.Apply(user, new AccessResolver.Resolved([1], 3));
         var stamp = user.SecurityStamp;
 
-        AccessResolver.Apply(user, new AccessResolver.Resolved([5], [1], 3), Now, null);
+        AccessResolver.Apply(user, new AccessResolver.Resolved([1], 3));
 
         user.SecurityStamp.ShouldBe(stamp, "nothing changed, so no session has to re-check its claims");
     }
@@ -73,35 +72,28 @@ public sealed class UserAdministrationTests
     }
 
     [Fact]
-    public void A_valid_new_user_passes()
+    public void A_valid_new_account_passes()
     {
-        var request = new CreateUserRequest("Rasa.P", "rasa@dealer.example", "Rasa Petrauskienė", null, "a long initial password",
-            new UserAccessRequest([AppRoles.WarehouseKeeper], [], 3));
-
-        new CreateUserRequestValidator().TestValidate(request).IsValid.ShouldBeTrue();
+        new CreateAccountRequestValidator().TestValidate(new CreateAccountRequest("Rasa.P", "a long initial password")).IsValid.ShouldBeTrue();
     }
 
     [Theory]
-    [InlineData("ab", "rasa@dealer.example", "a long initial password", "UserName")]
-    [InlineData("rasa p", "rasa@dealer.example", "a long initial password", "UserName")]
-    [InlineData("rasa.p", "not-an-address", "a long initial password", "Email")]
-    [InlineData("rasa.p", "rasa@dealer.example", "too short", "Password")]
-    [InlineData("rasa.p", "rasa@dealer.example", "aaaaaaaaaaaaaaab", "Password")]
-    public void Invalid_new_users_fail_on_their_field(string userName, string email, string password, string field) =>
-        new CreateUserRequestValidator().TestValidate(
-                new CreateUserRequest(userName, email, "Rasa", null, password, new UserAccessRequest([AppRoles.Sponsor], [], null)))
+    [InlineData("ab", "a long initial password", "UserName")]
+    [InlineData("rasa p", "a long initial password", "UserName")]
+    [InlineData("rasa.p", "too short", "Password")]
+    [InlineData("rasa.p", "aaaaaaaaaaaaaaab", "Password")]
+    public void Invalid_new_accounts_fail_on_their_field(string userName, string password, string field) =>
+        new CreateAccountRequestValidator().TestValidate(new CreateAccountRequest(userName, password))
             .Errors.ShouldContain(e => e.PropertyName.StartsWith(field, StringComparison.Ordinal));
 
     [Fact]
-    public void Access_needs_a_known_role_and_brands_only_for_brand_managers()
+    public void Access_carries_no_roles_and_a_positive_hub()
     {
         var validator = new UserAccessRequestValidator();
 
-        validator.TestValidate(new UserAccessRequest([], [], null)).ShouldHaveValidationErrorFor(r => r.Roles);
-        validator.TestValidate(new UserAccessRequest(["SUPERUSER"], [], null)).ShouldHaveValidationErrorFor(r => r.Roles);
-        validator.TestValidate(new UserAccessRequest([AppRoles.InventoryPlanner], ["JD"], null)).ShouldHaveValidationErrorFor(r => r.Brands);
-        validator.TestValidate(new UserAccessRequest([AppRoles.BrandManager], ["JD"], null)).IsValid.ShouldBeTrue();
-        validator.TestValidate(new UserAccessRequest([AppRoles.WarehouseKeeper], [], 0)).ShouldHaveValidationErrorFor(r => r.HomeWarehouseId);
+        validator.TestValidate(new UserAccessRequest(["JD"], null)).IsValid.ShouldBeTrue();
+        validator.TestValidate(new UserAccessRequest([], 0)).ShouldHaveValidationErrorFor(r => r.HomeWarehouseId);
+        typeof(UserAccessRequest).GetProperty("Roles").ShouldBeNull("roles are never edited on a user (ADR 0026)");
     }
 
     [Fact]
@@ -117,7 +109,7 @@ public sealed class UserAdministrationTests
     [Fact]
     public void The_command_validators_apply_the_request_rules()
     {
-        new UpdateUserAccessCommandValidator().TestValidate(new UpdateUserAccessCommand(Guid.NewGuid(), new UserAccessRequest([], [], null))).IsValid.ShouldBeFalse();
+        new UpdateUserAccessCommandValidator().TestValidate(new UpdateUserAccessCommand(Guid.NewGuid(), new UserAccessRequest([], 0))).IsValid.ShouldBeFalse();
         new ListUsersQueryValidator().TestValidate(new ListUsersQuery(null, 0, 25)).IsValid.ShouldBeFalse();
         new ListUsersQueryValidator().TestValidate(new ListUsersQuery("rasa", 1, 25)).IsValid.ShouldBeTrue();
     }
