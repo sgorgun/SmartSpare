@@ -569,13 +569,16 @@ SELECT 'JD6R150VLN2019OVD', mm.id, c.id, oc.id, w.id, 2019, DATE '2019-04-01'
 FROM fleet.machine_model mm, inventory.warehouse w, ref.operating_condition oc,
      LATERAL (SELECT id FROM fleet.customer WHERE region_warehouse_id = w.id ORDER BY id LIMIT 1) c
 WHERE mm.model_name = '6R 150' AND w.code = 'VLN' AND oc.code = 'NORMAL';
--- Due in a few hours (the end-to-end scenario, 6l): a Fendt 724 Vario in Klaipėda, commissioned ten months ago and
--- 8 h before its first 750 h engine service (due by hours: the yearly calendar interval ends about six weeks later).
+-- Due in a few hours: three Fendt 724 Vario of one Klaipėda farm, commissioned ten months ago and 8 h before their first
+-- 750 h engine service (due by hours: the yearly calendar interval ends about six weeks later). FT724KLP2024DEMO is the
+-- one of the demo walkthrough; the end-to-end scenario (6l) uses one per viewport, as each run services its machine.
 INSERT INTO fleet.machine (vin, model_id, customer_id, operating_condition_id, home_warehouse_id, manufacture_year, commissioned_on)
-SELECT 'FT724KLP2024DEMO', mm.id, c.id, oc.id, w.id, 2025, current_date - 310
-FROM fleet.machine_model mm, inventory.warehouse w, ref.operating_condition oc,
+SELECT v.vin, mm.id, c.id, oc.id, w.id, 2025, current_date - 310
+FROM (VALUES ('FT724KLP2024DEMO'), ('FT724KLP2024DEMO2'), ('FT724KLP2024DEMO3')) AS v (vin),
+     fleet.machine_model mm, inventory.warehouse w, ref.operating_condition oc,
      LATERAL (SELECT id FROM fleet.customer WHERE region_warehouse_id = w.id ORDER BY id LIMIT 1) c
-WHERE mm.model_name = '724 Vario' AND w.code = 'KLP' AND oc.code = 'NORMAL';
+WHERE mm.model_name = '724 Vario' AND w.code = 'KLP' AND oc.code = 'NORMAL'
+ORDER BY v.vin;
 INSERT INTO fleet.engine_hours_reading (machine_id, reading_hours, read_at, source)
 SELECT m.id, r.hours, ((current_date - r.days_ago) + time '09:00') AT TIME ZONE 'Europe/Vilnius', r.source::fleet.reading_source
 FROM fleet.machine m
@@ -583,7 +586,7 @@ JOIN (VALUES ('JD6R150VLN2019OVD', 300, 2300.0, 'import'), ('JD6R150VLN2019OVD',
              ('JD6R150VLN2019OVD', 100, 2560.0, 'import'), ('JD6R150VLN2019OVD', 20, 2580.0, 'import'),
              ('FT724KLP2024DEMO', 300, 60.0, 'import'), ('FT724KLP2024DEMO', 200, 300.0, 'import'),
              ('FT724KLP2024DEMO', 100, 520.0, 'import'), ('FT724KLP2024DEMO', 1, 742.0, 'telematics')) AS r (vin, days_ago, hours, source)
-  ON r.vin = m.vin
+  ON m.vin = r.vin OR (r.vin = 'FT724KLP2024DEMO' AND m.vin IN ('FT724KLP2024DEMO2', 'FT724KLP2024DEMO3'))
 ORDER BY m.id, r.days_ago DESC;
 
 -- Reserves an order's kit and stores the answer, as the consumers of ServiceOrderDrafted and ServiceKitReserved do.
@@ -657,7 +660,8 @@ BEGIN
                       WHERE so.status = 'draft' AND so.kit_reserved_at IS NOT NULL AND l.qty_reserved BETWEEN 0.001 AND l.qty_required - 0.001)
        OR NOT EXISTS (SELECT 1 FROM fleet.service_order so JOIN fleet.service_order_line l ON l.service_order_id = so.id
                       WHERE so.status = 'completed' AND l.qty_issued < l.qty_required)
-       OR NOT EXISTS (SELECT 1 FROM fleet.machine WHERE vin IN ('JD6R150VLN2019OVD', 'FT724KLP2024DEMO') HAVING count(*) = 2) THEN
+       OR NOT EXISTS (SELECT 1 FROM fleet.machine WHERE vin IN ('JD6R150VLN2019OVD', 'FT724KLP2024DEMO', 'FT724KLP2024DEMO2', 'FT724KLP2024DEMO3')
+                      HAVING count(*) = 4) THEN
         RAISE EXCEPTION 'T001: a Fleet demo state is missing (statuses, reserving, partial kit, shortfall or the named machines)';
     END IF;
 END $$;
