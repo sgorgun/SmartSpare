@@ -28,6 +28,7 @@
 | [0024](0024-acting-user-of-integration-events-and-jobs.md) | The acting user of integration events and background jobs | Accepted |
 | [0025](0025-generic-master-data-mechanism.md) | Generic master-data mechanism | Accepted; mechanism and first catalogue in stage 7 (PR 7f1) |
 | [0026](0026-employee-derived-authorization.md) | Employee-derived authorization | Accepted; roles from positions in stage 7 (7c), assignments in 7d |
+| [0028](0028-permissions-model.md) | Permissions model: permissions in code, roles as data, scope unchanged | Accepted; catalogue and permission checks in stage 7 (PR 7x1) |
 
 New ADRs use the next free number and the same Context / Decision / Consequences format.
 
