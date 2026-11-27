@@ -238,6 +238,59 @@ internal sealed class CancelServiceOrderCommandHandler(ServiceOrderStore store, 
     }
 }
 
+/// <summary>Sets the kit of an order that has not started (PR 6i, #140).</summary>
+internal sealed record ChangeServiceOrderLinesCommand(long Id, IReadOnlyList<CreateServiceOrderLine> Lines) : ICommand<long>;
+
+internal sealed class ChangeServiceOrderLinesCommandValidator : AbstractValidator<ChangeServiceOrderLinesCommand>
+{
+    public ChangeServiceOrderLinesCommandValidator() =>
+        RuleFor(c => new ChangeServiceOrderLinesRequest(c.Lines)).SetValidator(new ChangeServiceOrderLinesRequestValidator()).OverridePropertyName("Lines");
+}
+
+/// <summary>
+/// Edits the kit: the aggregate diffs the wanted lines against the current ones (a changed quantity becomes a new line),
+/// the change is saved, and <c>ServiceOrderLinesChanged</c> goes to Inventory in the same transaction, which releases the
+/// removed lines' holds and reserves the new lines. The same kit again changes nothing and publishes nothing.
+/// </summary>
+internal sealed class ChangeServiceOrderLinesCommandHandler(ServiceOrderStore store, IUnitOfWork<FleetDbContext> unitOfWork, ICurrentUser user, TimeProvider time)
+    : ICommandHandler<ChangeServiceOrderLinesCommand, long>
+{
+    public async Task<Result<long>> Handle(ChangeServiceOrderLinesCommand command, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        if (await store.TrackedAsync(command.Id, cancellationToken).ConfigureAwait(false) is not { } order)
+        {
+            return FleetErrors.ServiceOrderNotFound;
+        }
+
+        var current = order.Lines.Select(l => l.PartId).ToHashSet();
+        var newParts = command.Lines.Select(l => l.PartId).Where(p => !current.Contains(p)).ToList();
+        if (newParts.Count > 0)
+        {
+            var active = await store.ActivePartsAsync(newParts, cancellationToken).ConfigureAwait(false);
+            if (newParts.Any(p => !active.Contains(p)))
+            {
+                return FleetErrors.UnknownPart;
+            }
+        }
+
+        var changed = order.ReplaceLines([.. command.Lines.Select(l => new ServiceOrderLineDraft(l.PartId, l.Quantity))]);
+        if (changed.IsFailure)
+        {
+            return changed.Error;
+        }
+
+        if (changed.Value.IsEmpty)
+        {
+            return order.Id;
+        }
+
+        await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        unitOfWork.AddIntegrationEvent(ServiceOrderEvents.LinesChanged(order, changed.Value, user.UserId ?? Guid.Empty, time.GetUtcNow()));
+        return order.Id;
+    }
+}
+
 internal static class ServiceOrderEndpoints
 {
     public static void Map(IEndpointRouteBuilder group)
@@ -394,6 +447,45 @@ internal static class ServiceOrderEndpoints
             .WithResponseExample(StatusCodes.Status403Forbidden, FleetExamples.Forbidden)
             .WithResponseExample(StatusCodes.Status404NotFound, OpenApiConventions.Problem(FleetErrors.ServiceOrderNotFound))
             .WithResponseExample(StatusCodes.Status409Conflict, OpenApiConventions.Problem(FleetErrors.InvalidTransition(ServiceOrderStatus.Completed, "completed")));
+
+        group.MapPut("/service-orders/{id:long}/lines", async (
+                [Description("Service order id.")] long id,
+                ChangeServiceOrderLinesRequest request,
+                ICommandHandler<ChangeServiceOrderLinesCommand, long> handler,
+                IQueryHandler<GetServiceOrderQuery, ServiceOrderDetails> details,
+                CancellationToken cancellationToken) =>
+            {
+                var changed = await handler.Handle(new ChangeServiceOrderLinesCommand(id, request.Lines ?? []), cancellationToken).ConfigureAwait(false);
+                return changed.IsFailure
+                    ? changed.ToHttpResult()
+                    : (await details.Handle(new GetServiceOrderQuery(id), cancellationToken).ConfigureAwait(false)).ToHttpResult();
+            })
+            .RequireAuthorization(AppPolicies.ManageServiceOrders)
+            .WithName("ChangeServiceOrderLines")
+            .WithSummary("Sets the kit of a service order that has not started; Inventory adjusts the holds.")
+            .WithDescription(
+                "The body is the whole kit from now on. Parts that are missing are removed and Inventory releases their holds; new "
+                + "parts are added and reserved; a part whose quantity changed is replaced by a new line, released and reserved again. "
+                + "With new lines the kit is reserving again (kitStatus reserving; an order that was partsReserved returns to draft). "
+                + "Sending the same kit again changes nothing. A repair keeps at least one line (400 Fleet.NoLines); a planned "
+                + "service may lose all. Each part once (400), parts must be active in the catalogue (422 Fleet.UnknownPart). Once "
+                + "the work has started, completed or cancelled the kit is fixed: 409 with code SS300. Policy ManageServiceOrders.")
+            .Accepts<ChangeServiceOrderLinesRequest>("application/json")
+            .Produces<ServiceOrderDetails>()
+            .ProducesValidationProblem()
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithRequestExample(new ChangeServiceOrderLinesRequest([new CreateServiceOrderLine(1203, 1), new CreateServiceOrderLine(1210, 25)]))
+            .WithResponseExample(StatusCodes.Status200OK, FleetExamples.EditedServiceOrder)
+            .WithResponseExample(StatusCodes.Status400BadRequest, OpenApiConventions.ValidationProblem("Lines", "Each part appears only once."))
+            .WithResponseExample(StatusCodes.Status401Unauthorized, FleetExamples.Unauthorized)
+            .WithResponseExample(StatusCodes.Status403Forbidden, FleetExamples.Forbidden)
+            .WithResponseExample(StatusCodes.Status404NotFound, OpenApiConventions.Problem(FleetErrors.ServiceOrderNotFound))
+            .WithResponseExample(StatusCodes.Status409Conflict, OpenApiConventions.Problem(FleetErrors.InvalidTransition(ServiceOrderStatus.InProgress, "changed")))
+            .WithResponseExample(StatusCodes.Status422UnprocessableEntity, OpenApiConventions.Problem(FleetErrors.UnknownPart));
 
         group.MapPost("/service-orders/{id:long}/cancel", async (
                 [Description("Service order id.")] long id,

@@ -210,6 +210,73 @@ internal sealed class ServiceOrder : AggregateRoot<long>
     }
 
     /// <summary>
+    /// Sets the kit of an order that has not started to <paramref name="desired"/> (PR 6i, #140): parts that are no longer
+    /// wanted are removed, new parts added, and a part whose quantity changed is <b>replaced by a new line</b>, so Inventory
+    /// releases the old line's hold and reserves the new line, keeping its per-line idempotency. With a new line the kit is
+    /// being reserved again (an order that was parts reserved returns to draft); with removals only, a draft whose remaining
+    /// lines are all held becomes parts reserved. The same kit again changes nothing (an empty change).
+    /// </summary>
+    public Result<KitLineChange> ReplaceLines(IReadOnlyList<ServiceOrderLineDraft> desired)
+    {
+        ArgumentNullException.ThrowIfNull(desired);
+        var editable = CanChangeLines();
+        if (editable.IsFailure)
+        {
+            return editable.Error;
+        }
+
+        if (desired.Select(d => d.PartId).Distinct().Count() != desired.Count)
+        {
+            return FleetErrors.DuplicatePart;
+        }
+
+        if (!IsPlanned && desired.Count == 0)
+        {
+            return FleetErrors.NoLines;
+        }
+
+        var wanted = desired.ToDictionary(d => d.PartId, d => d.Quantity);
+        var removed = _lines.Where(l => !wanted.TryGetValue(l.PartId, out var quantity) || quantity != l.QtyRequired).ToList();
+        var kept = _lines.Except(removed).Select(l => l.PartId).ToHashSet();
+        var added = new List<ServiceOrderLine>();
+        foreach (var draft in desired.Where(d => !kept.Contains(d.PartId)))
+        {
+            var line = ServiceOrderLine.Create(draft);
+            if (line.IsFailure)
+            {
+                return line.Error;
+            }
+
+            added.Add(line.Value);
+        }
+
+        if (removed.Count == 0 && added.Count == 0)
+        {
+            return new KitLineChange([], [], []);
+        }
+
+        var removedIds = removed.Select(l => l.Id).ToList();
+        var removedParts = removed.Select(l => l.PartId).ToList();
+        _lines.RemoveAll(removed.Contains);
+        _lines.AddRange(added);
+
+        if (added.Count > 0)
+        {
+            KitReservedAt = null;
+            if (Status == ServiceOrderStatus.PartsReserved)
+            {
+                Status = ServiceOrderStatus.Draft;
+            }
+        }
+        else if (Status == ServiceOrderStatus.Draft && KitReservedAt is not null && _lines.Count > 0 && _lines.TrueForAll(l => l.QtyMissing == 0))
+        {
+            Status = ServiceOrderStatus.PartsReserved;
+        }
+
+        return new KitLineChange(removedIds, removedParts, added);
+    }
+
+    /// <summary>
     /// Inventory reserved the kit (<c>ServiceKitReserved</c>, STAGE_6_PLAN 5.3): stores the held quantity per line and moves
     /// a draft whose every line is fully held to parts reserved. A reservation that arrives after the order was completed or
     /// cancelled changes nothing (returns false); the consumer then asks Inventory to release those holds at once
@@ -410,3 +477,9 @@ internal sealed record ServiceOrderCompletedDomainEvent(long ServiceOrderId, Dat
 
 /// <summary>Raised when a service order is cancelled.</summary>
 internal sealed record ServiceOrderCancelledDomainEvent(long ServiceOrderId, DateTimeOffset OccurredAt) : IDomainEvent;
+
+/// <summary>What <see cref="ServiceOrder.ReplaceLines"/> changed: the removed lines and the new ones (ids after saving).</summary>
+internal sealed record KitLineChange(IReadOnlyList<long> RemovedLineIds, IReadOnlyList<long> RemovedPartIds, IReadOnlyList<ServiceOrderLine> AddedLines)
+{
+    public bool IsEmpty => RemovedLineIds.Count == 0 && AddedLines.Count == 0;
+}

@@ -49,3 +49,17 @@ public sealed record ServiceOrderCancelled(
 /// <c>ServiceKitReserved</c> from PR 6h3. Handled as <see cref="ActorId"/>, the user whose draft caused the holds.
 /// </summary>
 public sealed record ServiceKitReleaseRequested(long ServiceOrderId, IReadOnlyList<long> LineIds, Guid ActorId) : IntegrationEvent, IActedByUser;
+
+/// <summary>
+/// The kit of an open service order was edited (PR 6i, #140; MODULE_MAPPING X8): Inventory releases the holds of
+/// <see cref="RemovedLineIds"/> and reserves <see cref="AddedLines"/> at <see cref="WarehouseId"/>, answering with
+/// <c>ServiceKitReserved</c> for the added lines. A changed quantity arrives as a removed line plus an added one, so the
+/// per-line idempotency of the reservation holds. Handled as <see cref="ActorId"/>.
+/// </summary>
+public sealed record ServiceOrderLinesChanged(
+    long ServiceOrderId,
+    short WarehouseId,
+    IReadOnlyList<ServiceOrderKitLine> AddedLines,
+    IReadOnlyList<long> RemovedLineIds,
+    Guid ActorId,
+    DateTimeOffset ChangedAt) : IntegrationEvent, IActedByUser;

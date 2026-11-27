@@ -84,4 +84,15 @@ internal static class FleetExamples
                  new ServiceOrderLineResponse(72, 1210, "0001970050", "Engine oil 15W-40", "L", 30, 0, 0, 30)],
         AllowedActions = [],
     };
+
+
+    /// <summary>An edited kit: the oil changed to 25 L is a new line, reserving again.</summary>
+    public static ServiceOrderDetails EditedServiceOrder { get; } = ServiceOrderDetails with
+    {
+        Order = ServiceOrder with { Status = ServiceOrderStatuses.Draft, KitStatus = KitStatuses.Reserving },
+        KitReservedAt = null,
+        Lines = [new ServiceOrderLineResponse(71, 1203, "0011534571", "Engine oil filter", "PCS", 1, 1, 0, 0),
+                 new ServiceOrderLineResponse(73, 1210, "0001970050", "Engine oil 15W-40", "L", 25, 0, 0, 25)],
+        AllowedActions = [ServiceOrderActions.Start, ServiceOrderActions.Complete, ServiceOrderActions.Cancel, ServiceOrderActions.EditLines],
+    };
 }
