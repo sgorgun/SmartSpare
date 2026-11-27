@@ -651,8 +651,30 @@ FROM inventory.issue_service_kit(
          (SELECT array_agg(qty_required ORDER BY part_id) FROM fleet.service_order_line WHERE service_order_id = :short_order)) k
 WHERE l.id = k.service_order_line_id;
 
+-- Service history imported from the ERP: each plan of a generated machine that has no service order for it gets one completed
+-- service at the last threshold it passed, dated across 107 % of the plan's calendar interval (spread by a hash of VIN
+-- and plan, so the random sequence of this script stays as it was): a few percent of the fleet is calendar-overdue,
+-- as at a real dealer, instead of almost all of it with the commissioning date as anchor. Machines that have not
+-- reached their first threshold keep the commissioning date. The named machines above are left exactly as they are.
+INSERT INTO fleet.service_order (machine_id, maintenance_plan_id, warehouse_id, status, due_engine_hours, trigger_engine_hours,
+                                 completed_engine_hours, completed_at, created_at)
+SELECT m.id, mp.id, m.home_warehouse_id, 'completed', h.threshold, h.threshold, h.threshold, h.done_at, h.done_at - interval '2 days'
+FROM fleet.machine m
+JOIN fleet.maintenance_plan mp ON mp.model_id = m.model_id AND mp.interval_months IS NOT NULL
+JOIN ref.operating_condition oc ON oc.id = m.operating_condition_id
+CROSS JOIN LATERAL (SELECT round(mp.interval_hours * oc.interval_factor, 1) AS e,
+                           (hashtextextended(m.vin || ':' || mp.id, 0) & 1023)::numeric / 1024 AS u) x
+CROSS JOIN LATERAL (SELECT floor(m.current_engine_hours / x.e) * x.e AS threshold,
+                           now() - make_interval(days => floor(x.u * 1.07 * mp.interval_months * 30.4)::int) AS done_at) h
+WHERE m.vin NOT IN ('LX901PNV2026', 'JD6R150VLN2019OVD', 'FT724KLP2024DEMO', 'FT724KLP2024DEMO2', 'FT724KLP2024DEMO3')
+  AND NOT EXISTS (SELECT 1 FROM fleet.service_order so WHERE so.machine_id = m.id AND so.maintenance_plan_id = mp.id)
+  AND h.threshold > 0
+ORDER BY m.id, mp.id;
+
 -- The Fleet screens need every state: fail the load rather than demo an empty tab.
 DO $$
+DECLARE
+    v_overdue_pct numeric;
 BEGIN
     IF (SELECT count(DISTINCT status) FROM fleet.service_order) < 5
        OR NOT EXISTS (SELECT 1 FROM fleet.service_order WHERE status = 'draft' AND kit_reserved_at IS NULL)
@@ -664,6 +686,21 @@ BEGIN
                       HAVING count(*) = 4) THEN
         RAISE EXCEPTION 'T001: a Fleet demo state is missing (statuses, reserving, partial kit, shortfall or the named machines)';
     END IF;
+    -- A believable due list: of the generated machines' plans without an open order, 5–10 % are calendar-overdue.
+    SELECT round(100.0 * count(*) FILTER (WHERE coalesce(l.last_done, m.commissioned_on) + make_interval(months => mp.interval_months) < current_date)
+                 / count(*), 1)
+      INTO v_overdue_pct
+    FROM fleet.machine m
+    JOIN fleet.maintenance_plan mp ON mp.model_id = m.model_id AND mp.interval_months IS NOT NULL
+    LEFT JOIN LATERAL (SELECT max(so.completed_at)::date AS last_done FROM fleet.service_order so
+                       WHERE so.machine_id = m.id AND so.maintenance_plan_id = mp.id AND so.status = 'completed') l ON true
+    WHERE m.vin NOT IN ('LX901PNV2026', 'JD6R150VLN2019OVD', 'FT724KLP2024DEMO', 'FT724KLP2024DEMO2', 'FT724KLP2024DEMO3')
+      AND NOT EXISTS (SELECT 1 FROM fleet.service_order so WHERE so.machine_id = m.id AND so.maintenance_plan_id = mp.id
+                      AND so.status IN ('draft', 'parts_reserved', 'in_progress'));
+    IF v_overdue_pct NOT BETWEEN 5 AND 10 THEN
+        RAISE EXCEPTION 'T001: % %% of the generated fleet is calendar-overdue, expected 5 to 10 %%', v_overdue_pct;
+    END IF;
+    RAISE NOTICE 'T001: % %% of the generated fleet is calendar-overdue', v_overdue_pct;
 END $$;
 
 -- Exceptional demand: planner flags the strongest 3-sigma outliers (US08)
