@@ -17,6 +17,7 @@ builder.Services.AddSmartSpareProblemDetails();
 // names, drains the outboxes and resolves the current user from the request's claims.
 var modules = ModuleCatalog.CreateInstallers();
 builder.Services.AddModules(builder.Configuration, modules, Topology.SingleHost);
+builder.Services.AddJobScheduling(builder.Configuration);
 
 // One OpenAPI document per module, public in every environment (ADR 0019); the gateway publishes the same paths.
 builder.Services.AddModuleDocuments(modules);

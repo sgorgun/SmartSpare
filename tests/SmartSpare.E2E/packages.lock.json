@@ -820,6 +820,24 @@
           "System.Threading.RateLimiting": "8.0.0"
         }
       },
+      "Quartz": {
+        "type": "Transitive",
+        "resolved": "3.22.11",
+        "contentHash": "Hf5564Ch/uXg04ujrlRSEW68UvB/eL6NonHKrl2NkUMaLe2jNNV+0BtBWJ2QJsHCpZ/JxcNNOGqRpJlyy4l/9A==",
+        "dependencies": {
+          "Microsoft.Extensions.Logging.Abstractions": "2.1.1"
+        }
+      },
+      "Quartz.Extensions.DependencyInjection": {
+        "type": "Transitive",
+        "resolved": "3.22.11",
+        "contentHash": "r95Y4FdA+0H93HVcQv2ioANZe0Dcu2yNHdpU5XpFiaMbcWKPOajdjSdc940zrWfMhsuZWy/drnW7ftXPhW8iyQ==",
+        "dependencies": {
+          "Microsoft.Extensions.Configuration.Abstractions": "10.0.0",
+          "Microsoft.Extensions.Options": "10.0.0",
+          "Quartz": "3.22.11"
+        }
+      },
       "SharpZipLib": {
         "type": "Transitive",
         "resolved": "1.4.2",
@@ -983,6 +1001,7 @@
         "dependencies": {
           "Microsoft.AspNetCore.Components.WebAssembly.Server": "[10.0.15, )",
           "Microsoft.AspNetCore.OpenApi": "[10.0.15, )",
+          "Quartz.Extensions.Hosting": "[3.22.11, )",
           "SmartSpare.Bff": "[1.0.0, )",
           "SmartSpare.Infrastructure": "[1.0.0, )",
           "SmartSpare.ModuleCatalog": "[1.0.0, )",
@@ -1376,6 +1395,16 @@
         "contentHash": "CpkfBbVIHR6Jn8QrGwt7RtOEDyKOHL2rs9HL+5ckzvlsvQiJ5lHD/qvB7NqJuFZIvXnACSYB7AD0ycXITPQFPg==",
         "dependencies": {
           "OpenTelemetry.Api": "[1.21.0, 2.0.0)"
+        }
+      },
+      "Quartz.Extensions.Hosting": {
+        "type": "CentralTransitive",
+        "requested": "[3.22.11, )",
+        "resolved": "3.22.11",
+        "contentHash": "jARS9SNjCbzAfJiENyApP5RpQL4WCk4q661j1t7eaowEEVyVGN5Hs0Rn+i/lNMVkClS9lraaXKf51vnsE7KZBg==",
+        "dependencies": {
+          "Microsoft.Extensions.Hosting.Abstractions": "10.0.0",
+          "Quartz.Extensions.DependencyInjection": "3.22.11"
         }
       },
       "Scalar.AspNetCore": {
