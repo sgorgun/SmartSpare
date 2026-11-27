@@ -84,6 +84,9 @@ internal sealed class StockMovement : Entity<long>
 
     public string? Note { get; private set; }
 
+    /// <summary>Why the stock was corrected; set on every adjustment since stage 7 (older ledger rows have none).</summary>
+    public short? AdjustmentReasonId { get; private set; }
+
     public Guid? CreatedBy { get; private set; }
 
     /// <summary>Set by the database default.</summary>
@@ -94,17 +97,35 @@ internal sealed class StockMovement : Entity<long>
 
     /// <summary>
     /// A stock count correction: a positive <paramref name="signedQuantity"/> posts <c>ADJUSTMENT_IN</c>, a negative one
-    /// <c>ADJUSTMENT_OUT</c>. A note is required (<c>ref.movement_type</c> description).
+    /// <c>ADJUSTMENT_OUT</c>. The <paramref name="reason"/> must be active (SS500) and allow the direction; the note is
+    /// required when the reason says so.
     /// </summary>
     public static Result<StockMovement> Adjust(
-        short warehouseId, long partId, decimal signedQuantity, decimal unitCost, string? note, Guid createdBy, DateTimeOffset now)
+        short warehouseId, long partId, decimal signedQuantity, decimal unitCost, AdjustmentReason reason, string? note, Guid createdBy, DateTimeOffset now)
     {
+        ArgumentNullException.ThrowIfNull(reason);
         if (Domain.Quantity.Create(Math.Abs(signedQuantity)).IsFailure)
         {
             return InventoryErrors.InvalidQuantity;
         }
 
-        if (string.IsNullOrWhiteSpace(note) || note.Trim().Length > MaxNoteLength)
+        if (reason.IsArchived)
+        {
+            return InventoryErrors.ReasonArchived;
+        }
+
+        if (!reason.Allows(signedQuantity))
+        {
+            return InventoryErrors.ReasonDirection;
+        }
+
+        var trimmed = string.IsNullOrWhiteSpace(note) ? null : note.Trim();
+        if (trimmed is { Length: > MaxNoteLength })
+        {
+            return InventoryErrors.NoteTooLong;
+        }
+
+        if (trimmed is null && reason.RequiresNote)
         {
             return InventoryErrors.NoteRequired;
         }
@@ -117,7 +138,8 @@ internal sealed class StockMovement : Entity<long>
             MovementTypeCode = signedQuantity > 0 ? MovementTypes.AdjustmentIn : MovementTypes.AdjustmentOut,
             Quantity = Math.Abs(signedQuantity),
             UnitCost = unitCost,
-            Note = note.Trim(),
+            Note = trimmed,
+            AdjustmentReasonId = reason.Id,
             CreatedBy = createdBy,
         };
     }

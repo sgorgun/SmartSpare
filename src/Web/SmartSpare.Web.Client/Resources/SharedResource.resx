@@ -262,7 +262,13 @@
     <value>Positive for a surplus, negative for a shortage or scrap.</value>
   </data>
   <data name="Position.AdjustNote" xml:space="preserve">
+    <value>Note</value>
+  </data>
+  <data name="Position.AdjustReason" xml:space="preserve">
     <value>Reason</value>
+  </data>
+  <data name="Position.AdjustReasonHelp" xml:space="preserve">
+    <value>Some reasons also need a note.</value>
   </data>
   <data name="Position.Post" xml:space="preserve">
     <value>Post correction</value>

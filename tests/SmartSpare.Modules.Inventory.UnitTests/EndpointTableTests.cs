@@ -47,6 +47,16 @@ public sealed class EndpointTableTests
             "PUT /api/v1/inventory/brands/{id:int}/responsibles",
             "GET /api/v1/inventory/warehouses/{id:int}/responsibles",
             "PUT /api/v1/inventory/warehouses/{id:int}/responsibles",
+
+            // The adjustment reasons catalogue (STAGE_7_PLAN 3.1), built by the shared master-data mechanism (ADR 0025).
+            "GET /api/v1/inventory/adjustment-reasons",
+            "GET /api/v1/inventory/adjustment-reasons/lookup",
+            "GET /api/v1/inventory/adjustment-reasons/{id:long}",
+            "GET /api/v1/inventory/adjustment-reasons/{id:long}/history",
+            "POST /api/v1/inventory/adjustment-reasons",
+            "PUT /api/v1/inventory/adjustment-reasons/{id:long}",
+            "POST /api/v1/inventory/adjustment-reasons/{id:long}/archive",
+            "POST /api/v1/inventory/adjustment-reasons/{id:long}/restore",
         ], ignoreOrder: true);
 
     [Theory]

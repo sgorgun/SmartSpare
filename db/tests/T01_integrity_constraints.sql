@@ -48,9 +48,18 @@ SELECT pg_temp.expect_error(
       VALUES (now(), 1, (SELECT id FROM catalog.part WHERE oem_part_number = 'CP-4821'), 'ISSUE_SALE', 1)$$,
     '23514', 'CHECK: counter sale without document reference rejected (lineage)');
 SELECT pg_temp.expect_error(
-    $$INSERT INTO inventory.stock_movement (occurred_at, warehouse_id, part_id, movement_type_code, quantity, note)
-      VALUES (now(), 1, (SELECT id FROM catalog.part WHERE oem_part_number = 'CP-4821'), 'ADJUSTMENT_IN', 0, 'zero')$$,
+    $$INSERT INTO inventory.stock_movement (occurred_at, warehouse_id, part_id, movement_type_code, quantity, note, adjustment_reason_id)
+      VALUES (now(), 1, (SELECT id FROM catalog.part WHERE oem_part_number = 'CP-4821'), 'ADJUSTMENT_IN', 0, 'zero', (SELECT id FROM inventory.adjustment_reason WHERE code = 'COUNT_CORRECTION'))$$,
     '23514', 'CHECK: zero quantity movement rejected');
+SELECT pg_temp.expect_error(
+    $$INSERT INTO inventory.stock_movement (occurred_at, warehouse_id, part_id, movement_type_code, quantity, note)
+      VALUES (now(), 1, (SELECT id FROM catalog.part WHERE oem_part_number = 'CP-4821'), 'ADJUSTMENT_IN', 1, 'no reason')$$,
+    '23514', 'ADR 0025: a new stock adjustment needs a reason');
+SELECT pg_temp.expect_error(
+    $$INSERT INTO inventory.stock_movement (occurred_at, warehouse_id, part_id, movement_type_code, quantity, note, adjustment_reason_id)
+      VALUES (now(), 1, (SELECT id FROM catalog.part WHERE oem_part_number = 'CP-4821'), 'ADJUSTMENT_IN', 1, 'found?',
+              (SELECT id FROM inventory.adjustment_reason WHERE code = 'DAMAGED'))$$,
+    '23514', 'ADR 0025: the reason must allow the direction (DAMAGED is a shortage only)');
 SELECT pg_temp.expect_error(
     $$INSERT INTO forecast.ml_model_version (algorithm, version_label, training_from, training_to, holdout_from, holdout_to)
       VALUES ('fasttree', 'v9.0', '2025-01-01', '2025-12-31', '2025-06-01', '2026-01-31')$$,
@@ -119,8 +128,9 @@ SELECT pg_temp.expect_error(
     'SS300', 'State machine: draft PO cannot jump to received');
 
 -- Partitioning ----------------------------------------------------------------------
-INSERT INTO inventory.stock_movement (occurred_at, warehouse_id, part_id, movement_type_code, quantity, note)
-SELECT TIMESTAMPTZ '2027-03-15 10:00+02', 1, (SELECT id FROM catalog.part WHERE oem_part_number = 'CP-4821'), 'ADJUSTMENT_IN', 1, 'partition routing test';
+INSERT INTO inventory.stock_movement (occurred_at, warehouse_id, part_id, movement_type_code, quantity, note, adjustment_reason_id)
+SELECT TIMESTAMPTZ '2027-03-15 10:00+02', 1, (SELECT id FROM catalog.part WHERE oem_part_number = 'CP-4821'), 'ADJUSTMENT_IN', 1, 'partition routing test',
+       (SELECT id FROM inventory.adjustment_reason WHERE code = 'COUNT_CORRECTION');
 SELECT pg_temp.ok(
     (SELECT tableoid::regclass::text FROM inventory.stock_movement WHERE note = 'partition routing test') = 'inventory.stock_movement_202703',
     'Partitioning: a March 2027 movement is stored in partition stock_movement_202703');

@@ -112,13 +112,13 @@ internal static class ChangeStockLevelsEndpoint
 }
 
 /// <summary>Posts a stock count correction (ADJUSTMENT_IN or ADJUSTMENT_OUT) in a hub.</summary>
-internal sealed record AdjustStockCommand(short WarehouseId, long PartId, decimal Quantity, string Note) : ICommand<StockAdjustmentResponse>;
+internal sealed record AdjustStockCommand(short WarehouseId, long PartId, decimal Quantity, short ReasonId, string? Note) : ICommand<StockAdjustmentResponse>;
 
 internal sealed class AdjustStockCommandValidator : AbstractValidator<AdjustStockCommand>
 {
     public AdjustStockCommandValidator()
     {
-        RuleFor(c => new StockAdjustmentRequest(c.WarehouseId, c.PartId, c.Quantity, c.Note)).SetValidator(new StockAdjustmentRequestValidator())
+        RuleFor(c => new StockAdjustmentRequest(c.WarehouseId, c.PartId, c.Quantity, c.ReasonId, c.Note)).SetValidator(new StockAdjustmentRequestValidator())
             .OverridePropertyName(string.Empty);
     }
 }
@@ -144,10 +144,16 @@ internal sealed class AdjustStockCommandHandler(
             return InventoryErrors.StockPositionNotFound;
         }
 
+        var reason = await db.Set<AdjustmentReason>().AsNoTracking().SingleOrDefaultAsync(r => r.Id == command.ReasonId, cancellationToken).ConfigureAwait(false);
+        if (reason is null)
+        {
+            return InventoryErrors.ReasonNotFound;
+        }
+
         var unitCost = await db.Set<Part>().AsNoTracking().Where(p => p.Id == command.PartId).Select(p => p.UnitCost)
             .SingleAsync(cancellationToken).ConfigureAwait(false);
         var movement = StockMovement.Adjust(
-            command.WarehouseId, command.PartId, command.Quantity, unitCost, command.Note,
+            command.WarehouseId, command.PartId, command.Quantity, unitCost, reason, command.Note,
             user.UserId ?? throw new InvalidOperationException("A stock adjustment needs a signed-in user."), clock.GetUtcNow());
         if (movement.IsFailure)
         {
@@ -173,7 +179,7 @@ internal static class AdjustStockEndpoint
                 CancellationToken cancellationToken) =>
             {
                 var result = await handler.Handle(
-                    new AdjustStockCommand(request.WarehouseId, request.PartId, request.Quantity, request.Note), cancellationToken).ConfigureAwait(false);
+                    new AdjustStockCommand(request.WarehouseId, request.PartId, request.Quantity, request.ReasonId, request.Note), cancellationToken).ConfigureAwait(false);
                 return result.IsSuccess
                     ? Results.Json(result.Value, statusCode: StatusCodes.Status201Created)
                     : result.Error.ToProblem();
@@ -182,8 +188,9 @@ internal static class AdjustStockEndpoint
             .WithName("AdjustStock")
             .WithSummary("Posts a stock count correction in a hub.")
             .WithDescription(
-                "A positive quantity posts ADJUSTMENT_IN (surplus), a negative one ADJUSTMENT_OUT (shortage, scrap); a note is "
-                + "required. A keeper may correct only the own hub (403, code SS302). A shortage larger than the available "
+                "A positive quantity posts ADJUSTMENT_IN (surplus), a negative one ADJUSTMENT_OUT (shortage, scrap). The reason "
+                + "(GET /adjustment-reasons/lookup) must be active (422 SS500) and allow the direction (422 Inventory.ReasonDirection); "
+                + "a note is needed when the reason says so. A keeper may correct only the own hub (403, code SS302). A shortage larger than the available "
                 + "stock is refused by the ledger with 409, code SS200. Returns the movement id and the position after it. "
                 + "Policy MoveStock (warehouse keepers and administrators).")
             .Accepts<StockAdjustmentRequest>("application/json")
@@ -193,9 +200,11 @@ internal static class AdjustStockEndpoint
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict)
-            .WithRequestExample(new StockAdjustmentRequest(WarehouseId: 3, PartId: 1042, Quantity: -2, Note: "Damaged in storage, scrapped"))
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .WithRequestExample(new StockAdjustmentRequest(WarehouseId: 3, PartId: 1042, Quantity: -2, ReasonId: 2, Note: "Forklift damage, scrapped"))
             .WithResponseExample(StatusCodes.Status201Created, new StockAdjustmentResponse(884213, InventoryExamples.StockRow))
-            .WithResponseExample(StatusCodes.Status400BadRequest, InventoryExamples.ValidationProblem("Note", "'Note' must not be empty."))
+            .WithResponseExample(StatusCodes.Status400BadRequest, InventoryExamples.ValidationProblem("ReasonId", "Choose an adjustment reason."))
+            .WithResponseExample(StatusCodes.Status422UnprocessableEntity, InventoryExamples.Problem(InventoryErrors.ReasonDirection))
             .WithResponseExample(StatusCodes.Status401Unauthorized, InventoryExamples.Unauthorized)
             .WithResponseExample(StatusCodes.Status403Forbidden, InventoryExamples.Problem(InventoryErrors.NotYourWarehouse))
             .WithResponseExample(StatusCodes.Status404NotFound, InventoryExamples.Problem(InventoryErrors.StockPositionNotFound))

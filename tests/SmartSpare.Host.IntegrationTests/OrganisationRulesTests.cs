@@ -112,7 +112,7 @@ public sealed class OrganisationRulesTests(DemoDatabaseFixture database) : IAsyn
 
         var noHub = TestUser.Create("keeper.nohub", [AppRoles.WarehouseKeeper]);
         using (var refused = await browser.PostAsync("/api/v1/inventory/stock-adjustments",
-                   new SmartSpare.ApiContracts.Inventory.StockAdjustmentRequest(klp, part, 1, "Hub access probe"), bearer: _host.Token(noHub.Principal())))
+                   new SmartSpare.ApiContracts.Inventory.StockAdjustmentRequest(klp, part, 1, 5, "Hub access probe"), bearer: _host.Token(noHub.Principal())))
         {
             refused.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
             (await Problem.ReadAsync(refused)).Code.ShouldBe("SS302");
@@ -126,7 +126,7 @@ public sealed class OrganisationRulesTests(DemoDatabaseFixture database) : IAsyn
         foreach (var hub in new[] { klp, pnv })
         {
             using var allowed = await browser.PostAsync("/api/v1/inventory/stock-adjustments",
-                new SmartSpare.ApiContracts.Inventory.StockAdjustmentRequest(hub, part, 1, "Hub access probe"), bearer: _host.Token(principal));
+                new SmartSpare.ApiContracts.Inventory.StockAdjustmentRequest(hub, part, 1, 5, "Hub access probe"), bearer: _host.Token(principal));
             allowed.StatusCode.ShouldBe(HttpStatusCode.Created, await allowed.Content.ReadAsStringAsync(Ct));
         }
     }

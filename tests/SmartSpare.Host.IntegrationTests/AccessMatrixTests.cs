@@ -135,7 +135,7 @@ public sealed class AccessMatrixTests(DemoDatabaseFixture database) : IAsyncLife
         var reads = new SortedDictionary<string, int>(StringComparer.Ordinal);
         foreach (var (id, code) in _hubs)
         {
-            using (var write = await browser.PostAsync("/api/v1/inventory/stock-adjustments", new StockAdjustmentRequest(id, _part, 1, "Access matrix probe"), bearer: token))
+            using (var write = await browser.PostAsync("/api/v1/inventory/stock-adjustments", new StockAdjustmentRequest(id, _part, 1, 5, "Access matrix probe"), bearer: token))
             {
                 writes[code] = write.StatusCode == HttpStatusCode.Created
                     ? "201"

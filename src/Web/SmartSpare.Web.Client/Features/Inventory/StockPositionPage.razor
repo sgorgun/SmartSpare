@@ -2,6 +2,7 @@
 @attribute [Authorize(Policy = AppPolicies.ReadInventory)]
 @using System.Globalization
 @using SmartSpare.ApiContracts.Inventory
+@using SmartSpare.ApiContracts.MasterData
 @inject IStringLocalizer<SharedResource> Text
 @inject InventoryClient Inventory
 @inject ProblemMessages Messages
@@ -72,6 +73,13 @@ else
                     <MudText Typo="Typo.h6" HtmlTag="h3" Class="mb-2">@Text["Position.Adjust"]</MudText>
                     <MudNumericField T="decimal" @bind-Value="_adjustQuantity" Label="@Text["Position.AdjustQuantity"]" data-testid="adjust-quantity" Variant="Variant.Outlined"
                                      Margin="Margin.Dense" HelperText="@Text["Position.AdjustHelp"]" Class="mb-2" />
+                    <MudSelect T="short" @bind-Value="_adjustReason" Label="@Text["Position.AdjustReason"]" data-testid="adjust-reason" Variant="Variant.Outlined"
+                               Margin="Margin.Dense" Class="mb-2" HelperText="@Text["Position.AdjustReasonHelp"]">
+                        @foreach (var reason in ReasonsForDirection)
+                        {
+                            <MudSelectItem T="short" Value="@((short)reason.Id)">@reason.Name</MudSelectItem>
+                        }
+                    </MudSelect>
                     <MudTextField T="string" @bind-Value="_adjustNote" Label="@Text["Position.AdjustNote"]" data-testid="adjust-note" Variant="Variant.Outlined" Margin="Margin.Dense"
                                   MaxLength="InventoryLimits.MaxNoteLength" Class="mb-2" />
                     @if (_adjustError is not null)
@@ -154,7 +162,14 @@ else
     private string? _levelsError;
     private decimal _adjustQuantity;
     private string? _adjustNote;
+    private short _adjustReason;
     private string? _adjustError;
+    private List<CatalogLookupItem> _reasons = [];
+
+    /// <summary>The reasons that allow the direction of the entered quantity (all of them while it is zero).</summary>
+    private IEnumerable<CatalogLookupItem> ReasonsForDirection =>
+        _reasons.Where(r => _adjustQuantity == 0 || r.Detail == AdjustmentDirections.Both
+                            || r.Detail == (_adjustQuantity > 0 ? AdjustmentDirections.In : AdjustmentDirections.Out));
 
     private short Warehouse => (short)WarehouseId;
 
@@ -170,6 +185,11 @@ else
             var user = (await AuthenticationState).User;
             _mayPlan = (await Authorization.AuthorizeAsync(user, AppPolicies.PlanInventory)).Succeeded;
             _mayMove = (await Authorization.AuthorizeAsync(user, AppPolicies.MoveStock)).Succeeded;
+        }
+
+        if (_mayMove && _reasons.Count == 0 && await Inventory.LookupAdjustmentReasonsAsync() is { IsSuccess: true } reasons)
+        {
+            _reasons = reasons.Value!;
         }
 
         await LoadAsync();
@@ -219,7 +239,8 @@ else
 
     private async Task AdjustAsync()
     {
-        var request = new StockAdjustmentRequest(Warehouse, PartId, _adjustQuantity, _adjustNote?.Trim() ?? string.Empty);
+        var note = string.IsNullOrWhiteSpace(_adjustNote) ? null : _adjustNote.Trim();
+        var request = new StockAdjustmentRequest(Warehouse, PartId, _adjustQuantity, _adjustReason, note);
         _adjustError = Validate(new StockAdjustmentRequestValidator(), request);
         if (_adjustError is not null)
         {
@@ -237,6 +258,7 @@ else
 
         _adjustQuantity = 0;
         _adjustNote = null;
+        _adjustReason = 0;
         Snackbar.Add(Text["Position.Posted"], Severity.Success);
         await LoadAsync();
     }

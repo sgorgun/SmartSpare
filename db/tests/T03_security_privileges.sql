@@ -45,6 +45,10 @@ SELECT pg_temp.ok((SELECT email_masked = 't***@d***.example' AND full_name_maske
                    FROM iam.v_app_user_masked WHERE user_name = 'tomas.radzevicius'), 'app_read: masked name / e-mail / phone');
 SELECT pg_temp.expect_error($$UPDATE catalog.part SET unit_cost = 0 WHERE false$$, '42501', 'app_read: no write access');
 SELECT pg_temp.expect_error($$SELECT * FROM audit.audit_log LIMIT 1$$, '42501', 'app_read: no access to the audit trail');
+SELECT pg_temp.ok((SELECT count(*) >= 0 FROM audit.record_history('inventory.adjustment_reason', '1', 1, 10)),
+                  'ADR 0025: app_read reads the history of an allow-listed catalogue record');
+SELECT pg_temp.expect_error($$SELECT * FROM audit.record_history('iam.app_user', '1', 1, 10)$$, '42501',
+                            'ADR 0025: no history of a table that is not on the allow-list');
 SELECT pg_temp.expect_error($$SELECT * FROM raw.import_batch LIMIT 1$$, '42501', 'app_read: no access to the raw layer');
 
 -- app_write (API) ------------------------------------------------------------------------

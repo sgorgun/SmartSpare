@@ -35,20 +35,20 @@ public sealed class StockFeatureTests
 
     [Fact]
     public void A_valid_adjustment_passes() =>
-        new StockAdjustmentRequestValidator().TestValidate(new StockAdjustmentRequest(3, 1042, -2.5m, "Scrapped")).IsValid.ShouldBeTrue();
+        new StockAdjustmentRequestValidator().TestValidate(new StockAdjustmentRequest(3, 1042, -2.5m, 2, "Scrapped")).IsValid.ShouldBeTrue();
 
     [Theory]
-    [InlineData(0, 1042, 1, "note", nameof(StockAdjustmentRequest.WarehouseId))]
-    [InlineData(3, 0, 1, "note", nameof(StockAdjustmentRequest.PartId))]
-    [InlineData(3, 1042, 0, "note", nameof(StockAdjustmentRequest.Quantity))]
-    [InlineData(3, 1042, 0.0001, "note", nameof(StockAdjustmentRequest.Quantity))]
-    [InlineData(3, 1042, 1, "", nameof(StockAdjustmentRequest.Note))]
-    public void Invalid_adjustments_fail_on_their_field(short warehouse, long part, decimal quantity, string note, string field) =>
-        new StockAdjustmentRequestValidator().TestValidate(new StockAdjustmentRequest(warehouse, part, quantity, note)).ShouldHaveValidationErrorFor(field);
+    [InlineData(0, 1042, 1, 2, nameof(StockAdjustmentRequest.WarehouseId))]
+    [InlineData(3, 0, 1, 2, nameof(StockAdjustmentRequest.PartId))]
+    [InlineData(3, 1042, 0, 2, nameof(StockAdjustmentRequest.Quantity))]
+    [InlineData(3, 1042, 0.0001, 2, nameof(StockAdjustmentRequest.Quantity))]
+    [InlineData(3, 1042, 1, 0, nameof(StockAdjustmentRequest.ReasonId))]
+    public void Invalid_adjustments_fail_on_their_field(short warehouse, long part, decimal quantity, short reason, string field) =>
+        new StockAdjustmentRequestValidator().TestValidate(new StockAdjustmentRequest(warehouse, part, quantity, reason, "note")).ShouldHaveValidationErrorFor(field);
 
     [Fact]
     public void A_note_longer_than_the_column_fails() =>
-        new StockAdjustmentRequestValidator().TestValidate(new StockAdjustmentRequest(3, 1042, 1, new string('n', 301)))
+        new StockAdjustmentRequestValidator().TestValidate(new StockAdjustmentRequest(3, 1042, 1, 2, new string('n', 301)))
             .ShouldHaveValidationErrorFor(nameof(StockAdjustmentRequest.Note));
 
     [Theory]
@@ -143,8 +143,8 @@ public sealed class StockFeatureTests
     {
         new ChangeStockLevelsCommandValidator().TestValidate(new ChangeStockLevelsCommand(3, 1042, 5, 4, 1)).IsValid.ShouldBeFalse();
         new ChangeStockLevelsCommandValidator().TestValidate(new ChangeStockLevelsCommand(3, 1042, 5, 6, 1)).IsValid.ShouldBeTrue();
-        new AdjustStockCommandValidator().TestValidate(new AdjustStockCommand(3, 1042, 0, "note")).IsValid.ShouldBeFalse();
-        new AdjustStockCommandValidator().TestValidate(new AdjustStockCommand(3, 1042, -1, "Scrapped")).IsValid.ShouldBeTrue();
+        new AdjustStockCommandValidator().TestValidate(new AdjustStockCommand(3, 1042, 0, 2, "note")).IsValid.ShouldBeFalse();
+        new AdjustStockCommandValidator().TestValidate(new AdjustStockCommand(3, 1042, -1, 2, null)).IsValid.ShouldBeTrue();
     }
 
     [Fact]
@@ -165,7 +165,7 @@ public sealed class StockFeatureTests
         var keeper = new FixedUser(Guid.NewGuid(), WarehouseIds: [5]);
         var handler = new AdjustStockCommandHandler(db, new EfUnitOfWork<InventoryDbContext>(db), keeper, TimeProvider.System);
 
-        var result = await handler.Handle(new AdjustStockCommand(3, 1042, -1, "Wrong hub"), TestContext.Current.CancellationToken);
+        var result = await handler.Handle(new AdjustStockCommand(3, 1042, -1, 2, "Wrong hub"), TestContext.Current.CancellationToken);
 
         result.Error.ShouldBe(InventoryErrors.NotYourWarehouse);
     }
