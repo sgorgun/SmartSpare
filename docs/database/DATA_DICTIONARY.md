@@ -1,6 +1,6 @@
 # SmartSpare — Data Dictionary
 
-_Generated from the PostgreSQL catalogue by `tools/generate_db_docs.py` on 2026-11-26. Do not edit by hand — change the EF Core migrations (or their SQL parts in `db/sql/`) and regenerate._
+_Generated from the PostgreSQL catalogue by `tools/generate_db_docs.py` on 2026-11-27. Do not edit by hand — change the EF Core migrations (or their SQL parts in `db/sql/`) and regenerate._
 
 The database is built by the EF Core migrations of each module (ADR 0004, ADR 0011); references between modules are plain ids, not foreign keys. Row counts are those of the synthetic demo dataset (`db/testdata/T001`, 2,000 SKUs).
 
@@ -14,7 +14,7 @@ The database is built by the EF Core migrations of each module (ADR 0004, ADR 00
 | `iam` | Identity | 8 | 1 | 0 |
 | `catalog` | Inventory — catalogue | 2 | 0 | 0 |
 | `inventory` | Inventory — stock & transfers | 12 | 2 | 0 |
-| `fleet` | Fleet | 11 | 2 | 0 |
+| `fleet` | Fleet | 12 | 2 | 0 |
 | `procurement` | Procurement — suppliers & purchase orders | 8 | 1 | 0 |
 | `forecast` | Forecasting (ML) | 8 | 1 | 0 |
 | `audit` | Platform — audit | 1 | 1 | 0 |
@@ -245,7 +245,7 @@ Rows (demo): **5**
 
 ### `iam.__ef_migrations_history` (table)
 
-Rows (demo): **9**
+Rows (demo): **10**
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -548,7 +548,7 @@ Rows (demo): **1**
 
 ### `inventory.__ef_migrations_history` (table)
 
-Rows (demo): **5**
+Rows (demo): **11**
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -708,7 +708,7 @@ Rows (demo): **0**
 
 Current stock per warehouse and part. Controlled redundancy: = SUM of the ledger, kept in sync by triggers for O(1) reads (NFR01).
 
-Rows (demo): **7,112**
+Rows (demo): **7,111**
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -737,7 +737,7 @@ Rows (demo): **7,112**
 
 Append-only stock ledger (single source of truth for stock and demand history). Partitioned by month; corrections only via compensating movements.
 
-Rows (demo): **198,461** · Partitioning: `RANGE (occurred_at)`, 61 partitions
+Rows (demo): **198,525** · Partitioning: `RANGE (occurred_at)`, 61 partitions
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -786,7 +786,7 @@ Rows (demo): **198,461** · Partitioning: `RANGE (occurred_at)`, 61 partitions
 
 Stock holds. Active (soft/firm) quantities are summed into stock_balance.reserved_qty by trigger.
 
-Rows (demo): **303**
+Rows (demo): **309**
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -1043,7 +1043,7 @@ Rows (demo): **42**
 
 ### `fleet.__ef_migrations_history` (table)
 
-Rows (demo): **4**
+Rows (demo): **11**
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -1094,7 +1094,7 @@ Rows (demo): **250**
 
 Odometer history (US05). Monotonic and physically plausible readings are enforced by trigger.
 
-Rows (demo): **2,062**
+Rows (demo): **2,078**
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -1146,7 +1146,7 @@ Rows (demo): **0**
 
 Registered machine (installed base). current_engine_hours is maintained by the engine-hour reading trigger.
 
-Rows (demo): **501**
+Rows (demo): **505**
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -1227,6 +1227,7 @@ Rows (demo): **26**
 | `interval_hours` | `integer` | NN |  | OEM interval in engine hours (e.g. 500). |
 | `name` | `character varying(120)` | NN |  | Display name. |
 | `is_active` | `boolean` | NN | `true` | FALSE = deactivated, kept for history. |
+| `interval_months` | `smallint` |  |  | OEM calendar interval in months, if any; the service is due by engine hours or by calendar, whichever comes first. |
 
 **Data quality expectations / integrity rules**
 
@@ -1234,6 +1235,7 @@ Rows (demo): **26**
 - Primary key `pk_maintenance_plan`: `PRIMARY KEY (id)`
 - Unique `uq_maintenance_plan_model_interval`: `UNIQUE (model_id, interval_hours)`
 - Check `ck_maintenance_plan_interval`: `CHECK (((interval_hours >= 10) AND (interval_hours <= 20000)))`
+- Check `ck_maintenance_plan_interval_months`: `CHECK (((interval_months IS NULL) OR ((interval_months >= 1) AND (interval_months <= 60))))`
 
 **Indexes**
 
@@ -1298,11 +1300,37 @@ Rows (demo): **0**
 - `ix_outbox_message_pending` — `btree (occurred_at) WHERE ((processed_at IS NULL) AND (exhausted_at IS NULL))`
 - `pk_outbox_message` — `btree (id)`
 
+### `fleet.part_snapshot` (table)
+
+Read-only copy of the Inventory part catalogue for service kits, fed by PartCatalogChanged (MODULE_MAPPING 2.3). Written only by the event consumer.
+
+Rows (demo): **2,032**
+
+| Column | Type | Keys / flags | Default | Description |
+|---|---|---|---|---|
+| `part_id` | `bigint` | PK, NN |  | Inventory part id (catalog.part.id); no cross-module FK. |
+| `brand_code` | `character varying(10)` | NN |  | Brand code (ref.brand.code). |
+| `oem_part_number` | `character varying(40)` | NN |  | OEM part number. |
+| `description` | `character varying(300)` | NN |  | Description. |
+| `unit_of_measure` | `character varying(10)` | NN |  | Unit of measure code (ref.unit_of_measure.code). |
+| `is_active` | `boolean` | NN |  | FALSE = deactivated in the catalogue. |
+| `source_occurred_at` | `timestamp with time zone` | NN |  | OccurredAt of the event that wrote the row; older events are ignored. |
+| `updated_at` | `timestamp with time zone` | NN | `now()` | Time of the last change. |
+
+**Data quality expectations / integrity rules**
+
+- Primary key `pk_part_snapshot`: `PRIMARY KEY (part_id)`
+
+**Indexes**
+
+- `ix_part_snapshot_brand_oem` — `btree (brand_code, oem_part_number)`
+- `pk_part_snapshot` — `btree (part_id)`
+
 ### `fleet.service_order` (table)
 
 Service order (SO-YYYY-NNNNNN). Planned (plan + due hours) or unplanned repair (plan NULL). Completed orders form the maintenance history.
 
-Rows (demo): **91**
+Rows (demo): **843**
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -1320,6 +1348,7 @@ Rows (demo): **91**
 | `completed_at` | `timestamp with time zone` |  |  | Time of the completed event. |
 | `cancel_reason` | `character varying(300)` |  |  |  |
 | `updated_at` | `timestamp with time zone` | NN | `now()` | Time of the last change (maintained by trigger). |
+| `kit_reserved_at` | `timestamp with time zone` |  |  | When Inventory answered ServiceOrderDrafted (ServiceKitReserved); NULL while the kit reservation is pending. |
 
 **Data quality expectations / integrity rules**
 
@@ -1347,7 +1376,7 @@ Rows (demo): **91**
 
 Parts required by a service order (copied from the kit, editable for repairs).
 
-Rows (demo): **252**
+Rows (demo): **260**
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -1356,6 +1385,7 @@ Rows (demo): **252**
 | `part_id` | `bigint` | NN |  | Reference to catalog.part. |
 | `qty_required` | `numeric(12,3)` | NN |  | Quantity in the unit of measure of the part. |
 | `qty_issued` | `numeric(12,3)` | NN | `0` | Quantity already issued from stock (ISSUE_SERVICE). |
+| `qty_reserved` | `numeric(12,3)` | NN | `0` | Fleet's copy of the quantity Inventory holds for the line (ServiceKitReserved; MODULE_MAPPING 3.5). |
 
 **Data quality expectations / integrity rules**
 
@@ -1364,6 +1394,7 @@ Rows (demo): **252**
 - Unique `uq_service_order_line_part`: `UNIQUE (service_order_id, part_id)`
 - Check `ck_service_order_line_issued`: `CHECK (((qty_issued >= (0)::numeric) AND (qty_issued <= qty_required)))`
 - Check `ck_service_order_line_required`: `CHECK ((qty_required > (0)::numeric))`
+- Check `ck_service_order_line_reserved`: `CHECK (((qty_reserved >= (0)::numeric) AND (qty_reserved <= qty_required)))`
 
 **Indexes**
 
@@ -1402,20 +1433,20 @@ Open service orders whose kit could not be fully reserved (input for transfers /
 | `service_order_id` | `bigint` |  |  |  |
 | `number` | `character varying(20)` |  |  |  |
 | `status` | `fleet.service_order_status` |  |  |  |
-| `warehouse_code` | `character varying(10)` |  |  |  |
+| `warehouse_id` | `smallint` |  |  |  |
 | `part_id` | `bigint` |  |  |  |
 | `oem_part_number` | `character varying(40)` |  |  |  |
 | `description` | `character varying(300)` |  |  |  |
 | `qty_required` | `numeric(12,3)` |  |  |  |
 | `qty_issued` | `numeric(12,3)` |  |  |  |
-| `qty_reserved` | `numeric` |  |  |  |
+| `qty_reserved` | `numeric(12,3)` |  |  |  |
 | `qty_missing` | `numeric` |  |  |  |
 
 ## 7. Schema `procurement` — Procurement — suppliers & purchase orders
 
 ### `procurement.__ef_migrations_history` (table)
 
-Rows (demo): **3**
+Rows (demo): **4**
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -1485,7 +1516,7 @@ Rows (demo): **0**
 
 Supplier purchase order (PO-YYYY-NNNNNN). Drafts are generated from recommendations and approved by management (US14).
 
-Rows (demo): **27**
+Rows (demo): **31**
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -1702,7 +1733,7 @@ WF04: purchase order list with totals and approval state.
 
 ### `forecast.__ef_migrations_history` (table)
 
-Rows (demo): **3**
+Rows (demo): **4**
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -1749,7 +1780,7 @@ Rows (demo): **48**
 
 Weekly forecast quantity per run, warehouse and part (ternary relationship run x warehouse x part, plus week).
 
-Rows (demo): **115,136**
+Rows (demo): **115,184**
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -2020,7 +2051,7 @@ NFR08: decomposition (a) base demand, (b) maintenance, (c) lead-time buffer, (d)
 
 Immutable audit trail of state-changing operations: timestamp, user, action, previous and new values, reason (US18).
 
-Rows (demo): **26,945** · Partitioning: `RANGE (occurred_at)`, 49 partitions
+Rows (demo): **27,803** · Partitioning: `RANGE (occurred_at)`, 49 partitions
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -2279,7 +2310,7 @@ Rows (demo): **3**
 
 Data mart: ADI / CV² demand classification per series (intermittent, lumpy, smooth, erratic).
 
-Rows (demo): **7,196**
+Rows (demo): **7,199**
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -2305,7 +2336,7 @@ Rows (demo): **7,196**
 
 Data mart: weekly demand (only non-zero weeks) per warehouse and part; source for ML training and accuracy.
 
-Rows (demo): **190,170**
+Rows (demo): **190,242**
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -2464,7 +2495,7 @@ Rows (demo): **4**
 
 Last issued business document number per prefix and year (gap-less numbering).
 
-Rows (demo): **3**
+Rows (demo): **5**
 
 | Column | Type | Keys / flags | Default | Description |
 |---|---|---|---|---|
@@ -2497,15 +2528,20 @@ Security self-check: must return zero rows. Executed by the test suite after eve
 | Routine | Kind | Security | Returns | Description |
 |---|---|---|---|---|
 | `iam.anonymise_user(uuid)` | function (plpgsql) | DEFINER | `void` | Irreversibly replaces personal data of a user; the row (and audit references) remain. |
+| `iam.purge_processed_messages(timestamp with time zone,timestamp with time zone,integer)` | function (plpgsql) | DEFINER | `TABLE(outbox_deleted integer, inbox_deleted integer)` | Deletes delivered outbox and handled inbox rows older than the cut-offs, one batch of each; never undelivered rows (#30). |
 | `iam.user_has_role(uuid,text[])` | function (sql) | invoker | `boolean` | TRUE if the active user has at least one of the given role codes. |
 | `inventory.approve_transfer(bigint)` | function (plpgsql) | DEFINER | `void` | UC01 step 10-11: approves a proposed transfer and places firm reservations at the donor (atomic, all lines or none). |
 | `inventory.cancel_transfer(bigint,text)` | function (plpgsql) | DEFINER | `void` |  |
 | `inventory.dispatch_transfer(bigint)` | function (plpgsql) | DEFINER | `void` | US11: consumes the firm reservations, posts TRANSFER_OUT movements, status -&gt; dispatched (stock is now in transit). |
-| `inventory.expire_soft_reservations(integer)` | procedure (plpgsql) | invoker | `procedure` | Expires overdue soft reservations and returns affected service orders to draft. |
+| `inventory.expire_soft_reservations(timestamp with time zone)` | function (plpgsql) | DEFINER | `TABLE(service_order_line_id bigint, quantity numeric)` | Expires soft holds overdue at the given time and returns their service order lines (STAGE_6_PLAN 5.5); the job publishes ServiceKitReservationExpired. |
 | `inventory.find_exceptional_demand_candidates(numeric,interval,integer)` | function (sql) | invoker | `TABLE(movement_id bigint, occurred_at timestamp with time zone, warehouse_id smallint, part_id bigint, quantity numeric, mean_qty numeric, stddev_qty numeric, z_score numeric)` | US08: demand lines above mean + 3 sigma of the SKU (window functions), not yet flagged. |
 | `inventory.flag_exceptional_demand(bigint,timestamp with time zone,text,text)` | function (plpgsql) | DEFINER | `void` |  |
 | `inventory.fn_in_transit_qty(smallint,bigint)` | function (sql) | invoker | `numeric` | Inbound quantity: dispatched transfers + not yet received approved purchase orders. |
+| `inventory.issue_service_kit(smallint,bigint[],bigint[],numeric[])` | function (plpgsql) | DEFINER | `TABLE(service_order_line_id bigint, issued_qty numeric, shortfall_qty numeric)` | Consumes the holds of a completed service order and issues its kit up to the available stock, idempotent per line; returns issued and shortfall (STAGE_6_PLAN 5.4, F7). |
+| `inventory.purge_processed_messages(timestamp with time zone,timestamp with time zone,integer)` | function (plpgsql) | DEFINER | `TABLE(outbox_deleted integer, inbox_deleted integer)` | Deletes delivered outbox and handled inbox rows older than the cut-offs, one batch of each; never undelivered rows (#30). |
 | `inventory.receive_transfer(bigint)` | function (plpgsql) | DEFINER | `void` | US11: posts TRANSFER_IN movements at the recipient hub, status -&gt; received. |
+| `inventory.release_service_kit(bigint[])` | function (plpgsql) | DEFINER | `integer` | Releases the open holds of service order lines (cancellation, or a reservation that reached a closed order); ordered locks, idempotent (STAGE_6_PLAN 5.5). |
+| `inventory.reserve_service_kit(smallint,bigint[],bigint[],numeric[],timestamp with time zone)` | function (plpgsql) | DEFINER | `TABLE(service_order_line_id bigint, reserved_qty numeric)` | Soft-reserves a service kit at one hub, partially if stock is short, idempotent per line; balances locked in (part_id, warehouse_id) order (STAGE_6_PLAN 5.3, 5.7). |
 | `inventory.trg_demand_exception_validate()` | trigger function (plpgsql) | invoker | `trigger` |  |
 | `inventory.trg_stock_movement_apply()` | trigger function (plpgsql) | DEFINER | `trigger` | AFTER INSERT on the ledger: applies +/- quantity to stock_balance with a row lock; rejects issues exceeding available stock (SS200). |
 | `inventory.trg_stock_reservation_guard()` | trigger function (plpgsql) | invoker | `trigger` |  |
@@ -2513,16 +2549,18 @@ Security self-check: must return zero rows. Executed by the test suite after eve
 | `inventory.trg_transfer_line_editable()` | trigger function (plpgsql) | invoker | `trigger` |  |
 | `inventory.trg_transfer_order_status_guard()` | trigger function (plpgsql) | invoker | `trigger` |  |
 | `fleet.cancel_service_order(bigint,text)` | function (plpgsql) | DEFINER | `void` |  |
-| `fleet.complete_service_order(bigint,numeric)` | function (plpgsql) | DEFINER | `void` | Consumes the kit reservations, issues parts (ISSUE_SERVICE = demand) and closes the order. |
+| `fleet.complete_service_order(bigint,numeric)` | function (plpgsql) | DEFINER | `void` | Closes an open service order; Inventory issues the kit on ServiceOrderCompleted (ISSUE_SERVICE = demand). |
 | `fleet.create_service_order_draft(bigint,integer,numeric)` | function (plpgsql) | DEFINER | `bigint` |  |
 | `fleet.fn_maintenance_due(bigint,numeric)` | function (sql) | invoker | `TABLE(maintenance_plan_id integer, plan_name character varying, interval_hours integer, effective_interval numeric, due_engine_hours numeric, current_engine_hours numeric, remaining_hours numeric, is_overdue boolean)` | Planned services of a machine due within the horizon (effective interval = OEM interval x condition factor). |
-| `fleet.log_engine_hours(bigint,numeric,timestamp with time zone,fleet.reading_source)` | function (plpgsql) | DEFINER | `TABLE(service_order_id bigint, service_order_number character varying, due_engine_hours numeric, fully_reserved boolean)` | UC02: validates and stores a reading, then drafts service orders with soft-reserved kits for every plan due within 50 h. Atomic. |
+| `fleet.log_engine_hours(bigint,numeric,timestamp with time zone,fleet.reading_source)` | function (plpgsql) | DEFINER | `TABLE(service_order_id bigint, service_order_number character varying, due_engine_hours numeric, fully_reserved boolean)` | UC02: validates and stores a reading, then drafts service orders with their kits for every plan due within 50 h (Inventory reserves the kits on ServiceOrderDrafted). Atomic. |
+| `fleet.purge_processed_messages(timestamp with time zone,timestamp with time zone,integer)` | function (plpgsql) | DEFINER | `TABLE(outbox_deleted integer, inbox_deleted integer)` | Deletes delivered outbox and handled inbox rows older than the cut-offs, one batch of each; never undelivered rows (#30). |
 | `fleet.trg_engine_hours_apply()` | trigger function (plpgsql) | DEFINER | `trigger` |  |
 | `fleet.trg_engine_hours_validate()` | trigger function (plpgsql) | invoker | `trigger` |  |
 | `fleet.trg_service_order_status_guard()` | trigger function (plpgsql) | invoker | `trigger` |  |
 | `procurement.approve_purchase_order(bigint)` | function (plpgsql) | DEFINER | `void` | US14: approves a submitted PO; &gt; EUR 5,000 requires an approver other than the author (also a CHECK constraint). |
 | `procurement.cancel_purchase_order(bigint,text)` | function (plpgsql) | DEFINER | `void` |  |
 | `procurement.export_purchase_order(bigint)` | function (plpgsql) | DEFINER | `void` |  |
+| `procurement.purge_processed_messages(timestamp with time zone,timestamp with time zone,integer)` | function (plpgsql) | DEFINER | `TABLE(outbox_deleted integer, inbox_deleted integer)` | Deletes delivered outbox and handled inbox rows older than the cut-offs, one batch of each; never undelivered rows (#30). |
 | `procurement.receive_purchase_order_line(bigint,numeric)` | function (plpgsql) | DEFINER | `void` |  |
 | `procurement.submit_purchase_order(bigint)` | function (plpgsql) | DEFINER | `void` |  |
 | `procurement.trg_po_line_total()` | trigger function (plpgsql) | DEFINER | `trigger` |  |
@@ -2533,6 +2571,7 @@ Security self-check: must return zero rows. Executed by the test suite after eve
 | `forecast.fn_classify_demand(numeric,numeric)` | function (sql) | invoker | `character varying` | Syntetos-Boylan class from ADI and CV² using the ranges in ref.demand_class. |
 | `forecast.fn_stock_position(smallint,bigint,bigint,numeric)` | function (sql) | invoker | `TABLE(available_qty numeric, in_transit_qty numeric, base_demand_qty numeric, maintenance_demand_qty numeric, lead_time_buffer_qty numeric, safety_stock_qty numeric, net_position_qty numeric)` | Net = Available + InTransit - (ML forecast + unreserved maintenance demand + lead-time buffer + safety stock). Used by the recommendation engine. |
 | `forecast.promote_model(integer,numeric)` | function (plpgsql) | DEFINER | `boolean` | Promotes a candidate only if its weighted RMSSE is &gt;= 10 % lower than the best of the 5 benchmarks; retires the previous active model atomically. |
+| `forecast.purge_processed_messages(timestamp with time zone,timestamp with time zone,integer)` | function (plpgsql) | DEFINER | `TABLE(outbox_deleted integer, inbox_deleted integer)` | Deletes delivered outbox and handled inbox rows older than the cut-offs, one batch of each; never undelivered rows (#30). |
 | `forecast.trg_model_status_guard()` | trigger function (plpgsql) | invoker | `trigger` |  |
 | `audit.purge_expired(interval)` | procedure (plpgsql) | invoker | `procedure` | Drops audit partitions older than the retention period (default 180 days). Run monthly by Quartz.NET. |
 | `audit.trg_row_audit()` | trigger function (plpgsql) | DEFINER | `trigger` | AFTER ROW trigger writing changed columns into audit.audit_log; record_id = id column or the *_id columns of a composite key; arguments = excluded columns (PII, secrets). |
