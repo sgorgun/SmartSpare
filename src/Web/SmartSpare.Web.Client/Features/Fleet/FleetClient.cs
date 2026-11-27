@@ -65,4 +65,49 @@ public class FleetClient(HttpClient http) : ApiClientBase(http)
 
         return SendAsync<PagedResponse<ServiceOrderSummary>>(new HttpRequestMessage(HttpMethod.Get, "api/v1/fleet/service-orders?" + query), cancellationToken);
     }
+
+    public virtual Task<ApiResult<PagedResponse<DueMaintenanceRow>>> GetDueMaintenanceAsync(
+        short? warehouseId, int horizonDays, string? status, int page, int pageSize, CancellationToken cancellationToken = default)
+    {
+        var query = string.Create(CultureInfo.InvariantCulture, $"horizonDays={horizonDays}&page={page}&pageSize={pageSize}");
+        if (warehouseId is { } warehouse)
+        {
+            query += string.Create(CultureInfo.InvariantCulture, $"&warehouseId={warehouse}");
+        }
+
+        if (!string.IsNullOrEmpty(status))
+        {
+            query += "&status=" + Uri.EscapeDataString(status);
+        }
+
+        return SendAsync<PagedResponse<DueMaintenanceRow>>(new HttpRequestMessage(HttpMethod.Get, "api/v1/fleet/maintenance/due?" + query), cancellationToken);
+    }
+
+    public virtual Task<ApiResult<ServiceOrderDetails>> GetServiceOrderAsync(long id, CancellationToken cancellationToken = default) =>
+        SendAsync<ServiceOrderDetails>(
+            new HttpRequestMessage(HttpMethod.Get, string.Create(CultureInfo.InvariantCulture, $"api/v1/fleet/service-orders/{id}")), cancellationToken);
+
+    public virtual Task<ApiResult<ServiceOrderDetails>> CreateServiceOrderAsync(CreateServiceOrderRequest request, CancellationToken cancellationToken = default) =>
+        SendAsync<ServiceOrderDetails>(
+            new HttpRequestMessage(HttpMethod.Post, "api/v1/fleet/service-orders") { Content = JsonContent.Create(request) }, cancellationToken);
+
+    /// <summary>
+    /// One of <see cref="ServiceOrderActions"/>: start (no body), complete (<paramref name="engineHours"/>) or cancel
+    /// (<paramref name="reason"/>).
+    /// </summary>
+    public virtual Task<ApiResult<ServiceOrderDetails>> ServiceOrderActionAsync(
+        long id, string action, decimal? engineHours = null, string? reason = null, CancellationToken cancellationToken = default)
+    {
+        var request = new HttpRequestMessage(
+            HttpMethod.Post, string.Create(CultureInfo.InvariantCulture, $"api/v1/fleet/service-orders/{id}/{Uri.EscapeDataString(action)}"))
+        {
+            Content = action switch
+            {
+                ServiceOrderActions.Complete => JsonContent.Create(new CompleteServiceOrderRequest(engineHours ?? 0)),
+                ServiceOrderActions.Cancel => JsonContent.Create(new CancelServiceOrderRequest(reason ?? string.Empty)),
+                _ => null,
+            },
+        };
+        return SendAsync<ServiceOrderDetails>(request, cancellationToken);
+    }
 }

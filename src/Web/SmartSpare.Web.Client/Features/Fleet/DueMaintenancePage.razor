@@ -1,0 +1,209 @@
+@page "/fleet/maintenance"
+@attribute [Authorize(Policy = AppPolicies.ReadFleet)]
+@using System.Globalization
+@using SmartSpare.ApiContracts.Fleet
+@using SmartSpare.ApiContracts.Inventory
+@inject IStringLocalizer<SharedResource> Text
+@inject FleetClient Fleet
+@inject InventoryClient Inventory
+@inject ProblemMessages Messages
+@inject IAuthorizationService Authorization
+
+<PageTitle>@Text["Due.Title"]</PageTitle>
+
+<MudText Typo="Typo.h4" HtmlTag="h1" Class="mb-2">@Text["Nav.Fleet"]</MudText>
+<FleetTabs />
+
+<MudText Typo="Typo.h5" HtmlTag="h2" Class="mb-2">@Text["Due.Title"]</MudText>
+
+<MudGrid Spacing="2" Class="mb-2">
+    <MudItem xs="12" sm="4">
+        <MudSelect T="short?" Value="_warehouseId" ValueChanged="WarehouseChangedAsync" Label="@Text["Stock.Hub"]" Variant="Variant.Outlined"
+                   Dense="true" data-testid="due-hub">
+            <MudSelectItem T="short?" Value="null">@Text["Stock.AllHubs"]</MudSelectItem>
+            @foreach (var warehouse in _warehouses)
+            {
+                <MudSelectItem T="short?" Value="warehouse.Id">@warehouse.Code · @warehouse.Name</MudSelectItem>
+            }
+        </MudSelect>
+    </MudItem>
+    <MudItem xs="6" sm="4">
+        <MudSelect T="int" Value="_horizon" ValueChanged="HorizonChangedAsync" Label="@Text["Due.Horizon"]" Variant="Variant.Outlined"
+                   Dense="true" data-testid="due-horizon">
+            @foreach (var days in Horizons)
+            {
+                <MudSelectItem T="int" Value="days">@Text["Due.Days", days]</MudSelectItem>
+            }
+        </MudSelect>
+    </MudItem>
+    <MudItem xs="6" sm="4">
+        <MudSelect T="string" Value="_status" ValueChanged="StatusChangedAsync" Label="@Text["Machines.DueStatus"]" Variant="Variant.Outlined"
+                   Dense="true" data-testid="due-status">
+            <MudSelectItem T="string" Value="@(null)">@Text["Due.OverdueAndSoon"]</MudSelectItem>
+            @foreach (var status in Statuses)
+            {
+                <MudSelectItem T="string" Value="status">@Text["DueStatus." + status]</MudSelectItem>
+            }
+        </MudSelect>
+    </MudItem>
+</MudGrid>
+
+@if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-3" data-testid="due-error">@_error</MudAlert>
+}
+
+<MudDataGrid @ref="_grid" T="DueMaintenanceRow" ServerData="LoadAsync" RowsPerPage="FleetSearch.DefaultPageSize" Hover="true" Dense="true"
+             Outlined="true" Elevation="0" Breakpoint="Breakpoint.Sm" SortMode="SortMode.None" Filterable="false" data-testid="due-grid">
+    <Columns>
+        <TemplateColumn Title="@Text["Machines.Vin"]">
+            <CellTemplate><MudLink Href="@MachineHref(context.Item.MachineId)">@context.Item.Vin</MudLink></CellTemplate>
+        </TemplateColumn>
+        <TemplateColumn Title="@Text["Machines.Model"]">
+            <CellTemplate>@context.Item.BrandCode @context.Item.ModelName</CellTemplate>
+        </TemplateColumn>
+        <PropertyColumn Property="r => r.WarehouseCode" Title="@Text["Stock.Hub"]" />
+        <TemplateColumn Title="@Text["Orders.Service"]">
+            <CellTemplate>@context.Item.Due.PlanName</CellTemplate>
+        </TemplateColumn>
+        <TemplateColumn Title="@Text["Due.When"]">
+            <CellTemplate>
+                <span>@Date(context.Item.Due.DueDate) · @Remaining(context.Item.Due)</span><br />
+                <MudText Typo="Typo.caption">@Text["Plan.Trigger." + context.Item.Due.Trigger]</MudText>
+            </CellTemplate>
+        </TemplateColumn>
+        <TemplateColumn Title="@Text["Machines.DueStatus"]">
+            <CellTemplate><MaintenanceDueChip Status="@context.Item.Due.Status" /></CellTemplate>
+        </TemplateColumn>
+        <TemplateColumn Title="" CellClass="text-right">
+            <CellTemplate>
+                @if (_mayCreate && context.Item.Due.OpenOrderThreshold is null)
+                {
+                    <MudButton Href="@NewOrderHref(context.Item)" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" Class="touch-target"
+                               StartIcon="@Icons.Material.Filled.Add" aria-label="@Text["Due.CreateFor", context.Item.Due.PlanName, context.Item.Vin].Value"
+                               data-testid="due-create">@Text["Due.Create"]</MudButton>
+                }
+            </CellTemplate>
+        </TemplateColumn>
+    </Columns>
+    <NoRecordsContent>
+        <MudText>@(_error is null ? Text["Due.None"] : Text["Due.Unavailable"])</MudText>
+    </NoRecordsContent>
+    <LoadingContent>
+        <MudText>@Text["Due.Loading"]</MudText>
+    </LoadingContent>
+    <PagerContent>
+        <MudDataGridPager T="DueMaintenanceRow" PageSizeOptions="PageSizes" />
+    </PagerContent>
+</MudDataGrid>
+
+@code {
+    private static readonly int[] PageSizes = [10, FleetSearch.DefaultPageSize, 50, FleetSearch.MaxPageSize];
+
+    private static readonly int[] Horizons = [7, FleetSearch.DefaultHorizonDays, 30, 90];
+
+    private static readonly string[] Statuses =
+        [MaintenanceDueStatuses.Overdue, MaintenanceDueStatuses.DueSoon, MaintenanceDueStatuses.Planned, MaintenanceDueStatuses.Ok];
+
+    private MudDataGrid<DueMaintenanceRow>? _grid;
+    private IReadOnlyList<WarehouseResponse> _warehouses = [];
+    private short? _warehouseId;
+    private int _horizon = FleetSearch.DefaultHorizonDays;
+    private string? _status;
+    private string? _error;
+    private bool _mayCreate;
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationState { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthenticationState is not null)
+        {
+            var user = (await AuthenticationState).User;
+            _mayCreate = (await Authorization.AuthorizeAsync(user, AppPolicies.ManageServiceOrders)).Succeeded;
+        }
+
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        var warehouses = await Inventory.ListWarehousesAsync();
+        if (warehouses.IsSuccess)
+        {
+            _warehouses = warehouses.Value!;
+        }
+    }
+
+    private async Task<GridData<DueMaintenanceRow>> LoadAsync(GridState<DueMaintenanceRow> state, CancellationToken cancellationToken)
+    {
+        if (!RendererInfo.IsInteractive)
+        {
+            return new GridData<DueMaintenanceRow> { Items = [], TotalItems = 0 };
+        }
+
+        var result = await Fleet.GetDueMaintenanceAsync(_warehouseId, _horizon, _status, state.Page + 1, state.PageSize, cancellationToken);
+        SetError(result.IsSuccess ? null : Messages.Describe(result.Problem!));
+        return result.IsSuccess
+            ? new GridData<DueMaintenanceRow> { Items = result.Value!.Items, TotalItems = result.Value.TotalCount }
+            : new GridData<DueMaintenanceRow> { Items = [], TotalItems = 0 };
+    }
+
+    private void SetError(string? error)
+    {
+        if (error != _error)
+        {
+            _error = error;
+            StateHasChanged();
+        }
+    }
+
+    private async Task WarehouseChangedAsync(short? warehouseId)
+    {
+        _warehouseId = warehouseId;
+        await ReloadAsync();
+    }
+
+    private async Task HorizonChangedAsync(int horizon)
+    {
+        _horizon = horizon;
+        await ReloadAsync();
+    }
+
+    private async Task StatusChangedAsync(string? status)
+    {
+        _status = status;
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        if (_grid is null)
+        {
+            return;
+        }
+
+        if (_grid.CurrentPage != 0)
+        {
+            _grid.NavigateTo(Page.First);
+        }
+        else
+        {
+            await _grid.ReloadServerData();
+        }
+    }
+
+    private string Remaining(MaintenancePlanDue due) => due.RemainingHours > 0
+        ? Text["Plan.ToGo", Hours(due.RemainingHours)].Value
+        : Text["Plan.Overdue", Hours(-due.RemainingHours)].Value;
+
+    private string Date(DateOnly? date) => date?.ToString("d", CultureInfo.CurrentCulture) ?? Text["Plan.Unknown"].Value;
+
+    private static string Hours(decimal value) => value.ToString("#,0.#", CultureInfo.CurrentCulture);
+
+    private static string MachineHref(long id) => string.Create(CultureInfo.InvariantCulture, $"fleet/machines/{id}");
+
+    private static string NewOrderHref(DueMaintenanceRow row) =>
+        string.Create(CultureInfo.InvariantCulture, $"fleet/service-orders/new?machineId={row.MachineId}&planId={row.Due.MaintenancePlanId}");
+}

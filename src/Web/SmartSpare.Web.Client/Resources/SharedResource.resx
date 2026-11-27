@@ -927,4 +927,223 @@
   <data name="Plan.ThenAt" xml:space="preserve">
     <value>Then at {0} h</value>
   </data>
+  <data name="Fleet.Tab.Due" xml:space="preserve">
+    <value>Due maintenance</value>
+  </data>
+  <data name="Fleet.Tab.Orders" xml:space="preserve">
+    <value>Service orders</value>
+  </data>
+  <data name="Orders.Title" xml:space="preserve">
+    <value>Service orders</value>
+  </data>
+  <data name="Orders.New" xml:space="preserve">
+    <value>New service order</value>
+  </data>
+  <data name="Orders.All" xml:space="preserve">
+    <value>All</value>
+  </data>
+  <data name="Orders.Service" xml:space="preserve">
+    <value>Service</value>
+  </data>
+  <data name="Orders.Age" xml:space="preserve">
+    <value>Age</value>
+  </data>
+  <data name="Orders.Today" xml:space="preserve">
+    <value>today</value>
+  </data>
+  <data name="Orders.Days" xml:space="preserve">
+    <value>{0} d</value>
+  </data>
+  <data name="Orders.Open" xml:space="preserve">
+    <value>Open service order {0}</value>
+  </data>
+  <data name="Orders.None" xml:space="preserve">
+    <value>No service orders match the filters.</value>
+  </data>
+  <data name="Orders.Unavailable" xml:space="preserve">
+    <value>The service orders could not be loaded.</value>
+  </data>
+  <data name="Orders.Loading" xml:space="preserve">
+    <value>Loading service orders…</value>
+  </data>
+  <data name="Order.Loading" xml:space="preserve">
+    <value>Loading the service order…</value>
+  </data>
+  <data name="Order.DueAt" xml:space="preserve">
+    <value>service at {0} h</value>
+  </data>
+  <data name="Order.Hub" xml:space="preserve">
+    <value>Parts from hub {0}</value>
+  </data>
+  <data name="Order.Waiting" xml:space="preserve">
+    <value>Waiting for the parts answer of the hub…</value>
+  </data>
+  <data name="Order.Stalled" xml:space="preserve">
+    <value>The hub has not answered yet. The parts status updates when it does; reload the page later.</value>
+  </data>
+  <data name="Order.Kit" xml:space="preserve">
+    <value>Parts</value>
+  </data>
+  <data name="Order.Part" xml:space="preserve">
+    <value>Part</value>
+  </data>
+  <data name="Order.Required" xml:space="preserve">
+    <value>Needed</value>
+  </data>
+  <data name="Order.Short" xml:space="preserve">
+    <value>{0} short</value>
+  </data>
+  <data name="Order.UnknownPart" xml:space="preserve">
+    <value>Part {0}</value>
+  </data>
+  <data name="Order.Action.start" xml:space="preserve">
+    <value>Start work</value>
+  </data>
+  <data name="Order.Action.complete" xml:space="preserve">
+    <value>Complete</value>
+  </data>
+  <data name="Order.Action.cancel" xml:space="preserve">
+    <value>Cancel order</value>
+  </data>
+  <data name="Order.Confirm.start" xml:space="preserve">
+    <value>Start the work on {0}?</value>
+  </data>
+  <data name="Order.Confirm.complete" xml:space="preserve">
+    <value>Complete {0}? The hub issues the parts; anything it does not have is reported as missing.</value>
+  </data>
+  <data name="Order.Confirm.cancel" xml:space="preserve">
+    <value>Cancel {0}? The hub releases the reserved parts.</value>
+  </data>
+  <data name="Order.Yes.start" xml:space="preserve">
+    <value>Start</value>
+  </data>
+  <data name="Order.Yes.complete" xml:space="preserve">
+    <value>Complete</value>
+  </data>
+  <data name="Order.Yes.cancel" xml:space="preserve">
+    <value>Cancel the order</value>
+  </data>
+  <data name="Order.CompletionHours" xml:space="preserve">
+    <value>Engine hours at completion</value>
+  </data>
+  <data name="Order.CompletionHelp" xml:space="preserve">
+    <value>The machine is at {0} h.</value>
+  </data>
+  <data name="Order.CancelReason" xml:space="preserve">
+    <value>Reason</value>
+  </data>
+  <data name="Order.ReasonRequired" xml:space="preserve">
+    <value>Give a reason for the cancellation (at most 300 characters).</value>
+  </data>
+  <data name="Order.Done.start" xml:space="preserve">
+    <value>Work on {0} started.</value>
+  </data>
+  <data name="Order.Done.complete" xml:space="preserve">
+    <value>{0} completed.</value>
+  </data>
+  <data name="Order.Done.cancel" xml:space="preserve">
+    <value>{0} cancelled.</value>
+  </data>
+  <data name="Order.Step.drafted" xml:space="preserve">
+    <value>Drafted</value>
+  </data>
+  <data name="Order.Step.kitAnswered" xml:space="preserve">
+    <value>Parts answered by the hub</value>
+  </data>
+  <data name="Order.Step.completed" xml:space="preserve">
+    <value>Completed</value>
+  </data>
+  <data name="Order.Step.cancelled" xml:space="preserve">
+    <value>Cancelled</value>
+  </data>
+  <data name="Due.Title" xml:space="preserve">
+    <value>Due maintenance</value>
+  </data>
+  <data name="Due.Horizon" xml:space="preserve">
+    <value>Within</value>
+  </data>
+  <data name="Due.Days" xml:space="preserve">
+    <value>{0} days</value>
+  </data>
+  <data name="Due.OverdueAndSoon" xml:space="preserve">
+    <value>Overdue and due soon</value>
+  </data>
+  <data name="Due.When" xml:space="preserve">
+    <value>Due</value>
+  </data>
+  <data name="Due.Create" xml:space="preserve">
+    <value>Create order</value>
+  </data>
+  <data name="Due.CreateFor" xml:space="preserve">
+    <value>Create a service order for {0} on {1}</value>
+  </data>
+  <data name="Due.None" xml:space="preserve">
+    <value>No maintenance is due with these filters.</value>
+  </data>
+  <data name="Due.Unavailable" xml:space="preserve">
+    <value>The due maintenance could not be loaded.</value>
+  </data>
+  <data name="Due.Loading" xml:space="preserve">
+    <value>Loading due maintenance…</value>
+  </data>
+  <data name="NewOrder.Title" xml:space="preserve">
+    <value>New service order</value>
+  </data>
+  <data name="NewOrder.Machine" xml:space="preserve">
+    <value>Machine (search by VIN)</value>
+  </data>
+  <data name="NewOrder.MachineInfo" xml:space="preserve">
+    <value>At {0} h; the parts come from hub {1}.</value>
+  </data>
+  <data name="NewOrder.Kind" xml:space="preserve">
+    <value>Kind of order</value>
+  </data>
+  <data name="NewOrder.Planned" xml:space="preserve">
+    <value>Planned service</value>
+  </data>
+  <data name="NewOrder.Repair" xml:space="preserve">
+    <value>Repair</value>
+  </data>
+  <data name="NewOrder.Plan" xml:space="preserve">
+    <value>Maintenance plan</value>
+  </data>
+  <data name="NewOrder.AlreadyOrdered" xml:space="preserve">
+    <value>already ordered</value>
+  </data>
+  <data name="NewOrder.Part" xml:space="preserve">
+    <value>Part (search by number or name)</value>
+  </data>
+  <data name="NewOrder.Quantity" xml:space="preserve">
+    <value>Quantity</value>
+  </data>
+  <data name="NewOrder.Add" xml:space="preserve">
+    <value>Add part</value>
+  </data>
+  <data name="NewOrder.Remove" xml:space="preserve">
+    <value>Remove {0}</value>
+  </data>
+  <data name="NewOrder.LineInvalid" xml:space="preserve">
+    <value>Choose a part and a quantity greater than zero.</value>
+  </data>
+  <data name="NewOrder.PartTwice" xml:space="preserve">
+    <value>This part is already in the order; remove it to change the quantity.</value>
+  </data>
+  <data name="NewOrder.NeedPlan" xml:space="preserve">
+    <value>Choose the maintenance plan of the service.</value>
+  </data>
+  <data name="NewOrder.NeedParts" xml:space="preserve">
+    <value>Add at least one part to the repair.</value>
+  </data>
+  <data name="NewOrder.Create" xml:space="preserve">
+    <value>Create order</value>
+  </data>
+  <data name="NewOrder.Created" xml:space="preserve">
+    <value>{0} created; the hub is reserving its parts.</value>
+  </data>
+  <data name="Order.LineState" xml:space="preserve">
+    <value>Reserved · issued</value>
+  </data>
+  <data name="Order.ReservedIssued" xml:space="preserve">
+    <value>{0} reserved · {1} issued</value>
+  </data>
 </root>

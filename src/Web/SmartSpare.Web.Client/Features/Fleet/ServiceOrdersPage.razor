@@ -1,0 +1,189 @@
+@page "/fleet/service-orders"
+@attribute [Authorize(Policy = AppPolicies.ReadFleet)]
+@using System.Globalization
+@using SmartSpare.ApiContracts.Fleet
+@using SmartSpare.ApiContracts.Inventory
+@inject IStringLocalizer<SharedResource> Text
+@inject FleetClient Fleet
+@inject InventoryClient Inventory
+@inject ProblemMessages Messages
+@inject NavigationManager Navigation
+@inject TimeProvider Clock
+
+<PageTitle>@Text["Orders.Title"]</PageTitle>
+
+<MudText Typo="Typo.h4" HtmlTag="h1" Class="mb-2">@Text["Nav.Fleet"]</MudText>
+<FleetTabs />
+
+<div class="d-flex align-center flex-wrap mb-2">
+    <MudText Typo="Typo.h5" HtmlTag="h2" Class="mr-auto">@Text["Orders.Title"]</MudText>
+    <AuthorizeView Policy="@AppPolicies.ManageServiceOrders">
+        <MudButton Href="fleet/service-orders/new" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                   Class="touch-target" data-testid="orders-new">@Text["Orders.New"]</MudButton>
+    </AuthorizeView>
+</div>
+
+@* Status tabs: buttons that say which one is pressed, so a screen reader hears the filter. *@
+<div class="d-flex flex-wrap mb-2" role="group" aria-label="@Text["Orders.Status"]" data-testid="orders-tabs">
+    @foreach (var (status, key) in Tabs)
+    {
+        var current = status == _status;
+        <MudButton OnClick="() => StatusChangedAsync(status)" Variant="@(current ? Variant.Filled : Variant.Text)" Color="Color.Primary"
+                   Class="mr-1 mb-1 touch-target" aria-pressed="@(current ? "true" : "false")">@Text[key]</MudButton>
+    }
+</div>
+
+<MudGrid Spacing="2" Class="mb-2">
+    <MudItem xs="12" sm="4" md="3">
+        <MudSelect T="short?" Value="_warehouseId" ValueChanged="WarehouseChangedAsync" Label="@Text["Stock.Hub"]" Variant="Variant.Outlined"
+                   Dense="true" data-testid="orders-hub">
+            <MudSelectItem T="short?" Value="null">@Text["Stock.AllHubs"]</MudSelectItem>
+            @foreach (var warehouse in _warehouses)
+            {
+                <MudSelectItem T="short?" Value="warehouse.Id">@warehouse.Code · @warehouse.Name</MudSelectItem>
+            }
+        </MudSelect>
+    </MudItem>
+</MudGrid>
+
+@if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-3" data-testid="orders-error">@_error</MudAlert>
+}
+
+<MudDataGrid @ref="_grid" T="ServiceOrderSummary" ServerData="LoadAsync" RowsPerPage="FleetSearch.DefaultPageSize" Hover="true" Dense="true"
+             Outlined="true" Elevation="0" Breakpoint="Breakpoint.Sm" SortMode="SortMode.None" Filterable="false"
+             RowClick="OpenRow" RowStyle="cursor: pointer" data-testid="orders-grid">
+    <Columns>
+        <PropertyColumn Property="o => o.Number" Title="@Text["Orders.Number"]" />
+        <TemplateColumn Title="@Text["Machines.Vin"]">
+            <CellTemplate>@context.Item.Vin · @context.Item.ModelName</CellTemplate>
+        </TemplateColumn>
+        <TemplateColumn Title="@Text["Orders.Service"]">
+            <CellTemplate>@(context.Item.PlanName ?? Text["Orders.Repair"].Value)</CellTemplate>
+        </TemplateColumn>
+        <PropertyColumn Property="o => o.WarehouseCode" Title="@Text["Stock.Hub"]" />
+        <TemplateColumn Title="@Text["Orders.Status"]">
+            <CellTemplate>
+                <div class="d-flex flex-wrap gap-1">
+                    <ServiceOrderStatusChip Status="@context.Item.Status" />
+                    <KitStatusChip Status="@context.Item.KitStatus" />
+                </div>
+            </CellTemplate>
+        </TemplateColumn>
+        <TemplateColumn Title="@Text["Orders.Age"]">
+            <CellTemplate>@Age(context.Item.CreatedAt)</CellTemplate>
+        </TemplateColumn>
+        <TemplateColumn Title="" CellClass="text-right">
+            <CellTemplate>
+                <MudButton Href="@OrderHref(context.Item.Id)" Size="Size.Small" Variant="Variant.Text" Color="Color.Primary" Class="touch-target"
+                           aria-label="@Text["Orders.Open", context.Item.Number].Value">@Text["Stock.Open"]</MudButton>
+            </CellTemplate>
+        </TemplateColumn>
+    </Columns>
+    <NoRecordsContent>
+        <MudText>@(_error is null ? Text["Orders.None"] : Text["Orders.Unavailable"])</MudText>
+    </NoRecordsContent>
+    <LoadingContent>
+        <MudText>@Text["Orders.Loading"]</MudText>
+    </LoadingContent>
+    <PagerContent>
+        <MudDataGridPager T="ServiceOrderSummary" PageSizeOptions="PageSizes" />
+    </PagerContent>
+</MudDataGrid>
+
+@code {
+    private static readonly int[] PageSizes = [10, FleetSearch.DefaultPageSize, 50, FleetSearch.MaxPageSize];
+
+    private static readonly (string? Status, string Key)[] Tabs =
+    [
+        (null, "Orders.All"),
+        (ServiceOrderStatuses.Draft, "OrderStatus.draft"),
+        (ServiceOrderStatuses.PartsReserved, "OrderStatus.partsReserved"),
+        (ServiceOrderStatuses.InProgress, "OrderStatus.inProgress"),
+        (ServiceOrderStatuses.Completed, "OrderStatus.completed"),
+        (ServiceOrderStatuses.Cancelled, "OrderStatus.cancelled"),
+    ];
+
+    private MudDataGrid<ServiceOrderSummary>? _grid;
+    private IReadOnlyList<WarehouseResponse> _warehouses = [];
+    private short? _warehouseId;
+    private string? _status;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        var warehouses = await Inventory.ListWarehousesAsync();
+        if (warehouses.IsSuccess)
+        {
+            _warehouses = warehouses.Value!;
+        }
+    }
+
+    private async Task<GridData<ServiceOrderSummary>> LoadAsync(GridState<ServiceOrderSummary> state, CancellationToken cancellationToken)
+    {
+        if (!RendererInfo.IsInteractive)
+        {
+            return new GridData<ServiceOrderSummary> { Items = [], TotalItems = 0 };
+        }
+
+        var result = await Fleet.ListServiceOrdersAsync(_status, _warehouseId, null, state.Page + 1, state.PageSize, cancellationToken);
+        SetError(result.IsSuccess ? null : Messages.Describe(result.Problem!));
+        return result.IsSuccess
+            ? new GridData<ServiceOrderSummary> { Items = result.Value!.Items, TotalItems = result.Value.TotalCount }
+            : new GridData<ServiceOrderSummary> { Items = [], TotalItems = 0 };
+    }
+
+    private void SetError(string? error)
+    {
+        if (error != _error)
+        {
+            _error = error;
+            StateHasChanged();
+        }
+    }
+
+    private async Task StatusChangedAsync(string? status)
+    {
+        _status = status;
+        await ReloadAsync();
+    }
+
+    private async Task WarehouseChangedAsync(short? warehouseId)
+    {
+        _warehouseId = warehouseId;
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        if (_grid is null)
+        {
+            return;
+        }
+
+        if (_grid.CurrentPage != 0)
+        {
+            _grid.NavigateTo(Page.First);
+        }
+        else
+        {
+            await _grid.ReloadServerData();
+        }
+    }
+
+    private void OpenRow(DataGridRowClickEventArgs<ServiceOrderSummary> args) => Navigation.NavigateTo(OrderHref(args.Item.Id));
+
+    private static string OrderHref(long id) => string.Create(CultureInfo.InvariantCulture, $"fleet/service-orders/{id}");
+
+    private string Age(DateTimeOffset createdAt)
+    {
+        var days = (int)(Clock.GetUtcNow() - createdAt).TotalDays;
+        return days < 1 ? Text["Orders.Today"].Value : Text["Orders.Days", days].Value;
+    }
+}
