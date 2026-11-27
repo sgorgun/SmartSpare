@@ -50,6 +50,14 @@ internal sealed class AppUserConfiguration : IEntityTypeConfiguration<AppUser>
 
         builder.HasIndex(x => x.HomeWarehouseId).HasDatabaseName("ix_app_user_home_warehouse");
 
+        // ADR 0026: every account belongs to exactly one employee; an employee has at most one account.
+        builder.Property(x => x.EmployeeId).HasColumnName("employee_id").HasColumnOrder(15).HasColumnType("uuid").HasComment("The employee the account belongs to (iam.employee); never null.");
+        builder.HasIndex(x => x.EmployeeId).IsUnique().HasDatabaseName("uq_app_user_employee");
+        builder.HasOne<Domain.Organisation.Employee>().WithOne()
+            .HasForeignKey<AppUser>(x => x.EmployeeId)
+            .HasPrincipalKey<Domain.Organisation.Employee>(x => x.Id)
+            .HasConstraintName("fk_app_user_employee").OnDelete(DeleteBehavior.Restrict);
+
         // PostgreSQL's xmin system column as the concurrency token: no column is created, the
         // migration that introduced it is schema-free (STAGE_3_PLAN section 10, 3a).
         builder.Property<uint>("xmin").IsRowVersion();

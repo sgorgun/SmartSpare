@@ -14,7 +14,7 @@ public sealed partial class PolicySqlRoleParityTests
     /// <summary>The policy table of section 3.2: each policy and the SQL functions it fronts.</summary>
     private static readonly Dictionary<string, string[]> Fronts = new(StringComparer.Ordinal)
     {
-        [AppPolicies.Administration] = ["iam.anonymise_user"],
+        [AppPolicies.Administration] = ["iam.anonymise_user", "iam.anonymise_employee"],
         [AppPolicies.PlanInventory] = ["inventory.flag_exceptional_demand", "procurement.submit_purchase_order", "procurement.export_purchase_order"],
         [AppPolicies.ApproveTransfer] = ["inventory.approve_transfer"],
         [AppPolicies.CancelTransfer] = ["inventory.cancel_transfer"],

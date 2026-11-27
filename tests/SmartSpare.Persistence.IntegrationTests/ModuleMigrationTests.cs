@@ -86,8 +86,10 @@ public sealed class IdentityMigrationTests(MigratedDatabaseFixture db) : ModuleM
         await Db.InRolledBackTransactionAsync(async (connection, transaction) =>
         {
             await ExecuteAsync(connection, transaction, $"""
-                INSERT INTO iam.app_user (user_name, email, full_name, password_hash)
-                VALUES ('audit.probe', 'audit.probe@dealer.example', 'Audit Probe', 'AQAAAA{new string('A', 76)}')
+                WITH e AS (INSERT INTO iam.employee (code, full_name, position_id)
+                           SELECT 'E999901', 'Audit Probe', id FROM iam.position WHERE code = 'INVENTORY_PLANNER' RETURNING id)
+                INSERT INTO iam.app_user (employee_id, user_name, email, full_name, password_hash)
+                SELECT e.id, 'audit.probe', 'audit.probe@dealer.example', 'Audit Probe', 'AQAAAA{new string('A', 76)}' FROM e
                 """);
 
             await using var check = new NpgsqlCommand("""
@@ -143,8 +145,10 @@ public sealed class IdentityMigrationTests(MigratedDatabaseFixture db) : ModuleM
         await Db.InRolledBackTransactionAsync(async (connection, transaction) =>
         {
             var error = await Should.ThrowAsync<PostgresException>(() => ExecuteAsync(connection, transaction, $"""
-                INSERT INTO iam.app_user (user_name, email, full_name, password_hash)
-                VALUES ('Upper.Case', 'upper.case@dealer.example', 'Upper Case', 'AQAAAA{new string('A', 76)}')
+                WITH e AS (INSERT INTO iam.employee (code, full_name, position_id)
+                           SELECT 'E999902', 'Upper Case', id FROM iam.position WHERE code = 'INVENTORY_PLANNER' RETURNING id)
+                INSERT INTO iam.app_user (employee_id, user_name, email, full_name, password_hash)
+                SELECT e.id, 'Upper.Case', 'upper.case@dealer.example', 'Upper Case', 'AQAAAA{new string('A', 76)}' FROM e
                 """));
             error.SqlState.ShouldBe(PostgresErrorCodes.CheckViolation);
             error.ConstraintName.ShouldBe("ck_app_user_user_name");

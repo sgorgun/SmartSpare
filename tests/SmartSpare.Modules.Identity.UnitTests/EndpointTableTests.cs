@@ -25,13 +25,36 @@ public sealed class EndpointTableTests
         [
             "GET /api/v1/identity/users/",
             "GET /api/v1/identity/users/form-options",
-            "POST /api/v1/identity/users/",
             "PUT /api/v1/identity/users/{id:guid}/access",
             "POST /api/v1/identity/users/{id:guid}/unlock",
             "POST /api/v1/identity/users/{id:guid}/deactivate",
             "POST /api/v1/identity/users/{id:guid}/anonymise",
             "POST /api/v1/identity/me/password",
+            "GET /api/v1/identity/positions/",
+            "GET /api/v1/identity/positions/{id:int}",
+            "POST /api/v1/identity/positions/",
+            "PUT /api/v1/identity/positions/{id:int}",
+            "POST /api/v1/identity/positions/{id:int}/archive",
+            "POST /api/v1/identity/positions/{id:int}/restore",
+            "GET /api/v1/identity/employees/",
+            "GET /api/v1/identity/employees/{id:guid}",
+            "POST /api/v1/identity/employees/",
+            "PUT /api/v1/identity/employees/{id:guid}",
+            "POST /api/v1/identity/employees/{id:guid}/archive",
+            "POST /api/v1/identity/employees/{id:guid}/restore",
+            "POST /api/v1/identity/employees/{id:guid}/account",
+            "POST /api/v1/identity/employees/{id:guid}/anonymise",
         ], ignoreOrder: true);
+
+    [Fact]
+    public void No_endpoint_edits_roles_on_a_user()
+    {
+        // ADR 0026: rights are derived from the employee's position and assignments; no route under /users takes roles.
+        Endpoints.Where(e => e.RoutePattern.RawText!.Contains("/users", StringComparison.Ordinal))
+            .Select(Describe)
+            .ShouldNotContain(r => r.StartsWith("POST /api/v1/identity/users/", StringComparison.Ordinal) && r.EndsWith("users/", StringComparison.Ordinal));
+        typeof(SmartSpare.ApiContracts.Identity.UserAccessRequest).GetProperty("Roles").ShouldBeNull();
+    }
 
     [Theory]
     [MemberData(nameof(Routes))]

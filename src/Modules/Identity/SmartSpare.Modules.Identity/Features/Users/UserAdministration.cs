@@ -39,16 +39,16 @@ internal static class UserErrors
         Error.Validation("Identity.PasswordRejected", string.Join(" ", errors.Select(e => e.Description)));
 }
 
-/// <summary>Resolves role and brand codes to their ids and checks the home hub.</summary>
-internal sealed class AccessResolver(IdentityDbContext db, IdentityFunctions functions, IWarehouseQueries warehouses)
+/// <summary>
+/// Resolves brand codes to their ids and checks the home hub. Roles are not edited here: they come from the employee's
+/// position (ADR 0026). Brands and hub move to responsibility assignments in PR 7d.
+/// </summary>
+internal sealed class AccessResolver(IdentityFunctions functions, IWarehouseQueries warehouses)
 {
-    public sealed record Resolved(IReadOnlyList<short> RoleIds, IReadOnlyList<short> BrandIds, short? HomeWarehouseId);
+    public sealed record Resolved(IReadOnlyList<short> BrandIds, short? HomeWarehouseId);
 
     public async Task<Result<Resolved>> ResolveAsync(UserAccessRequest access, CancellationToken cancellationToken)
     {
-        var codes = access.Roles.Distinct(StringComparer.Ordinal).ToArray();
-        var roles = await db.Set<Role>().AsNoTracking().Where(r => codes.Contains(r.Code)).Select(r => r.Id).ToListAsync(cancellationToken)
-            .ConfigureAwait(false);
         var brandCodes = access.Brands.Select(b => b.Trim().ToUpperInvariant()).Distinct(StringComparer.Ordinal).ToArray();
         var brands = await functions.BrandIdsAsync(brandCodes, cancellationToken).ConfigureAwait(false);
         if (brands.Count != brandCodes.Length)
@@ -61,22 +61,12 @@ internal sealed class AccessResolver(IdentityDbContext db, IdentityFunctions fun
             return UserErrors.UnknownWarehouse;
         }
 
-        return new Resolved(roles, brands, access.HomeWarehouseId);
+        return new Resolved(brands, access.HomeWarehouseId);
     }
 
-    /// <summary>Makes the user's roles, brands and hub equal to <paramref name="target"/>; every change rotates the stamp.</summary>
-    public static void Apply(AppUser user, Resolved target, DateTimeOffset now, Guid? grantedBy)
+    /// <summary>Makes the user's brands and hub equal to <paramref name="target"/>; every change rotates the stamp.</summary>
+    public static void Apply(AppUser user, Resolved target)
     {
-        foreach (var role in user.Roles.Select(r => r.RoleId).Except(target.RoleIds).ToList())
-        {
-            user.RevokeRole(role);
-        }
-
-        foreach (var role in target.RoleIds)
-        {
-            user.AssignRole(role, now, grantedBy);
-        }
-
         foreach (var brand in user.Brands.Select(b => b.BrandId).Except(target.BrandIds).ToList())
         {
             user.RemoveBrand(brand);
@@ -109,62 +99,10 @@ internal sealed record GetUserFormOptionsQuery : IQuery<UserFormOptions>;
 
 // ---- Commands ----------------------------------------------------------------------------------------------------
 
-internal sealed record CreateUserCommand(CreateUserRequest Request) : ICommand<Guid>;
-
-internal sealed class CreateUserCommandValidator : AbstractValidator<CreateUserCommand>
+/// <summary>The password policy of the Identity options (STAGE_3_PLAN 2.7), checked before a hash is stored.</summary>
+internal static class PasswordChecks
 {
-    public CreateUserCommandValidator() => RuleFor(c => c.Request).SetValidator(new CreateUserRequestValidator());
-}
-
-internal sealed class CreateUserCommandHandler(
-    IdentityDbContext db, IUnitOfWork<IdentityDbContext> unitOfWork, UserManager<AppUser> users, IPasswordHasher<AppUser> hasher,
-    AccessResolver resolver, AdminSession admin, ICurrentUser currentUser, TimeProvider clock)
-    : ICommandHandler<CreateUserCommand, Guid>
-{
-    public async Task<Result<Guid>> Handle(CreateUserCommand command, CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(command);
-        var request = command.Request;
-        var userName = UserName.Create(request.UserName);
-        var email = EmailAddress.Create(request.Email);
-        if (userName.IsFailure)
-        {
-            return userName.Error;
-        }
-
-        if (email.IsFailure)
-        {
-            return email.Error;
-        }
-
-        var access = await resolver.ResolveAsync(request.Access, cancellationToken).ConfigureAwait(false);
-        if (access.IsFailure)
-        {
-            return access.Error;
-        }
-
-        if (await db.Set<AppUser>().AsNoTracking().AnyAsync(u => u.UserName == userName.Value || u.Email == email.Value, cancellationToken).ConfigureAwait(false))
-        {
-            return UserErrors.UserNameTaken;
-        }
-
-        // A placeholder hash satisfies the format CHECK while the password validators run on the new user.
-        var id = Guid.NewGuid();
-        var user = AppUser.Create(id, userName.Value, email.Value, request.FullName.Trim(), request.Phone?.Trim(), hasher.HashPassword(null!, request.Password));
-        var checks = await ValidatePasswordAsync(users, user, request.Password).ConfigureAwait(false);
-        if (checks is { } rejected)
-        {
-            return rejected;
-        }
-
-        AccessResolver.Apply(user, access.Value, clock.GetUtcNow(), currentUser.UserId);
-        await admin.EnterAsync(cancellationToken).ConfigureAwait(false);
-        db.Add(user);
-        await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        return id;
-    }
-
-    internal static async Task<Error?> ValidatePasswordAsync(UserManager<AppUser> users, AppUser user, string password)
+    public static async Task<Error?> ValidateAsync(UserManager<AppUser> users, AppUser user, string password)
     {
         var errors = new List<IdentityError>();
         foreach (var validator in users.PasswordValidators)
@@ -204,23 +142,16 @@ internal sealed class UserAdministration(
       ICommandHandler<DeactivateUserCommand, UserSummary>,
       ICommandHandler<AnonymiseUserCommand, UserSummary>
 {
-    private const string Administrator = AppRoles.Administrator;
-
     public async Task<Result<UserSummary>> Handle(UpdateUserAccessCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
-        if (command.Id == currentUser.UserId && !command.Access.Roles.Contains(Administrator))
-        {
-            return UserErrors.OwnAdministration;
-        }
-
         var access = await resolver.ResolveAsync(command.Access, cancellationToken).ConfigureAwait(false);
         if (access.IsFailure)
         {
             return access.Error;
         }
 
-        return await ChangeAsync(command.Id, user => AccessResolver.Apply(user, access.Value, clock.GetUtcNow(), currentUser.UserId), cancellationToken)
+        return await ChangeAsync(command.Id, user => AccessResolver.Apply(user, access.Value), cancellationToken)
             .ConfigureAwait(false);
     }
 
@@ -232,17 +163,22 @@ internal sealed class UserAdministration(
             ? Task.FromResult<Result<UserSummary>>(UserErrors.OwnAdministration)
             : ChangeAsync(command.Id, user => user.Deactivate(clock.GetUtcNow()), cancellationToken);
 
-    /// <summary>GDPR erasure through <c>iam.anonymise_user</c>, which refuses the acting administrator (SS301) and repeats the role check.</summary>
+    /// <summary>
+    /// GDPR erasure of the account's employee through <c>iam.anonymise_employee</c> (ADR 0026), which also erases the
+    /// account, refuses the acting administrator (SS301) and repeats the role check.
+    /// </summary>
     public async Task<Result<UserSummary>> Handle(AnonymiseUserCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
-        if (!await db.Set<AppUser>().AsNoTracking().AnyAsync(u => u.Id == command.Id, cancellationToken).ConfigureAwait(false))
+        var employee = await db.Set<AppUser>().AsNoTracking().Where(u => u.Id == command.Id).Select(u => (Guid?)u.EmployeeId)
+            .SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+        if (employee is null)
         {
             return UserErrors.NotFound;
         }
 
         await admin.EnterAsync(cancellationToken).ConfigureAwait(false);
-        await functions.AnonymiseAsync(command.Id, cancellationToken).ConfigureAwait(false);
+        await functions.AnonymiseEmployeeAsync(employee.Value, cancellationToken).ConfigureAwait(false);
         return await reader.ReadAsync(command.Id, cancellationToken).ConfigureAwait(false);
     }
 
@@ -303,7 +239,7 @@ internal sealed class ChangeOwnPasswordCommandHandler(
             return UserErrors.WrongPassword;
         }
 
-        if (await CreateUserCommandHandler.ValidatePasswordAsync(users, user, command.Request.NewPassword).ConfigureAwait(false) is { } rejected)
+        if (await PasswordChecks.ValidateAsync(users, user, command.Request.NewPassword).ConfigureAwait(false) is { } rejected)
         {
             return rejected;
         }

@@ -24,9 +24,10 @@ internal sealed partial class AppUser : AggregateRoot<Guid>
         FullName = null!;
     }
 
-    private AppUser(Guid id, UserName userName, EmailAddress email, string fullName, string? phone, string passwordHash, short? homeWarehouseId)
+    private AppUser(Guid id, Guid employeeId, UserName userName, EmailAddress email, string fullName, string? phone, string passwordHash, short? homeWarehouseId)
         : base(id)
     {
+        EmployeeId = employeeId;
         UserName = userName;
         Email = email;
         FullName = fullName;
@@ -36,6 +37,9 @@ internal sealed partial class AppUser : AggregateRoot<Guid>
         SecurityStamp = Guid.NewGuid();
         IsActive = true;
     }
+
+    /// <summary>The employee the account belongs to (ADR 0026): an account never exists without one.</summary>
+    public Guid EmployeeId { get; private set; }
 
     public UserName UserName { get; private set; }
 
@@ -78,9 +82,9 @@ internal sealed partial class AppUser : AggregateRoot<Guid>
 
     public IReadOnlyCollection<UserBrandAssignment> Brands => _brands.AsReadOnly();
 
-    /// <summary>Creates an active user with a password hash.</summary>
+    /// <summary>Creates an active account of an employee with a password hash.</summary>
     public static AppUser Create(
-        Guid id, UserName userName, EmailAddress email, string fullName, string? phone, string passwordHash, short? homeWarehouseId = null)
+        Guid id, Guid employeeId, UserName userName, EmailAddress email, string fullName, string? phone, string passwordHash, short? homeWarehouseId = null)
     {
         ArgumentNullException.ThrowIfNull(userName);
         ArgumentNullException.ThrowIfNull(email);
@@ -91,7 +95,12 @@ internal sealed partial class AppUser : AggregateRoot<Guid>
             throw new ArgumentException("A user needs an identifier.", nameof(id));
         }
 
-        return new AppUser(id, userName, email, fullName, phone, passwordHash, homeWarehouseId);
+        if (employeeId == Guid.Empty)
+        {
+            throw new ArgumentException("An account belongs to an employee.", nameof(employeeId));
+        }
+
+        return new AppUser(id, employeeId, userName, email, fullName, phone, passwordHash, homeWarehouseId);
     }
 
     /// <summary>

@@ -32,13 +32,13 @@ SELECT pg_temp.expect_error(
       VALUES (1, 'lower case!', 'Bad OEM format', 1, 1, 5)$$,
     '23514', 'CHECK: OEM part number format');
 SELECT pg_temp.expect_error(
-    $$INSERT INTO iam.app_user (user_name, email, full_name, password_hash) VALUES ('plain.text', 'p@dealer.example', 'Plain Text', 'Secret123!')$$,
+    $$INSERT INTO iam.app_user (employee_id, user_name, email, full_name, password_hash) VALUES ((SELECT id FROM iam.employee ORDER BY code LIMIT 1), 'plain.text', 'p@dealer.example', 'Plain Text', 'Secret123!')$$,
     '23514', 'Security: plain-text password rejected');
 SELECT pg_temp.expect_error(
-    $$INSERT INTO iam.app_user (user_name, email, full_name, password_hash) VALUES ('md5.user', 'm@dealer.example', 'Md Five', md5('Secret123!'))$$,
+    $$INSERT INTO iam.app_user (employee_id, user_name, email, full_name, password_hash) VALUES ((SELECT id FROM iam.employee ORDER BY code LIMIT 1), 'md5.user', 'm@dealer.example', 'Md Five', md5('Secret123!'))$$,
     '23514', 'Security: MD5 hash rejected (outdated hashing)');
 SELECT pg_temp.expect_error(
-    $$INSERT INTO iam.app_user (user_name, email, full_name, password_hash) VALUES ('sha1.user', 's@dealer.example', 'Sha One', encode(sha256('x'), 'hex'))$$,
+    $$INSERT INTO iam.app_user (employee_id, user_name, email, full_name, password_hash) VALUES ((SELECT id FROM iam.employee ORDER BY code LIMIT 1), 'sha1.user', 's@dealer.example', 'Sha One', encode(sha256('x'), 'hex'))$$,
     '23514', 'Security: unsalted SHA hex digest rejected');
 SELECT pg_temp.expect_error(
     $$INSERT INTO inventory.transfer_order (from_warehouse_id, to_warehouse_id) VALUES (1, 1)$$,

@@ -29,9 +29,15 @@ public sealed record UserSummary(
     [property: Description("Whether the account is locked out after failed sign-ins now.")] bool IsLockedOut,
     [property: Description("Whether the personal data was anonymised (GDPR); such a user is inactive for good.")] bool IsAnonymised,
     [property: Description("Home hub of a warehouse keeper, if any.")] short? HomeWarehouseId,
-    [property: Description("Role codes, for example INVENTORY_PLANNER.")] IReadOnlyList<string> Roles,
-    [property: Description("Brand codes a brand manager is responsible for.")] IReadOnlyList<string> Brands,
-    [property: Description("Last successful sign-in.")] DateTimeOffset? LastLoginAt);
+    [property: Description("Effective role codes (from the position), for example INVENTORY_PLANNER.")] IReadOnlyList<string> Roles,
+    [property: Description("Effective brand codes of the approval scope.")] IReadOnlyList<string> Brands,
+    [property: Description("Last successful sign-in.")] DateTimeOffset? LastLoginAt,
+    [property: Description("The employee the account belongs to.")] Guid EmployeeId,
+    [property: Description("Employee number.")] string EmployeeCode,
+    [property: Description("Name of the employee's position.")] string PositionName,
+    [property: Description("Every effective right with its origin (ADR 0026).")] IReadOnlyList<EffectiveRightDto> Rights,
+    [property: Description("Facts that give no right, e.g. a brand assignment without the BRAND_MANAGER role.")] IReadOnlyList<EffectiveRightDto> WithoutEffect,
+    [property: Description("Why the account has no rights at all, if so.")] string? InactiveReason);
 
 /// <summary>What the user form can choose from: roles, brands and hubs.</summary>
 [Description("What the user form can choose from: roles, brands and hubs.")]
@@ -47,47 +53,21 @@ public sealed record HubOption(
     [property: Description("Hub code.")] string Code,
     [property: Description("Hub name.")] string Name);
 
-/// <summary>Roles, brands and home hub of a user.</summary>
-[Description("Roles, brands and home hub of a user.")]
+/// <summary>
+/// Brands and home hub of a user. Roles are not part of it: they come from the employee's position (ADR 0026). Brands
+/// and hub move to responsibility assignments on the brand and warehouse records in PR 7d.
+/// </summary>
+[Description("Brands and home hub of a user; roles come from the employee's position.")]
 public sealed record UserAccessRequest(
-    [property: Description("Role codes; at least one.")] IReadOnlyList<string> Roles,
-    [property: Description("Brand codes for a brand manager; empty for other roles.")] IReadOnlyList<string> Brands,
-    [property: Description("Home hub id for a warehouse keeper; empty for no hub.")] short? HomeWarehouseId);
+    [property: Description("Brand codes for a brand manager; empty for other users.")] IReadOnlyList<string> Brands,
+    [property: Description("Home hub id; empty for no hub.")] short? HomeWarehouseId);
 
 public sealed class UserAccessRequestValidator : AbstractValidator<UserAccessRequest>
 {
     public UserAccessRequestValidator()
     {
-        RuleFor(r => r.Roles).NotEmpty().WithMessage("Choose at least one role.")
-            .Must(roles => roles is null || roles.All(AppRoles.All.Contains)).WithMessage("Unknown role.");
         RuleFor(r => r.Brands).NotNull();
-        RuleFor(r => r.Brands).Must(b => b.Count == 0).When(r => r.Roles is not null && !r.Roles.Contains(AppRoles.BrandManager))
-            .WithMessage("Brands are only assigned to brand managers.");
         RuleFor(r => r.HomeWarehouseId).GreaterThan((short)0).When(r => r.HomeWarehouseId is not null);
-    }
-}
-
-/// <summary>A new user with an initial password and its access.</summary>
-[Description("A new user with an initial password and its access.")]
-public sealed record CreateUserRequest(
-    [property: Description("Sign-in name: 3 to 50 letters, digits, '.', '_' or '-'; stored in lower case.")] string UserName,
-    [property: Description("E-mail address.")] string Email,
-    [property: Description("Full name.")] string FullName,
-    [property: Description("Phone number, optional.")] string? Phone,
-    [property: Description("Initial password: at least 12 characters, 4 different ones.")] string Password,
-    [property: Description("Roles, brands and home hub.")] UserAccessRequest Access);
-
-public sealed class CreateUserRequestValidator : AbstractValidator<CreateUserRequest>
-{
-    public CreateUserRequestValidator()
-    {
-        RuleFor(r => r.UserName).NotEmpty().Matches("^[A-Za-z0-9._-]{3,50}$")
-            .WithMessage("A user name has 3 to 50 characters: letters, digits, '.', '_' or '-'.");
-        RuleFor(r => r.Email).NotEmpty().EmailAddress().MaximumLength(254);
-        RuleFor(r => r.FullName).NotEmpty().MaximumLength(UserLimits.MaxNameLength);
-        RuleFor(r => r.Phone).MaximumLength(30);
-        RuleFor(r => r.Password).SetValidator(new PasswordRule());
-        RuleFor(r => r.Access).NotNull().SetValidator(new UserAccessRequestValidator());
     }
 }
 

@@ -38,10 +38,46 @@ SELECT (date_trunc('week', current_date) - interval '2 weeks')::date AS go_live 
 SELECT (:'go_live'::date - 7 * 104)                                   AS hist_start \gset
 
 -- ---------------------------------------------------------------------------
--- 1. Users and roles (personas from BA 2.2.1: Tomas, Mantas)
+-- 1. Employees, positions and user accounts (personas from BA 2.2.1: Tomas, Mantas)
 -- ---------------------------------------------------------------------------
-INSERT INTO iam.app_user (id, user_name, email, full_name, phone, password_hash, home_warehouse_id, is_active)
-SELECT u.id::uuid, u.un, u.un || '@dealer.example', u.fn, u.ph,
+-- Employees are the single source of who is who (ADR 0026): every account belongs to an employee, and its
+-- roles come from the employee's position (the standard positions are seeded by the Identity migration
+-- Organisation). Not every employee has an account. The demo users' employees keep the users' ids.
+INSERT INTO iam.position (code, name, description) VALUES
+    ('ACCOUNTANT',       'Accountant',       'Books supplier invoices; no SmartSpare roles.'),
+    ('WORKSHOP_FOREMAN', 'Workshop foreman', 'Leads the workshop at a hub and services machines.');
+INSERT INTO iam.position_role (position_id, role_id)
+SELECT p.id, r.id FROM iam.position p, iam.role r WHERE p.code = 'WORKSHOP_FOREMAN' AND r.code = 'SERVICE_ENGINEER';
+
+INSERT INTO iam.employee (id, code, full_name, email, phone, position_id, hired_on)
+SELECT e.id::uuid, e.code, e.fn, e.email, e.ph, p.id, e.hired::date
+FROM (VALUES
+ ('00000000-0000-4000-8000-000000000001','E0001','Tomas Radzevičius','tomas.radzevicius@dealer.example','+370 612 10001','BRAND_MANAGER','2019-04-01'),
+ ('00000000-0000-4000-8000-000000000002','E0002','Rasa Kazlauskienė','rasa.kazlauskiene@dealer.example','+370 612 10002','BRAND_MANAGER','2020-02-17'),
+ ('00000000-0000-4000-8000-000000000003','E0003','Darius Petraitis','darius.petraitis@dealer.example','+370 612 10003','COMMERCIAL_DIRECTOR','2016-09-01'),
+ ('00000000-0000-4000-8000-000000000004','E0004','Mantas Petrauskas','mantas.petrauskas@dealer.example','+370 612 10004','SERVICE_ENGINEER','2021-03-15'),
+ ('00000000-0000-4000-8000-000000000005','E0005','Jonas Balčiūnas','jonas.balciunas@dealer.example','+370 612 10005','SERVICE_ENGINEER','2018-06-04'),
+ ('00000000-0000-4000-8000-000000000006','E0006','Eglė Stankevičiūtė','egle.stankeviciute@dealer.example','+370 612 10006','WAREHOUSE_KEEPER','2022-01-10'),
+ ('00000000-0000-4000-8000-000000000007','E0007','Lukas Vaitkus','lukas.vaitkus@dealer.example','+370 612 10007','WAREHOUSE_KEEPER','2020-11-02'),
+ ('00000000-0000-4000-8000-000000000008','E0008','Rūta Jankauskaitė','ruta.jankauskaite@dealer.example','+370 612 10008','WAREHOUSE_KEEPER','2023-05-22'),
+ ('00000000-0000-4000-8000-000000000009','E0009','Ignas Žukauskas','ignas.zukauskas@dealer.example','+370 612 10009','INVENTORY_PLANNER','2019-08-19'),
+ ('00000000-0000-4000-8000-000000000010','E0010','Vida Mockutė','vida.mockute@dealer.example','+370 612 10010','MANAGING_DIRECTOR','2012-01-02'),
+ ('00000000-0000-4000-8000-000000000011','E0011','SmartSpare Administrator','admin.smartspare@dealer.example',NULL,'SYSTEM_ADMINISTRATOR','2024-01-08'),
+ ('00000000-0000-4000-8000-000000000012','E0012','Paulius Urbonas','paulius.urbonas@dealer.example','+370 612 10012','SERVICE_ENGINEER','2017-03-01'),
+ -- Employees without an account: not everyone works in SmartSpare.
+ ('00000000-0000-4000-8000-000000000101','E0101','Ona Žilinskienė','ona.zilinskiene@dealer.example',NULL,'ACCOUNTANT','2015-02-02'),
+ ('00000000-0000-4000-8000-000000000102','E0102','Marius Kairys',NULL,'+370 612 10102','WORKSHOP_FOREMAN','2014-07-14'),
+ ('00000000-0000-4000-8000-000000000103','E0103','Giedrius Navickas',NULL,'+370 612 10103','SERVICE_ENGINEER','2024-09-02'),
+ ('00000000-0000-4000-8000-000000000104','E0104','Laura Sabaliauskienė','laura.sabaliauskiene@dealer.example',NULL,'WAREHOUSE_KEEPER','2025-04-07'),
+ ('00000000-0000-4000-8000-000000000105','E0105','Tadas Urbonavičius',NULL,NULL,'WAREHOUSE_KEEPER','2025-10-01'),
+ ('00000000-0000-4000-8000-000000000106','E0106','Simona Jurgaitytė','simona.jurgaityte@dealer.example',NULL,'INVENTORY_PLANNER','2026-06-01'),
+ ('00000000-0000-4000-8000-000000000107','E0107','Arūnas Butkus',NULL,'+370 612 10107','WORKSHOP_FOREMAN','2011-03-21'),
+ ('00000000-0000-4000-8000-000000000108','E0108','Rimantė Kavaliauskaitė','rimante.kavaliauskaite@dealer.example',NULL,'ACCOUNTANT','2021-10-11')
+) AS e (id, code, fn, email, ph, position, hired)
+JOIN iam.position p ON p.code = e.position;
+
+INSERT INTO iam.app_user (id, employee_id, user_name, email, full_name, phone, password_hash, home_warehouse_id, is_active)
+SELECT u.id::uuid, u.id::uuid, u.un, u.un || '@dealer.example', u.fn, u.ph,
        -- No password hashes in Git (#7): a random placeholder with a valid ASP.NET Core Identity V3 header
        -- (marker 0x01, PRF HMAC-SHA512, 220,000 iterations, salt length 16) and random salt + subkey, so the
        -- format CHECK and the header test pass but no password verifies. MigrationRunner set-demo-passwords
@@ -64,6 +100,7 @@ FROM (VALUES
 ) AS u (id, un, fn, ph, wh, act)
 LEFT JOIN inventory.warehouse w ON w.code = u.wh;
 
+-- Legacy shadow of the roles (iam.user_role), equal to the positions' templates; dropped in PR 7e.
 INSERT INTO iam.user_role (user_id, role_id, granted_by)
 SELECT ('00000000-0000-4000-8000-0000000000' || x.n)::uuid, r.id, '00000000-0000-4000-8000-000000000011'::uuid
 FROM (VALUES ('01','BRAND_MANAGER'), ('02','BRAND_MANAGER'), ('03','BRAND_MANAGER'), ('03','SPONSOR'),
@@ -479,13 +516,14 @@ FROM fleet.machine WHERE vin = 'LX901PNV2026';
 -- ---------------------------------------------------------------------------
 -- Acts as a signed-in user the way SessionContextInterceptor does (MODULE_MAPPING 3.6): app.user_id,
 -- app.user_roles and app.home_warehouse_id. The application takes roles and warehouse from the user's claims;
--- this script reads them from iam. NULL clears the session user.
+-- this script reads them from iam: roles from the employee's position (ADR 0026). NULL clears the session user.
 CREATE FUNCTION pg_temp.t001_act_as(p_user uuid) RETURNS void LANGUAGE sql AS $$
     SELECT set_config('app.user_id', coalesce(p_user::text, ''), false),
            set_config('app.user_roles', coalesce((SELECT string_agg(r.code, ',' ORDER BY r.code)
-                                                   FROM iam.user_role ur JOIN iam.role r ON r.id = ur.role_id
-                                                   JOIN iam.app_user u ON u.id = ur.user_id
-                                                   WHERE ur.user_id = p_user AND u.is_active), ''), false),
+                                                   FROM iam.app_user u JOIN iam.employee e ON e.id = u.employee_id
+                                                   JOIN iam.position_role pr ON pr.position_id = e.position_id
+                                                   JOIN iam.role r ON r.id = pr.role_id
+                                                   WHERE u.id = p_user AND u.is_active AND NOT e.is_archived), ''), false),
            set_config('app.home_warehouse_id', coalesce((SELECT home_warehouse_id::text FROM iam.app_user WHERE id = p_user), ''), false);
 $$;
 
@@ -934,7 +972,7 @@ WHERE po.status = 'pending_approval' AND NOT po.is_urgent AND po.id % 3 <> 0;
 
 -- GDPR: the former employee is anonymised by the administrator.
 SELECT pg_temp.t001_act_as('00000000-0000-4000-8000-000000000011');
-SELECT iam.anonymise_user('00000000-0000-4000-8000-000000000012');
+SELECT iam.anonymise_employee('00000000-0000-4000-8000-000000000012');
 
 -- Fleet's copy of the catalogue (STAGE_6_PLAN 5.2), as if every PartCatalogChanged had been delivered: the parts above
 -- were written by SQL, so no event exists for them.

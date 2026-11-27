@@ -12,7 +12,7 @@ public sealed class PasswordHashingTests
     private const string Password = "a demo password";
 
     private static readonly AppUser User = AppUser.Create(
-        Guid.NewGuid(), UserName.Create("tomas.r").Value, EmailAddress.Create("t@d.e").Value, "T R", null,
+        Guid.NewGuid(), Guid.NewGuid(), UserName.Create("tomas.r").Value, EmailAddress.Create("t@d.e").Value, "T R", null,
         "AQAAAAIAA1tgAAAAE" + new string('A', 67));
 
     private static PasswordHasher<AppUser> SharedHasher()

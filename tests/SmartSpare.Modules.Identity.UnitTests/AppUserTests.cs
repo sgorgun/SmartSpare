@@ -10,7 +10,7 @@ public sealed class AppUserTests
     private static readonly string Hash = "AQAAAAIAA1tgAAAAE" + new string('A', 67);
 
     private static AppUser NewUser() => AppUser.Create(
-        Guid.NewGuid(),
+        Guid.NewGuid(), Guid.NewGuid(),
         UserName.Create("tomas.radzevicius").Value,
         EmailAddress.Create("tomas.radzevicius@dealer.example").Value,
         "Tomas Radzevičius",
@@ -36,7 +36,7 @@ public sealed class AppUserTests
     public void Only_identity_v3_hashes_are_accepted(string hash)
     {
         Should.Throw<ArgumentException>(() => AppUser.Create(
-            Guid.NewGuid(), UserName.Create("abc").Value, EmailAddress.Create("a@b.c").Value, "A B", null, hash));
+            Guid.NewGuid(), Guid.NewGuid(), UserName.Create("abc").Value, EmailAddress.Create("a@b.c").Value, "A B", null, hash));
         Should.Throw<ArgumentException>(() => NewUser().ChangePasswordHash(hash));
     }
 
@@ -44,9 +44,9 @@ public sealed class AppUserTests
     public void A_user_needs_an_identifier_and_a_name()
     {
         Should.Throw<ArgumentException>(() => AppUser.Create(
-            Guid.Empty, UserName.Create("abc").Value, EmailAddress.Create("a@b.c").Value, "A B", null, Hash));
+            Guid.Empty, Guid.NewGuid(), UserName.Create("abc").Value, EmailAddress.Create("a@b.c").Value, "A B", null, Hash));
         Should.Throw<ArgumentException>(() => AppUser.Create(
-            Guid.NewGuid(), UserName.Create("abc").Value, EmailAddress.Create("a@b.c").Value, " ", null, Hash));
+            Guid.NewGuid(), Guid.NewGuid(), UserName.Create("abc").Value, EmailAddress.Create("a@b.c").Value, " ", null, Hash));
     }
 
     [Fact]

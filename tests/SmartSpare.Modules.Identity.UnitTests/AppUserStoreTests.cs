@@ -19,12 +19,12 @@ public sealed class AppUserStoreTests : IDisposable
     private readonly IdentityDbContext _db = IdentityDatabase.Instance.CreateContext("Host=localhost;Database=unused");
 
     private static AppUser NewUser() => AppUser.Create(
-        Guid.NewGuid(), UserName.Create("tomas.r").Value, EmailAddress.Create("t@dealer.example").Value, "T R", null, Hash);
+        Guid.NewGuid(), Guid.NewGuid(), UserName.Create("tomas.r").Value, EmailAddress.Create("t@dealer.example").Value, "T R", null, Hash);
 
     [Fact]
     public async Task A_proposed_base32_stamp_is_replaced_by_a_new_guid()
     {
-        using var store = new AppUserStore(_db);
+        using var store = new AppUserStore(_db, new OrganisationReader(_db));
         var user = NewUser();
         var before = await store.GetSecurityStampAsync(user, Ct);
 
@@ -39,7 +39,7 @@ public sealed class AppUserStoreTests : IDisposable
     [Fact]
     public async Task Lockout_calls_map_onto_the_aggregate()
     {
-        using var store = new AppUserStore(_db);
+        using var store = new AppUserStore(_db, new OrganisationReader(_db));
         var user = NewUser();
         var end = DateTimeOffset.UtcNow.AddMinutes(15);
 
@@ -59,7 +59,7 @@ public sealed class AppUserStoreTests : IDisposable
     [Fact]
     public async Task A_new_password_hash_goes_through_the_aggregate()
     {
-        using var store = new AppUserStore(_db);
+        using var store = new AppUserStore(_db, new OrganisationReader(_db));
         var user = NewUser();
         var stamp = user.SecurityStamp;
         var newHash = "AQAAAAIAA1tgAAAAE" + new string('B', 67);
@@ -74,7 +74,7 @@ public sealed class AppUserStoreTests : IDisposable
     [Fact]
     public async Task The_normalized_name_is_the_stored_lower_case_name()
     {
-        using var store = new AppUserStore(_db);
+        using var store = new AppUserStore(_db, new OrganisationReader(_db));
         var user = NewUser();
 
         (await store.GetNormalizedUserNameAsync(user, Ct)).ShouldBe("tomas.r");
@@ -85,19 +85,19 @@ public sealed class AppUserStoreTests : IDisposable
     [Fact]
     public async Task User_administration_is_not_available_in_stage_3()
     {
-        using var store = new AppUserStore(_db);
+        using var store = new AppUserStore(_db, new OrganisationReader(_db));
 
         await Should.ThrowAsync<NotSupportedException>(() => store.CreateAsync(NewUser(), Ct));
         await Should.ThrowAsync<NotSupportedException>(() => store.AddToRoleAsync(NewUser(), AppRoles.Administrator, Ct));
     }
 
     [Fact]
-    public async Task Only_active_users_may_sign_in()
+    public async Task A_deactivated_account_may_not_sign_in_without_asking_the_database()
     {
-        var confirmation = new ActiveUserConfirmation();
+        // The employee's status is read only for an active account; that part is covered by the integration tests.
+        var confirmation = new ActiveUserConfirmation(new OrganisationReader(_db));
         var user = NewUser();
 
-        (await confirmation.IsConfirmedAsync(null!, user)).ShouldBeTrue();
         user.Deactivate(DateTimeOffset.UtcNow);
         (await confirmation.IsConfirmedAsync(null!, user)).ShouldBeFalse();
     }
