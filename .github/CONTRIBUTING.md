@@ -66,6 +66,8 @@ run, just more slowly. CI keeps the parallel run; `CHECK_SEQUENTIAL=0 tools/chec
 machine has the memory. After the `integration`, `database`, `e2e` and `topology` steps the script lists any container the tests
 left behind (normally only Testcontainers' Ryuk reaper, which removes itself).
 
+**Database changes (#152).** A SQL script in `db/sql/` that a merged migration runs is never edited, renamed or removed: an existing database has already run it and would never receive the change, or would fail later with a raw SQL error. A change becomes a new script and a new migration (`CREATE OR REPLACE`, `DROP ... IF EXISTS`, `ALTER ...`). `db/sql/applied.sha256` records the hash of every such script; after adding a script, run `python tools/sql_manifest.py` to append it. `AppliedMigrationScriptTests` (architecture tests) fails on a changed, removed or unlisted script and names the migration it belongs to.
+
 ## Releases
 
 - Versions follow [Semantic Versioning](https://semver.org/). Until the defence the project stays in `0.x`; each completed stage of the work plan is a minor release (`v0.1.0` = skeleton, `v0.2.0` = data layer, …).
