@@ -28,6 +28,22 @@ internal sealed class RightsGuard(IdentityDbContext db, ICurrentUser currentUser
         return row is null ? null : (row.Id, row.PositionId);
     }
 
+    /// <summary>Whether the position is the locked Superadministrator position.</summary>
+    public Task<bool> IsSuperadministratorPositionAsync(short positionId, CancellationToken cancellationToken) =>
+        db.Set<Position>().AsNoTracking().AnyAsync(p => p.Id == positionId && p.IsLocked && p.Code == AppRoles.SuperadministratorPosition, cancellationToken);
+
+    /// <summary>Whether this employee is an active superadministrator and no other active one would remain.</summary>
+    public async Task<bool> LosesLastSuperadministratorAsync(Guid employeeId, CancellationToken cancellationToken)
+    {
+        var active = from e in db.Set<Employee>().AsNoTracking()
+                     join p in db.Set<Position>().AsNoTracking() on e.PositionId equals p.Id
+                     join u in db.Set<AppUser>().AsNoTracking() on e.Id equals u.EmployeeId
+                     where p.IsLocked && p.Code == AppRoles.SuperadministratorPosition && !e.IsArchived && e.AnonymisedAt == null && u.IsActive
+                     select e.Id;
+        return await active.AnyAsync(id => id == employeeId, cancellationToken).ConfigureAwait(false)
+               && !await active.AnyAsync(id => id != employeeId, cancellationToken).ConfigureAwait(false);
+    }
+
     /// <summary>Whether the signed-in user holds the role (it is in the session's role codes).</summary>
     public bool HoldsRole(string roleCode) => currentUser.Roles.Contains(roleCode, StringComparer.Ordinal);
 

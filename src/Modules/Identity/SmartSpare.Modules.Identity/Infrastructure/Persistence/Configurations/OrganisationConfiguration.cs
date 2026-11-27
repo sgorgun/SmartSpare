@@ -32,6 +32,8 @@ internal sealed class PositionConfiguration : IEntityTypeConfiguration<Position>
         builder.Property(x => x.ArchivedBy).HasColumnName("archived_by").HasColumnOrder(6).HasColumnType("uuid").HasComment("User who archived the position (iam.app_user).");
         builder.Property(x => x.CreatedAt).HasColumnName("created_at").HasColumnOrder(7).HasColumnType("timestamp with time zone").HasDefaultValueSql("now()").ValueGeneratedOnAdd();
         builder.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasColumnOrder(8).HasColumnType("timestamp with time zone").HasDefaultValueSql("now()").ValueGeneratedOnAdd();
+        builder.Property(x => x.IsLocked).HasColumnName("is_locked").HasColumnType("boolean").HasDefaultValueSql("false").ValueGeneratedNever()
+            .HasComment("A built-in position that cannot be changed or archived (the Superadministrator, ADR 0028).");
         builder.Property<uint>("xmin").IsRowVersion();
 
         builder.HasIndex(x => x.Code).IsUnique().HasDatabaseName("uq_position_code");

@@ -64,6 +64,8 @@ FROM (VALUES
  ('00000000-0000-4000-8000-000000000010','E0010','Vida Mockutė','vida.mockute@dealer.example','+370 612 10010','MANAGING_DIRECTOR','2012-01-02'),
  ('00000000-0000-4000-8000-000000000011','E0011','SmartSpare Administrator','admin.smartspare@dealer.example',NULL,'SYSTEM_ADMINISTRATOR','2024-01-08'),
  ('00000000-0000-4000-8000-000000000012','E0012','Paulius Urbonas','paulius.urbonas@dealer.example','+370 612 10012','SERVICE_ENGINEER','2017-03-01'),
+ -- Emergency access (ADR 0028): the locked Superadministrator position; password from the superadmin-password parameter.
+ ('00000000-0000-4000-8000-000000000013','E0013','SmartSpare Superadministrator','superadmin.smartspare@dealer.example',NULL,'SUPERADMINISTRATOR','2024-01-08'),
  -- Employees without an account: not everyone works in SmartSpare.
  ('00000000-0000-4000-8000-000000000101','E0101','Ona Žilinskienė','ona.zilinskiene@dealer.example',NULL,'ACCOUNTANT','2015-02-02'),
  ('00000000-0000-4000-8000-000000000102','E0102','Marius Kairys',NULL,'+370 612 10102','WORKSHOP_FOREMAN','2014-07-14'),
@@ -96,7 +98,8 @@ FROM (VALUES
  ('00000000-0000-4000-8000-000000000009','ignas.zukauskas','Ignas Žukauskas','+370 612 10009',NULL,true),
  ('00000000-0000-4000-8000-000000000010','vida.mockute','Vida Mockutė','+370 612 10010',NULL,true),
  ('00000000-0000-4000-8000-000000000011','admin.smartspare','SmartSpare Administrator',NULL,NULL,true),
- ('00000000-0000-4000-8000-000000000012','paulius.urbonas','Paulius Urbonas','+370 612 10012','KNS',true)
+ ('00000000-0000-4000-8000-000000000012','paulius.urbonas','Paulius Urbonas','+370 612 10012','KNS',true),
+ ('00000000-0000-4000-8000-000000000013','superadmin.smartspare','SmartSpare Superadministrator',NULL,NULL,true)
 ) AS u (id, un, fn, ph, wh, act);
 
 -- Responsible employees (ADR 0026): who manages which brand and who keeps or is based at which hub. They give the

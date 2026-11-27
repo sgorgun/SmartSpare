@@ -8,7 +8,7 @@
 #   1. builds the database with SmartSpare.MigrationRunner (bootstrap + every EF context);
 #   2. loads the demo dataset db/testdata/T001 (psql in the container) and gives the demo users a
 #      throw-away password with `MigrationRunner set-demo-passwords` (from the host, it needs .NET);
-#   3. runs the SQL suite db/tests/run_tests.sh and requires all 128 assertions to pass;
+#   3. runs the SQL suite db/tests/run_tests.sh and requires all 132 assertions to pass;
 #   4. runs db/tests/concurrency_test.sh (row lock wait, SS200, no negative stock);
 #   5. requires mart.v_data_quality to report 0 failed rows in every check and
 #      util.v_privilege_findings to return no rows.
@@ -23,7 +23,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PARTS="${1:-2000}"
-EXPECTED_ASSERTIONS=128
+EXPECTED_ASSERTIONS=132
 IMAGE="postgres:17"
 NAME="ss-verify-$$"
 PORT="${PORT:-55434}"
@@ -76,7 +76,7 @@ Migrations__Passwords__Jobs="$SMARTSPARE_JOBS_PASSWORD" Migrations__Passwords__R
 echo "== 2. loading the demo dataset T001 ($PARTS SKUs)"
 start=$(date +%s)
 PGPASSWORD="$SMARTSPARE_MIGRATOR_PASSWORD" docker exec -e PGPASSWORD "$NAME"   psql -X -q -v ON_ERROR_STOP=1 -h localhost -U smartspare_migrator -d smartspare -v parts="$PARTS" -f /db/testdata/T001__demo_dataset.sql
-SMARTSPARE_DEMO_USER_PASSWORD="$(secret)" Migrations__AdminConnectionString="Host=localhost;Port=$PORT;Username=postgres;Password=$POSTGRES_PASSWORD" Migrations__Passwords__Migrator="$SMARTSPARE_MIGRATOR_PASSWORD"   dotnet run --project "$RUNNER" "${RUNNER_ARGS[@]}" -- set-demo-passwords >/dev/null
+SMARTSPARE_DEMO_USER_PASSWORD="$(secret)" SMARTSPARE_SUPERADMIN_PASSWORD="$(secret)" Migrations__AdminConnectionString="Host=localhost;Port=$PORT;Username=postgres;Password=$POSTGRES_PASSWORD" Migrations__Passwords__Migrator="$SMARTSPARE_MIGRATOR_PASSWORD"   dotnet run --project "$RUNNER" "${RUNNER_ARGS[@]}" -- set-demo-passwords >/dev/null
 echo "   loaded in $(($(date +%s) - start)) s"
 
 echo "== 3. SQL test suite"

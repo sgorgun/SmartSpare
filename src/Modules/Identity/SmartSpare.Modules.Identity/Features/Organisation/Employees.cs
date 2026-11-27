@@ -2,6 +2,7 @@ using FluentValidation;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using SmartSpare.ApiContracts;
+using SmartSpare.ApiContracts.Authorization;
 using SmartSpare.ApiContracts.Identity;
 using SmartSpare.Infrastructure.Messaging;
 using SmartSpare.Infrastructure.Persistence;
@@ -63,7 +64,7 @@ internal sealed record AnonymiseEmployeeCommand(Guid Id) : ICommand<EmployeeSumm
 internal sealed class EmployeeAdministration(
     IdentityDbContext db, IUnitOfWork<IdentityDbContext> unitOfWork, AdminSession admin, AdministratorGuard administrators, IdentityFunctions functions,
     UserManager<AppUser> users, IPasswordHasher<AppUser> hasher, ICurrentUser currentUser, TimeProvider clock,
-    IQueryHandler<GetEmployeeQuery, EmployeeSummary> reader)
+    RightsGuard guard, IQueryHandler<GetEmployeeQuery, EmployeeSummary> reader)
     : ICommandHandler<CreateEmployeeCommand, EmployeeSummary>,
       ICommandHandler<UpdateEmployeeCommand, EmployeeSummary>,
       ICommandHandler<ArchiveEmployeeCommand, EmployeeSummary>,
@@ -78,6 +79,12 @@ internal sealed class EmployeeAdministration(
         if (await PositionErrorAsync(request.PositionId, cancellationToken).ConfigureAwait(false) is { } positionError)
         {
             return positionError;
+        }
+
+        if (await guard.IsSuperadministratorPositionAsync(request.PositionId, cancellationToken).ConfigureAwait(false)
+            && !guard.HoldsRole(AppRoles.Superadministrator))
+        {
+            return RoleErrors.SuperadministratorOnly;
         }
 
         var created = Employee.Create(Guid.NewGuid(), request.Code, new EmployeeDetails(request.FullName, request.Email, request.Phone, request.PositionId, request.HiredOn));
@@ -120,6 +127,20 @@ internal sealed class EmployeeAdministration(
                     return positionError;
                 }
 
+                // ADR 0028: only a superadministrator moves someone into or out of the Superadministrator position, and
+                // the last active one stays.
+                var leavesSuper = await guard.IsSuperadministratorPositionAsync(employee.PositionId, cancellationToken).ConfigureAwait(false);
+                if ((leavesSuper || await guard.IsSuperadministratorPositionAsync(request.PositionId, cancellationToken).ConfigureAwait(false))
+                    && !guard.HoldsRole(AppRoles.Superadministrator))
+                {
+                    return RoleErrors.SuperadministratorOnly;
+                }
+
+                if (leavesSuper && await guard.LosesLastSuperadministratorAsync(employee.Id, cancellationToken).ConfigureAwait(false))
+                {
+                    return RoleErrors.LastSuperadministrator;
+                }
+
                 if (await LosesLastAdministratorAsync(employee, cancellationToken).ConfigureAwait(false))
                 {
                     return OrganisationErrors.LastAdministrator;
@@ -157,6 +178,11 @@ internal sealed class EmployeeAdministration(
             if (await LosesLastAdministratorAsync(employee, cancellationToken).ConfigureAwait(false))
             {
                 return OrganisationErrors.LastAdministrator;
+            }
+
+            if (await guard.LosesLastSuperadministratorAsync(employee.Id, cancellationToken).ConfigureAwait(false))
+            {
+                return RoleErrors.LastSuperadministrator;
             }
 
             var archived = employee.Archive(command.Request.LeftOn, clock.GetUtcNow(), currentUser.UserId);
@@ -247,6 +273,11 @@ internal sealed class EmployeeAdministration(
         if (await LosesLastAdministratorAsync(employee, cancellationToken).ConfigureAwait(false))
         {
             return OrganisationErrors.LastAdministrator;
+        }
+
+        if (await guard.LosesLastSuperadministratorAsync(employee.Id, cancellationToken).ConfigureAwait(false))
+        {
+            return RoleErrors.LastSuperadministrator;
         }
 
         await admin.EnterAsync(cancellationToken).ConfigureAwait(false);

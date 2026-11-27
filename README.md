@@ -174,6 +174,11 @@ scoped: every role sees every hub and brand; the brands and hubs below limit app
 | `vida.mockute` | E0010 | Managing director | SPONSOR | — | — |
 | `admin.smartspare` | E0011 | System administrator | ADMINISTRATOR | — | every hub (administrator) |
 | `paulius.urbonas` | E0012 | (left, anonymised) | — | — | cannot sign in |
+| `superadmin.smartspare` | E0013 | Superadministrator | SUPERADMINISTRATOR (every permission) | every brand | every hub |
+
+`superadmin.smartspare` is **emergency access, not for daily work** (ADR 0028). It signs in with the separate parameter
+`superadmin-password` (Key Vault in Azure), never with `demo-user-password`. Only another superadministrator can move
+someone into or out of that position, and the database invariants and the four-eyes rule still bind it.
 
 Eight more employees (E0101–E0108, an accountant, workshop foremen, keepers of UTN and MRJ, a planner) have no account:
 not every employee works in SmartSpare. The table matches T001, whose rights `AccessMatrixTests` checks on every build.
@@ -278,7 +283,7 @@ db/
   sql/<module>/                         SQL parts of the EF migrations: triggers, functions, views, grants, seed
                                         (embedded in the module assembly, applied by migrationBuilder.Sql — ADR 0004)
   testdata/T001__demo_dataset.sql       deterministic synthetic dataset (dev/test only)
-  tests/                                SQL test suite (128 assertions) + concurrency test
+  tests/                                SQL test suite (132 assertions) + concurrency test
   scripts/                              reset_local.sh, load_testdata.sh, env.sh (credentials from .env)
   baseline/v016_schema.sql              frozen schema of the former SQL-built database (input of tools/schema_diff.sh)
   ddl/smartspare_schema.sql             complete DDL of the EF-built database (generated)
@@ -317,7 +322,7 @@ cp .env.example .env                              # then set your own passwords 
 docker compose up -d                              # PostgreSQL 17 on localhost:5432
 db/scripts/reset_local.sh                         # drop + MigrationRunner: bootstrap + all EF migrations
 db/scripts/load_testdata.sh                       # demo dataset T001 (2,000 SKUs, ~30 s) + demo-user passwords
-db/tests/run_tests.sh                             # SQL test suite (128 assertions)
+db/tests/run_tests.sh                             # SQL test suite (132 assertions)
 db/tests/concurrency_test.sh                      # row-lock test (NFR03)
 ```
 

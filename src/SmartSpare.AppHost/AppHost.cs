@@ -40,6 +40,9 @@ var serviceLogins = new Dictionary<string, (string Login, IResourceBuilder<Param
 // shown under Parameters in the dashboard, or set your own with `dotnet user-secrets set Parameters:demo-user-password`.
 var demoUserPassword = GeneratedSecret("demo-user-password");
 
+// Password of the demo superadministrator (ADR 0028): a parameter of its own, for emergency access only.
+var superadminPassword = GeneratedSecret("superadmin-password");
+
 // Bootstrap (first start only) + EF migrations of all contexts in catalogue order, then exit.
 var migrations = builder.AddDotnetProject("migrations", MigrationRunnerProject)
     .WithReference(postgres)
@@ -56,7 +59,7 @@ var migrations = builder.AddDotnetProject("migrations", MigrationRunnerProject)
 
 // "Load demo data" on the postgres resource: T001 + set-demo-passwords with the connection and
 // passwords Aspire already holds, so nothing has to be copied from the dashboard (issue #33).
-DemoDataCommand.Add(postgres, migratorPassword, demoUserPassword, Path.GetFullPath(Path.Combine(builder.AppHostDirectory, MigrationRunnerProject)));
+DemoDataCommand.Add(postgres, migratorPassword, demoUserPassword, superadminPassword, Path.GetFullPath(Path.Combine(builder.AppHostDirectory, MigrationRunnerProject)));
 
 var endpoint = postgres.Resource.PrimaryEndpoint;
 

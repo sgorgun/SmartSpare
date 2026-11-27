@@ -81,7 +81,7 @@ public sealed class IdentityMigrationTests(MigratedDatabaseFixture db) : ModuleM
 
     [Fact]
     public async Task ApplicationRoles_AreSeeded() =>
-        (await Db.ScalarAsync<long>("SELECT count(*) FROM iam.role")).ShouldBe(6);
+        (await Db.ScalarAsync<long>("SELECT count(*) FROM iam.role")).ShouldBe(7, "the six application roles and the locked Superadministrator (ADR 0028)");
 
     [Fact]
     public async Task AuditTrigger_WritesTheChange_WithoutPersonalData() =>

@@ -141,6 +141,18 @@ internal static class RoleErrors
 
     public static readonly Error Archived = Error.BusinessRule("SS500", "The role is archived and cannot be put in a role template.");
 
+    public static readonly Error PositionLocked = Error.BusinessRule(
+        "Identity.PositionLocked", "This built-in position is locked: it cannot be changed or archived.");
+
+    public static readonly Error SuperadministratorRole = Error.BusinessRule(
+        "Identity.SuperadministratorRole", "The Superadministrator role belongs only to the locked Superadministrator position.");
+
+    public static readonly Error SuperadministratorOnly = Error.Forbidden(
+        "Identity.SuperadministratorOnly", "Only a superadministrator can move an employee into or out of the Superadministrator position.");
+
+    public static readonly Error LastSuperadministrator = Error.Conflict(
+        "Identity.LastSuperadministrator", "The last active superadministrator cannot be removed, deactivated or anonymised.");
+
     public static Error DutyConflict((string First, string Second) pair) => Error.Conflict(
         "Identity.DutyConflict", $"Separation of duties: {pair.First} and {pair.Second} cannot be held together (ADR 0028).");
 }

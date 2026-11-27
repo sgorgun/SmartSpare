@@ -40,6 +40,9 @@ internal sealed partial class Position : AggregateRoot<short>
 
     public bool IsArchived { get; private set; }
 
+    /// <summary>A built-in position that cannot be changed or archived (the Superadministrator, ADR 0028).</summary>
+    public bool IsLocked { get; private set; }
+
     public DateTimeOffset? ArchivedAt { get; private set; }
 
     public Guid? ArchivedBy { get; private set; }
