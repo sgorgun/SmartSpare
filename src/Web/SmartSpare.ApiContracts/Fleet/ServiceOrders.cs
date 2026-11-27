@@ -137,3 +137,18 @@ public sealed class CompleteServiceOrderRequestValidator : AbstractValidator<Com
         RuleFor(r => r.EngineHours).InclusiveBetween(0, RecordReadingRequestValidator.MaxHours)
             .Must(h => decimal.Round(h, 1) == h).WithMessage("Engine hours have at most one decimal.");
 }
+
+/// <summary>The cancellation of a service order.</summary>
+[Description("The cancellation of a service order.")]
+public sealed record CancelServiceOrderRequest(
+    [property: Description("Why the order is cancelled, 1 to 300 characters.")] string Reason);
+
+/// <summary>Rules of <see cref="CancelServiceOrderRequest"/>, shared by the form and the server.</summary>
+public sealed class CancelServiceOrderRequestValidator : AbstractValidator<CancelServiceOrderRequest>
+{
+    public const int MaxReasonLength = 300;
+
+    public CancelServiceOrderRequestValidator() =>
+        RuleFor(r => r.Reason).Must(r => !string.IsNullOrWhiteSpace(r)).WithMessage("A cancellation needs a reason.")
+            .MaximumLength(MaxReasonLength);
+}

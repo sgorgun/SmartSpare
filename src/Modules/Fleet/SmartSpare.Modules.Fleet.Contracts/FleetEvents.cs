@@ -30,3 +30,22 @@ public sealed record ServiceOrderCompleted(
     IReadOnlyList<ServiceOrderKitLine> Lines,
     Guid ActorId,
     DateTimeOffset CompletedAt) : IntegrationEvent, IActedByUser;
+
+/// <summary>
+/// A service order was cancelled (MODULE_MAPPING X8, STAGE_6_PLAN 5.5): Inventory releases the holds of its lines.
+/// Written to Fleet's outbox in the cancellation's transaction from PR 6h3. Handled as <see cref="ActorId"/>.
+/// </summary>
+public sealed record ServiceOrderCancelled(
+    long ServiceOrderId,
+    string Number,
+    IReadOnlyList<long> LineIds,
+    string Reason,
+    Guid ActorId,
+    DateTimeOffset CancelledAt) : IntegrationEvent, IActedByUser;
+
+/// <summary>
+/// Inventory reserved a kit for an order that was already closed (its <c>ServiceKitReserved</c> arrived after a completion
+/// or cancellation, STAGE_6_PLAN 5.5): Inventory releases those holds at once. Written by Fleet's consumer of
+/// <c>ServiceKitReserved</c> from PR 6h3. Handled as <see cref="ActorId"/>, the user whose draft caused the holds.
+/// </summary>
+public sealed record ServiceKitReleaseRequested(long ServiceOrderId, IReadOnlyList<long> LineIds, Guid ActorId) : IntegrationEvent, IActedByUser;

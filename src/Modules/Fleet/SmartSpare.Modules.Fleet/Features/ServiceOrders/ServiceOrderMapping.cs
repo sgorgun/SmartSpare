@@ -68,6 +68,11 @@ internal sealed class ServiceOrderAccess(ICurrentUser user)
             actions.Add(ServiceOrderActions.Complete);
         }
 
+        if (May(AppPolicies.ManageServiceOrders) && order.CanCancel().IsSuccess)
+        {
+            actions.Add(ServiceOrderActions.Cancel);
+        }
+
         return actions;
     }
 

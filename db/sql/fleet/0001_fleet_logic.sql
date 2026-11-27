@@ -3,9 +3,8 @@
 -- Statements copied verbatim from V001 (schema comment), V006, V011, V012 and V015.
 -- uq_customer_erp_ref_hash is created here: it is a UNIQUE constraint on a nullable column, which
 -- EF cannot model as an alternate key. fleet.v_machine_maintenance_status is module-local since stage 6 (X10);
--- fleet.v_service_kit_shortage too (X9), created in 0005 after its column. The transitional draft, completion and
--- cancellation keep Fleet's copy service_order_line.qty_reserved current until the event flow replaces it (6h3);
--- drafting is module-local since 6g2, completion since 6h2.
+-- fleet.v_service_kit_shortage too (X9), created in 0005 after its column. Drafting, completion and cancellation are
+-- module-local since stage 6 (6g2, 6h2, 6h3): Fleet writes no other module's tables (#12).
 -- =============================================================================
 
 COMMENT ON SCHEMA fleet       IS 'Core layer / Fleet & Maintenance module: machines, engine hours, maintenance plans, service orders.';
@@ -232,16 +231,15 @@ BEGIN
 END $$;
 COMMENT ON FUNCTION fleet.complete_service_order(bigint, numeric) IS 'Closes an open service order; Inventory issues the kit on ServiceOrderCompleted (ISSUE_SERVICE = demand).';
 
--- TRANSITIONAL: replaced by ServiceOrderCancelled in stage 6, #12 (releases inventory.stock_reservation; MODULE_MAPPING 3.1 X8)
+-- Cancels an open order, module-local since stage 6 (PR 6h3, MODULE_MAPPING X8): the caller publishes
+-- ServiceOrderCancelled and Inventory releases the holds of the order's lines (inventory.release_service_kit).
+-- The status guard trigger refuses closed orders (SS300).
 CREATE FUNCTION fleet.cancel_service_order(p_service_order_id bigint, p_reason text) RETURNS void
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 DECLARE
     v_user uuid := util.require_role('SERVICE_ENGINEER', 'BRAND_MANAGER', 'ADMINISTRATOR');
 BEGIN
     PERFORM 1 FROM fleet.service_order WHERE id = p_service_order_id FOR UPDATE;
-    UPDATE inventory.stock_reservation r SET status = 'released'
-      FROM fleet.service_order_line l
-     WHERE l.service_order_id = p_service_order_id AND r.service_order_line_id = l.id AND r.status IN ('soft', 'firm');
     UPDATE fleet.service_order_line SET qty_reserved = 0 WHERE service_order_id = p_service_order_id;
     UPDATE fleet.service_order SET status = 'cancelled', cancel_reason = p_reason WHERE id = p_service_order_id;
 END $$;

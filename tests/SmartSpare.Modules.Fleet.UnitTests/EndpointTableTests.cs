@@ -32,6 +32,7 @@ public sealed class EndpointTableTests
             "POST /api/v1/fleet/service-orders",
             "POST /api/v1/fleet/service-orders/{id:long}/start",
             "POST /api/v1/fleet/service-orders/{id:long}/complete",
+            "POST /api/v1/fleet/service-orders/{id:long}/cancel",
         ], ignoreOrder: true);
 
     [Theory]
@@ -46,7 +47,7 @@ public sealed class EndpointTableTests
         var expected = route switch
         {
             _ when route.StartsWith("GET ", StringComparison.Ordinal) => AppPolicies.ReadFleet,
-            "POST /api/v1/fleet/service-orders" => AppPolicies.ManageServiceOrders,
+            "POST /api/v1/fleet/service-orders" or "POST /api/v1/fleet/service-orders/{id:long}/cancel" => AppPolicies.ManageServiceOrders,
             _ => AppPolicies.RecordServiceWork,
         };
         endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>().ShouldHaveSingleItem().Policy.ShouldBe(expected, route);
