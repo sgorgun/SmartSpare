@@ -309,3 +309,8 @@
 +INSERT INTO staging\.import_error \(import_batch_id, line_no, column_name, error_code, message\) SELECT t\.import_batch_id, t\.line_no, e\.col, e\.code, e\.msg FROM tmp_pc t .*manufacturer_code
 -INSERT INTO staging\.part_catalog \(import_batch_id, line_no, brand_id, oem_part_number, description, category_id, uom_id, weight_kg, unit_cost, is_condition_based, is_valid\)
 +INSERT INTO staging\.part_catalog \(import_batch_id, line_no, brand_id, oem_part_number, description, category_id, uom_id, weight_kg, unit_cost, is_condition_based, is_valid, manufacturer_id\)
+
+# PR 7h4 (STAGE_7_PLAN 3.7): responsible employees of manufacturers, the third kind of the shared pattern.
++\bcatalog\.manufacturer_responsible\b
++\buq_manufacturer_responsible\b
++\bcatalog\.manufacturer_responsible_id_seq\b

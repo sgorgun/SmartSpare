@@ -43,6 +43,10 @@
                     </MudItem>
                 </MudGrid>
             </CatalogEditor>
+            @if (_form.Id is { } id)
+            {
+                <ResponsiblesPanel Segment="manufacturers" Kind="manufacturer" RecordId="id" RecordName="@(_form.Name ?? string.Empty)" />
+            }
         }
     </Editor>
 </CatalogPage>

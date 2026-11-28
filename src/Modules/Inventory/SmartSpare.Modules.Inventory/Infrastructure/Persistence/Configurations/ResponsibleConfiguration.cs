@@ -60,6 +60,18 @@ internal sealed class BrandResponsibleConfiguration : IEntityTypeConfiguration<B
     }
 }
 
+internal sealed class ManufacturerResponsibleConfiguration : IEntityTypeConfiguration<ManufacturerResponsible>
+{
+    public void Configure(EntityTypeBuilder<ManufacturerResponsible> builder)
+    {
+        ResponsibleMapping.Configure(builder, "catalog", "manufacturer_responsible", RecordKinds.Manufacturer);
+        builder.Property(x => x.ManufacturerId).HasColumnName("manufacturer_id").HasColumnType("smallint");
+        builder.HasOne<Domain.Catalog.Manufacturer>().WithMany().HasForeignKey(x => x.ManufacturerId).HasPrincipalKey(m => m.Id)
+            .HasConstraintName("fk_manufacturer_responsible_manufacturer").OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(x => new { x.ManufacturerId, x.EmployeeId, x.Role }).IsUnique().HasDatabaseName("uq_manufacturer_responsible");
+    }
+}
+
 internal sealed class WarehouseResponsibleConfiguration : IEntityTypeConfiguration<WarehouseResponsible>
 {
     public void Configure(EntityTypeBuilder<WarehouseResponsible> builder)

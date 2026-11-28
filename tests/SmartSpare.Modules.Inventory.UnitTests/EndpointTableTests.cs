@@ -49,6 +49,8 @@ public sealed class EndpointTableTests
             "PUT /api/v1/inventory/brands/{id:int}/responsibles",
             "GET /api/v1/inventory/warehouses/{id:int}/responsibles",
             "PUT /api/v1/inventory/warehouses/{id:int}/responsibles",
+            "GET /api/v1/inventory/manufacturers/{id:int}/responsibles",
+            "PUT /api/v1/inventory/manufacturers/{id:int}/responsibles",
 
             // The adjustment reasons catalogue (STAGE_7_PLAN 3.1), built by the shared master-data mechanism (ADR 0025).
             "GET /api/v1/inventory/adjustment-reasons",
@@ -121,6 +123,7 @@ public sealed class EndpointTableTests
     [InlineData("GET /api/v1/inventory/manufacturers", Permissions.Inventory.Manufacturer.View)]
     [InlineData("POST /api/v1/inventory/manufacturers", Permissions.Inventory.Manufacturer.Create)]
     [InlineData("POST /api/v1/inventory/manufacturers/{id:long}/archive", Permissions.Inventory.Manufacturer.Archive)]
+    [InlineData("PUT /api/v1/inventory/manufacturers/{id:int}/responsibles", Permissions.Inventory.Manufacturer.Edit)]
     [InlineData("GET /api/v1/inventory/imports", Permissions.Inventory.Import.View)]
     [InlineData("POST /api/v1/inventory/transfers/{id:long}/approve", Permissions.Inventory.Transfer.Approve)]
     [InlineData("POST /api/v1/inventory/transfers/{id:long}/cancel", Permissions.Inventory.Transfer.Cancel)]
