@@ -559,6 +559,20 @@ Effort: **S** ≈ a quarter day, **M** ≈ half a day, **L** ≈ a full day, at 
 
 **7i is split into four PRs (28 November 2026),** each green and merged before the next: **7i1a** parts on the shared catalogue mechanism (API, database, permissions); **7i1b** the parts screen and part responsibles; **7i2** the analogue rework (C2, ADR 0027) with CSV; **7i3** analogues on a service order's kit shortage, read-only. All belong to #162.
 
+**As built, 7i3 (closes #162):**
+- **Direct analogues of short parts, read-only:** `GET /parts/{id}/direct-analogues?warehouseId=` and the batch form `GET /direct-analogues?partIds=…&warehouseId=` (`Inventory.Stock.View`).
+  - They return the direct interchangeable links and the current successor (the end of the supersession chain), never indirect group members, because transitivity is a forecasting assumption (ADR 0027), not confirmed compatibility.
+  - `available` is on hand minus reserved at the hub.
+  - Archived parts are left out.
+- **Service order screen:** under the kit, for every short line, the page shows the stand-ins and their availability at the order's hub, from one batch request.
+  - This is UI composition through the gateway; the Fleet service never calls Inventory.
+  - Nothing is substituted: substitution in reservations is #220.
+- **Archive rule (product owner):** a part that is another part's successor, or has interchangeable links, cannot be archived (SS501 with the reason, in the API guard and in `trg_part_catalogue_guard`, `inventory/0024`). An old, superseded part may be archived. Recorded in ADR 0027.
+- **Tests:**
+  - integration: direct only (an indirect group member is left out), the successor at the end of a two-step chain, 10 on hand − 4 reserved = 6, batch order; the archive rule in the API and the database, with the superseded part still archivable;
+  - bUnit: a short line shows its stand-ins from one request for the order's hub; a fully reserved kit asks nothing.
+- **Breaking changes:** none (additions only).
+
 **As built, 7i2b (part of #162; ADR 0027 decision 7):**
 - **CSV of links:** `GET /part-analogues/csv/template`, `GET /part-analogues/csv` and `POST /part-analogues/csv?dryRun=`, in the shape of the catalogue CSV endpoints, so the shared CSV panel works unchanged.
   - A row names a pair by brand and OEM number (`valid_from` and `note` optional).
