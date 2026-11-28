@@ -112,6 +112,10 @@ public sealed class EndpointTableTests
             "GET /api/v1/inventory/part-analogues/csv/template",
             "GET /api/v1/inventory/part-analogues/csv",
             "POST /api/v1/inventory/part-analogues/csv",
+
+            // PR 7i3: direct analogues of short parts, read-only.
+            "GET /api/v1/inventory/parts/{id:long}/direct-analogues",
+            "GET /api/v1/inventory/direct-analogues",
         ], ignoreOrder: true);
 
     [Theory]

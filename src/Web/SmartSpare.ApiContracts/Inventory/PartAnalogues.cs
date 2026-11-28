@@ -53,6 +53,31 @@ public sealed record PartAnaloguesView(
     [property: Description("The part's interchangeability group (connected component of interchangeable links), the part included.")] IReadOnlyList<PartRef> Group,
     [property: Description("The supersession chain from the part to the current part at its end; just the part when nothing replaces it.")] IReadOnlyList<PartRef> Chain);
 
+/// <summary>The kinds of a direct analogue: a direct interchangeable link or the current successor (PR 7i3).</summary>
+public static class DirectAnalogueKinds
+{
+    /// <summary>Linked directly as interchangeable (not merely in the same forecasting group).</summary>
+    public const string Interchangeable = "interchangeable";
+
+    /// <summary>The current part at the end of the part's supersession chain.</summary>
+    public const string Successor = "successor";
+}
+
+/// <summary>A part that may stand in for another, with what is available at a hub (read-only, PR 7i3).</summary>
+[Description("A direct analogue of a part with what is available at the hub.")]
+public sealed record DirectAnalogue(
+    [property: Description("The analogue part.")] PartRef Part,
+    [property: Description("interchangeable (a direct link) or successor (the end of the supersession chain).")] string Kind,
+    [property: Description("Units of the analogue per unit of the part (product along the chain for a successor).")] decimal ScalingFactor,
+    [property: Description("On hand minus reserved at the hub; never raw on hand.")] decimal Available);
+
+/// <summary>The direct analogues of one part at one hub.</summary>
+[Description("The direct analogues of one part at one hub: direct interchangeable links and the current successor, never indirect group members.")]
+public sealed record DirectAnalogues(
+    [property: Description("The part asked for.")] long PartId,
+    [property: Description("The hub of the availability.")] short WarehouseId,
+    [property: Description("Its direct analogues, those available first.")] IReadOnlyList<DirectAnalogue> Analogues);
+
 /// <summary>A stored link.</summary>
 [Description("A typed link between two parts.")]
 public sealed record PartAnalogueDto(

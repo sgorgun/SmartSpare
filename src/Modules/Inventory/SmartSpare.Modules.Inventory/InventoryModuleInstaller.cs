@@ -78,6 +78,7 @@ public sealed class InventoryModuleInstaller : IModuleInstaller
         Features.Parts.PartReferenceEndpoints.Map(v1);
         Features.PartAnalogues.PartAnalogueEndpoints.Map(v1);
         Features.PartAnalogues.PartAnalogueCsvEndpoints.Map(v1);
+        Features.PartAnalogues.DirectAnalogueEndpoints.Map(v1);
     }
 
     public void MapInternalEndpoints(IEndpointRouteBuilder endpoints) => WarehouseQueriesEndpoint.Map(endpoints);

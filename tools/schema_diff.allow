@@ -365,3 +365,6 @@
 +^IF NEW\.link_type = 'supersedes' THEN IF EXISTS \(SELECT 1 FROM catalog\.part_analogue a
 +^IF NEW\.part_id = NEW\.analogue_part_id THEN RAISE EXCEPTION 'A part cannot be its own analogue'
 +^IF TG_OP = 'INSERT' OR NEW\.part_id <> OLD\.part_id OR NEW\.analogue_part_id <> OLD\.analogue_part_id THEN
+# PR 7i3: a part that replaces others or has interchangeable links cannot be archived (ADR 0027).
++^IF v_count > 0 THEN v_reasons := v_reasons \|\| format\('(%s interchangeable link\(s\); remove them first|successor of %s part\(s\); remove or change the supersession first)', v_count\);$
++^SELECT count\(\*\) INTO v_count FROM catalog\.part_analogue a WHERE a\.link_type = '(interchangeable|supersedes)' AND
