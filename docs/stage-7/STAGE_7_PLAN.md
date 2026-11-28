@@ -557,6 +557,18 @@ Effort: **S** ≈ a quarter day, **M** ≈ half a day, **L** ≈ a full day, at 
 - **Deviation from 3.1:** the reason rule is an insert trigger rather than a `CHECK NOT VALID`, because the ledger is append-only and partitioned; the effect is the same.
 - **New policy:** `ManageCatalog` (planners, administrators). It only adds rows to the golden matrix; no existing right changed.
 
+**As built, 7h1 (part of #161):**
+- **The move:** `ref.brand` becomes Inventory's `catalog.brand`. One script (`inventory/0016_brand_move.sql`) moves the table, so ids, rows, grants, foreign keys and views are kept. The table gains the master-data columns, triggers and grants, and the two staging validation functions read it there. The Platform model drops the entity without SQL.
+- **Golden access matrix:** byte-identical.
+- **Upgrade:** the `upgrade` step migrates the v0.6.0 database with demo data across the move with all 8 brand ids and every dependent row unchanged.
+- **Read-only copies with the same ids:** `fleet.brand_snapshot` (the machine card view and Fleet's lists read it) and `iam.brand_snapshot` (the user list's codes, and the user form, which offers only active brands).
+  - No login may write them. `fleet.apply_brands` / `iam.apply_brands` (SECURITY DEFINER, newest event wins) is the only write path, called by the `BrandCatalogChanged` consumers.
+  - `inventory.brand-catalog-publish` backfills them. T001 and the test fixtures fill them as if it had run.
+  - Fleet's foreign key to the brand table is gone.
+- **Archived brands:** assigning responsibles to an archived brand is refused (SS500), and clearing them stays possible.
+- **Runner:** older migrations that name `ref.brand` (Fleet's initial FK and view, Reporting's transitional views) must run before the move on a fresh database. `RunsAfter` lists them, so no applied migration changed.
+- **In 7h2:** the brand catalogue's endpoints, permissions and screen, archiving with the SS501 guard (active parts, active assignments), and manufacturers.
+
 **As built, 7g (#160):**
 - **One CSV reader and writer** (`SmartSpare.Infrastructure.Csv.CsvFile`). The parts and demand-history import uses it through a thin wrapper, so its error codes are unchanged.
 - **Catalogues:** a catalogue opts in with a `CatalogCsv` part of its definition (columns, row to write, record to row, example). `MapCatalog` then adds:
@@ -624,6 +636,8 @@ Total: 3 S, 15 M, 9 L (7x1–7x4 added at the second checkpoint) ≈ 14.75 PR-da
 | #183 | A sign-in that met a concurrent stamp rotation failed with 500. | correctness | The sign-in retries on the fresh row. |
 | #195 | **Authorization design.** A single global "all brands" permission would have widened rights: a brand manager who is also a sponsor would have approved transfers of every brand, because the sponsor's unscoped right on purchase orders leaked onto transfers. Found by an existing unit test before it shipped. | security | One "any brand" permission per brand-scoped action (`…ApproveAnyBrand`, `…CancelAnyBrand`, `…DecideAnyBrand`), which reproduces the old per-role rules exactly. |
 | 7x1b | **Token growth.** As names, permissions cost about 40 bytes each in the internal token: 3,062 bytes at 55 permissions, an estimated 6.9 KB at 150 (end of stage 7) and over the 8 KB budget near 200. | capacity | Decided before the test failed: stable permission codes and a versioned bitset in the token (ADR 0028); 886 bytes now. |
+| #204 | **Upgrade path.** Stage 7's migrations could not upgrade a v0.6.0 database in one pass: the runner applied Identity's `DropLegacyAccess` (step 3 of 1.6) before Reporting's copy (step 2), and the drift guard refused. Development databases never showed it, because they applied the steps PR by PR. | correctness | The runner's `RunsAfter` rule holds a listed migration until the one it waits for has run; no applied migration changed. New check step `upgrade` builds v0.6.0 with demo data and migrates it with every PR (ADR 0020 amendment). |
+| 7h | **Brands are read by Identity too** (codes in the user list and form, brand assignment), which plan 3.2 did not cover. | boundary | Product owner, 28 November 2026: `iam.brand_snapshot`, the same pattern as Fleet (read-only, event-fed, ids kept, backfilled by the publish job). Brand assignment refuses archived brands (snapshot flag in Identity, checked again in Inventory); archiving a brand with active assignments is refused with SS501 and the reasons. 7h is split: **7h1** the move, `BrandCatalogChanged` and both snapshots, with the golden matrix unchanged; **7h2** the brand and manufacturer catalogues with their new permissions. |
 
 ## 13. Exit criteria, risk, dates and the cut order
 
