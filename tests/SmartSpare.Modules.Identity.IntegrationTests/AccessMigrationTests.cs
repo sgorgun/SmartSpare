@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
+using SmartSpare.Infrastructure.Persistence;
 using SmartSpare.MigrationRunner;
 using SmartSpare.Modules.Identity.Infrastructure.Persistence;
 using Testcontainers.PostgreSql;
@@ -21,8 +22,8 @@ public sealed class AccessMigrationTests : IAsyncLifetime
 {
     private const string LastStage6Migration = "20261127033447_MessageRetention";
 
-    /// <summary>The last Identity migration before step 3 drops the legacy access data.</summary>
-    private const string BeforeStep3 = "20261127154522_ResponsibilityProjection";
+    /// <summary>Identity's step 3, which drops the legacy access data.</summary>
+    private const string Step3 = "20261127163529_DropLegacyAccess";
 
     private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:17").Build();
     private string _migrator = null!;
@@ -75,25 +76,9 @@ public sealed class AccessMigrationTests : IAsyncLifetime
             """);
         var before = await RolesAsync(fromPositions: false);
 
-        // The path of a database that was migrated PR by PR: Identity's step 1 and the projection, then every other module
-        // (Inventory's assignment tables and the Reporting copy of step 2, which runs last), and only then step 3.
-        await using (var context = IdentityDatabase.Instance.CreateContext(_migrator))
-        {
-            await context.GetService<IMigrator>().MigrateAsync(BeforeStep3, Ct);
-        }
-
-        // Stage 7 databases had Reporting's transitional views (stage 2) long before the brand move of PR 7h1, so the move
-        // comes after Reporting up to step 2.
-        var databases = ModuleCatalog.ModuleCatalog.Databases().ToDictionary(d => d.Name);
-        await databases["inventory"].MigrateToAsync(_migrator, "20261127215123_RequirePermission", Ct);
-        await new DatabaseMigrator(_options, [.. databases.Values.Where(d => d.Name is "fleet" or "procurement" or "forecasting")], NullLogger<DatabaseMigrator>.Instance)
-            .RunAsync(Ct);
-        await databases["reporting"].MigrateToAsync(_migrator, "20261125140845_DataQualityParkedOutboxEvents", Ct);
-        // Up to the part archive columns: dropping is_active (DropPartIsActive) waits for a later Reporting migration.
-        await databases["inventory"].MigrateToAsync(_migrator, "20261128130240_PartsAsCatalogue", Ct);
-        // Reporting's migration LegacyAccessToAssignments runs exactly this script (a database deployed after PR 7d2a);
-        // the later Reporting migrations follow step 3, as the runner always applies Identity before Reporting.
-        await ExecuteAsync(await File.ReadAllTextAsync(Path.Combine(RepositoryRoot(), "db", "sql", "reporting", "0005_legacy_access_copy.sql"), Ct));
+        // The runner's own order from the stage 6 schema (catalogue order and [MigrationDependsOn]), applied up to Identity's
+        // step 3: everything else, Reporting's copy of step 2 included, runs exactly where the runner puts it.
+        await RunPlanUntilAsync(("identity", Step3));
 
         var after = await RolesAsync(fromPositions: true);
         after.ShouldBe(before, "every account keeps exactly its roles");
@@ -177,6 +162,40 @@ public sealed class AccessMigrationTests : IAsyncLifetime
 
         error.ToString().ShouldContain("Access drift");
         (await ScalarAsync<bool>("SELECT to_regclass('iam.user_brand') IS NOT NULL")).ShouldBeTrue("nothing was dropped");
+    }
+
+    /// <summary>
+    /// Applies the runner's plan (<see cref="DatabaseMigrator.Plan"/>) for every module from the current state and stops
+    /// right before <paramref name="stop"/>, so the test inspects the state a real upgrade passes through without
+    /// repeating the runner's ordering by hand.
+    /// </summary>
+    private async Task RunPlanUntilAsync((string Module, string Migration) stop)
+    {
+        var scope = ModuleCatalog.ModuleCatalog.Databases();
+        var pending = new Dictionary<IModuleDatabase, List<string>>();
+        foreach (var database in scope)
+        {
+            pending[database] = [.. await database.GetPendingMigrationsAsync(_migrator, Ct)];
+        }
+
+        foreach (var (database, target, migrations) in DatabaseMigrator.Plan(scope, pending))
+        {
+            var index = database.Name == stop.Module ? migrations.ToList().IndexOf(stop.Migration) : -1;
+            if (index < 0)
+            {
+                await database.MigrateToAsync(_migrator, target, Ct);
+                continue;
+            }
+
+            if (index > 0)
+            {
+                await database.MigrateToAsync(_migrator, migrations[index - 1], Ct);
+            }
+
+            return;
+        }
+
+        throw new InvalidOperationException($"The plan never reached {stop.Module} {stop.Migration}.");
     }
 
     private Task InsertLegacyBrandManagerAsync() => ExecuteAsync(
