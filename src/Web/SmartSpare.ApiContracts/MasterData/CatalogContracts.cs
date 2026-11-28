@@ -19,6 +19,18 @@ public static class CatalogLimits
     public const int MaxLookupLimit = 50;
     public const int DefaultHistoryPageSize = 20;
     public const int MaxPageSize = 100;
+
+    /// <summary>Data rows of a catalogue CSV import (STAGE_7_PLAN 2.6, the same as the parts import).</summary>
+    public const int MaxCsvRows = 50_000;
+
+    /// <summary>Bytes of a catalogue CSV import: 10 MB.</summary>
+    public const long MaxCsvBytes = 10 * 1024 * 1024;
+
+    /// <summary>Catalogue CSV imports a user may start in a minute.</summary>
+    public const int CsvImportsPerMinute = 5;
+
+    /// <summary>Above this share of rows with errors nothing is written (the 5 % gate of <c>staging.process_batch</c>).</summary>
+    public const decimal CsvErrorGate = 0.05m;
 }
 
 /// <summary>An active catalogue entry for an autocomplete field.</summary>
@@ -44,3 +56,22 @@ public sealed record RecordChange(
     [property: Description("Field name in plain words.")] string Field,
     [property: Description("Value before the change; null when created.")] string? From,
     [property: Description("Value after the change.")] string? To);
+
+/// <summary>The outcome of a catalogue CSV import or of its dry run (STAGE_7_PLAN 2.6).</summary>
+[Description("The outcome of a catalogue CSV import or of its dry run.")]
+public sealed record CatalogImportResult(
+    [property: Description("True: the import ran in full and was rolled back, nothing was kept.")] bool DryRun,
+    [property: Description("True: the changes were written (never for a dry run, nor above the 5 % error gate).")] bool Applied,
+    [property: Description("Data rows in the file.")] int Rows,
+    [property: Description("Rows that create a new record.")] int Created,
+    [property: Description("Rows that change an existing record.")] int Updated,
+    [property: Description("Rows equal to the existing record; they are not written.")] int Unchanged,
+    [property: Description("Row errors in file order; above 5 % of the rows nothing is written.")] IReadOnlyList<CatalogImportError> Errors);
+
+/// <summary>A row the import refused.</summary>
+[Description("A row the import refused.")]
+public sealed record CatalogImportError(
+    [property: Description("Line in the file (the header is line 1).")] int Line,
+    [property: Description("Column the error is about, if one.")] string? Column,
+    [property: Description("Error code, for example DUPLICATE, ARCHIVED, INVALID.")] string Code,
+    [property: Description("The error in plain words.")] string Message);

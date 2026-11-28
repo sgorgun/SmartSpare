@@ -69,6 +69,9 @@ public sealed record CatalogDefinition<TRecord, TId, TDto, TWrite>
 
     public required IValidator<TWrite> Validator { get; init; }
 
+    /// <summary>CSV template, export and import (STAGE_7_PLAN 2.6); none: the catalogue has no CSV endpoints.</summary>
+    public CatalogCsv<TDto, TWrite>? Csv { get; init; }
+
     /// <summary>Column name → field name in plain words for the history; unlisted columns keep their name.</summary>
     public IReadOnlyDictionary<string, string> FieldLabels { get; init; } = new Dictionary<string, string>();
 

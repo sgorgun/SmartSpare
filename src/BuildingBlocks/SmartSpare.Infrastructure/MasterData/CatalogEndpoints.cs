@@ -192,6 +192,11 @@ public static class CatalogEndpoints
         MapState<TContext, TRecord, TId, TDto, TWrite>(group, d, "restore", (s, key, version, ct) => s.RestoreAsync(key, version, ct), $"Restore{d.OperationNoun}", $"Restores an archived {d.Noun}.",
                 $"Needs If-Match. The {d.Noun} can be chosen again. {d.Rules}")
             .WithResponseExample(StatusCodes.Status409Conflict, stale);
+        if (d.Csv is not null)
+        {
+            CatalogCsvEndpoints.Map<TContext, TRecord, TId, TDto, TWrite>(group, d, http => Service<TContext, TRecord, TId, TDto, TWrite>(http, d));
+        }
+
         return group;
     }
 

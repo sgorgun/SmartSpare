@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using SmartSpare.Infrastructure.Messaging;
 using SmartSpare.Infrastructure.Modules;
 using SmartSpare.Infrastructure.Jobs;
+using SmartSpare.Infrastructure.MasterData;
 using SmartSpare.Infrastructure.Persistence;
 using SmartSpare.Modules.Inventory.Contracts;
 using SmartSpare.Modules.Inventory.Infrastructure.Persistence;
@@ -44,6 +45,7 @@ public sealed class InventoryModuleInstaller : IModuleInstaller
         services.AddScoped<ServiceKitStore>();
         services.TryAddScoped<SmartSpare.Infrastructure.MasterData.IActorNames, Infrastructure.Queries.EmployeeActorNames>();
         services.AddImportRateLimit();
+        services.AddCatalogCsvRateLimit();
         services.AddJob<PartCatalogPublishJob>();
         services.AddJob<ReservationExpiryJob>();
         services.AddJob<Features.Responsibilities.ResponsibilityPublishJob>();

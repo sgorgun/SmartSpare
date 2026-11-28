@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using SmartSpare.ApiContracts;
 using SmartSpare.ApiContracts.Authorization;
 using SmartSpare.ApiContracts.MasterData;
+using SmartSpare.Infrastructure.Csv;
 using SmartSpare.Infrastructure.Persistence;
 using SmartSpare.SharedKernel;
 using SmartSpare.SharedKernel.MasterData;
@@ -138,9 +139,156 @@ public sealed class CatalogService<TContext, TRecord, TId, TDto, TWrite>(
             return Task.FromResult(Result.Success());
         }, cancellationToken);
 
+    /// <summary>The CSV template: the header and one example row.</summary>
+    public string CsvTemplate() => CsvFile.Write(Csv.Columns, [Csv.ExampleRow]);
+
+    /// <summary>Every active record as CSV, by code; the file imports back unchanged.</summary>
+    public async Task<string> ExportCsvAsync(CancellationToken cancellationToken)
+    {
+        var items = await db.Set<TRecord>().AsNoTracking().Where(r => !r.IsArchived).OrderBy(r => r.Code).Select(definition.Projection)
+            .ToListAsync(cancellationToken).ConfigureAwait(false);
+        return CsvFile.Write(Csv.Columns, items.Select(Csv.ToRow));
+    }
+
+    /// <summary>
+    /// Imports a CSV file as upserts by code (STAGE_7_PLAN 2.6). Each row is read, checked by the catalogue's API
+    /// validator and its code normalised; a code seen earlier in the file is a DUPLICATE error, an archived code an
+    /// ARCHIVED error (import never archives or restores). Rows equal to the stored record are counted, not written. The
+    /// whole import runs in one transaction and is saved, so the database checks run too; it is committed only when it
+    /// is not a dry run and at most 5 % of the rows have errors, otherwise rolled back. A dry run is therefore exactly
+    /// the real import, rolled back.
+    /// </summary>
+    public async Task<Result<CatalogImportResult>> ImportCsvAsync(string content, bool dryRun, CancellationToken cancellationToken)
+    {
+        var parsed = CsvFile.Parse(content, Csv.Columns, CatalogLimits.MaxCsvRows, "MasterData.Csv");
+        if (parsed.IsFailure)
+        {
+            return parsed.Error;
+        }
+
+        var errors = new List<CatalogImportError>();
+        var valid = new List<(int Line, string Code, TWrite Write)>();
+        var seen = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var (line, values) in parsed.Value.Rows)
+        {
+            var row = new CsvRow(line, Csv.Columns, values);
+            var write = Csv.FromRow(row);
+            if (row.Errors.Count == 0)
+            {
+                var validation = await definition.Validator.ValidateAsync(write, cancellationToken).ConfigureAwait(false);
+                foreach (var failure in validation.Errors)
+                {
+                    row.Error(ColumnOf(failure.PropertyName), "INVALID", failure.ErrorMessage);
+                }
+            }
+
+            var code = definition.NormaliseCode(write.Code);
+            if (code.IsSuccess && seen.TryGetValue(code.Value, out var first))
+            {
+                row.Error("code", "DUPLICATE", $"The code {code.Value} is already on line {first}.");
+            }
+            else if (code.IsSuccess)
+            {
+                seen[code.Value] = line;
+            }
+
+            errors.AddRange(row.Errors);
+            if (row.Errors.Count == 0)
+            {
+                valid.Add((line, code.Value, write));
+            }
+        }
+
+        if (unitOfWork is not ITransactionalUnitOfWork transactional)
+        {
+            throw new InvalidOperationException("A catalogue import needs a transactional unit of work, so that a dry run can be rolled back.");
+        }
+
+        try
+        {
+            return await transactional.ExecuteInTransactionAsync(
+                ct => UpsertAsync(valid, errors, parsed.Value.Rows.Count, dryRun, ct),
+                result => result.IsSuccess && result.Value.Applied,
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (DatabaseErrorMapper.ToError(exception) is { } error)
+        {
+            return error;
+        }
+    }
+
     /// <summary>Whether the record exists (for the history endpoint).</summary>
     public Task<bool> ExistsAsync(TId id, CancellationToken cancellationToken) =>
         db.Set<TRecord>().AsNoTracking().AnyAsync(r => r.Id.Equals(id), cancellationToken);
+
+    private CatalogCsv<TDto, TWrite> Csv =>
+        definition.Csv ?? throw new InvalidOperationException($"The {definition.Noun} catalogue has no CSV definition.");
+
+    private async Task<Result<CatalogImportResult>> UpsertAsync(
+        List<(int Line, string Code, TWrite Write)> valid, List<CatalogImportError> errors, int rows, bool dryRun, CancellationToken cancellationToken)
+    {
+        var codes = valid.Select(v => v.Code).ToList();
+        var existing = await db.Set<TRecord>().Where(r => codes.Contains(r.Code)).ToDictionaryAsync(r => r.Code, StringComparer.Ordinal, cancellationToken)
+            .ConfigureAwait(false);
+        int created = 0, updated = 0, unchanged = 0;
+        foreach (var (line, code, write) in valid)
+        {
+            if (!existing.TryGetValue(code, out var record))
+            {
+                var made = definition.Create(write);
+                if (made.IsFailure)
+                {
+                    errors.Add(new CatalogImportError(line, null, "INVALID", made.Error.Description));
+                    continue;
+                }
+
+                db.Add(made.Value);
+                created++;
+                continue;
+            }
+
+            if (record.IsArchived)
+            {
+                errors.Add(new CatalogImportError(line, "code", "ARCHIVED", $"{code} is archived; restore it first, an import never restores."));
+                continue;
+            }
+
+            var changed = definition.Update(record, write);
+            if (changed.IsFailure)
+            {
+                // Undo whatever the update set before it refused, so the row writes nothing.
+                var entry = db.Entry(record);
+                entry.CurrentValues.SetValues(entry.OriginalValues);
+                errors.Add(new CatalogImportError(line, null, "INVALID", changed.Error.Description));
+            }
+            else if (changed.Value)
+            {
+                db.Entry(record).Property(r => r.UpdatedAt).IsModified = true;
+                updated++;
+            }
+            else
+            {
+                unchanged++;
+            }
+        }
+
+        errors.Sort((a, b) => a.Line.CompareTo(b.Line));
+        var withinGate = errors.Select(e => e.Line).Distinct().Count() <= rows * CatalogLimits.CsvErrorGate;
+        if (withinGate)
+        {
+            // Saved even for a dry run, so the database's own checks answer the preview as they will the commit.
+            await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        return new CatalogImportResult(dryRun, withinGate && !dryRun, rows, created, updated, unchanged, errors);
+    }
+
+    /// <summary>A validator property (<c>RequiresNote</c>) as its CSV column (<c>requires_note</c>), if the catalogue has it.</summary>
+    private string? ColumnOf(string property)
+    {
+        var name = string.Concat(property.Select((c, i) => char.IsUpper(c) && i > 0 ? "_" + char.ToLowerInvariant(c) : char.ToLowerInvariant(c).ToString()));
+        return Csv.Columns.Contains(name, StringComparer.Ordinal) ? name : null;
+    }
 
     private static IQueryable<TRecord> Search(IQueryable<TRecord> query, string? search)
     {

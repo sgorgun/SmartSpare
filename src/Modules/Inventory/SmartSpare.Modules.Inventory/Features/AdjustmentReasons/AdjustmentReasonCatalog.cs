@@ -38,6 +38,15 @@ internal static class AdjustmentReasonCatalog
         Create = w => AdjustmentReason.Create(w.Code, w.Name, w.Direction, w.RequiresNote),
         Update = (r, w) => r.Update(w.Name, w.Direction, w.RequiresNote),
         Validator = new AdjustmentReasonWriteValidator(),
+        Csv = new CatalogCsv<AdjustmentReasonDto, AdjustmentReasonWrite>
+        {
+            Columns = ["code", "name", "direction", "requires_note"],
+            ToRow = r => [r.Code, r.Name, r.Direction, SmartSpare.Infrastructure.Csv.CsvFile.Format(r.RequiresNote)],
+            FromRow = row => new AdjustmentReasonWrite(
+                row.Text("code") ?? string.Empty, row.Text("name") ?? string.Empty, row.Text("direction")?.ToUpperInvariant() ?? string.Empty,
+                row.Bool("requires_note")),
+            ExampleRow = ["DAMAGED", "Damaged in storage", AdjustmentDirections.Out, "false"],
+        },
         FieldLabels = new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["code"] = "Code",
