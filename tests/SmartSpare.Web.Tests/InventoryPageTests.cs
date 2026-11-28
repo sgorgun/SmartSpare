@@ -130,6 +130,9 @@ public sealed class FakePartReferenceClient() : InventoryClient(new HttpClient()
     public override Task<ApiResult<IReadOnlyList<AssignmentRoleDto>>> ListAssignmentRolesAsync(string kind, CancellationToken cancellationToken = default) =>
         Task.FromResult(ApiResult.Success((IReadOnlyList<AssignmentRoleDto>)[new AssignmentRoleDto("part", "BUYER", "Buyer", false)]));
 
+    public override Task<ApiResult<PartAnaloguesView>> GetPartAnaloguesAsync(long partId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(ApiResult.Success(new PartAnaloguesView(new PartRef(partId, "JD", "RE504836", "Engine oil filter", false), [], [], [])));
+
     public override Task<ApiResult<IReadOnlyList<ResponsibleDto>>> GetResponsiblesAsync(string segment, long id, CancellationToken cancellationToken = default) =>
         Task.FromResult(ApiResult.Success((IReadOnlyList<ResponsibleDto>)[]));
 }

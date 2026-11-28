@@ -1,0 +1,202 @@
+@using SmartSpare.ApiContracts.Inventory
+@using SmartSpare.ApiContracts.MasterData
+@using SmartSpare.Web.Client.Features.MasterData
+@inject IStringLocalizer<SharedResource> Text
+@inject InventoryClient Inventory
+@inject ProblemMessages Messages
+@inject ISnackbar Snackbar
+
+@* A part's analogues (ADR 0027, PR 7i2b): its links seen from it, its interchangeability group and its supersession chain.
+   Planners link parts and remove links; a removal needs the user's reason, which goes into the audit trail. *@
+<section aria-labelledby="@_headingId" class="mt-4" data-testid="analogues-panel">
+    <MudText Typo="Typo.h6" HtmlTag="h3" id="@_headingId">@Text["Analogues.Title", PartName]</MudText>
+    <MudText Typo="Typo.body2" Class="mb-2">@Text["Analogues.Intro"]</MudText>
+
+    @if (_error is not null)
+    {
+        <MudAlert Severity="Severity.Error" Class="mb-2" role="alert" data-testid="analogues-error">@_error</MudAlert>
+    }
+
+    @if (_view is { } view)
+    {
+        @if (view.Chain.Count > 1)
+        {
+            <MudText Typo="Typo.body2" Class="mb-1" data-testid="analogues-chain">
+                @Text["Analogues.Chain"] @string.Join(" → ", view.Chain.Select(p => $"{p.BrandCode} {p.OemPartNumber}"))
+            </MudText>
+        }
+
+        @if (view.Group.Count > 1)
+        {
+            <MudText Typo="Typo.body2" Class="mb-2" data-testid="analogues-group">
+                @Text["Analogues.Group"] @string.Join(", ", view.Group.Select(p => $"{p.BrandCode} {p.OemPartNumber}"))
+            </MudText>
+        }
+
+        @if (view.Links.Count == 0)
+        {
+            <MudText Typo="Typo.body2" Class="mb-2" data-testid="analogues-none">@Text["Analogues.None"]</MudText>
+        }
+        else
+        {
+            <MudSimpleTable Dense="true" Outlined="true" Class="mb-2" data-testid="analogues-links">
+                <thead>
+                    <tr>
+                        <th scope="col">@Text["Analogues.Relation"]</th>
+                        <th scope="col">@Text["Analogues.Other"]</th>
+                        <th scope="col">@Text["Analogues.Factor"]</th>
+                        <th scope="col"><span class="sr-only">@Text["Analogues.Actions"]</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var link in view.Links)
+                    {
+                        <tr data-testid="analogue-link">
+                            <td>@Text["Analogues.Relation." + link.Relation]</td>
+                            <td>@link.Other.BrandCode @link.Other.OemPartNumber — @link.Other.Description</td>
+                            <td>@link.ScalingFactor.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)</td>
+                            <td class="text-right">
+                                @if (MayEdit)
+                                {
+                                    @if (_removing == link.Id)
+                                    {
+                                        <span role="group" aria-label="@Text["Analogues.RemoveConfirm", link.Other.OemPartNumber]" data-testid="analogue-remove-confirm">
+                                            <MudText Typo="Typo.body2" Inline="true" Class="mr-1">@Text["Analogues.RemoveConfirm", link.Other.OemPartNumber]</MudText>
+                                            <MudTextField T="string" @bind-Value="_reason" Label="@Text["Analogues.Reason"]" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                                          Required="true" MaxLength="300" data-testid="analogue-remove-reason" />
+                                            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Warning" OnClick="() => RemoveAsync(link)" Disabled="_busy"
+                                                       Class="touch-target" data-testid="analogue-remove-yes">@Text["Analogues.Remove"]</MudButton>
+                                            <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="() => _removing = null" Disabled="_busy" Class="touch-target">@Text["Catalog.Cancel"]</MudButton>
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Warning" OnClick="() => StartRemove(link)" Class="touch-target"
+                                                   data-testid="analogue-remove">@Text["Analogues.Remove"]</MudButton>
+                                    }
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </MudSimpleTable>
+        }
+
+        @if (MayEdit)
+        {
+            <div class="d-flex flex-wrap align-end" data-testid="analogue-add">
+                <div class="mr-2" style="min-width:16rem">
+                    <CatalogAutocomplete Route="api/v1/inventory/parts" Label="@Text["Analogues.OtherPart"]" @bind-Value="_other" TestId="analogue-other" />
+                </div>
+                <MudSelect T="string" @bind-Value="_relation" Label="@Text["Analogues.Relation"]" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mr-2"
+                           data-testid="analogue-relation">
+                    <MudSelectItem T="string" Value="@AnalogueRelations.Interchangeable">@Text["Analogues.Relation.interchangeable"]</MudSelectItem>
+                    <MudSelectItem T="string" Value="@AnalogueRelations.Replaces">@Text["Analogues.Relation.replaces"]</MudSelectItem>
+                    <MudSelectItem T="string" Value="@AnalogueRelations.ReplacedBy">@Text["Analogues.Relation.replacedBy"]</MudSelectItem>
+                </MudSelect>
+                <MudNumericField T="decimal" @bind-Value="_factor" Label="@Text["Analogues.Factor"]" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0.001m" Max="10m"
+                                 Class="mr-2" Style="max-width:8rem" data-testid="analogue-factor" />
+                <MudButton OnClick="AddAsync" Disabled="_busy" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Link" Class="touch-target"
+                           data-testid="analogue-add-save">@Text["Analogues.Add"]</MudButton>
+            </div>
+        }
+    }
+</section>
+
+@code {
+    private readonly string _headingId = "analogues-" + Guid.NewGuid().ToString("N")[..8];
+    private PartAnaloguesView? _view;
+    private string? _error;
+    private bool _busy;
+    private long? _removing;
+    private string? _reason;
+    private CatalogLookupItem? _other;
+    private string _relation = AnalogueRelations.Interchangeable;
+    private decimal _factor = 1m;
+
+    [Parameter, EditorRequired]
+    public long PartId { get; set; }
+
+    [Parameter, EditorRequired]
+    public string PartName { get; set; } = string.Empty;
+
+    [Parameter]
+    public bool MayEdit { get; set; }
+
+    protected override async Task OnParametersSetAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        var result = await Inventory.GetPartAnaloguesAsync(PartId);
+        _error = result.IsSuccess ? null : Messages.Describe(result.Problem!);
+        _view = result.IsSuccess ? result.Value : null;
+    }
+
+    private void StartRemove(PartAnalogueLink link)
+    {
+        _removing = link.Id;
+        _reason = null;
+        _error = null;
+    }
+
+    private async Task RemoveAsync(PartAnalogueLink link)
+    {
+        // The reason is the user's own: the API refuses an empty one too (400 Inventory.ReasonRequired).
+        if (string.IsNullOrWhiteSpace(_reason))
+        {
+            _error = Text["Analogues.ReasonRequired"];
+            return;
+        }
+
+        _busy = true;
+        var result = await Inventory.RemovePartAnalogueAsync(link.Id, _reason.Trim(), link.Version);
+        _busy = false;
+        if (!result.IsSuccess)
+        {
+            _error = Messages.Describe(result.Problem!);
+            return;
+        }
+
+        _removing = null;
+        Snackbar.Add(Text["Analogues.Removed", link.Other.OemPartNumber], Severity.Success);
+        await LoadAsync();
+    }
+
+    private async Task AddAsync()
+    {
+        if (_other is not { } other)
+        {
+            _error = Text["Analogues.ChooseOther"];
+            return;
+        }
+
+        // replacedBy: the other part is the new one, so it goes first in a supersession.
+        var request = _relation switch
+        {
+            AnalogueRelations.Replaces => new PartAnalogueCreate(PartId, other.Id, AnalogueLinkTypes.Supersedes, _factor, null, null),
+            AnalogueRelations.ReplacedBy => new PartAnalogueCreate(other.Id, PartId, AnalogueLinkTypes.Supersedes, _factor, null, null),
+            _ => new PartAnalogueCreate(PartId, other.Id, AnalogueLinkTypes.Interchangeable, _factor, null, null),
+        };
+        var validation = new PartAnalogueCreateValidator().Validate(request);
+        if (!validation.IsValid)
+        {
+            _error = string.Join(" ", validation.Errors.Select(e => e.ErrorMessage));
+            return;
+        }
+
+        _busy = true;
+        var result = await Inventory.CreatePartAnalogueAsync(request);
+        _busy = false;
+        if (!result.IsSuccess)
+        {
+            _error = Messages.Describe(result.Problem!);
+            return;
+        }
+
+        _other = null;
+        _factor = 1m;
+        _error = null;
+        Snackbar.Add(Text["Analogues.Added", other.Code], Severity.Success);
+        await LoadAsync();
+    }
+}

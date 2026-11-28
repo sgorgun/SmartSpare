@@ -30,6 +30,25 @@ public class InventoryClient(HttpClient http) : ApiClientBase(http)
     public virtual Task<ApiResult<List<ReferenceItem>>> ListUnitsOfMeasureAsync(CancellationToken cancellationToken = default) =>
         SendAsync<List<ReferenceItem>>(new HttpRequestMessage(HttpMethod.Get, "api/v1/inventory/units-of-measure"), cancellationToken);
 
+    /// <summary>A part's links, group and supersession chain (ADR 0027).</summary>
+    public virtual Task<ApiResult<PartAnaloguesView>> GetPartAnaloguesAsync(long partId, CancellationToken cancellationToken = default) =>
+        SendAsync<PartAnaloguesView>(new HttpRequestMessage(HttpMethod.Get, string.Create(CultureInfo.InvariantCulture, $"api/v1/inventory/parts/{partId}/analogues")), cancellationToken);
+
+    public virtual Task<ApiResult<PartAnalogueDto>> CreatePartAnalogueAsync(PartAnalogueCreate request, CancellationToken cancellationToken = default) =>
+        SendAsync<PartAnalogueDto>(
+            new HttpRequestMessage(HttpMethod.Post, "api/v1/inventory/part-analogues") { Content = System.Net.Http.Json.JsonContent.Create(request) }, cancellationToken);
+
+    /// <summary>Removes a link with the user's reason (ADR 0027 decision 6).</summary>
+    public virtual Task<ApiResult<NoContent>> RemovePartAnalogueAsync(long id, string reason, string version, CancellationToken cancellationToken = default)
+    {
+        var message = new HttpRequestMessage(HttpMethod.Post, string.Create(CultureInfo.InvariantCulture, $"api/v1/inventory/part-analogues/{id}/remove"))
+        {
+            Content = System.Net.Http.Json.JsonContent.Create(new RemoveAnalogueRequest(reason)),
+        };
+        message.Headers.TryAddWithoutValidation("If-Match", $"\"{version}\"");
+        return SendAsync<NoContent>(message, cancellationToken);
+    }
+
     public virtual Task<ApiResult<PartDetails>> GetPartAsync(long id, CancellationToken cancellationToken = default) =>
         SendAsync<PartDetails>(
             new HttpRequestMessage(HttpMethod.Get, string.Create(CultureInfo.InvariantCulture, $"api/v1/inventory/parts/{id}")), cancellationToken);
