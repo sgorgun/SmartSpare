@@ -153,6 +153,75 @@
   <data name="Parts.ConditionBased" xml:space="preserve">
     <value>Replaced as required</value>
   </data>
+  <data name="Analogues.Title" xml:space="preserve">
+    <value>Analogues of {0}</value>
+  </data>
+  <data name="Analogues.Intro" xml:space="preserve">
+    <value>Interchangeable parts can be fitted for each other (for example an OEM part and its aftermarket equivalent) and form a group; a supersession says which part replaces which. Forecasts pool demand along these links; removing one needs a reason, which is kept in the audit trail.</value>
+  </data>
+  <data name="Analogues.Chain" xml:space="preserve">
+    <value>Supersession chain:</value>
+  </data>
+  <data name="Analogues.Group" xml:space="preserve">
+    <value>Interchangeability group:</value>
+  </data>
+  <data name="Analogues.None" xml:space="preserve">
+    <value>No analogues yet.</value>
+  </data>
+  <data name="Analogues.Relation" xml:space="preserve">
+    <value>Relation</value>
+  </data>
+  <data name="Analogues.Other" xml:space="preserve">
+    <value>Other part</value>
+  </data>
+  <data name="Analogues.Factor" xml:space="preserve">
+    <value>Factor</value>
+  </data>
+  <data name="Analogues.Actions" xml:space="preserve">
+    <value>Actions</value>
+  </data>
+  <data name="Analogues.Relation.interchangeable" xml:space="preserve">
+    <value>Interchangeable</value>
+  </data>
+  <data name="Analogues.Relation.replaces" xml:space="preserve">
+    <value>Replaces</value>
+  </data>
+  <data name="Analogues.Relation.replacedBy" xml:space="preserve">
+    <value>Replaced by</value>
+  </data>
+  <data name="Analogues.Remove" xml:space="preserve">
+    <value>Remove</value>
+  </data>
+  <data name="Analogues.RemoveConfirm" xml:space="preserve">
+    <value>Remove the link to {0}?</value>
+  </data>
+  <data name="Analogues.Reason" xml:space="preserve">
+    <value>Reason (required)</value>
+  </data>
+  <data name="Analogues.ReasonRequired" xml:space="preserve">
+    <value>Give a reason: removing a link changes future forecasts and is audited.</value>
+  </data>
+  <data name="Analogues.Removed" xml:space="preserve">
+    <value>The link to {0} is removed.</value>
+  </data>
+  <data name="Analogues.OtherPart" xml:space="preserve">
+    <value>Other part</value>
+  </data>
+  <data name="Analogues.Add" xml:space="preserve">
+    <value>Link</value>
+  </data>
+  <data name="Analogues.ChooseOther" xml:space="preserve">
+    <value>Choose the other part.</value>
+  </data>
+  <data name="Analogues.Added" xml:space="preserve">
+    <value>Linked to {0}.</value>
+  </data>
+  <data name="Analogues.CsvTitle" xml:space="preserve">
+    <value>Analogue links (CSV)</value>
+  </data>
+  <data name="Analogues.CsvIntro" xml:space="preserve">
+    <value>Pairs by brand and OEM number. An import creates links or updates their factor, date and note; it never removes a link or changes its type, which need a reason on the part's analogues.</value>
+  </data>
   <data name="Parts.Search" xml:space="preserve">
     <value>Search by part number or description</value>
   </data>

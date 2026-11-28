@@ -81,10 +81,15 @@
             @if (_form.Id is { } id)
             {
                 <ResponsiblesPanel Segment="parts" Kind="part" RecordId="id" RecordName="@(_form.Code ?? string.Empty)" />
+                <PartAnaloguesPanel PartId="id" PartName="@(_form.Code ?? string.Empty)" MayEdit="_mayEdit" />
             }
         }
     </Editor>
 </CatalogPage>
+
+<MudText Typo="Typo.h6" HtmlTag="h2" Class="mt-6 mb-1">@Text["Analogues.CsvTitle"]</MudText>
+<MudText Typo="Typo.body2" Class="mb-2">@Text["Analogues.CsvIntro"]</MudText>
+<CsvPanel Route="api/v1/inventory/part-analogues" MayImport="_mayEdit" />
 
 @code {
     private const string Route = "api/v1/inventory/parts";
