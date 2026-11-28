@@ -30,6 +30,7 @@ public sealed record PositionSummary(
     [property: Description("Display name.")] string Name,
     [property: Description("What the position does.")] string? Description,
     [property: Description("Role codes of the template.")] IReadOnlyList<string> Roles,
+    [property: Description("A built-in position (the Superadministrator) that cannot be changed or archived.")] bool IsLocked,
     [property: Description("Whether the position is archived (cannot be chosen).")] bool IsArchived,
     [property: Description("Active employees in the position.")] int ActiveEmployees,
     [property: Description("Concurrency version; send it back as If-Match.")] string Version);

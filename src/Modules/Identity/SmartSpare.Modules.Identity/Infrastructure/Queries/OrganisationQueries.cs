@@ -36,7 +36,7 @@ internal sealed class PositionQueries(IdentityDbContext db)
         SELECT p.id, p.code::text AS code, p.name::text AS name, p.description::text AS description,
                coalesce((SELECT array_agg(r.code::text ORDER BY r.code) FROM iam.position_role pr JOIN iam.role r ON r.id = pr.role_id
                          WHERE pr.position_id = p.id), ARRAY[]::text[]) AS roles,
-               p.is_archived, (SELECT count(*)::int FROM iam.employee e WHERE e.position_id = p.id AND NOT e.is_archived) AS active_employees,
+               p.is_locked, p.is_archived, (SELECT count(*)::int FROM iam.employee e WHERE e.position_id = p.id AND NOT e.is_archived) AS active_employees,
                p.xmin::text AS version
         FROM iam.position p
         """;
@@ -68,9 +68,9 @@ internal sealed class PositionQueries(IdentityDbContext db)
     private static NpgsqlParameter<bool> Archived(bool archived) => new("archived", archived);
 }
 
-internal sealed record PositionRow(short Id, string Code, string Name, string? Description, string[] Roles, bool IsArchived, int ActiveEmployees, string Version)
+internal sealed record PositionRow(short Id, string Code, string Name, string? Description, string[] Roles, bool IsLocked, bool IsArchived, int ActiveEmployees, string Version)
 {
-    public PositionSummary ToDto() => new(Id, Code, Name, Description, Roles, IsArchived, ActiveEmployees, Version);
+    public PositionSummary ToDto() => new(Id, Code, Name, Description, Roles, IsLocked, IsArchived, ActiveEmployees, Version);
 }
 
 internal sealed class EmployeeQueries(IdentityDbContext db)

@@ -1,10 +1,13 @@
 using System.Globalization;
 using System.Net;
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.DependencyInjection;
 using SmartSpare.ApiContracts.Authorization;
+using SmartSpare.ApiContracts.Identity;
 using SmartSpare.ApiContracts.Inventory;
 using SmartSpare.Host.IntegrationTests.Support;
 using SmartSpare.Infrastructure.Security;
@@ -68,13 +71,7 @@ public sealed class AccessMatrixTests(DemoDatabaseFixture database) : IAsyncLife
     [Fact]
     public async Task Every_demo_user_may_do_exactly_what_the_golden_matrix_records()
     {
-        var actual = new SortedDictionary<string, UserAccess>(StringComparer.Ordinal);
-        foreach (var user in DemoUsers)
-        {
-            actual[user] = await AccessOfAsync(user);
-        }
-
-        var json = JsonSerializer.Serialize(actual, Json).ReplaceLineEndings("\n") + "\n";
+        var json = await MatrixJsonAsync();
         if (Environment.GetEnvironmentVariable(UpdateVariable) == "1")
         {
             Directory.CreateDirectory(Path.GetDirectoryName(GoldenPath)!);
@@ -86,6 +83,49 @@ public sealed class AccessMatrixTests(DemoDatabaseFixture database) : IAsyncLife
         json.ShouldBe(golden, $"the access matrix changed; review the difference and, if it is intended, record it with {UpdateVariable}=1");
     }
 
+    /// <summary>
+    /// The matrix tests the seeded roles as shipped; an administrator's edit of a seeded role is user data. "Reset to
+    /// default" (product owner, 28 November 2026) must bring the shipped matrix back exactly.
+    /// </summary>
+    [Fact]
+    public async Task Reset_to_default_brings_an_edited_seeded_role_back_to_the_golden_matrix()
+    {
+        var planner = await PlannerRoleAsync();
+        var edited = false;
+        try
+        {
+            using (var edit = await AsSuperadministratorAsync(HttpMethod.Put, $"/api/v1/identity/roles/{planner.Id}", planner.Version,
+                       new UpdateRoleRequest(planner.Name, planner.Description, [.. planner.Permissions.Where(p => p != Permissions.Inventory.Brand.Edit)])))
+            {
+                edit.StatusCode.ShouldBe(HttpStatusCode.OK, await edit.Content.ReadAsStringAsync(Ct));
+                planner = (await edit.Content.ReadFromJsonAsync<RoleSummary>(Ct))!;
+                edited = true;
+            }
+
+            // A fresh host has no cached role map; a running one follows within the session check (30 seconds).
+            await RestartHostAsync();
+            (await AccessOfAsync("ignas.zukauskas")).Policies[Permissions.Inventory.Brand.Edit].ShouldBeFalse("the edited role is what the planner holds");
+
+            using (var reset = await AsSuperadministratorAsync(HttpMethod.Post, $"/api/v1/identity/roles/{planner.Id}/reset", planner.Version, null))
+            {
+                reset.StatusCode.ShouldBe(HttpStatusCode.OK, await reset.Content.ReadAsStringAsync(Ct));
+                edited = false;
+            }
+
+            await RestartHostAsync();
+            var golden = (await File.ReadAllTextAsync(GoldenPath, Ct)).ReplaceLineEndings("\n");
+            (await MatrixJsonAsync()).ShouldBe(golden, "reset to default restores the shipped access matrix exactly");
+        }
+        finally
+        {
+            if (edited)
+            {
+                var current = await PlannerRoleAsync();
+                using var undo = await AsSuperadministratorAsync(HttpMethod.Post, $"/api/v1/identity/roles/{current.Id}/reset", current.Version, null);
+            }
+        }
+    }
+
     [Fact]
     public async Task Reads_are_never_scoped_by_hub_or_brand()
     {
@@ -94,6 +134,62 @@ public sealed class AccessMatrixTests(DemoDatabaseFixture database) : IAsyncLife
             var access = await AccessOfAsync(user);
             access.Reads.Values.ShouldAllBe(status => status == 200, $"{user} must read every hub");
         }
+    }
+
+    private async Task<string> MatrixJsonAsync()
+    {
+        var actual = new SortedDictionary<string, UserAccess>(StringComparer.Ordinal);
+        foreach (var user in DemoUsers)
+        {
+            actual[user] = await AccessOfAsync(user);
+        }
+
+        return JsonSerializer.Serialize(actual, Json).ReplaceLineEndings("\n") + "\n";
+    }
+
+    private async Task RestartHostAsync()
+    {
+        await _host.DisposeAsync();
+        _host = new HostFactory { ConnectionString = database.ApiConnectionString };
+    }
+
+    private async Task<RoleSummary> PlannerRoleAsync()
+    {
+        var token = _host.Token(await PrincipalOfAsync("superadmin.smartspare"));
+        using var browser = _host.NewBrowser();
+        using var response = await browser.GetAsync("/api/v1/identity/roles", bearer: token);
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        return (await response.Content.ReadFromJsonAsync<List<RoleSummary>>(Ct))!.Single(r => r.Code == AppRoles.InventoryPlanner);
+    }
+
+    private async Task<HttpResponseMessage> AsSuperadministratorAsync(HttpMethod method, string path, string version, object? body)
+    {
+        var token = _host.Token(await PrincipalOfAsync("superadmin.smartspare"));
+        using var browser = _host.NewBrowser();
+        using var request = new HttpRequestMessage(method, new Uri(path, UriKind.Relative));
+        if (body is not null)
+        {
+            request.Content = JsonContent.Create(body, body.GetType());
+        }
+
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        request.Headers.TryAddWithoutValidation("If-Match", $"\"{version}\"");
+        return await browser.Client.SendAsync(request, Ct);
+    }
+
+    private async Task<ClaimsPrincipal> PrincipalOfAsync(string userName)
+    {
+        Result<VerifiedSession> session;
+        await using (var scope = _host.Services.CreateAsyncScope())
+        {
+            session = await scope.ServiceProvider.GetRequiredService<ICredentialVerifier>()
+                .VerifyAsync(userName, DemoDatabaseFixture.Password, IPAddress.Loopback, Ct);
+        }
+
+        session.IsSuccess.ShouldBeTrue($"{userName} signs in");
+        await using var transformScope = _host.Services.CreateAsyncScope();
+        return await transformScope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Authentication.IClaimsTransformation>()
+            .TransformAsync(new ClaimsPrincipal(new ClaimsIdentity(session.Value.Claims, "matrix", AppClaimTypes.Name, AppClaimTypes.Role)));
     }
 
     private async Task<UserAccess> AccessOfAsync(string userName)
