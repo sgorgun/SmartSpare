@@ -47,9 +47,29 @@ public sealed class ResponsiblesRequestValidator : AbstractValidator<Responsible
     }
 }
 
-/// <summary>A brand (the Platform's brand list until the brand catalogue of PR 7h).</summary>
-[Description("A brand.")]
+/// <summary>A brand (Inventory's catalogue since PR 7h, ADR 0025).</summary>
+[Description("A machinery brand.")]
 public sealed record BrandDto(
-    [property: Description("Brand id.")] short Id,
-    [property: Description("Brand code.")] string Code,
-    [property: Description("Brand name.")] string Name);
+    [property: Description("Brand id; the same id in every module's copy.")] short Id,
+    [property: Description("Business key, e.g. CLAAS.")] string Code,
+    [property: Description("Display name, up to 80 characters.")] string Name,
+    [property: Description("ISO 3166-1 alpha-2 country of the manufacturer, e.g. DE.")] string CountryCode,
+    [property: Description("Archived brands stay on parts and history but get no new parts or assignments.")] bool IsArchived,
+    [property: Description("Concurrency version; send it back as If-Match.")] string Version);
+
+/// <summary>Body of creating or changing a brand.</summary>
+[Description("A brand to create or change.")]
+public sealed record BrandWrite(
+    [property: Description("Business key: 2 to 10 capital letters, digits or underscores. Fixed after creation except for an administrator.")] string Code,
+    [property: Description("Display name, up to 80 characters.")] string Name,
+    [property: Description("ISO 3166-1 alpha-2 country, e.g. DE.")] string CountryCode) : MasterData.ICatalogWrite;
+
+public sealed class BrandWriteValidator : FluentValidation.AbstractValidator<BrandWrite>
+{
+    public BrandWriteValidator()
+    {
+        RuleFor(b => b.Code).NotEmpty().Matches("^[A-Za-z0-9_]{2,10}$").WithMessage("Use 2 to 10 letters, digits or underscores, e.g. CLAAS.");
+        RuleFor(b => b.Name).NotEmpty().MaximumLength(80);
+        RuleFor(b => b.CountryCode).NotEmpty().Matches("^[A-Za-z]{2}$").WithMessage("Use the two-letter country code, e.g. DE.");
+    }
+}

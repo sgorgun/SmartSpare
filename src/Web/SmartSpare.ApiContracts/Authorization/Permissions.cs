@@ -64,6 +64,9 @@ public static class Permissions
         public static class Brand
         {
             public const string View = "Inventory.Brand.View";
+            public const string Create = "Inventory.Brand.Create";
+            public const string Edit = "Inventory.Brand.Edit";
+            public const string Archive = "Inventory.Brand.Archive";
             public const string ManageAssignments = "Inventory.Brand.ManageAssignments";
         }
 
@@ -229,6 +232,9 @@ public static class Permissions
         P(Forecasting.Recommendation.DecideAnyBrand, 54, "Accept or reject recommendations of every brand (with Decide)."),
         P(Audit.Log.View, 55, "Read the audit trail."),
         P(Procurement.Supplier.Edit, 56, "Maintain suppliers, their parts and prices (never together with creating purchase orders)."),
+        P(Inventory.Brand.Create, 57, "Add brands."),
+        P(Inventory.Brand.Edit, 58, "Change brands."),
+        P(Inventory.Brand.Archive, 59, "Archive or restore brands."),
     ];
 
     /// <summary>Whether <paramref name="name"/> is a permission of the catalogue.</summary>

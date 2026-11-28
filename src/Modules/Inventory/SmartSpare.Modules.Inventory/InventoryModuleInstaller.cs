@@ -73,6 +73,7 @@ public sealed class InventoryModuleInstaller : IModuleInstaller
         ImportEndpoints.Map(v1);
         Features.Responsibilities.ResponsibleEndpoints.Map(v1);
         Features.AdjustmentReasons.AdjustmentReasonCatalog.Map(v1);
+        Features.Brands.BrandCatalog.Map(v1);
     }
 
     public void MapInternalEndpoints(IEndpointRouteBuilder endpoints) => WarehouseQueriesEndpoint.Map(endpoints);

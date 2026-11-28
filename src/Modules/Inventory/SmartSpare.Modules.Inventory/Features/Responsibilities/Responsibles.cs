@@ -32,8 +32,6 @@ internal static class ResponsibilityErrors
 
 internal sealed record ListAssignmentRolesQuery(string? RecordKind) : IQuery<IReadOnlyList<AssignmentRoleDto>>;
 
-internal sealed record ListBrandsQuery : IQuery<IReadOnlyList<BrandDto>>;
-
 internal sealed record ListResponsiblesQuery(string RecordKind, short RecordId) : IQuery<IReadOnlyList<ResponsibleDto>>;
 
 internal sealed record ReplaceResponsiblesCommand(string RecordKind, short RecordId, ResponsiblesRequest Request) : ICommand<IReadOnlyList<ResponsibleDto>>;
@@ -155,17 +153,6 @@ internal static class ResponsibleEndpoints
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .WithResponseExample(StatusCodes.Status200OK, new[] { new AssignmentRoleDto("warehouse", "KEEPER", "Keeper", true) });
-
-        v1.MapGet("/brands", async (IQueryHandler<ListBrandsQuery, IReadOnlyList<BrandDto>> handler, CancellationToken cancellationToken) =>
-                (await handler.Handle(new ListBrandsQuery(), cancellationToken).ConfigureAwait(false)).ToHttpResult())
-            .RequireAuthorization(Permissions.Inventory.Brand.View)
-            .WithName("ListBrands")
-            .WithSummary("Lists the brands.")
-            .WithDescription("Every brand by code. The brand catalogue with editing follows in PR 7h. Permission Inventory.Brand.View.")
-            .Produces<IReadOnlyList<BrandDto>>()
-            .ProducesProblem(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status403Forbidden)
-            .WithResponseExample(StatusCodes.Status200OK, new[] { new BrandDto(1, "CLAAS", "CLAAS") });
 
         foreach (var (segment, kind) in new[] { ("brands", RecordKinds.Brand), ("warehouses", RecordKinds.Warehouse) })
         {

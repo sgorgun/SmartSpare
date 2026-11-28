@@ -62,6 +62,18 @@ public sealed class EndpointTableTests
             "GET /api/v1/inventory/adjustment-reasons/csv/template",
             "GET /api/v1/inventory/adjustment-reasons/csv",
             "POST /api/v1/inventory/adjustment-reasons/csv",
+
+            // The brand catalogue (STAGE_7_PLAN 3.1, PR 7h2); its list replaces the read-only one of stage 7 PR 7d.
+            "GET /api/v1/inventory/brands/lookup",
+            "GET /api/v1/inventory/brands/{id:long}",
+            "GET /api/v1/inventory/brands/{id:long}/history",
+            "POST /api/v1/inventory/brands",
+            "PUT /api/v1/inventory/brands/{id:long}",
+            "POST /api/v1/inventory/brands/{id:long}/archive",
+            "POST /api/v1/inventory/brands/{id:long}/restore",
+            "GET /api/v1/inventory/brands/csv/template",
+            "GET /api/v1/inventory/brands/csv",
+            "POST /api/v1/inventory/brands/csv",
         ], ignoreOrder: true);
 
     [Theory]
@@ -89,6 +101,10 @@ public sealed class EndpointTableTests
     [InlineData("GET /api/v1/inventory/imports/export", Permissions.Inventory.Import.Run)]
     [InlineData("GET /api/v1/inventory/adjustment-reasons/csv", Permissions.Inventory.AdjustmentReason.View)]
     [InlineData("POST /api/v1/inventory/adjustment-reasons/csv", Permissions.Inventory.AdjustmentReason.Edit)]
+    [InlineData("POST /api/v1/inventory/brands", Permissions.Inventory.Brand.Create)]
+    [InlineData("PUT /api/v1/inventory/brands/{id:long}", Permissions.Inventory.Brand.Edit)]
+    [InlineData("POST /api/v1/inventory/brands/{id:long}/archive", Permissions.Inventory.Brand.Archive)]
+    [InlineData("POST /api/v1/inventory/brands/csv", Permissions.Inventory.Brand.Edit)]
     [InlineData("GET /api/v1/inventory/imports", Permissions.Inventory.Import.View)]
     [InlineData("POST /api/v1/inventory/transfers/{id:long}/approve", Permissions.Inventory.Transfer.Approve)]
     [InlineData("POST /api/v1/inventory/transfers/{id:long}/cancel", Permissions.Inventory.Transfer.Cancel)]

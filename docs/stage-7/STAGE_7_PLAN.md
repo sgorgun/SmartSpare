@@ -557,6 +557,13 @@ Effort: **S** ≈ a quarter day, **M** ≈ half a day, **L** ≈ a full day, at 
 - **Deviation from 3.1:** the reason rule is an insert trigger rather than a `CHECK NOT VALID`, because the ledger is append-only and partitioned; the effect is the same.
 - **New policy:** `ManageCatalog` (planners, administrators). It only adds rows to the golden matrix; no existing right changed.
 
+**As built, 7h2 (part of #161):**
+- **Brand catalogue:** `/api/v1/inventory/brands` uses the shared mechanism, with CSV (`code,name,country_code`). Its paged list replaces the read-only list of PR 7d. The web client's brand list and the responsibilities page use it, and the Inventory area has a Brands tab.
+- **Permissions:** `Inventory.Brand.Create`, `.Edit` and `.Archive` (codes 57–59), held by Administrator, Inventory planner and the Superadministrator. The golden matrix gains these three rows, and every existing entry is identical.
+- **Publishing:** every write publishes `BrandCatalogChanged` in its transaction (new `CatalogDefinition.Publish` hook, also for an applied CSV import; a dry run publishes nothing), so Fleet's and Identity's copies follow.
+- **Archive guard:** archiving a brand with active parts or responsible employees is refused with SS501 and the reasons.
+- **Moved to 7h3:** manufacturers (`catalog.manufacturer`, `part.manufacturer_id`) and the manufacturer column of the parts files. That column changes the parts CSV header, which the bulk import requires to match exactly.
+
 **As built, 7h1 (part of #161):**
 - **The move:** `ref.brand` becomes Inventory's `catalog.brand`. One script (`inventory/0016_brand_move.sql`) moves the table, so ids, rows, grants, foreign keys and views are kept. The table gains the master-data columns, triggers and grants, and the two staging validation functions read it there. The Platform model drops the entity without SQL.
 - **Golden access matrix:** byte-identical.
