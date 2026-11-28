@@ -121,7 +121,7 @@ Identity are described in full:
 | `fleet` | `GET /api/v1/fleet/maintenance-plans?modelId=`: OEM plans with their kits | `Fleet.Machine.View` | 200; 401; 403 |
 | `fleet` | `GET /api/v1/fleet/service-orders?status=&warehouseId=&machineId=&page=&pageSize=`: service orders with kit status | `Fleet.ServiceOrder.View` | 200 `PagedResponse<ServiceOrderSummary>`; 400; 401; 403 |
 | `fleet` | `GET /api/v1/fleet/service-orders/{id}`: an order with its kit lines and `allowedActions` | `Fleet.ServiceOrder.View` | 200 `ServiceOrderDetails`; 401; 403; 404 `Fleet.ServiceOrderNotFound` |
-| `fleet` | `POST /api/v1/fleet/service-orders`: a planned service or an unplanned repair | `Fleet.ServiceOrder.Create` | 201 `ServiceOrderDetails` (kit `reserving`); 400; 401; 403; 404; 409 `Fleet.ServiceOrderExists`; 422 `Fleet.UnknownPart` |
+| `fleet` | `POST /api/v1/fleet/service-orders`: a planned service or an unplanned repair | `Fleet.ServiceOrder.Create` | 201 `ServiceOrderDetails` (kit `reserving`); 400; 401; 403; 404; 409 `Fleet.ServiceOrderExists`; 422 `Fleet.UnknownPart`, `SS500` (the machine's home hub is archived) |
 | `fleet` | `POST /api/v1/fleet/service-orders/{id}/start` | `Fleet.ServiceOrder.Start` | 200; 401; 403; 404; 409 `SS300` |
 | `fleet` | `POST /api/v1/fleet/service-orders/{id}/complete` with the engine hours; Inventory issues the kit (shortfall rule) | `Fleet.ServiceOrder.Complete` | 200 (an identical repeat is a safe retry); 400; 401; 403; 404; 409 `SS300`; 422 `Fleet.CompletionHoursTooLow` |
 | `fleet` | `POST /api/v1/fleet/service-orders/{id}/cancel` with a reason; Inventory releases the kit | `Fleet.ServiceOrder.Cancel` | 200; 400; 401; 403; 404; 409 `SS300` |

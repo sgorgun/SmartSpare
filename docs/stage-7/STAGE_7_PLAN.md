@@ -274,8 +274,8 @@ Every catalogue below uses section 2; the columns listed are additions or rules 
 | Manufacturers | `catalog.manufacturer` (new) | `MANN` / "MANN+HUMMEL" | `country_code`, `website`; guard: active parts | — | `ManageCatalog` |
 | Parts | `catalog.part` (+ `manufacturer_id` FK, nullable) | OEM number (unique per brand) / description | brand, manufacturer, category and unit (`ref`), weight, unit cost, condition-based; guard: on hand or reserved > 0 anywhere, open transfer lines, open kit holds, open expected receipts | `PartCatalogChanged` on **every** write (`PartCatalogPublication`) | `ManageCatalog` |
 | Part analogues | `catalog.part_analogue` (reworked, 3.3) | — (a link) | 3.3 | — | `ManageCatalog` |
-| Warehouses | `inventory.warehouse` (+ `updated_at`) | `KLP` / "Klaipėda hub" | city, address, coordinates, central hub (single, partial unique); guard: stock, open transfers, open expected receipts, kit holds, and open service orders or machines based there (`IFleetQueries`) | — (`IWarehouseQueries` caches expire after 60 s) | `ManageWarehouses` |
-| Transport routes | `inventory.warehouse_route` (child of a warehouse) | from → to | distance, transit hours, cost; edited on the warehouse page; CSV by code pair | — | `ManageWarehouses` |
+| Warehouses | `inventory.warehouse` (+ `updated_at`) | `KLP` / "Klaipėda hub" | code fixed for everyone (14.3 item 9); city, address, coordinates, central hub (single, partial unique); guard: stock, open transfers, open expected receipts, kit holds, active responsibles, and open service orders or machines based there (from `inventory.fleet_hub_reference`, ADR 0029) | `WarehouseCatalogChanged` (Fleet and Identity copies, ADR 0029) | `Inventory.Warehouse.Create/Edit/Archive` |
+| Transport routes | `inventory.warehouse_route` (child of a warehouse) | from → to | distance, transit hours, cost; edited on the warehouse page; CSV by code pair; not archived or changed while an open transfer runs between the same pair in its direction | — | `Inventory.Warehouse.Edit` |
 | Adjustment reasons | `inventory.adjustment_reason` (new) | `DAMAGED` / "Damaged in storage" | `direction` (in, out, both), `requires_note`; `stock_movement.adjustment_reason_id` FK, required for `ADJUSTMENT_IN/OUT` (CHECK `NOT VALID`, so the immutable ledger history keeps its notes); guard: none (archived reasons stay on history) | — | `ManageCatalog` |
 
 Stock adjustments (`POST /stock-adjustments`) require a reason code of the right direction; the note is required only when the reason says so.
@@ -524,7 +524,7 @@ Effort: **S** ≈ a quarter day, **M** ≈ half a day, **L** ≈ a full day, at 
 | **7g** (#160) | M4: shared CSV parser, template, export, import with rolled-back dry run, duplicates, gate, upsert; parts and demand-history pipeline gain dry run, template, export | M | 7f | dry run = commit result (test); 5 % gate; parts import unchanged otherwise |
 | **7h** (#161) | C1 brand move, manufacturers, `part.manufacturer_id`, `BrandCatalogChanged` + Fleet snapshot, brand and manufacturer responsibles | M | 7g | schema diff with the move recorded; Fleet machine list shows brands from the snapshot |
 | **7i** (#162) | Parts CRUD (create, edit, archive with guard, `PartCatalogChanged` on every write), part responsibles, analogue rework (C2) with views and the part page tabs; ADR 0027 | L | 7h | SS502 rules incl. a concurrent cycle; snapshots updated on edit; archive guard |
-| **7j** (#163), **next** (requirements in 12.2) | Warehouses and routes CRUD, archive guard incl. `IFleetQueries`, `IWarehouseQueries` cache expiry, warehouse responsibles screen | M | 7i | guard reasons; a renamed hub appears in Fleet within the cache time |
+| **7j** (#163), split into 7j1 and 7j2 (requirements in 12.2, decisions in 14.3 item 9) | Warehouses and routes CRUD; warehouse copies in Fleet and Identity and Inventory's projection of Fleet's hub references (ADR 0029); archive guard incl. the Fleet conditions; warehouse responsibles screen | L | 7i | guard reasons in the API and the database; a renamed hub reaches Fleet's and Identity's copies by event |
 | **7k** (#164) | Suppliers, part suppliers, prices with valid-from, primary, currency, `procurement.part_snapshot`, supplier responsibles, `ISupplierQueries` | L | 7i | one primary; price periods never overlap; CSV round trip |
 | **7l** (#165) | Customers (names, masking, anonymisation), machine models, machines CRUD | M | 7h | personal data masked; machine archive guard |
 | **7m** (#166) | Service works and kits; Fleet changes 4.3 (plan works, kit view, order works) | L | 7l | parity test and the kit flow unchanged; drafts carry works; T001 kits identical |
@@ -556,6 +556,31 @@ Effort: **S** ≈ a quarter day, **M** ≈ half a day, **L** ≈ a full day, at 
 - **Screens in 7f1:** only a reason picker on the adjustment form. The generic web components (`CatalogPage`, `CatalogEditor`, `ArchiveAction`, `HistoryPanel`, `CatalogAutocomplete`) and the reasons screen are 7f2.
 - **Deviation from 3.1:** the reason rule is an insert trigger rather than a `CHECK NOT VALID`, because the ledger is append-only and partitioned; the effect is the same.
 - **New policy:** `ManageCatalog` (planners, administrators). It only adds rows to the golden matrix; no existing right changed.
+
+**7j is split into two PRs (product owner, 28 November 2026),** each green and merged before the next: **7j1** the warehouse copies in Fleet and Identity, the two events, the two publish jobs and Inventory's projection of Fleet's hub references, with the golden matrix unchanged; **7j2** the warehouse and route catalogues, their permissions, the archive guards, the responsibles screen and the docs. Both belong to #163.
+
+**As built, 7j1 (part of #163; ADR 0029):**
+- **ADR 0029** records the model and the accepted event-lag window (decision 1 of 14.3 item 9).
+- **Warehouse copies:** `fleet.warehouse_snapshot` and `iam.warehouse_snapshot` (id, code, name, central hub, archived) with Inventory's ids.
+  - They are fed by the new `WarehouseCatalogChanged` (newest event wins) and filled by the job `inventory.warehouse-catalog-publish`.
+  - `fleet.apply_warehouses` / `iam.apply_warehouses` (SECURITY DEFINER) is the only write path, executable only by `smartspare_api` and the module's own login.
+  - Fleet's machine and service order lists and Identity's user list and form read hub codes and names from the copies. The Fleet and Identity services no longer call Inventory; `IWarehouseQueries` and its internal endpoint stay for later readers.
+  - Until 7j2 publishes on every write, the copy's archived flag is `NOT inventory.warehouse.is_active`.
+- **Fleet's archived-hub guard:** a new service order at a hub the copy marks archived is refused with SS500, in the API (`POST /service-orders`) and in the database (`trg_service_order_hub_not_archived`); so is a machine created with, or moved to, an archived home hub (`trg_machine_home_hub_not_archived`).
+  - The API side of the machine rule comes with the machine editor in 7l, which is the first API that sets a home hub.
+  - A reading that would draft an order at an archived hub is refused by the trigger, so the reading is not stored either. This can only happen inside the event-lag window, because 7j2's guard refuses to archive a hub with active machines.
+  - A hub missing from the copy is allowed, so a database upgraded before the publish job ran keeps working.
+- **Fleet hub references in Inventory:** `inventory.fleet_hub_reference` (one row per service order or machine: hub, open), fed by the new `HubReferencesChanged` and filled by the job `fleet.hub-reference-publish`.
+  - Fleet writes the event in the same transaction as every draft (reading, create, completion's follow-up drafts), completion and cancellation.
+  - `inventory.apply_fleet_hub_references` (SECURITY DEFINER, newest event wins per record) is its only write path.
+  - It holds records, not per-hub counts, because a count taken inside a Fleet transaction misses a concurrent order (ADR 0029 decision 2).
+- **T001 and the test fixtures** fill the copies and the projection as if the publish jobs had run.
+- **Tests:**
+  - integration (`WarehouseCopyTests`): the publish job fills both copies and an older event never overwrites a newer one; the copies are read-only; the user form offers only active hubs; SS500 from the API and from the trigger (reading, machine move); a draft and a cancellation reach the projection; the Fleet publish job fills it and a late event never reopens a record;
+  - unit: the hub references of an order and their outbox round trip;
+  - SQL: T01 +3 (the guard and the missing-hub rule), T03 +6 (read-only copies and projection, apply functions limited to the owning logins), 153 assertions.
+- **Golden access matrix:** unchanged.
+- **Breaking changes:** SQL only, see the CHANGELOG.
 
 **7i is split into four PRs (28 November 2026),** each green and merged before the next: **7i1a** parts on the shared catalogue mechanism (API, database, permissions); **7i1b** the parts screen and part responsibles; **7i2** the analogue rework (C2, ADR 0027) with CSV; **7i3** analogues on a service order's kit shortage, read-only. All belong to #162.
 
@@ -810,11 +835,7 @@ Total: 3 S, 15 M, 9 L (7x1–7x4 added at the second checkpoint) ≈ 14.75 PR-da
 6. **Golden access matrix:** it only gains new rows.
 7. **Docs:** OpenAPI, API_DOCUMENTATION.md and the CHANGELOG breaking-changes section in the same PR.
 
-**Pending a decision at the start of 7j.** Requirement 2 asks for database parity, but two of its conditions (open service orders, machines based at the hub) are Fleet's data, and the Inventory database cannot read Fleet's schema (ADR 0003). Two options:
-- (a) an event-fed Inventory projection of Fleet's per-hub facts, so the trigger can check them;
-- (b) API-only for those two conditions, with the exception recorded in an ADR.
-
-Proposal: (a) if it fits the day; otherwise (b), recorded, and the database checks every Inventory-owned condition.
+**Decided at the start of 7j (product owner, 28 November 2026; 14.3 item 9).** Requirement 2 asks for database parity, but two of its conditions (open service orders, machines based at the hub) are Fleet's data, and the Inventory database cannot read Fleet's schema (ADR 0003). Option (a) was chosen: an event-fed Inventory projection of Fleet's hub references that both the API guard and the trigger read, plus a Fleet-side guard against an archived hub; the event-lag window is accepted in ADR 0029. Option (b), API-only, was rejected, because the Inventory API cannot read Fleet's schema either. 7j1 builds the copies, the projection and the Fleet-side guard; 7j2 the catalogues and the archive guards that read the projection.
 
 **Remaining:** 7k (#164) to 7w (#176) as in the table above. Follow-ups:
 - #218: stage 8 measures `v_part_demand_key` on the demo catalogue and materializes it if slow;
@@ -942,3 +963,11 @@ Recorded here, or in the ADR or section named, so that none lives only in a conv
 8. **Deferred:**
    - stage 8 demand-key performance (#218);
    - analogue substitution (#220, future).
+9. **Warehouses (7j), answers at the start of 7j:**
+   1. **Guard on Fleet data:** option (a) of 12.2. Inventory keeps a read-only, event-fed projection of Fleet's hub references (open service orders, machines whose home hub it is), and both the API guard and the database trigger read it. Fleet refuses, from its warehouse copy, a new service order at an archived hub and an archived hub as a machine's home hub, in the API and the database, with tests; this closes the race of a hub archived while an order is being created. The event-lag window is recorded in ADR 0029 as an accepted eventual-consistency limitation.
+   2. **Permissions:** `Inventory.Warehouse.Create`, `.Edit` and `.Archive`; routes fall under Edit. Defaults: Administrator, Inventory planner and the Superadministrator.
+   3. **The warehouse code is fully immutable, even for an administrator.** This is a deliberate exception to the shared code rule ("only an administrator changes a code"), because hub codes are used in CSV files, the demo data and reports.
+   4. **A route is in use** while an open transfer runs between the same pair of warehouses in the route's direction.
+   5. #163 and this plan are updated in the 7j PRs.
+   6. **Split:** 7j1 (copies, events, publish jobs, the Fleet facts projection; matrix unchanged) and 7j2 (catalogues, guards, responsibles screen, docs).
+   7. **Review tag:** `review-2026-12-01` is set on 1 December on a green `main`, after 7j if it is merged by then, and never in the middle of a PR. The README section links the existing sections instead of copying them.

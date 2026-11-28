@@ -164,6 +164,8 @@ FKs **to the Platform** (`ref.*`) are kept by decision D3 and are not listed as 
 
 *Brand move (STAGE_7_PLAN 3.2, PR 7h1):* `ref.brand` became Inventory's catalogue `catalog.brand` with its ids, so `catalog.part → catalog.brand` and `catalog.brand_responsible → catalog.brand` are FKs inside Inventory. Fleet's `fleet.machine_model → ref.brand` FK was dropped. Fleet and Identity read brands from read-only copies with the same ids, `fleet.brand_snapshot` and `iam.brand_snapshot`. These are fed by `BrandCatalogChanged` and backfilled by the job `inventory.brand-catalog-publish`, and written only through `fleet.apply_brands` / `iam.apply_brands`. Reporting's views keep reading `catalog.brand`, its documented exception.
 
+*Warehouse copies and Fleet hub references (ADR 0029, PR 7j1):* Fleet and Identity read warehouses from read-only copies with Inventory's ids, `fleet.warehouse_snapshot` and `iam.warehouse_snapshot`, fed by `WarehouseCatalogChanged`, backfilled by the job `inventory.warehouse-catalog-publish` and written only through `fleet.apply_warehouses` / `iam.apply_warehouses`; they no longer call `IWarehouseQueries`. Fleet refuses an archived hub for a new service order or a machine's home hub (SS500, API and trigger). Inventory keeps `inventory.fleet_hub_reference`, one row per Fleet service order or machine with its hub and whether it is open, fed by `HubReferencesChanged`, backfilled by `fleet.hub-reference-publish` and written only through `inventory.apply_fleet_hub_references`, so the warehouse archive guard checks Fleet's conditions in Inventory's own schema.
+
 ### 2.1 Actor columns → `iam.app_user` (15)
 
 | FK | Replacement |
