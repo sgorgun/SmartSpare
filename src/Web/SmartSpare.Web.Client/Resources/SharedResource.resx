@@ -1617,4 +1617,37 @@
   <data name="Csv.TooLarge" xml:space="preserve">
     <value>A file has at most 10 MB.</value>
   </data>
+  <data name="Inventory.Tab.Brands" xml:space="preserve">
+    <value>Brands</value>
+  </data>
+  <data name="Brands.Title" xml:space="preserve">
+    <value>Brands</value>
+  </data>
+  <data name="Brands.Intro" xml:space="preserve">
+    <value>Machinery brands of the parts catalogue. Fleet and Organisation use the same brands. A brand with active parts or responsible employees cannot be archived.</value>
+  </data>
+  <data name="Brands.New" xml:space="preserve">
+    <value>New brand</value>
+  </data>
+  <data name="Brands.Edit" xml:space="preserve">
+    <value>Edit brand {0}</value>
+  </data>
+  <data name="Brands.Code" xml:space="preserve">
+    <value>Code</value>
+  </data>
+  <data name="Brands.CodeHelp" xml:space="preserve">
+    <value>2 to 10 capital letters, digits or underscores, e.g. CLAAS.</value>
+  </data>
+  <data name="Brands.Name" xml:space="preserve">
+    <value>Name</value>
+  </data>
+  <data name="Brands.Country" xml:space="preserve">
+    <value>Country</value>
+  </data>
+  <data name="Brands.CountryHelp" xml:space="preserve">
+    <value>Two letters, e.g. DE.</value>
+  </data>
+  <data name="Brands.Saved" xml:space="preserve">
+    <value>Saved the brand {0}.</value>
+  </data>
 </root>

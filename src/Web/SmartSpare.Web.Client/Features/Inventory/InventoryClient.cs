@@ -28,8 +28,13 @@ public class InventoryClient(HttpClient http) : ApiClientBase(http)
 
     // ---- Responsible employees of brands and warehouses (ADR 0026) ---------------------------------------------------
 
-    public virtual Task<ApiResult<IReadOnlyList<BrandDto>>> ListBrandsAsync(CancellationToken cancellationToken = default) =>
-        SendAsync<IReadOnlyList<BrandDto>>(new HttpRequestMessage(HttpMethod.Get, "api/v1/inventory/brands"), cancellationToken);
+    /// <summary>The active brands by code (the brand catalogue's first page of 100; a dealer has a few dozen brands).</summary>
+    public virtual async Task<ApiResult<IReadOnlyList<BrandDto>>> ListBrandsAsync(CancellationToken cancellationToken = default)
+    {
+        var page = await SendAsync<PagedResponse<BrandDto>>(
+            new HttpRequestMessage(HttpMethod.Get, $"api/v1/inventory/brands?pageSize={SmartSpare.ApiContracts.MasterData.CatalogLimits.MaxPageSize}"), cancellationToken).ConfigureAwait(false);
+        return page.IsSuccess ? ApiResult.Success<IReadOnlyList<BrandDto>>(page.Value!.Items) : ApiResult.Failure<IReadOnlyList<BrandDto>>(page.Problem!);
+    }
 
     public virtual Task<ApiResult<IReadOnlyList<AssignmentRoleDto>>> ListAssignmentRolesAsync(string kind, CancellationToken cancellationToken = default) =>
         SendAsync<IReadOnlyList<AssignmentRoleDto>>(
