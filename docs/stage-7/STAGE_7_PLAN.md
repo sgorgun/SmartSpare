@@ -559,6 +559,25 @@ Effort: **S** ≈ a quarter day, **M** ≈ half a day, **L** ≈ a full day, at 
 
 **7i is split into four PRs (28 November 2026),** each green and merged before the next: **7i1a** parts on the shared catalogue mechanism (API, database, permissions); **7i1b** the parts screen and part responsibles; **7i2** the analogue rework (C2, ADR 0027) with CSV; **7i3** analogues on a service order's kit shortage, read-only. All belong to #162.
 
+**As built, 7i1b (part of #162):**
+- **Parts screen:** the Inventory page lists the parts catalogue on the shared components (search, archived switch, history). For planners and administrators it adds the editor:
+  - brand and OEM number are fixed after creation;
+  - category and unit come from the new read endpoints `GET /part-categories` and `GET /units-of-measure` (`Inventory.Part.View`);
+  - the manufacturer can be cleared here;
+  - the responsibles panel sits below the editor.
+- **Part responsibles:** `catalog.part_responsible` is the fourth kind of the shared pattern (3.7), with `GET/PUT /parts/{id}/responsibles`.
+  - Roles: product specialist and buyer, which give no rights, so `Inventory.Part.Edit` is enough and nothing goes to Identity.
+  - The permission is also checked in the database (SS301).
+  - Responsibles block archiving with a reason in both the API and the database guard, so the two list the same four conditions (#215 rule).
+  - The responsibles code takes `long` record ids, because part ids are `bigint`.
+- **Tests:**
+  - integration: buyer named, no Identity event, keeper refused, archive blocked; reference lists;
+  - bUnit: list, editor with brand and number fixed, the shared validator, keeper read-only;
+  - T03 +1 (140 assertions);
+  - e2e selectors moved to the shared grid;
+  - the API documentation table and the drift guard cover the new routes.
+- **Breaking changes:** none (additions only).
+
 **As built, 7i1a (part of #162):**
 - **Parts catalogue:** `/api/v1/inventory/parts` uses the shared mechanism (ADR 0025):
   - the code is the OEM number, the name is the description (up to 300 characters);
