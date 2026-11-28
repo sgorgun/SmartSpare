@@ -35,7 +35,7 @@ internal sealed class SearchPartsQueryHandler(InventoryDbContext db) : IQueryHan
     private const string From =
         """
         FROM catalog.part p
-        JOIN ref.brand b ON b.id = p.brand_id
+        JOIN catalog.brand b ON b.id = p.brand_id
         JOIN ref.part_category c ON c.id = p.category_id
         JOIN ref.unit_of_measure u ON u.id = p.uom_id
         WHERE p.is_active
@@ -103,7 +103,7 @@ internal sealed class GetPartQueryHandler(InventoryDbContext db) : IQueryHandler
                        c.code AS category_code, c.name AS category_name, u.code AS unit_of_measure,
                        p.weight_kg, p.unit_cost, p.is_condition_based, p.is_active
                 FROM catalog.part p
-                JOIN ref.brand b ON b.id = p.brand_id
+                JOIN catalog.brand b ON b.id = p.brand_id
                 JOIN ref.part_category c ON c.id = p.category_id
                 JOIN ref.unit_of_measure u ON u.id = p.uom_id
                 WHERE p.id = @id

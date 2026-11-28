@@ -34,7 +34,15 @@ public sealed partial class DatabaseMigrator(
 
         foreach (var (database, target, migrations) in Plan(scope, pending))
         {
-            await database.MigrateToAsync(connectionString, target, cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await database.MigrateToAsync(connectionString, target, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                throw new InvalidOperationException(
+                    $"Migrating {database.Name} up to {target} failed ({string.Join(", ", migrations)}).", exception);
+            }
             foreach (var migration in migrations)
             {
                 LogApplied(database.Name, migration);
@@ -48,23 +56,33 @@ public sealed partial class DatabaseMigrator(
     }
 
     /// <summary>
-    /// Migrations that run only after another module's migration, when both are pending in the same run (module name,
-    /// migration id → module name, migration id). Stage 7's cross-module data migration (STAGE_7_PLAN 1.6): Identity
-    /// drops the legacy access data only after Reporting copied it into the assignments. Kept here, so no applied
-    /// migration changes.
+    /// Migrations that run only after other modules' migrations, when those are pending in the same run (module name,
+    /// migration id → the awaited module names and migration ids). Kept here, so no applied migration changes.
+    /// <list type="bullet">
+    /// <item>Stage 7's cross-module data migration (STAGE_7_PLAN 1.6): Identity drops the legacy access data only after
+    /// Reporting copied it into the assignments; matters when a database several migrations behind is upgraded.</item>
+    /// <item>The brand move (STAGE_7_PLAN 3.2): Inventory moves <c>ref.brand</c> to <c>catalog.brand</c> only after the
+    /// older migrations that name <c>ref.brand</c> in their SQL ran (Fleet's foreign key and machine card view, Reporting's
+    /// transitional views); matters on a fresh database.</item>
+    /// </list>
     /// </summary>
-    public static readonly IReadOnlyDictionary<(string Module, string Migration), (string Module, string Migration)> RunsAfter =
-        new Dictionary<(string, string), (string, string)>
+    public static readonly IReadOnlyDictionary<(string Module, string Migration), IReadOnlyList<(string Module, string Migration)>> RunsAfter =
+        new Dictionary<(string, string), IReadOnlyList<(string, string)>>
         {
-            [("identity", "20261127163529_DropLegacyAccess")] = ("reporting", "20261127154602_LegacyAccessToAssignments"),
+            [("identity", "20261127163529_DropLegacyAccess")] = [("reporting", "20261127154602_LegacyAccessToAssignments")],
+            [("inventory", "20261128015020_BrandMove")] =
+            [
+                ("fleet", "20261116222230_InitialFleet"),
+                ("reporting", "20261116230254_TransitionalCrossModuleObjects"),
+            ],
         };
 
     /// <summary>
     /// The pending migrations as runs of one context, in catalogue order. A context that reaches a migration listed in
-    /// <see cref="RunsAfter"/> whose awaited migration is still pending in the run stops there and waits; the others go
-    /// on in catalogue order, and as soon as the awaited migration is applied, the waiting context continues, before the
-    /// rest of the awaited context. Without a listed migration pending this is exactly the catalogue order. Empties
-    /// <paramref name="pending"/> as it plans.
+    /// <see cref="RunsAfter"/> while one of its awaited migrations is still pending in the run stops there and waits;
+    /// the others go on in catalogue order, each stopping right after a migration a waiting context needs, so that the
+    /// waiting context continues as soon as nothing holds it, before the rest of the awaited context. Without a listed
+    /// migration pending this is exactly the catalogue order. Empties <paramref name="pending"/> as it plans.
     /// </summary>
     public static IReadOnlyList<(IModuleDatabase Database, string Target, IReadOnlyList<string> Migrations)> Plan(
         IReadOnlyList<IModuleDatabase> scope, Dictionary<IModuleDatabase, List<string>> pending)
@@ -72,37 +90,46 @@ public sealed partial class DatabaseMigrator(
         ArgumentNullException.ThrowIfNull(scope);
         ArgumentNullException.ThrowIfNull(pending);
         var runs = new List<(IModuleDatabase, string, IReadOnlyList<string>)>();
-        var waiting = new List<(IModuleDatabase Database, string Module, string Migration)>();
+        var waiting = new List<IModuleDatabase>();
 
-        (string Module, string Migration)? Awaited(IModuleDatabase database, string migration) =>
-            RunsAfter.TryGetValue((database.Name, migration), out var awaited)
-            && scope.FirstOrDefault(d => d.Name == awaited.Module) is { } other
-            && pending[other].Contains(awaited.Migration, StringComparer.Ordinal)
-                ? awaited
-                : null;
+        bool IsPending((string Module, string Migration) awaited) =>
+            scope.FirstOrDefault(d => d.Name == awaited.Module) is { } other && pending[other].Contains(awaited.Migration, StringComparer.Ordinal);
 
-        // Migrates the context as far as it may: up to its end, up to (excluding) a migration that must wait, or up
-        // to (including) a migration another context waits for, which then resumes.
+        bool Held(IModuleDatabase database, string migration) =>
+            RunsAfter.TryGetValue((database.Name, migration), out var awaited) && awaited.Any(IsPending);
+
+        bool Needed(IModuleDatabase database, string migration) =>
+            waiting.Any(w => RunsAfter[(w.Name, pending[w][0])].Contains((database.Name, migration)));
+
+        void Resume()
+        {
+            foreach (var w in waiting.Where(w => !Held(w, pending[w][0])).ToList())
+            {
+                waiting.Remove(w);
+                Run(w);
+            }
+        }
+
         void Run(IModuleDatabase database)
         {
             while (pending[database].Count > 0)
             {
                 var list = pending[database];
                 var count = 0;
-                (string Module, string Migration)? blockedBy = null;
-                var resumes = false;
+                var held = false;
+                var needed = false;
                 while (count < list.Count)
                 {
-                    if (Awaited(database, list[count]) is { } awaited)
+                    if (Held(database, list[count]))
                     {
-                        blockedBy = awaited;
+                        held = true;
                         break;
                     }
 
+                    needed = Needed(database, list[count]);
                     count++;
-                    if (waiting.Any(w => w.Module == database.Name && w.Migration == list[count - 1]))
+                    if (needed)
                     {
-                        resumes = true;
                         break;
                     }
                 }
@@ -114,20 +141,15 @@ public sealed partial class DatabaseMigrator(
                     runs.Add((database, migrations[^1], migrations));
                 }
 
-                if (blockedBy is { } b)
+                if (held)
                 {
-                    waiting.Add((database, b.Module, b.Migration));
+                    waiting.Add(database);
                     return;
                 }
 
-                if (resumes)
+                if (needed)
                 {
-                    var done = runs[^1].Item3[^1];
-                    foreach (var w in waiting.Where(w => w.Module == database.Name && w.Migration == done).ToList())
-                    {
-                        waiting.Remove(w);
-                        Run(w.Database);
-                    }
+                    Resume();
                 }
             }
         }

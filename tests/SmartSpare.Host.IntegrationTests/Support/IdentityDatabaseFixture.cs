@@ -43,6 +43,16 @@ public sealed class IdentityDatabaseFixture : IAsyncLifetime
             Username = "smartspare_api",
             Password = options.Passwords.Api,
         }.ConnectionString;
+
+        // Fleet's and Identity's brand copies as the publish job would fill them (STAGE_7_PLAN 3.2); dated at the epoch,
+        // so the events of a test are newer.
+        await ExecuteAsync(
+            """
+            INSERT INTO fleet.brand_snapshot (brand_id, code, name, is_archived, source_occurred_at)
+            SELECT id, code, name, is_archived, 'epoch' FROM catalog.brand ON CONFLICT (brand_id) DO NOTHING;
+            INSERT INTO iam.brand_snapshot (brand_id, code, name, is_archived, source_occurred_at)
+            SELECT id, code, name, is_archived, 'epoch' FROM catalog.brand ON CONFLICT (brand_id) DO NOTHING;
+            """);
     }
 
     /// <summary>
@@ -69,9 +79,9 @@ public sealed class IdentityDatabaseFixture : IAsyncLifetime
             FROM iam.position p WHERE p.code = 'T_' || upper(left(replace(@id::text, '-', ''), 12));
             INSERT INTO iam.app_user (id, employee_id, user_name, password_hash) VALUES (@id, @id, @name, @hash);
             INSERT INTO catalog.brand_responsible (brand_id, employee_id, record_kind, assignment_role)
-            SELECT b.id, @id, 'brand', 'BRAND_MANAGER' FROM ref.brand b WHERE b.code = ANY(@brands);
+            SELECT b.id, @id, 'brand', 'BRAND_MANAGER' FROM catalog.brand b WHERE b.code = ANY(@brands);
             INSERT INTO iam.employee_responsibility (record_kind, record_id, employee_id, assignment_role)
-            SELECT 'brand', b.id, @id, 'BRAND_MANAGER' FROM ref.brand b WHERE b.code = ANY(@brands);
+            SELECT 'brand', b.id, @id, 'BRAND_MANAGER' FROM catalog.brand b WHERE b.code = ANY(@brands);
             """,
             ("id", id), ("name", userName), ("hash", hash), ("roles", roles), ("brands", brandCodes));
         return id;
@@ -107,7 +117,7 @@ public sealed class IdentityDatabaseFixture : IAsyncLifetime
     {
         await using var connection = new NpgsqlConnection(MigratorConnectionString);
         await connection.OpenAsync(TestContext.Current.CancellationToken);
-        await using var command = new NpgsqlCommand("SELECT id FROM ref.brand WHERE code = ANY(@codes) ORDER BY id", connection);
+        await using var command = new NpgsqlCommand("SELECT id FROM catalog.brand WHERE code = ANY(@codes) ORDER BY id", connection);
         command.Parameters.AddWithValue("codes", codes);
         var ids = new List<short>();
         await using var reader = await command.ExecuteReaderAsync(TestContext.Current.CancellationToken);

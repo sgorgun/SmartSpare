@@ -36,13 +36,13 @@ internal sealed class ListUsersQueryHandler(IdentityDbContext db, IWarehouseQuer
         SELECT v.id, v.user_name, v.full_name_masked, v.email_masked, v.is_active,
                coalesce(u.lockout_end > now(), false) AS is_locked_out, v.is_anonymised,
                coalesce(v.roles::text[], ARRAY[]::text[]) AS roles,
-               coalesce((SELECT array_agg(b.code::text ORDER BY b.code) FROM iam.employee_responsibility r
+               coalesce((SELECT array_agg(coalesce(b.code::text, r.record_id::text) ORDER BY b.code, r.record_id) FROM iam.employee_responsibility r
                          JOIN ref.assignment_role ar ON ar.record_kind = r.record_kind AND ar.code = r.assignment_role AND ar.grants_scope
-                         JOIN ref.brand b ON b.id = r.record_id
+                         LEFT JOIN iam.brand_snapshot b ON b.brand_id = r.record_id
                          WHERE r.employee_id = e.id AND r.record_kind = 'brand'), ARRAY[]::text[]) AS brands,
-               coalesce((SELECT array_agg(b.id ORDER BY b.code) FROM iam.employee_responsibility r
+               coalesce((SELECT array_agg(r.record_id ORDER BY b.code, r.record_id) FROM iam.employee_responsibility r
                          JOIN ref.assignment_role ar ON ar.record_kind = r.record_kind AND ar.code = r.assignment_role AND ar.grants_scope
-                         JOIN ref.brand b ON b.id = r.record_id
+                         LEFT JOIN iam.brand_snapshot b ON b.brand_id = r.record_id
                          WHERE r.employee_id = e.id AND r.record_kind = 'brand'), ARRAY[]::smallint[]) AS brand_ids,
                coalesce((SELECT array_agg(r.record_id ORDER BY r.record_id, r.assignment_role) FROM iam.employee_responsibility r
                          JOIN ref.assignment_role ar ON ar.record_kind = r.record_kind AND ar.code = r.assignment_role AND ar.grants_scope
@@ -123,7 +123,7 @@ internal sealed class GetUserFormOptionsQueryHandler(IdentityDbContext db, IWare
     public async Task<Result<UserFormOptions>> Handle(GetUserFormOptionsQuery query, CancellationToken cancellationToken)
     {
         var roles = await db.Set<Role>().AsNoTracking().OrderBy(r => r.Code).Select(r => r.Code).ToListAsync(cancellationToken).ConfigureAwait(false);
-        var brands = await db.Database.SqlQueryRaw<string>("SELECT code::text AS \"Value\" FROM ref.brand ORDER BY code")
+        var brands = await db.Database.SqlQueryRaw<string>("SELECT code::text AS \"Value\" FROM iam.brand_snapshot WHERE NOT is_archived ORDER BY code")
             .ToListAsync(cancellationToken).ConfigureAwait(false);
         var hubs = (await warehouses.GetAllAsync(cancellationToken).ConfigureAwait(false))
             .Where(w => w.IsActive).Select(w => new HubOption(w.Id, w.Code, w.Name)).ToList();

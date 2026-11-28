@@ -27,8 +27,8 @@ public sealed class ProcurementMigrationTests(MigratedDatabaseFixture db) : Modu
             await ExecuteAsync(connection, transaction, """
                 INSERT INTO catalog.part (brand_id, oem_part_number, description, category_id, uom_id, unit_cost)
                 SELECT b.id, 'TEST-EXCL', 'Probe part for price periods', c.id, u.id, 10
-                FROM ref.brand b, ref.part_category c, ref.unit_of_measure u
-                WHERE b.code = (SELECT min(code) FROM ref.brand) AND c.code = 'CAB_FILTER' AND u.code = 'PCS';
+                FROM catalog.brand b, ref.part_category c, ref.unit_of_measure u
+                WHERE b.code = (SELECT min(code) FROM catalog.brand) AND c.code = 'CAB_FILTER' AND u.code = 'PCS';
                 INSERT INTO procurement.supplier (code, name, country_code, default_lead_time_days) VALUES ('TEST-SUP', 'Probe supplier', 'LT', 7);
                 INSERT INTO procurement.supplier_part (supplier_id, part_id, lead_time_days)
                 SELECT s.id, p.id, 7 FROM procurement.supplier s, catalog.part p WHERE s.code = 'TEST-SUP' AND p.oem_part_number = 'TEST-EXCL';

@@ -193,7 +193,7 @@ public sealed class InventoryMappingTests(InventoryDatabaseFixture database)
         return database.ScalarAsync<long>(
             $"""
             INSERT INTO catalog.part (brand_id, oem_part_number, description, category_id, uom_id, unit_cost)
-            SELECT (SELECT min(id) FROM ref.brand), '{oem}', 'Integration test part',
+            SELECT (SELECT min(id) FROM catalog.brand), '{oem}', 'Integration test part',
                    (SELECT min(id) FROM ref.part_category), (SELECT min(id) FROM ref.unit_of_measure), 10
             RETURNING id
             """);

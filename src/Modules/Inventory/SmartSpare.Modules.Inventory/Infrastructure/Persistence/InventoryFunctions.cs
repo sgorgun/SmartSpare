@@ -53,7 +53,7 @@ internal sealed class ImportStore(InventoryDbContext db)
               SELECT b.code, p.oem_part_number, p.description, c.code, u.code, p.weight_kg::text, p.unit_cost::text,
                      CASE WHEN p.is_condition_based THEN 'true' ELSE 'false' END
               FROM catalog.part p
-              JOIN ref.brand b ON b.id = p.brand_id
+              JOIN catalog.brand b ON b.id = p.brand_id
               JOIN ref.part_category c ON c.id = p.category_id
               JOIN ref.unit_of_measure u ON u.id = p.uom_id
               WHERE p.is_active
@@ -64,7 +64,7 @@ internal sealed class ImportStore(InventoryDbContext db)
               FROM inventory.stock_movement m
               JOIN inventory.warehouse w ON w.id = m.warehouse_id
               JOIN catalog.part p ON p.id = m.part_id
-              JOIN ref.brand b ON b.id = p.brand_id
+              JOIN catalog.brand b ON b.id = p.brand_id
               WHERE m.movement_type_code = 'HISTORICAL_DEMAND'
               ORDER BY m.occurred_at, w.code, b.code, p.oem_part_number
               """;

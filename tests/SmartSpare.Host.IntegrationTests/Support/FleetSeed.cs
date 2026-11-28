@@ -23,7 +23,7 @@ internal sealed class FleetSeed(IdentityDatabaseFixture database, string tag)
         var model = await database.ScalarAsync<int>(
             """
             INSERT INTO fleet.machine_model (brand_id, machine_type_id, model_name)
-            SELECT b.id, t.id, @name FROM ref.brand b, ref.machine_type t WHERE b.code = 'JD' AND t.code = 'TRACTOR'
+            SELECT b.id, t.id, @name FROM catalog.brand b, ref.machine_type t WHERE b.code = 'JD' AND t.code = 'TRACTOR'
             RETURNING id
             """, ("name", $"Model {tag}"));
         var engine = await database.ScalarAsync<int>(
@@ -69,7 +69,7 @@ internal sealed class FleetSeed(IdentityDatabaseFixture database, string tag)
         var model = await database.ScalarAsync<int>(
             """
             INSERT INTO fleet.machine_model (brand_id, machine_type_id, model_name)
-            SELECT b.id, t.id, @name FROM ref.brand b, ref.machine_type t WHERE b.code = 'JD' AND t.code = 'TRACTOR' RETURNING id
+            SELECT b.id, t.id, @name FROM catalog.brand b, ref.machine_type t WHERE b.code = 'JD' AND t.code = 'TRACTOR' RETURNING id
             """, ("name", $"Kit model {tag}{suffix}"));
         var plan = await database.ScalarAsync<int>(
             "INSERT INTO fleet.maintenance_plan (model_id, interval_hours, name) VALUES (@model, 500, 'Engine service') RETURNING id", ("model", model));
@@ -85,7 +85,7 @@ internal sealed class FleetSeed(IdentityDatabaseFixture database, string tag)
             """
             INSERT INTO catalog.part (brand_id, oem_part_number, description, category_id, uom_id, unit_cost)
             SELECT b.id, @oem, 'Kit flow test part', c.id, u.id, 4.20
-            FROM ref.brand b, ref.part_category c, ref.unit_of_measure u
+            FROM catalog.brand b, ref.part_category c, ref.unit_of_measure u
             WHERE b.code = 'JD' AND c.code = 'OIL_FILTER' AND u.code = 'PCS'
             RETURNING id
             """, ("oem", $"{tag}-{suffix}"));

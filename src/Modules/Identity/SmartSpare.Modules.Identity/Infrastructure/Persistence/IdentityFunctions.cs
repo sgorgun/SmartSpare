@@ -19,14 +19,6 @@ internal sealed class AdminSession(IdentityDbContext db)
 /// <summary>The SQL of user administration that EF Core does not express.</summary>
 internal sealed class IdentityFunctions(IdentityDbContext db)
 {
-    /// <summary>Brand ids of the given codes (<c>ref.brand</c>, Platform reference data); unknown codes are left out.</summary>
-    public async Task<IReadOnlyList<short>> BrandIdsAsync(IReadOnlyCollection<string> codes, CancellationToken cancellationToken) =>
-        codes.Count == 0
-            ? []
-            : await db.Database.SqlQueryRaw<short>(
-                    "SELECT id AS \"Value\" FROM ref.brand WHERE code = ANY(@codes)", new NpgsqlParameter<string[]>("codes", [.. codes]))
-                .ToListAsync(cancellationToken).ConfigureAwait(false);
-
     /// <summary>GDPR erasure of an employee and the account through <c>iam.anonymise_employee</c> (role check and self-protection in SQL, SS301).</summary>
     public Task AnonymiseEmployeeAsync(Guid employeeId, CancellationToken cancellationToken) =>
         db.Database.ExecuteSqlAsync($"SELECT iam.anonymise_employee({employeeId})", cancellationToken);

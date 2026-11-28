@@ -181,7 +181,7 @@ public sealed class InventoryApiTests(IdentityDatabaseFixture database) : IAsync
             """
             INSERT INTO catalog.part (brand_id, oem_part_number, description, category_id, uom_id, unit_cost, is_active)
             SELECT b.id, @oem, @description, c.id, u.id, 18.40, @active
-            FROM ref.brand b, ref.part_category c, ref.unit_of_measure u
+            FROM catalog.brand b, ref.part_category c, ref.unit_of_measure u
             WHERE b.code = 'JD' AND c.code = 'OIL_FILTER' AND u.code = 'PCS'
             RETURNING id
             """,

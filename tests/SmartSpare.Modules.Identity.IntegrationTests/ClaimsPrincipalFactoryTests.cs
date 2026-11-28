@@ -23,7 +23,7 @@ public sealed class ClaimsPrincipalFactoryTests(IdentityDatabaseFixture database
             INSERT INTO iam.app_user (id, employee_id, user_name, password_hash)
             VALUES ('{id}', '{id}', 'claims.user', 'AQAAAAIAA1tgAAAAE{new string('A', 67)}');
             INSERT INTO iam.employee_responsibility (record_kind, record_id, employee_id, assignment_role)
-            SELECT 'brand', id, '{id}'::uuid, 'BRAND_MANAGER' FROM ref.brand WHERE code IN ('CLAAS', 'LEMKEN')
+            SELECT 'brand', id, '{id}'::uuid, 'BRAND_MANAGER' FROM catalog.brand WHERE code IN ('CLAAS', 'LEMKEN')
             UNION ALL SELECT 'warehouse', 3, '{id}'::uuid, 'KEEPER';
             """);
 

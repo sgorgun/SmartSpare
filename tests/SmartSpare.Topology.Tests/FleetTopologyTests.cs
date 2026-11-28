@@ -75,7 +75,7 @@ public sealed class FleetTopologyTests(TopologyFixture topology)
             WITH parts AS (
                 INSERT INTO catalog.part (brand_id, oem_part_number, description, category_id, uom_id, unit_cost)
                 SELECT b.id, '{_tag}-' || k.suffix, 'Topology kit part', c.id, u.id, 4.20
-                FROM ref.brand b, ref.part_category c, ref.unit_of_measure u, (VALUES ('OIL'), ('FLT')) k (suffix)
+                FROM catalog.brand b, ref.part_category c, ref.unit_of_measure u, (VALUES ('OIL'), ('FLT')) k (suffix)
                 WHERE b.code = 'JD' AND c.code = 'OIL_FILTER' AND u.code = 'PCS'
                 RETURNING id, oem_part_number),
             stocked AS (
@@ -87,7 +87,7 @@ public sealed class FleetTopologyTests(TopologyFixture topology)
                 RETURNING part_id),
             model AS (
                 INSERT INTO fleet.machine_model (brand_id, machine_type_id, model_name)
-                SELECT b.id, t.id, 'Topology {_tag}' FROM ref.brand b, ref.machine_type t WHERE b.code = 'JD' AND t.code = 'TRACTOR'
+                SELECT b.id, t.id, 'Topology {_tag}' FROM catalog.brand b, ref.machine_type t WHERE b.code = 'JD' AND t.code = 'TRACTOR'
                 RETURNING id),
             plan AS (
                 INSERT INTO fleet.maintenance_plan (model_id, interval_hours, name) SELECT id, 500, 'Engine service' FROM model RETURNING id),

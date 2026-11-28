@@ -112,7 +112,7 @@ FROM (VALUES ('00000000-0000-4000-8000-000000000001','CLAAS','BRAND_MANAGER'), (
              ('00000000-0000-4000-8000-000000000003','FENDT','BRAND_MANAGER'), ('00000000-0000-4000-8000-000000000003','MF','BRAND_MANAGER'),
              ('00000000-0000-4000-8000-000000000003','CASE','BRAND_MANAGER'), ('00000000-0000-4000-8000-000000000003','NH','BRAND_MANAGER'),
              ('00000000-0000-4000-8000-000000000106','JD','PRODUCT_SPECIALIST')) AS x (emp, brand, role)
-JOIN ref.brand b ON b.code = x.brand;
+JOIN catalog.brand b ON b.code = x.brand;
 
 INSERT INTO inventory.warehouse_responsible (warehouse_id, employee_id, record_kind, assignment_role)
 SELECT w.id, x.emp::uuid, 'warehouse', x.role
@@ -148,7 +148,7 @@ CREATE TEMP TABLE tmp_brand_supplier AS
 SELECT b.id AS brand_id, s.id AS supplier_id, s.default_lead_time_days AS lead
 FROM (VALUES ('CLAAS','CLAAS-PL'), ('JD','JD-PD'), ('FENDT','AGCO-PD'), ('MF','AGCO-PD'),
              ('LEMKEN','LEMKEN-SP'), ('VAD','VAD-SP'), ('CASE','CNH-PD'), ('NH','CNH-PD')) AS m (brand, supplier)
-JOIN ref.brand b ON b.code = m.brand
+JOIN catalog.brand b ON b.code = m.brand
 JOIN procurement.supplier s ON s.code = m.supplier;
 
 -- ---------------------------------------------------------------------------
@@ -263,7 +263,7 @@ FROM procurement.supplier_part sp JOIN catalog.part p ON p.id = sp.part_id;
 INSERT INTO catalog.part_analogue (part_id, analogue_part_id, scaling_factor)
 SELECT (SELECT id FROM catalog.part WHERE oem_part_number = 'RE900001'),
        (SELECT min(p.id) FROM catalog.part p JOIN ref.part_category c ON c.id = p.category_id
-        WHERE c.code = 'OIL_FILTER' AND p.brand_id = (SELECT id FROM ref.brand WHERE code = 'JD') AND p.oem_part_number <> 'RE900001'),
+        WHERE c.code = 'OIL_FILTER' AND p.brand_id = (SELECT id FROM catalog.brand WHERE code = 'JD') AND p.oem_part_number <> 'RE900001'),
        1.200;
 
 -- ---------------------------------------------------------------------------
@@ -315,7 +315,7 @@ FROM (
 ) d
 JOIN inventory.warehouse w ON w.id = d.warehouse_id
 JOIN catalog.part p ON p.id = d.part_id
-JOIN ref.brand b ON b.id = p.brand_id
+JOIN catalog.brand b ON b.id = p.brand_id
 WHERE d.occ < 1 - exp(-d.lambda * d.seasonal_weight)
   AND NOT (d.dead AND d.wk >= :'go_live'::date - 365);
 
@@ -353,7 +353,7 @@ VALUES ('part_catalog', 'catalogue_price_update_bad.csv', encode(sha256('demo-ca
 INSERT INTO raw.part_catalog_row (import_batch_id, line_no, brand_code, oem_part_number, description, category_code, uom_code, weight_kg, unit_cost, condition_based)
 SELECT :bad_batch, row_number() OVER (ORDER BY p.id), b.code, p.oem_part_number, p.description, c.code, u.code,
        p.weight_kg::text, round(p.unit_cost * 1.03, 2)::text, 'no'
-FROM catalog.part p JOIN ref.brand b ON b.id = p.brand_id JOIN ref.part_category c ON c.id = p.category_id
+FROM catalog.part p JOIN catalog.brand b ON b.id = p.brand_id JOIN ref.part_category c ON c.id = p.category_id
 JOIN ref.unit_of_measure u ON u.id = p.uom_id
 WHERE b.code = 'CLAAS' AND p.id % 5 = 0 AND p.oem_part_number <> 'CP-4821'
 ORDER BY p.id LIMIT 35;
@@ -454,14 +454,14 @@ FROM (VALUES ('CLAAS','COMBINE','Lexion 8700'), ('CLAAS','COMBINE','Lexion 7600'
              ('MF','TRACTOR','8S.265'), ('MF','TRACTOR','7S.180'),
              ('CASE','TRACTOR','Magnum 340'), ('NH','COMBINE','CR8.90'), ('NH','TRACTOR','T7.270'),
              ('LEMKEN','PLOUGH','Juwel 8'), ('VAD','SEEDER','Rapid A 600J')) AS m (brand, mtype, model)
-JOIN ref.brand b ON b.code = m.brand JOIN ref.machine_type t ON t.code = m.mtype;
+JOIN catalog.brand b ON b.code = m.brand JOIN ref.machine_type t ON t.code = m.mtype;
 
 -- OEM intervals differ by brand (finding F5, Appendix C.9)
 -- Calendar intervals (STAGE_6_PLAN F3): engine service yearly, transmission service every two years, whichever comes first.
 INSERT INTO fleet.maintenance_plan (model_id, interval_hours, name, interval_months)
 SELECT mm.id, iv.h, iv.label, CASE WHEN iv.label = 'Engine service' THEN 12 ELSE 24 END
 FROM fleet.machine_model mm
-JOIN ref.brand b ON b.id = mm.brand_id
+JOIN catalog.brand b ON b.id = mm.brand_id
 JOIN ref.machine_type t ON t.id = mm.machine_type_id AND t.code IN ('TRACTOR', 'COMBINE')
 CROSS JOIN LATERAL (VALUES
     (CASE b.code WHEN 'FENDT' THEN 750 WHEN 'CASE' THEN 600 WHEN 'NH' THEN 600 ELSE 500 END, 'Engine service'),
@@ -1007,7 +1007,14 @@ SELECT iam.anonymise_employee('00000000-0000-4000-8000-000000000012');
 -- were written by SQL, so no event exists for them.
 INSERT INTO fleet.part_snapshot (part_id, brand_code, oem_part_number, description, unit_of_measure, is_active, source_occurred_at)
 SELECT p.id, b.code, p.oem_part_number, p.description, u.code, p.is_active, now()
-FROM catalog.part p JOIN ref.brand b ON b.id = p.brand_id JOIN ref.unit_of_measure u ON u.id = p.uom_id;
+FROM catalog.part p JOIN catalog.brand b ON b.id = p.brand_id JOIN ref.unit_of_measure u ON u.id = p.uom_id;
+
+-- Fleet's and Identity's copies of the brands (STAGE_7_PLAN 3.2), as if inventory.brand-catalog-publish had run; dated
+-- at the epoch, so any real BrandCatalogChanged is newer.
+INSERT INTO fleet.brand_snapshot (brand_id, code, name, is_archived, source_occurred_at)
+SELECT id, code, name, is_archived, 'epoch' FROM catalog.brand ON CONFLICT (brand_id) DO NOTHING;
+INSERT INTO iam.brand_snapshot (brand_id, code, name, is_archived, source_occurred_at)
+SELECT id, code, name, is_archived, 'epoch' FROM catalog.brand ON CONFLICT (brand_id) DO NOTHING;
 
 SELECT pg_temp.t001_act_as(NULL);
 CALL mart.refresh_all();

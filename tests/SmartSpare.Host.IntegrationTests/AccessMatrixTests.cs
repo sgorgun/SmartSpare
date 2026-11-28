@@ -53,7 +53,7 @@ public sealed class AccessMatrixTests(DemoDatabaseFixture database) : IAsyncLife
     public async ValueTask InitializeAsync()
     {
         _host = new HostFactory { ConnectionString = database.ApiConnectionString };
-        _brands = await database.CodesAsync("SELECT id, code FROM ref.brand");
+        _brands = await database.CodesAsync("SELECT id, code FROM catalog.brand");
         _hubs = await database.CodesAsync("SELECT id, code FROM inventory.warehouse WHERE is_active");
         _part = await database.ScalarAsync<long>(
             """

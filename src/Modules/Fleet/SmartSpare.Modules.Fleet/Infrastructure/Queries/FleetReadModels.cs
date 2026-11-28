@@ -19,12 +19,12 @@ internal static class MachineRows
 {
     private const string Sql =
         """
-        SELECT m.id, m.vin, mm.model_name, b.code AS brand_code, t.code AS machine_type, c.customer_code,
+        SELECT m.id, m.vin, mm.model_name, coalesce(b.code, mm.brand_id::text) AS brand_code, t.code AS machine_type, c.customer_code,
                m.home_warehouse_id, m.current_engine_hours, m.engine_hours_read_at, m.status::text AS machine_status,
                m.manufacture_year, m.commissioned_on, oc.code AS operating_condition, oc.interval_factor
         FROM fleet.machine m
         JOIN fleet.machine_model mm ON mm.id = m.model_id
-        JOIN ref.brand b ON b.id = mm.brand_id
+        LEFT JOIN fleet.brand_snapshot b ON b.brand_id = mm.brand_id
         JOIN ref.machine_type t ON t.id = mm.machine_type_id
         JOIN fleet.customer c ON c.id = m.customer_id
         JOIN ref.operating_condition oc ON oc.id = m.operating_condition_id
@@ -234,15 +234,15 @@ internal sealed class ListMaintenancePlansQueryHandler(FleetDbContext db) : IQue
         ArgumentNullException.ThrowIfNull(query);
         var rows = await db.Database.SqlQueryRaw<Row>(
                 """
-                SELECT mp.id, mp.model_id, mm.model_name, b.code AS brand_code, mp.name, mp.interval_hours, mp.interval_months,
+                SELECT mp.id, mp.model_id, mm.model_name, coalesce(b.code, mm.brand_id::text) AS brand_code, mp.name, mp.interval_hours, mp.interval_months,
                        k.part_id, s.oem_part_number, s.description, s.unit_of_measure, k.quantity
                 FROM fleet.maintenance_plan mp
                 JOIN fleet.machine_model mm ON mm.id = mp.model_id
-                JOIN ref.brand b ON b.id = mm.brand_id
+                LEFT JOIN fleet.brand_snapshot b ON b.brand_id = mm.brand_id
                 LEFT JOIN fleet.maintenance_plan_part k ON k.maintenance_plan_id = mp.id
                 LEFT JOIN fleet.part_snapshot s ON s.part_id = k.part_id
                 WHERE mp.is_active AND (@model IS NULL OR mp.model_id = @model)
-                ORDER BY b.code, mm.model_name, mp.interval_hours, s.oem_part_number, k.part_id
+                ORDER BY coalesce(b.code, mm.brand_id::text), mm.model_name, mp.interval_hours, s.oem_part_number, k.part_id
                 """,
                 new NpgsqlParameter("model", NpgsqlDbType.Integer) { Value = (object?)query.ModelId ?? DBNull.Value })
             .ToListAsync(cancellationToken).ConfigureAwait(false);

@@ -21,7 +21,7 @@ internal sealed class PartConfiguration : IEntityTypeConfiguration<Part>
         builder.HasAlternateKey(x => new { x.BrandId, x.OemPartNumber }).HasName("uq_part_brand_oem");
 
         builder.Property(x => x.Id).HasColumnName("id").HasColumnOrder(0).HasColumnType("bigint").UseIdentityByDefaultColumn().HasComment("Surrogate primary key.");
-        builder.Property(x => x.BrandId).HasColumnName("brand_id").HasColumnOrder(1).HasColumnType("smallint").HasComment("Reference to ref.brand.");
+        builder.Property(x => x.BrandId).HasColumnName("brand_id").HasColumnOrder(1).HasColumnType("smallint").HasComment("Reference to catalog.brand.");
         builder.Property(x => x.OemPartNumber).HasColumnName("oem_part_number").HasColumnOrder(2).HasColumnType("character varying(40)").HasComment("Manufacturer part number, upper-case, normalised during import.");
         builder.Property(x => x.Description).HasColumnName("description").HasColumnOrder(3).HasColumnType("character varying(300)").HasComment("Description.");
         builder.Property(x => x.CategoryId).HasColumnName("category_id").HasColumnOrder(4).HasColumnType("integer").HasComment("Reference to ref.part_category.");
@@ -33,7 +33,7 @@ internal sealed class PartConfiguration : IEntityTypeConfiguration<Part>
         builder.Property(x => x.CreatedAt).HasColumnName("created_at").HasColumnOrder(10).HasColumnType("timestamp with time zone").HasDefaultValueSql("now()").HasComment("Time the record was created.");
         builder.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasColumnOrder(11).HasColumnType("timestamp with time zone").HasDefaultValueSql("now()").HasComment("Time of the last change (maintained by trigger).");
 
-        builder.HasOne<RefBrand>().WithMany()
+        builder.HasOne<Domain.Catalog.Brand>().WithMany()
             .HasForeignKey(x => x.BrandId)
             .HasPrincipalKey(x => x.Id)
             .HasConstraintName("fk_part_brand").OnDelete(DeleteBehavior.NoAction);

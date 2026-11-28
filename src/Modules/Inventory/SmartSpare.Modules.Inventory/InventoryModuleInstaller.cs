@@ -47,6 +47,7 @@ public sealed class InventoryModuleInstaller : IModuleInstaller
         services.AddImportRateLimit();
         services.AddCatalogCsvRateLimit();
         services.AddJob<PartCatalogPublishJob>();
+        services.AddJob<Features.Brands.BrandCatalogPublishJob>();
         services.AddJob<ReservationExpiryJob>();
         services.AddJob<Features.Responsibilities.ResponsibilityPublishJob>();
         InventoryDatabase.Instance.AddTo(services, assembly, configuration.GetConnectionString(PersistenceRegistration.ConnectionStringName), InventoryDbContext.HistorySchema);

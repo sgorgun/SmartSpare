@@ -14,7 +14,7 @@ internal sealed class PartSnapshotConfiguration : IEntityTypeConfiguration<PartS
         builder.HasKey(x => x.PartId).HasName("pk_part_snapshot");
 
         builder.Property(x => x.PartId).HasColumnName("part_id").HasColumnOrder(0).HasColumnType("bigint").ValueGeneratedNever().HasComment("Inventory part id (catalog.part.id); no cross-module FK.");
-        builder.Property(x => x.BrandCode).HasColumnName("brand_code").HasColumnOrder(1).HasColumnType("character varying(10)").HasComment("Brand code (ref.brand.code).");
+        builder.Property(x => x.BrandCode).HasColumnName("brand_code").HasColumnOrder(1).HasColumnType("character varying(10)").HasComment("Brand code (catalog.brand.code, copied as text).");
         builder.Property(x => x.OemPartNumber).HasColumnName("oem_part_number").HasColumnOrder(2).HasColumnType("character varying(40)").HasComment("OEM part number.");
         builder.Property(x => x.Description).HasColumnName("description").HasColumnOrder(3).HasColumnType("character varying(300)").HasComment("Description.");
         builder.Property(x => x.UnitOfMeasure).HasColumnName("unit_of_measure").HasColumnOrder(4).HasColumnType("character varying(10)").HasComment("Unit of measure code (ref.unit_of_measure.code).");

@@ -82,8 +82,14 @@ public sealed class AccessMigrationTests : IAsyncLifetime
             await context.GetService<IMigrator>().MigrateAsync(BeforeStep3, Ct);
         }
 
-        await new DatabaseMigrator(_options, [.. ModuleCatalog.ModuleCatalog.Databases().Where(d => d.Name is not ("identity" or "reporting"))], NullLogger<DatabaseMigrator>.Instance)
+        // Stage 7 databases had Reporting's transitional views (stage 2) long before the brand move of PR 7h1, so the move
+        // comes after Reporting up to step 2.
+        var databases = ModuleCatalog.ModuleCatalog.Databases().ToDictionary(d => d.Name);
+        await databases["inventory"].MigrateToAsync(_migrator, "20261127215123_RequirePermission", Ct);
+        await new DatabaseMigrator(_options, [.. databases.Values.Where(d => d.Name is "fleet" or "procurement" or "forecasting")], NullLogger<DatabaseMigrator>.Instance)
             .RunAsync(Ct);
+        await databases["reporting"].MigrateToAsync(_migrator, "20261125140845_DataQualityParkedOutboxEvents", Ct);
+        await databases["inventory"].MigrateAsync(_migrator, Ct);
         // Reporting's migration LegacyAccessToAssignments runs exactly this script (a database deployed after PR 7d2a);
         // the later Reporting migrations follow step 3, as the runner always applies Identity before Reporting.
         await ExecuteAsync(await File.ReadAllTextAsync(Path.Combine(RepositoryRoot(), "db", "sql", "reporting", "0005_legacy_access_copy.sql"), Ct));

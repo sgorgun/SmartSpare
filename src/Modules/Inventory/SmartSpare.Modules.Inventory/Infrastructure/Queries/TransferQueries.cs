@@ -73,7 +73,7 @@ internal static class TransferRows
                 FROM inventory.transfer_order_line l
                 JOIN inventory.transfer_order o ON o.id = l.transfer_order_id
                 JOIN catalog.part p ON p.id = l.part_id
-                JOIN ref.brand b ON b.id = p.brand_id
+                JOIN catalog.brand b ON b.id = p.brand_id
                 JOIN ref.unit_of_measure u ON u.id = p.uom_id
                 LEFT JOIN inventory.stock_balance sb ON sb.warehouse_id = o.from_warehouse_id AND sb.part_id = l.part_id
                 WHERE l.transfer_order_id = @id

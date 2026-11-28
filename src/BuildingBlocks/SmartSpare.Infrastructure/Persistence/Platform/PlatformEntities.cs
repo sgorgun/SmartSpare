@@ -31,17 +31,6 @@ internal sealed class AssignmentRole
     public bool GrantsScope { get; set; }
 }
 
-internal sealed class Brand
-{
-    public short Id { get; set; }
-
-    public string Code { get; set; } = null!;
-
-    public string Name { get; set; } = null!;
-
-    public string CountryCode { get; set; } = null!;
-}
-
 internal sealed class MachineType
 {
     public short Id { get; set; }

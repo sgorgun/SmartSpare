@@ -58,11 +58,18 @@ internal sealed class ReplaceResponsiblesCommandHandler(
     {
         ArgumentNullException.ThrowIfNull(command);
         var exists = command.RecordKind == RecordKinds.Brand
-            ? await db.Set<RefBrand>().AsNoTracking().AnyAsync(b => b.Id == command.RecordId, cancellationToken).ConfigureAwait(false)
+            ? await db.Set<Domain.Catalog.Brand>().AsNoTracking().AnyAsync(b => b.Id == command.RecordId, cancellationToken).ConfigureAwait(false)
             : await db.Set<Warehouse>().AsNoTracking().AnyAsync(w => w.Id == command.RecordId, cancellationToken).ConfigureAwait(false);
         if (!exists)
         {
             return ResponsibilityErrors.RecordNotFound;
+        }
+
+        // An archived brand gets no new assignments (SS500, product owner 28 November 2026); clearing them stays possible.
+        if (command.RecordKind == RecordKinds.Brand && command.Request.Responsibles.Count > 0
+            && await db.Set<Domain.Catalog.Brand>().AsNoTracking().AnyAsync(b => b.Id == command.RecordId && b.IsArchived, cancellationToken).ConfigureAwait(false))
+        {
+            return SmartSpare.SharedKernel.MasterData.CatalogErrors.Archived("brand");
         }
 
         var roles = await db.Set<RefAssignmentRole>().AsNoTracking().Where(r => r.RecordKind == command.RecordKind)

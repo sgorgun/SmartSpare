@@ -177,53 +177,6 @@ namespace SmartSpare.Infrastructure.Persistence.Platform.Migrations
                         });
                 });
 
-            modelBuilder.Entity("SmartSpare.Infrastructure.Persistence.Platform.Brand", b =>
-                {
-                    b.Property<short>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("smallint")
-                        .HasColumnName("id")
-                        .HasComment("Surrogate primary key.");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<short>("Id"));
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("character varying(10)")
-                        .HasColumnName("code")
-                        .HasComment("Business code (natural key).");
-
-                    b.Property<string>("CountryCode")
-                        .IsRequired()
-                        .HasColumnType("character(2)")
-                        .HasColumnName("country_code")
-                        .HasComment("ISO 3166-1 alpha-2 country of the manufacturer.");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(80)
-                        .HasColumnType("character varying(80)")
-                        .HasColumnName("name")
-                        .HasComment("Display name.");
-
-                    b.HasKey("Id")
-                        .HasName("pk_brand");
-
-                    b.HasAlternateKey("Code")
-                        .HasName("uq_brand_code");
-
-                    b.HasAlternateKey("Name")
-                        .HasName("uq_brand_name");
-
-                    b.ToTable("brand", "ref", t =>
-                        {
-                            t.HasComment("Machinery / OEM brands (Claas, John Deere, Fendt, Massey Ferguson, Lemken, Väderstad ...).");
-
-                            t.HasCheckConstraint("ck_brand_country", "country_code ~ '^[A-Z]{2}$'");
-                        });
-                });
-
             modelBuilder.Entity("SmartSpare.Infrastructure.Persistence.Platform.DemandClass", b =>
                 {
                     b.Property<string>("Code")

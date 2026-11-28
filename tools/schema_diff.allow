@@ -269,3 +269,22 @@
 +CREATE TABLE iam\.role \( .*is_locked
 +COMMENT ON COLUMN iam\.role\.(is_archived|is_locked) IS
 +CREATE TRIGGER trg_audit AFTER INSERT OR DELETE OR UPDATE ON iam\.role FOR EACH ROW
+
+# PR 7h1 (STAGE_7_PLAN 3.2, decision C1): catalog.brand (moved from ref.brand, see schema_diff.renames) becomes an
+# Inventory master-data catalogue: archive columns and check, timestamps, audit and updated_at triggers, unique indexes
+# instead of unique constraints, trigram search indexes, and writes for app_write. Fleet's foreign key goes (brands are
+# another module's now); Fleet and Identity read brands from their read-only copies, written only by apply_brands.
+-ALTER TABLE ONLY catalog\.brand ADD CONSTRAINT uq_brand_(code|name) UNIQUE
+-ADD CONSTRAINT fk_machine_model_brand FOREIGN KEY
+-COMMENT ON COLUMN catalog\.brand\.code IS 'Business code \(natural key\)\.'
+-COMMENT ON COLUMN fleet\.machine_model\.brand_id IS 'Reference to catalog\.brand\.'
++COMMENT ON COLUMN fleet\.machine_model\.brand_id IS 'Inventory brand id
+-CREATE TABLE catalog\.brand \( (?!.*is_archived)
++CREATE TABLE catalog\.brand \( .*is_archived
++COMMENT ON COLUMN catalog\.brand\.(archived_by|code|is_archived) IS
++CREATE UNIQUE INDEX uq_brand_(code|name) ON catalog\.brand
++CREATE INDEX ix_brand_(code|name)_trgm ON catalog\.brand
++CREATE TRIGGER (trg_audit|trg_brand_updated_at) .* ON catalog\.brand
++GRANT INSERT,UPDATE ON TABLE catalog\.brand TO app_write
++\b(fleet|iam)\.brand_snapshot\b
++\b(fleet|iam)\.apply_brands\b

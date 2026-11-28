@@ -108,7 +108,7 @@ public sealed class ServiceKitReservationTests(InventoryDatabaseFixture database
                 WITH p AS (
                     INSERT INTO catalog.part (brand_id, oem_part_number, description, category_id, uom_id, unit_cost)
                     SELECT b.id, '{tag}-{i}', 'Kit reservation test part', c.id, u.id, 1
-                    FROM ref.brand b, ref.part_category c, ref.unit_of_measure u
+                    FROM catalog.brand b, ref.part_category c, ref.unit_of_measure u
                     WHERE b.code = 'JD' AND c.code = 'OIL_FILTER' AND u.code = 'PCS'
                     RETURNING id),
                 wp AS (INSERT INTO inventory.warehouse_part (warehouse_id, part_id) SELECT {warehouse}, id FROM p RETURNING part_id),

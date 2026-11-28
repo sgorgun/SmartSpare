@@ -639,6 +639,57 @@ namespace SmartSpare.Modules.Fleet.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("SmartSpare.Modules.Fleet.Infrastructure.Persistence.BrandSnapshot", b =>
+                {
+                    b.Property<short>("BrandId")
+                        .HasColumnType("smallint")
+                        .HasColumnName("brand_id")
+                        .HasColumnOrder(0)
+                        .HasComment("Inventory brand id (catalog.brand.id); no cross-module FK.");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("code")
+                        .HasColumnOrder(1)
+                        .HasComment("Brand code, e.g. CLAAS.");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_archived")
+                        .HasColumnOrder(3)
+                        .HasComment("TRUE = archived in the catalogue.");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("name")
+                        .HasColumnOrder(2)
+                        .HasComment("Brand name.");
+
+                    b.Property<DateTimeOffset>("SourceOccurredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("source_occurred_at")
+                        .HasColumnOrder(4)
+                        .HasComment("OccurredAt of the event that wrote the row; older events are ignored.");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasColumnOrder(5)
+                        .HasDefaultValueSql("now()")
+                        .HasComment("Time of the last change.");
+
+                    b.HasKey("BrandId")
+                        .HasName("pk_brand_snapshot");
+
+                    b.ToTable("brand_snapshot", "fleet", t =>
+                        {
+                            t.HasComment("Read-only copy of the Inventory brands, fed by BrandCatalogChanged. Written only by fleet.apply_brands.");
+                        });
+                });
+
             modelBuilder.Entity("SmartSpare.Modules.Fleet.Infrastructure.Persistence.Customer", b =>
                 {
                     b.Property<long>("Id")
@@ -725,7 +776,7 @@ namespace SmartSpare.Modules.Fleet.Infrastructure.Persistence.Migrations
                         .HasColumnType("smallint")
                         .HasColumnName("brand_id")
                         .HasColumnOrder(1)
-                        .HasComment("Reference to ref.brand.");
+                        .HasComment("Inventory brand id (catalog.brand.id); no cross-module FK, the name comes from fleet.brand_snapshot.");
 
                     b.Property<short>("MachineTypeId")
                         .HasColumnType("smallint")
@@ -767,7 +818,7 @@ namespace SmartSpare.Modules.Fleet.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(10)")
                         .HasColumnName("brand_code")
                         .HasColumnOrder(1)
-                        .HasComment("Brand code (ref.brand.code).");
+                        .HasComment("Brand code (catalog.brand.code, copied as text).");
 
                     b.Property<string>("Description")
                         .IsRequired()
@@ -819,21 +870,6 @@ namespace SmartSpare.Modules.Fleet.Infrastructure.Persistence.Migrations
                     b.ToTable("part_snapshot", "fleet", t =>
                         {
                             t.HasComment("Read-only copy of the Inventory part catalogue for service kits, fed by PartCatalogChanged (MODULE_MAPPING 2.3). Written only by the event consumer.");
-                        });
-                });
-
-            modelBuilder.Entity("SmartSpare.Modules.Fleet.Infrastructure.Persistence.RefBrand", b =>
-                {
-                    b.Property<short>("Id")
-                        .HasColumnType("smallint")
-                        .HasColumnName("id");
-
-                    b.HasKey("Id")
-                        .HasName("pk_brand");
-
-                    b.ToTable("brand", "ref", t =>
-                        {
-                            t.ExcludeFromMigrations();
                         });
                 });
 
@@ -949,13 +985,6 @@ namespace SmartSpare.Modules.Fleet.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("SmartSpare.Modules.Fleet.Infrastructure.Persistence.MachineModel", b =>
                 {
-                    b.HasOne("SmartSpare.Modules.Fleet.Infrastructure.Persistence.RefBrand", null)
-                        .WithMany()
-                        .HasForeignKey("BrandId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired()
-                        .HasConstraintName("fk_machine_model_brand");
-
                     b.HasOne("SmartSpare.Modules.Fleet.Infrastructure.Persistence.RefMachineType", null)
                         .WithMany()
                         .HasForeignKey("MachineTypeId")
