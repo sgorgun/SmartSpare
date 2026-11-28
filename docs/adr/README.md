@@ -30,6 +30,7 @@
 | [0026](0026-employee-derived-authorization.md) | Employee-derived authorization | Accepted; roles from positions in stage 7 (7c), assignments in 7d |
 | [0027](0027-part-analogue-model.md) | Part analogue model: typed links, interchangeability groups, supersession chains | Accepted; stage 7 (PR 7i2) |
 | [0028](0028-permissions-model.md) | Permissions model: permissions in code, roles as data, scope unchanged | Accepted; catalogue and permission checks in stage 7 (PR 7x1) |
+| [0029](0029-warehouse-copies-and-fleet-hub-references.md) | Warehouse copies in Fleet and Identity, Fleet hub references in Inventory, the event-lag window | Accepted; stage 7 (PR 7j) |
 
 New ADRs use the next free number and the same Context / Decision / Consequences format.
 
