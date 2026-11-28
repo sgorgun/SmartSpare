@@ -142,17 +142,28 @@ public sealed class AccessMigrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task A_database_that_skipped_the_copy_of_step_2_is_refused_by_the_drift_guard()
+    public async Task A_stage_6_database_migrated_in_one_pass_copies_the_legacy_brand_before_dropping_it()
     {
-        // A stage 6 database migrated in one pass: Identity's step 3 runs before the Reporting copy of step 2, so the legacy
-        // brand list has no assignment yet. The guard stops the migration with a clear message instead of losing rights.
-        await ExecuteAsync(
+        // One pass over a stage 6 database: the runner holds Identity's step 3 until Reporting's copy of step 2 has run
+        // (DatabaseMigrator.RunsAfter), so the legacy brand list becomes an assignment instead of tripping the guard.
+        await InsertLegacyBrandManagerAsync();
+
+        await new DatabaseMigrator(_options, ModuleCatalog.ModuleCatalog.Databases(), NullLogger<DatabaseMigrator>.Instance).RunAsync(Ct);
+
+        (await ScalarAsync<bool>("SELECT to_regclass('iam.user_brand') IS NULL")).ShouldBeTrue("step 3 ran");
+        (await ScalarAsync<long>(
             """
-            INSERT INTO iam.app_user (id, user_name, email, full_name, password_hash)
-            VALUES ('00000000-0000-4000-8000-0000000000b1', 'legacy.skipper', 's@dealer.example', 'Legacy Skipper', 'AQAAAAIAA1tgAAAAE' || repeat('A', 67));
-            INSERT INTO iam.user_role (user_id, role_id) SELECT '00000000-0000-4000-8000-0000000000b1', id FROM iam.role WHERE code = 'BRAND_MANAGER';
-            INSERT INTO iam.user_brand (user_id, brand_id) SELECT '00000000-0000-4000-8000-0000000000b1', id FROM ref.brand WHERE code = 'CLAAS';
-            """);
+            SELECT count(*) FROM iam.employee_responsibility r JOIN iam.app_user u ON u.employee_id = r.employee_id
+            WHERE u.user_name = 'legacy.skipper' AND r.record_kind = 'brand' AND r.assignment_role = 'BRAND_MANAGER'
+            """)).ShouldBe(1, "the legacy brand was copied before the drop");
+    }
+
+    [Fact]
+    public async Task A_run_that_skips_the_copy_of_step_2_is_refused_by_the_drift_guard()
+    {
+        // Identity alone (--module identity) cannot wait for Reporting's copy; the guard stops it instead of losing rights.
+        await InsertLegacyBrandManagerAsync();
+        _options.Module = "identity";
 
         var error = await Should.ThrowAsync<Exception>(() =>
             new DatabaseMigrator(_options, ModuleCatalog.ModuleCatalog.Databases(), NullLogger<DatabaseMigrator>.Instance).RunAsync(Ct));
@@ -160,6 +171,14 @@ public sealed class AccessMigrationTests : IAsyncLifetime
         error.ToString().ShouldContain("Access drift");
         (await ScalarAsync<bool>("SELECT to_regclass('iam.user_brand') IS NOT NULL")).ShouldBeTrue("nothing was dropped");
     }
+
+    private Task InsertLegacyBrandManagerAsync() => ExecuteAsync(
+        """
+        INSERT INTO iam.app_user (id, user_name, email, full_name, password_hash)
+        VALUES ('00000000-0000-4000-8000-0000000000b1', 'legacy.skipper', 's@dealer.example', 'Legacy Skipper', 'AQAAAAIAA1tgAAAAE' || repeat('A', 67));
+        INSERT INTO iam.user_role (user_id, role_id) SELECT '00000000-0000-4000-8000-0000000000b1', id FROM iam.role WHERE code = 'BRAND_MANAGER';
+        INSERT INTO iam.user_brand (user_id, brand_id) SELECT '00000000-0000-4000-8000-0000000000b1', id FROM ref.brand WHERE code = 'CLAAS';
+        """);
 
     /// <summary>Sections 1 and 2 of the script (seed and data step), which are written to run more than once.</summary>
     private static string DataStep(string script) => script[..script.IndexOf("-- ---- 3. Triggers", StringComparison.Ordinal)];
