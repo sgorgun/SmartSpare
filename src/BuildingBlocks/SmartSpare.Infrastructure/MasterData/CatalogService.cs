@@ -231,6 +231,7 @@ public sealed class CatalogService<TContext, TRecord, TId, TDto, TWrite>(
         var existing = await db.Set<TRecord>().Where(r => codes.Contains(r.Code)).ToDictionaryAsync(r => r.Code, StringComparer.Ordinal, cancellationToken)
             .ConfigureAwait(false);
         int created = 0, updated = 0, unchanged = 0;
+        var written = new List<TRecord>();
         foreach (var (line, code, write) in valid)
         {
             if (!existing.TryGetValue(code, out var record))
@@ -243,6 +244,7 @@ public sealed class CatalogService<TContext, TRecord, TId, TDto, TWrite>(
                 }
 
                 db.Add(made.Value);
+                written.Add(made.Value);
                 created++;
                 continue;
             }
@@ -264,6 +266,7 @@ public sealed class CatalogService<TContext, TRecord, TId, TDto, TWrite>(
             else if (changed.Value)
             {
                 db.Entry(record).Property(r => r.UpdatedAt).IsModified = true;
+                written.Add(record);
                 updated++;
             }
             else
@@ -278,6 +281,10 @@ public sealed class CatalogService<TContext, TRecord, TId, TDto, TWrite>(
         {
             // Saved even for a dry run, so the database's own checks answer the preview as they will the commit.
             await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            if (written.Count > 0)
+            {
+                definition.Publish?.Invoke(unitOfWork, written);   // rolled back with the import unless it is applied
+            }
         }
 
         return new CatalogImportResult(dryRun, withinGate && !dryRun, rows, created, updated, unchanged, errors);
@@ -322,7 +329,7 @@ public sealed class CatalogService<TContext, TRecord, TId, TDto, TWrite>(
         {
             if (unitOfWork is ITransactionalUnitOfWork transactional)
             {
-                outcome = await transactional.ExecuteInTransactionAsync(work, r => r.IsSuccess, cancellationToken).ConfigureAwait(false);
+                outcome = await transactional.ExecuteInTransactionAsync(ct => PublishingAsync(work, ct), r => r.IsSuccess, cancellationToken).ConfigureAwait(false);
             }
             else
             {
@@ -339,6 +346,19 @@ public sealed class CatalogService<TContext, TRecord, TId, TDto, TWrite>(
         }
 
         return outcome.IsFailure ? outcome.Error : await GetAsync(outcome.Value.Id, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Runs the write and, if the catalogue publishes, saves it inside the transaction and queues its events.</summary>
+    private async Task<Result<TRecord>> PublishingAsync(Func<CancellationToken, Task<Result<TRecord>>> work, CancellationToken cancellationToken)
+    {
+        var outcome = await work(cancellationToken).ConfigureAwait(false);
+        if (outcome.IsSuccess && definition.Publish is { } publish)
+        {
+            await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            publish(unitOfWork, [outcome.Value]);
+        }
+
+        return outcome;
     }
 
     private async Task<Error?> ValidateAsync(TWrite write, CancellationToken cancellationToken)
