@@ -89,7 +89,8 @@ public sealed class AccessMigrationTests : IAsyncLifetime
         await new DatabaseMigrator(_options, [.. databases.Values.Where(d => d.Name is "fleet" or "procurement" or "forecasting")], NullLogger<DatabaseMigrator>.Instance)
             .RunAsync(Ct);
         await databases["reporting"].MigrateToAsync(_migrator, "20261125140845_DataQualityParkedOutboxEvents", Ct);
-        await databases["inventory"].MigrateAsync(_migrator, Ct);
+        // Up to the part archive columns: dropping is_active (DropPartIsActive) waits for a later Reporting migration.
+        await databases["inventory"].MigrateToAsync(_migrator, "20261128130240_PartsAsCatalogue", Ct);
         // Reporting's migration LegacyAccessToAssignments runs exactly this script (a database deployed after PR 7d2a);
         // the later Reporting migrations follow step 3, as the runner always applies Identity before Reporting.
         await ExecuteAsync(await File.ReadAllTextAsync(Path.Combine(RepositoryRoot(), "db", "sql", "reporting", "0005_legacy_access_copy.sql"), Ct));
