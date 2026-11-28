@@ -111,7 +111,7 @@ Inputs, as on `main` (v0.6.0 + the schema-diff gate):
 
 - `/admin/positions`: catalogue (section 2) with the role-template editor; `/admin/employees` and `/admin/employees/{id}`: catalogue, account panel (create account: user name and an initial password the user must change; lock, unlock), the employee's rights-bearing assignments (read from the projection, with links to the records).
 - `/admin/users`: accounts with their **effective rights and origin**, read-only. No role or brand checkbox remains anywhere.
-- API under `/api/v1/identity`: `positions`, `employees` (generic catalogue endpoints), `POST employees/{id}/account`, `GET users` (effective rights), `POST users/{id}/lock|unlock`, `GET employees/{id}/rights`. `PUT users/{id}/access` and `POST users` are removed. `Identity.Contracts.IEmployeeDirectory` (exists, active, display name; masked by the caller's rights) lets other modules validate and display employees (HTTP to `/internal/v1/identity/employees` in the services topology).
+- API under `/api/v1/identity`: `positions`, `employees` (generic catalogue endpoints), `POST employees/{id}/account`, `GET users` (effective rights), `POST users/{id}/lock|unlock`, `GET employees/{id}/rights`. `PUT users/{id}/access` and `POST users` are removed. Other modules validate and display employees from their own copy, fed by `EmployeeDirectoryChanged` (ADR 0029 amendment 2, PR 7j1c; first planned as a synchronous `IEmployeeDirectory`).
 
 ### 1.6 Migration of the existing data
 
@@ -246,7 +246,7 @@ Guards are C# (reading the module's own data and, for warehouses, `IFleetQueries
 
 ### 2.5 History
 
-`audit.record_history(p_table text, p_record_id text, p_page int, p_page_size int)` returns time, action, user id, changed columns and old/new values for one record (only tables on an allow-list; the trigger already omits personal-data columns). Granted to `app_read`. The endpoint resolves user names through `IEmployeeDirectory`. The panel shows "who, what, when" in plain words ("Rasa K. changed lead time 14 → 21 days").
+`audit.record_history(p_table text, p_record_id text, p_page int, p_page_size int)` returns time, action, user id, changed columns and old/new values for one record (only tables on an allow-list; the trigger already omits personal-data columns). Granted to `app_read`. The endpoint resolves user names through `IActorNames`, over the module's employee copy since 7j1c (ADR 0029 amendment 2). The panel shows "who, what, when" in plain words ("Rasa K. changed lead time 14 → 21 days").
 
 ### 2.6 CSV
 
@@ -558,6 +558,20 @@ Effort: **S** ≈ a quarter day, **M** ≈ half a day, **L** ≈ a full day, at 
 - **New policy:** `ManageCatalog` (planners, administrators). It only adds rows to the golden matrix; no existing right changed.
 
 **7j is split into two PRs (product owner, 28 November 2026),** each green and merged before the next: **7j1** the warehouse copies in Fleet and Identity, the two events, the two publish jobs and Inventory's projection of Fleet's hub references, with the golden matrix unchanged; **7j2** the warehouse and route catalogues, their permissions, the archive guards, the responsibles screen and the docs. Both belong to #163.
+
+**As built, 7j1c (part of #163; ADR 0029 amendment 2; product owner, 14.3 item 11):**
+- **Employee copy in Inventory** instead of the synchronous call to Identity:
+  - `inventory.employee_snapshot` (employee id, code, display name, active, account id), fed by the new `EmployeeDirectoryChanged`. Identity writes it with every employee change: create, edit, leave, restore, account creation, and anonymisation from either the employee or the user page.
+  - `inventory.apply_employees` (SECURITY DEFINER, newest event wins) is the only write path; the job `identity.employee-publish` fills it the first time (added to #85).
+  - The responsibles write (active employees only, no self-granting), the responsibles list and the history names read the copy.
+- **No self-granting in the database:** the row trigger `trg_no_self_grant` on the brand and warehouse responsibles refuses a rights-bearing assignment of the acting account's own employee (SS301), reading the copy. This closes an "API checked, database did not" gap.
+- **Removed:** `IEmployeeDirectory`, `HttpEmployeeDirectory`, the internal endpoints `employee-lookups` and `account-owners`, `CallerTokenForwardingHandler` (no module calls another module now), and the tests of 7j1b that used them. The only synchronous calls left are the gateway's three calls to Identity, listed in the ADR with their timeouts, failure behaviour and cold start.
+- **Personal data in payloads:** listed in the ADR. Consumers' inbox rows hold no payload, so only Identity's outbox does, for 7 days after delivery. `iam.anonymise_employee` (new script `identity/0021`) now also redacts the employee's name in every `EmployeeDirectoryChanged` row of `iam.outbox_message`, delivered or pending. What remains is a message in flight, or one in a dead-letter queue until its alert is handled; this is accepted in the ADR.
+- **Topology fixture:** every test user reaches Inventory's copy through the Identity publish job over RabbitMQ.
+- **Tests:**
+  - integration (`EmployeeCopyTests`): every employee change reaches the copy; anonymisation reaches it and leaves no payload with the name; the publish job refills the copy and an older event never overwrites a newer one; the copy is read-only; an employee the copy shows as left gets no assignment;
+  - SQL: T03 +3 (read-only copy, apply function limited to the Inventory logins, self-granting refused in the database), 158 assertions.
+- **Breaking changes:** none (internal endpoints only).
 
 **As built, 7j1b (part of #163; ADR 0029 amendment; product owner's follow-ups of 14.3 item 10):**
 - **A reading is never lost:**
@@ -986,3 +1000,4 @@ Recorded here, or in the ADR or section named, so that none lives only in a conv
     1. **Never lose an engine-hours reading.** At an archived home hub the reading is stored (only SS100–SS104 reject a reading), the draft is skipped, the API returns a warning that maintenance is due but the hub is archived, and the due list flags the machine "hub archived"; API and database aligned, with tests. Recorded in the ADR 0029 amendment.
     2. **`IWarehouseQueries` and its internal endpoint are removed**, because no production path uses them; their tests move to the current cross-service read. No stage 8 need was found.
     3. **#85** gets `inventory.warehouse-catalog-publish`, `fleet.hub-reference-publish` and `inventory.brand-catalog-publish` as one-time post-deployment steps.
+11. **Synchronous reads between modules (product owner, 28 November 2026), built in 7j1c:** option (b). Inventory keeps an event-fed employee copy instead of calling Identity, because no check there needs a strongly consistent answer. **Rule:** a cross-module read defaults to a copy; a synchronous one needs an ADR change. The ADR 0029 amendment lists every remaining synchronous call between services, and which stores hold personal data in event payloads, for how long and why that is acceptable. Anonymisation redacts the name in Identity's outbox, because that is cheap and safe.
