@@ -26,6 +26,10 @@ API changes an existing client must follow; each merge until the API expert revi
   (`part_id`, `analogue_part_id`) and a required `link_type` (`interchangeable` | `supersedes`). Existing links became
   supersessions. SQL writers must give the type; one link per pair, one successor per part and no supersession cycle are
   enforced (SS502). There was no analogue API before, so no HTTP client breaks.
+- **Archived hubs in Fleet** (PR 7j1, ADR 0029): Fleet keeps a read-only copy of the warehouses, and SQL writers of
+  `fleet.service_order` and `fleet.machine` get SS500 for a new service order at a hub that the copy marks archived, or a
+  machine created with or moved to such a home hub. `POST /api/v1/fleet/service-orders` answers the same with
+  `422 SS500`. No hub can be archived before PR 7j2, so no existing client is affected yet.
 
 ### Changed
 
