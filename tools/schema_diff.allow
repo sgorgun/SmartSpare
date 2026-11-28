@@ -326,3 +326,9 @@
 +^PERFORM set_config\('app\.(reason|user_id)', .*, true\);$
 +^v_customised\s+boolean;$
 +^v_(reason|user)\s+text := coalesce\(current_setting\('app\.(reason|user_id)', true\), ''\);$
+
+# PR 7i1: parts on the shared catalogue mechanism; is_active replaced by the archive columns, guard trigger.
+-^COMMENT ON COLUMN catalog\.part\.is_active IS
++^COMMENT ON COLUMN catalog\.part\.(archived_by|is_archived) IS
++\bcatalog\.trg_part_catalogue_guard\b
++^IF TG_OP = 'UPDATE' AND NEW\.is_archived AND NOT OLD\.is_archived THEN IF EXISTS \(SELECT 1 FROM inventory\.stock_balance s WHERE s\.part_id = NEW\.id

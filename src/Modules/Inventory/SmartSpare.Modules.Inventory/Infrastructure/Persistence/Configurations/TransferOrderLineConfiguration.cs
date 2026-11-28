@@ -28,7 +28,7 @@ internal sealed class TransferOrderLineConfiguration : IEntityTypeConfiguration<
         builder.Property(x => x.OverrideReason).HasColumnName("override_reason").HasColumnOrder(5).HasColumnType("character varying(300)").HasComment("Mandatory justification of a manual change (UC01 A2).");
 
         // fk_transfer_order_line_order is configured with the Lines navigation of TransferOrder.
-        builder.HasOne<Part>().WithMany()
+        builder.HasOne<Domain.Catalog.Part>().WithMany()
             .HasForeignKey(x => x.PartId)
             .HasPrincipalKey(x => x.Id)
             .HasConstraintName("fk_transfer_order_line_part").OnDelete(DeleteBehavior.NoAction);

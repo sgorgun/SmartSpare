@@ -66,7 +66,7 @@ internal static class ManufacturerCatalog
     private static async Task<IReadOnlyList<string>> ArchiveGuardAsync(IServiceProvider services, Manufacturer manufacturer, CancellationToken cancellationToken)
     {
         var db = services.GetRequiredService<InventoryDbContext>();
-        var parts = await db.Set<Part>().AsNoTracking().CountAsync(p => p.ManufacturerId == manufacturer.Id && p.IsActive, cancellationToken).ConfigureAwait(false);
+        var parts = await db.Set<Part>().AsNoTracking().CountAsync(p => p.ManufacturerId == manufacturer.Id && !p.IsArchived, cancellationToken).ConfigureAwait(false);
         var responsibles = await db.Set<Domain.Responsibilities.ManufacturerResponsible>().AsNoTracking()
             .CountAsync(r => r.ManufacturerId == manufacturer.Id, cancellationToken).ConfigureAwait(false);
         var reasons = new List<string>();

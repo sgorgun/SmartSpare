@@ -36,13 +36,13 @@ public sealed class InventoryPageTests : ClientTestContext
     [Fact]
     public void While_the_server_answers_the_grid_shows_that_parts_are_loading()
     {
-        var pending = new TaskCompletionSource<ApiResult<PagedResponse<PartSummary>>>();
+        var pending = new TaskCompletionSource<ApiResult<PagedResponse<PartDto>>>();
         _inventory.Next = pending.Task;
 
         var page = Render<InventoryPage>();
 
         page.WaitForAssertion(() => page.Markup.ShouldContain("Loading parts…"));
-        pending.SetResult(ApiResult.Success(new PagedResponse<PartSummary>([FakeInventoryClient.Part(1)], 1, 25, 1)));
+        pending.SetResult(ApiResult.Success(new PagedResponse<PartDto>([FakeInventoryClient.Part(1)], 1, 25, 1)));
         page.WaitForAssertion(() => page.Markup.ShouldNotContain("Loading parts…"));
         page.Markup.ShouldContain("P-0001");
     }
@@ -64,7 +64,7 @@ public sealed class InventoryPageTests : ClientTestContext
     [Fact]
     public void An_error_leaves_the_grid_empty_and_shows_the_problem_with_its_reference()
     {
-        _inventory.Next = Task.FromResult(ApiResult.Failure<PagedResponse<PartSummary>>(
+        _inventory.Next = Task.FromResult(ApiResult.Failure<PagedResponse<PartDto>>(
             new ProblemInfo(503, ProblemCodes.ServiceUnavailable, "Service unavailable", null, "4f1c0e9d2b7a4c3e8f6d5b4a3c2e1f0a")));
 
         var page = Render<InventoryPage>();
@@ -96,12 +96,12 @@ public sealed class FakeInventoryClient() : InventoryClient(new HttpClient())
     public int Total { get; set; } = 3;
 
     /// <summary>The answer to the next call, if the test decides it.</summary>
-    public Task<ApiResult<PagedResponse<PartSummary>>>? Next { get; set; }
+    public Task<ApiResult<PagedResponse<PartDto>>>? Next { get; set; }
 
-    public static PartSummary Part(int number) =>
-        new(number, "JD", $"P-{number:D4}", "Engine oil filter", "Engine oil filters", "PCS", 18.40m);
+    public static PartDto Part(int number) =>
+        new(number, "JD", $"P-{number:D4}", "Engine oil filter", "Engine oil filters", "PCS", 18.40m, 2, 11, "OIL_FILTER", 1, null, false, null, null, false, "1");
 
-    public override Task<ApiResult<PagedResponse<PartSummary>>> SearchPartsAsync(
+    public override Task<ApiResult<PagedResponse<PartDto>>> SearchPartsAsync(
         string? search, int page, int pageSize, CancellationToken cancellationToken = default)
     {
         Calls.Add((search, page, pageSize));
@@ -113,6 +113,6 @@ public sealed class FakeInventoryClient() : InventoryClient(new HttpClient())
 
         var items = Enumerable.Range((page - 1) * pageSize + 1, Math.Max(0, Math.Min(pageSize, Total - (page - 1) * pageSize)))
             .Select(Part).ToList();
-        return Task.FromResult(ApiResult.Success(new PagedResponse<PartSummary>(items, page, pageSize, Total)));
+        return Task.FromResult(ApiResult.Success(new PagedResponse<PartDto>(items, page, pageSize, Total)));
     }
 }

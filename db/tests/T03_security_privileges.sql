@@ -94,6 +94,18 @@ SELECT pg_temp.expect_error(
     'SS301', 'ADR 0028: a planner cannot write a brand-manager assignment in the database (Inventory.Brand.ManageAssignments)');
 SELECT pg_temp.expect_error($$DELETE FROM inventory.warehouse_responsible WHERE false$$, 'SS301',
                             'ADR 0028: a planner cannot remove warehouse responsibles in the database (Inventory.Warehouse.ManageAssignments)');
+-- PR 7i1: the parts catalogue's database rules hold for the application login, not only behind the API.
+SELECT pg_temp.expect_error(
+    $$UPDATE catalog.part SET is_archived = true, archived_at = now()
+      WHERE id = (SELECT part_id FROM inventory.stock_balance WHERE on_hand_qty > 0 ORDER BY part_id LIMIT 1)$$,
+    'SS501', 'PR 7i1: a part with stock on hand cannot be archived, whoever writes it');
+INSERT INTO catalog.brand (code, name, country_code, is_archived, archived_at) VALUES ('T03ARCH', 'Archived brand', 'DE', true, now());
+SELECT pg_temp.expect_error(
+    $$INSERT INTO catalog.part (brand_id, oem_part_number, description, category_id, uom_id, unit_cost)
+      SELECT b.id, 'T03-ARCHIVED-1', 'Part of an archived brand', c.id, u.id, 1
+      FROM catalog.brand b, ref.part_category c, ref.unit_of_measure u
+      WHERE b.code = 'T03ARCH' AND c.code = 'OIL_FILTER' AND u.code = 'PCS'$$,
+    'SS500', 'PR 7i1: a new part cannot name an archived brand, whoever writes it');
 SELECT pg_temp.act_as('admin.smartspare');
 DELETE FROM catalog.brand_responsible WHERE false;
 SELECT pg_temp.ok(true, 'ADR 0028: the administrator holds Inventory.Brand.ManageAssignments and writes brand assignments');

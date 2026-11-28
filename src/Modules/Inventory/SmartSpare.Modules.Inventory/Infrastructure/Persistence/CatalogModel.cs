@@ -1,38 +1,7 @@
 namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence;
 
-// Catalogue, warehouses and routes: plain data classes (ADR 0013 rule 3). Parts are read by queries and
-// written by the import's SQL functions; warehouses and routes are seeded reference data of the module.
-
-/// <summary>Row of <c>catalog.part</c>.</summary>
-internal sealed class Part
-{
-    public long Id { get; set; }
-
-    public short BrandId { get; set; }
-
-    /// <summary>The maker (catalog.manufacturer), if known (PR 7h3).</summary>
-    public short? ManufacturerId { get; set; }
-
-    public string OemPartNumber { get; set; } = null!;
-
-    public string Description { get; set; } = null!;
-
-    public int CategoryId { get; set; }
-
-    public short UomId { get; set; }
-
-    public decimal? WeightKg { get; set; }
-
-    public decimal UnitCost { get; set; }
-
-    public bool IsConditionBased { get; set; }
-
-    public bool IsActive { get; set; }
-
-    public DateTimeOffset CreatedAt { get; set; }
-
-    public DateTimeOffset UpdatedAt { get; set; }
-}
+// Analogues, warehouses and routes: plain data classes (ADR 0013 rule 3); warehouses and routes are seeded reference
+// data of the module. Parts are the Domain.Catalog.Part aggregate (PR 7i1).
 
 /// <summary>Row of <c>catalog.part_analogue</c>.</summary>
 internal sealed class PartAnalogue

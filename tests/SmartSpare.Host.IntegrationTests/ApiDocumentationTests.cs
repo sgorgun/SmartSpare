@@ -76,7 +76,8 @@ public sealed partial class ApiDocumentationTests : IAsyncLifetime
             "/api/v1/inventory/manufacturers", "/api/v1/inventory/manufacturers/csv", "/api/v1/inventory/manufacturers/csv/template",
             "/api/v1/inventory/manufacturers/lookup", "/api/v1/inventory/manufacturers/{id}", "/api/v1/inventory/manufacturers/{id}/archive",
             "/api/v1/inventory/manufacturers/{id}/history", "/api/v1/inventory/manufacturers/{id}/responsibles", "/api/v1/inventory/manufacturers/{id}/restore",
-            "/api/v1/inventory/movements", "/api/v1/inventory/parts", "/api/v1/inventory/parts/{id}", "/api/v1/inventory/stock",
+            "/api/v1/inventory/movements", "/api/v1/inventory/parts", "/api/v1/inventory/parts/lookup", "/api/v1/inventory/parts/{id}",
+            "/api/v1/inventory/parts/{id}/archive", "/api/v1/inventory/parts/{id}/history", "/api/v1/inventory/parts/{id}/restore", "/api/v1/inventory/stock",
             "/api/v1/inventory/stock-adjustments", "/api/v1/inventory/stock/{warehouseId}/{partId}",
             "/api/v1/inventory/stock/{warehouseId}/{partId}/levels", "/api/v1/inventory/transfers", "/api/v1/inventory/transfers/{id}",
             "/api/v1/inventory/transfers/{id}/approve", "/api/v1/inventory/transfers/{id}/cancel",
@@ -149,13 +150,13 @@ public sealed partial class ApiDocumentationTests : IAsyncLifetime
         }
 
         var search = paths.GetProperty("/api/v1/inventory/parts").GetProperty("get");
-        search.GetProperty("parameters").EnumerateArray().Select(p => p.GetProperty("name").GetString()).ShouldBe(["search", "page", "pageSize"]);
+        search.GetProperty("parameters").EnumerateArray().Select(p => p.GetProperty("name").GetString()).ShouldBe(["search", "archived", "sort", "page", "pageSize"], "the shared catalogue list (PR 7i1)");
         search.GetProperty("parameters").EnumerateArray().ShouldAllBe(p => !string.IsNullOrWhiteSpace(p.GetProperty("description").GetString()));
 
         var notFound = ExampleOf(paths.GetProperty("/api/v1/inventory/parts/{id}").GetProperty("get").GetProperty("responses").GetProperty("404"));
         notFound.GetProperty("code").GetString().ShouldBe("Inventory.PartNotFound");
 
-        var part = root.GetProperty("components").GetProperty("schemas").GetProperty("PartSummary");
+        var part = root.GetProperty("components").GetProperty("schemas").GetProperty("PartDto");
         part.GetProperty("properties").EnumerateObject().Where(p => !p.Value.TryGetProperty("description", out _)).Select(p => p.Name).ShouldBeEmpty("every field is described");
         part.GetProperty("properties").GetProperty("unitCost").GetProperty("type").GetString().ShouldBe("number", "numbers are documented as JSON numbers");
     }

@@ -10,7 +10,7 @@ namespace SmartSpare.Web.Client.Features.Inventory;
 /// <summary>The Inventory API, <c>/api/v1/inventory</c> (STAGE_3_PLAN 8.5: one typed client per module).</summary>
 public class InventoryClient(HttpClient http) : ApiClientBase(http)
 {
-    public virtual Task<ApiResult<PagedResponse<PartSummary>>> SearchPartsAsync(
+    public virtual Task<ApiResult<PagedResponse<PartDto>>> SearchPartsAsync(
         string? search, int page, int pageSize, CancellationToken cancellationToken = default)
     {
         var query = string.Create(CultureInfo.InvariantCulture, $"page={page}&pageSize={pageSize}");
@@ -19,7 +19,7 @@ public class InventoryClient(HttpClient http) : ApiClientBase(http)
             query += "&search=" + Uri.EscapeDataString(search.Trim());
         }
 
-        return SendAsync<PagedResponse<PartSummary>>(new HttpRequestMessage(HttpMethod.Get, "api/v1/inventory/parts?" + query), cancellationToken);
+        return SendAsync<PagedResponse<PartDto>>(new HttpRequestMessage(HttpMethod.Get, "api/v1/inventory/parts?" + query), cancellationToken);
     }
 
     public virtual Task<ApiResult<PartDetails>> GetPartAsync(long id, CancellationToken cancellationToken = default) =>

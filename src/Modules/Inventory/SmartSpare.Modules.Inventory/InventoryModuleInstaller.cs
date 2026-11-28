@@ -18,7 +18,6 @@ using SmartSpare.Modules.Inventory.Features.PartCatalog;
 using SmartSpare.Modules.Inventory.Features.ServiceKits;
 using SmartSpare.Modules.Inventory.Features.ListWarehouses;
 using SmartSpare.Modules.Inventory.Features.Ping;
-using SmartSpare.Modules.Inventory.Features.SearchParts;
 using SmartSpare.Modules.Inventory.Features.Stock;
 using SmartSpare.Modules.Inventory.Features.Transfers;
 using SmartSpare.Modules.Inventory.Features.Warehouses;
@@ -60,7 +59,6 @@ public sealed class InventoryModuleInstaller : IModuleInstaller
 
         // The versioned business API (ADR 0012), described in the module's OpenAPI document (ADR 0019).
         var v1 = endpoints.MapGroup($"/api/v1/{Name}").WithTags("Inventory");
-        SearchPartsEndpoint.Map(v1);
         GetPartEndpoint.Map(v1);
         ListWarehousesEndpoint.Map(v1);
         StockOverviewEndpoint.Map(v1);
@@ -75,6 +73,7 @@ public sealed class InventoryModuleInstaller : IModuleInstaller
         Features.AdjustmentReasons.AdjustmentReasonCatalog.Map(v1);
         Features.Brands.BrandCatalog.Map(v1);
         Features.Manufacturers.ManufacturerCatalog.Map(v1);
+        Features.Parts.PartCatalog.Map(v1);
     }
 
     public void MapInternalEndpoints(IEndpointRouteBuilder endpoints) => WarehouseQueriesEndpoint.Map(endpoints);

@@ -52,7 +52,7 @@ internal sealed class CreateTransferCommandHandler(
         }
 
         var partIds = request.Lines.Select(l => l.PartId).ToArray();
-        var activeParts = await db.Set<Part>().AsNoTracking().CountAsync(p => partIds.Contains(p.Id) && p.IsActive, cancellationToken)
+        var activeParts = await db.Set<Domain.Catalog.Part>().AsNoTracking().CountAsync(p => partIds.Contains(p.Id) && !p.IsArchived, cancellationToken)
             .ConfigureAwait(false);
         if (activeParts != partIds.Length)
         {

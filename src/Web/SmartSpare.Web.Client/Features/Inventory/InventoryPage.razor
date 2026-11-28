@@ -23,7 +23,7 @@
     <MudAlert Severity="Severity.Error" Class="mb-3" data-testid="parts-error">@_error</MudAlert>
 }
 
-<MudDataGrid @ref="_grid" T="PartSummary" ServerData="LoadAsync" RowsPerPage="PartSearch.DefaultPageSize"
+<MudDataGrid @ref="_grid" T="PartDto" ServerData="LoadAsync" RowsPerPage="PartSearch.DefaultPageSize"
              Hover="true" Dense="true" Outlined="true" Elevation="0" Breakpoint="Breakpoint.Sm"
              SortMode="SortMode.None" Filterable="false" data-testid="parts-grid">
     <Columns>
@@ -41,7 +41,7 @@
         <MudText>@Text["Parts.Loading"]</MudText>
     </LoadingContent>
     <PagerContent>
-        <MudDataGridPager T="PartSummary" PageSizeOptions="PageSizes" />
+        <MudDataGridPager T="PartDto" PageSizeOptions="PageSizes" />
     </PagerContent>
 </MudDataGrid>
 
@@ -49,7 +49,7 @@
 @code {
     private static readonly int[] PageSizes = [10, PartSearch.DefaultPageSize, 50, PartSearch.MaxPageSize];
 
-    private MudDataGrid<PartSummary>? _grid;
+    private MudDataGrid<PartDto>? _grid;
     private string? _search;
     private string? _error;
 
@@ -57,12 +57,12 @@
     /// Server paging (MudDataGrid pages are 0-based, the API's 1-based). An error leaves the grid empty and shows the
     /// problem with its reference; 401 and 403 are handled by the HTTP handler chain (redirect, snackbar).
     /// </summary>
-    private async Task<GridData<PartSummary>> LoadAsync(GridState<PartSummary> state, CancellationToken cancellationToken)
+    private async Task<GridData<PartDto>> LoadAsync(GridState<PartDto> state, CancellationToken cancellationToken)
     {
         // Prerendering has no session cookie to call the API with; the grid loads once WebAssembly runs.
         if (!RendererInfo.IsInteractive)
         {
-            return new GridData<PartSummary> { Items = [], TotalItems = 0 };
+            return new GridData<PartDto> { Items = [], TotalItems = 0 };
         }
 
         var result = await Inventory.SearchPartsAsync(_search, state.Page + 1, state.PageSize, cancellationToken);
@@ -75,8 +75,8 @@
         }
 
         return result.IsSuccess
-            ? new GridData<PartSummary> { Items = result.Value!.Items, TotalItems = result.Value.TotalCount }
-            : new GridData<PartSummary> { Items = [], TotalItems = 0 };
+            ? new GridData<PartDto> { Items = result.Value!.Items, TotalItems = result.Value.TotalCount }
+            : new GridData<PartDto> { Items = [], TotalItems = 0 };
     }
 
     private Task SearchAsync(string? _) => ReloadFromFirstPageAsync();

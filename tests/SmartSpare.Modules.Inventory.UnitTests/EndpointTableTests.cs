@@ -89,6 +89,14 @@ public sealed class EndpointTableTests
             "GET /api/v1/inventory/manufacturers/csv/template",
             "GET /api/v1/inventory/manufacturers/csv",
             "POST /api/v1/inventory/manufacturers/csv",
+
+            // Parts on the shared catalogue mechanism (PR 7i1); GET /parts above is its list, GET /parts/{id} keeps the stock.
+            "GET /api/v1/inventory/parts/lookup",
+            "GET /api/v1/inventory/parts/{id:long}/history",
+            "POST /api/v1/inventory/parts",
+            "PUT /api/v1/inventory/parts/{id:long}",
+            "POST /api/v1/inventory/parts/{id:long}/archive",
+            "POST /api/v1/inventory/parts/{id:long}/restore",
         ], ignoreOrder: true);
 
     [Theory]
@@ -121,6 +129,9 @@ public sealed class EndpointTableTests
     [InlineData("POST /api/v1/inventory/brands/{id:long}/archive", Permissions.Inventory.Brand.Archive)]
     [InlineData("POST /api/v1/inventory/brands/csv", Permissions.Inventory.Brand.Edit)]
     [InlineData("GET /api/v1/inventory/manufacturers", Permissions.Inventory.Manufacturer.View)]
+    [InlineData("POST /api/v1/inventory/parts", Permissions.Inventory.Part.Create)]
+    [InlineData("PUT /api/v1/inventory/parts/{id:long}", Permissions.Inventory.Part.Edit)]
+    [InlineData("POST /api/v1/inventory/parts/{id:long}/archive", Permissions.Inventory.Part.Archive)]
     [InlineData("POST /api/v1/inventory/manufacturers", Permissions.Inventory.Manufacturer.Create)]
     [InlineData("POST /api/v1/inventory/manufacturers/{id:long}/archive", Permissions.Inventory.Manufacturer.Archive)]
     [InlineData("PUT /api/v1/inventory/manufacturers/{id:int}/responsibles", Permissions.Inventory.Manufacturer.Edit)]

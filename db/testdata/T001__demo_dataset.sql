@@ -1006,7 +1006,7 @@ SELECT iam.anonymise_employee('00000000-0000-4000-8000-000000000012');
 -- Fleet's copy of the catalogue (STAGE_6_PLAN 5.2), as if every PartCatalogChanged had been delivered: the parts above
 -- were written by SQL, so no event exists for them.
 INSERT INTO fleet.part_snapshot (part_id, brand_code, oem_part_number, description, unit_of_measure, is_active, source_occurred_at)
-SELECT p.id, b.code, p.oem_part_number, p.description, u.code, p.is_active, now()
+SELECT p.id, b.code, p.oem_part_number, p.description, u.code, NOT p.is_archived, now()
 FROM catalog.part p JOIN catalog.brand b ON b.id = p.brand_id JOIN ref.unit_of_measure u ON u.id = p.uom_id;
 
 -- Part manufacturers (STAGE_7_PLAN 3.1, PR 7h3): three makers; the oil filters of John Deere are made by MANN+HUMMEL.

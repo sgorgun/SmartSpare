@@ -557,6 +557,42 @@ Effort: **S** ≈ a quarter day, **M** ≈ half a day, **L** ≈ a full day, at 
 - **Deviation from 3.1:** the reason rule is an insert trigger rather than a `CHECK NOT VALID`, because the ledger is append-only and partitioned; the effect is the same.
 - **New policy:** `ManageCatalog` (planners, administrators). It only adds rows to the golden matrix; no existing right changed.
 
+**7i is split into four PRs (28 November 2026),** each green and merged before the next: **7i1a** parts on the shared catalogue mechanism (API, database, permissions); **7i1b** the parts screen and part responsibles; **7i2** the analogue rework (C2, ADR 0027) with CSV; **7i3** analogues on a service order's kit shortage, read-only. All belong to #162.
+
+**As built, 7i1a (part of #162):**
+- **Parts catalogue:** `/api/v1/inventory/parts` uses the shared mechanism (ADR 0025):
+  - the code is the OEM number, the name is the description (up to 300 characters);
+  - lookup, create, update, archive, restore and history;
+  - the list replaces the former search. Its rows keep the former fields, so pickers are unchanged; they gain the reference ids and codes, the manufacturer, the archive flag and the version.
+- **What stays outside the shared mechanism:**
+  - `GET /parts/{id}` keeps the part with its stock per warehouse;
+  - the bulk import keeps its own pipeline.
+- **Shared mechanism, extended:**
+  - `CodeScope`: a code may be unique within a scope (parts: per brand);
+  - `MapDetail`: a catalogue may keep its own detail route;
+  - `Publish` became asynchronous with the services, because a part's snapshot needs codes from the database.
+- **Brand:** part of the key; a write naming another brand is refused (422 `Inventory.PartBrandFixed`).
+- **Archiving:** `is_active` is replaced by the archive columns, one meaning (plan 2.1). This takes three migrations, ordered by `[MigrationDependsOn]`:
+  1. Inventory `PartsAsCatalogue` adds the columns, backfilled from `is_active`.
+  2. Reporting `PartArchiveInDataQuality` repoints `mart.v_data_quality`.
+  3. Inventory `DropPartIsActive` drops the column.
+- **Database rules** (`trg_part_catalogue_guard`):
+  - an archived brand or manufacturer cannot be chosen (SS500);
+  - a part with stock on hand or reserved cannot be archived (SS501).
+
+  `DatabaseErrorMapper` maps SS500 and SS501. The parts import treats an archived brand as unknown (UNKNOWN_REF).
+- **API archive guard:** stock per hub, open transfers and kit holds, each listed as a reason. Part responsibles come with 7i1b.
+- **Events:** every write publishes `PartCatalogChanged`, so Fleet's part copy follows.
+- **Permissions:**
+  - `Inventory.Part.Create`, `.Edit` and `.Archive` (codes 64–66), for Administrator, Inventory planner and the Superadministrator;
+  - granted through `iam.grant_default_permission`, the first use of #211;
+  - the golden matrix gains only these three rows.
+- **Tests:**
+  - integration: unique per brand, reaches Fleet, manufacturer cleared in the editor, brand fixed, archived manufacturer refused, stock blocks archiving, keeper refused;
+  - unit tests of `Part`;
+  - T03 +2: the database rules hold for the application login, so the SQL suite has 137 assertions;
+  - the upgrade from v0.6.0 is green.
+
 **After 7h, responsibles permissions in SQL:** the endpoints already required `Inventory.Brand.ManageAssignments`, `Inventory.Warehouse.ManageAssignments` and `Inventory.Manufacturer.Edit`, but the tables had only plain grants. A statement trigger (`inventory/0019_assignment_permissions.sql`) now requires the same permission from the session (SS301), with the table owner exempt for migrations and seeds. A brand-manager assignment carries approval rights, so an inventory planner may edit the brand record but neither the API nor the database lets them assign its responsibles (integration test and T03).
 
 **After 7h, editable seeded roles (product owner, 28 November 2026; ADR 0028 amendment):**
