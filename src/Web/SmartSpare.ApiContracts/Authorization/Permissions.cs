@@ -59,6 +59,9 @@ public static class Permissions
         public static class Part
         {
             public const string View = "Inventory.Part.View";
+            public const string Create = "Inventory.Part.Create";
+            public const string Edit = "Inventory.Part.Edit";
+            public const string Archive = "Inventory.Part.Archive";
         }
 
         public static class Brand
@@ -247,6 +250,9 @@ public static class Permissions
         P(Inventory.Manufacturer.Create, 61, "Add part manufacturers."),
         P(Inventory.Manufacturer.Edit, 62, "Change part manufacturers."),
         P(Inventory.Manufacturer.Archive, 63, "Archive or restore part manufacturers."),
+        P(Inventory.Part.Create, 64, "Add parts to the catalogue."),
+        P(Inventory.Part.Edit, 65, "Change parts of the catalogue."),
+        P(Inventory.Part.Archive, 66, "Archive or restore parts."),
     ];
 
     /// <summary>Whether <paramref name="name"/> is a permission of the catalogue.</summary>
