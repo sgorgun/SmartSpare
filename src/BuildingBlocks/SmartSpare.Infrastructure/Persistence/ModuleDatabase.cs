@@ -27,6 +27,12 @@ public interface IModuleDatabase
 
     /// <summary>True if the model differs from the last migration snapshot (a migration is missing).</summary>
     bool HasPendingModelChanges();
+
+    /// <summary>Every migration id of the context, in order.</summary>
+    IReadOnlyList<string> Migrations { get; }
+
+    /// <summary>The cross-module dependencies declared with <see cref="MigrationDependsOnAttribute"/>, by migration id.</summary>
+    IReadOnlyDictionary<string, IReadOnlyList<(string Module, string Migration)>> Dependencies { get; }
 }
 
 /// <summary>Standard <see cref="IModuleDatabase"/> over an EF Core context.</summary>
@@ -58,10 +64,26 @@ public abstract class ModuleDatabase<TContext> : IModuleDatabase
             .MigrateAsync(targetMigration, cancellationToken).ConfigureAwait(false);
     }
 
+    public IReadOnlyList<string> Migrations => [.. MigrationTypes().Keys];
+
+    public IReadOnlyDictionary<string, IReadOnlyList<(string Module, string Migration)>> Dependencies =>
+        MigrationTypes()
+            .Select(m => (m.Key, Declared: m.Value.GetCustomAttributes(typeof(MigrationDependsOnAttribute), inherit: false)
+                .Cast<MigrationDependsOnAttribute>().Select(a => (a.Module, a.Migration)).ToList()))
+            .Where(m => m.Declared.Count > 0)
+            .ToDictionary(m => m.Key, m => (IReadOnlyList<(string Module, string Migration)>)m.Declared, StringComparer.Ordinal);
+
     public bool HasPendingModelChanges()
     {
         using var context = CreateContext(connectionString: null);
         return context.Database.HasPendingModelChanges();
+    }
+
+    private IReadOnlyDictionary<string, System.Reflection.TypeInfo> MigrationTypes()
+    {
+        using var context = CreateContext(connectionString: null);
+        return Microsoft.EntityFrameworkCore.Infrastructure.AccessorExtensions
+            .GetService<Microsoft.EntityFrameworkCore.Migrations.IMigrationsAssembly>(context).Migrations;
     }
 
     /// <summary>Creates the context with the shared provider settings (<see cref="PersistenceRegistration.Configure"/>).</summary>
