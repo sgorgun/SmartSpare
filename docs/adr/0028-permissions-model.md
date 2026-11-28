@@ -54,6 +54,16 @@ Three layers.
   - It is meant for emergencies, not daily work.
 - **Audit and refresh:** every change to a role, its permissions or a position template is audited and rotates the security stamp of every affected account, so sessions take the new rights within 30 seconds.
 
+## Amendment, 28 November 2026: seeded roles, reset to default and copy
+
+Product owner decision, following the usual ERP practice:
+
+- **Seeded roles are editable** in the UI (name, description and permissions) like any other role. Only the locked Administrator and Superadministrator roles are refused.
+- **Reset to default** (`POST /roles/{id}/reset`) restores the permission set a seeded role shipped with: `DefaultRoles.Bundles` of the running version, which a test keeps equal to the database seed. Name and description stay. It is audited like any permission change (`iam.role_permission` audit rows), rotates the holders' stamps, and obeys the same rules as an edit: separation of duties, and nobody resets a role they hold (SS301).
+- **Copy role** (`POST /roles/{id}/copy`) creates a new, editable role with the permissions and description of any role, a locked one included. The Superadministrator role is not copied.
+- **Golden access matrix:** it tests the seeded roles as shipped. An administrator's edit is user data and does not change it. `AccessMatrixTests` proves that an edit followed by a reset brings the shipped matrix back exactly.
+- **Later migrations** that give a new permission to a default role still grant it to that seeded role, edited or not, as the consequences below describe. A reset always uses the bundles of the running version.
+
 ## Considered and rejected
 
 - **Role inheritance:** bundles are small and additive; inheritance hides where a right comes from, and the effective rights screen shows every origin instead.
