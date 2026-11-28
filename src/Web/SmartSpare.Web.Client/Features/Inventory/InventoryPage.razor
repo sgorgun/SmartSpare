@@ -1,107 +1,209 @@
 @page "/inventory"
 @attribute [Authorize(Policy = Permissions.Inventory.Part.View)]
 @using SmartSpare.ApiContracts.Inventory
+@using SmartSpare.ApiContracts.MasterData
+@using SmartSpare.Web.Client.Features.MasterData
 @inject IStringLocalizer<SharedResource> Text
+@inject CatalogClient Catalog
 @inject InventoryClient Inventory
 @inject ProblemMessages Messages
+@inject ISnackbar Snackbar
+@inject IAuthorizationService Authorization
 
 <PageTitle>@Text["Nav.Inventory"]</PageTitle>
 
-<MudText Typo="Typo.h4" HtmlTag="h1" Class="mb-2">@Text["Nav.Inventory"]</MudText>
-<MudText Class="mb-2">@Text["Module.Inventory"]</MudText>
+@* The parts catalogue on the shared catalogue components (STAGE_7_PLAN 3.1, PR 7i1b): search, archived switch, paging,
+   history, and for planners and administrators the editor with the part's responsible employees. *@
 <InventoryTabs />
-
-<MudText Typo="Typo.h5" HtmlTag="h2" Class="mb-2">@Text["Parts.Title"]</MudText>
-
-<MudTextField T="string" @bind-Value="_search" Label="@Text["Parts.Search"]" Variant="Variant.Outlined"
-              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Clearable="true"
-              DebounceInterval="400" OnDebounceIntervalElapsed="SearchAsync" OnClearButtonClick="ClearAsync"
-              MaxLength="PartSearch.MaxSearchLength" InputMode="InputMode.search" Class="mb-3" />
-
-@if (_error is not null)
-{
-    <MudAlert Severity="Severity.Error" Class="mb-3" data-testid="parts-error">@_error</MudAlert>
-}
-
-<MudDataGrid @ref="_grid" T="PartDto" ServerData="LoadAsync" RowsPerPage="PartSearch.DefaultPageSize"
-             Hover="true" Dense="true" Outlined="true" Elevation="0" Breakpoint="Breakpoint.Sm"
-             SortMode="SortMode.None" Filterable="false" data-testid="parts-grid">
+<CatalogPage @ref="_page" TItem="PartDto" Route="@Route" Title="@Text["Parts.Title"]" Intro="@Text["Parts.Intro"]"
+             NewLabel="@Text["Parts.New"]" MayEdit="_mayEdit" OnEdit="StartEditAsync"
+             IdOf="p => p.Id" NameOf="p => p.OemPartNumber" VersionOf="p => p.Version" IsArchivedOf="p => p.IsArchived">
     <Columns>
-        <PropertyColumn Property="p => p.OemPartNumber" Title="@Text["Parts.OemPartNumber"]" />
-        <PropertyColumn Property="p => p.BrandCode" Title="@Text["Parts.Brand"]" />
-        <PropertyColumn Property="p => p.Description" Title="@Text["Parts.Description"]" />
-        <PropertyColumn Property="p => p.CategoryName" Title="@Text["Parts.Category"]" />
-        <PropertyColumn Property="p => p.UnitOfMeasure" Title="@Text["Parts.Unit"]" />
-        <PropertyColumn Property="p => p.UnitCost" Title="@Text["Parts.UnitCost"]" Format="N2" />
+        <PropertyColumn T="PartDto" TProperty="string" Property="p => p.OemPartNumber" Title="@Text["Parts.OemPartNumber"]" />
+        <PropertyColumn T="PartDto" TProperty="string" Property="p => p.BrandCode" Title="@Text["Parts.Brand"]" />
+        <PropertyColumn T="PartDto" TProperty="string" Property="p => p.Description" Title="@Text["Parts.Description"]" />
+        <PropertyColumn T="PartDto" TProperty="string" Property="p => p.CategoryName" Title="@Text["Parts.Category"]" />
+        <PropertyColumn T="PartDto" TProperty="string" Property="p => p.UnitOfMeasure" Title="@Text["Parts.Unit"]" />
+        <PropertyColumn T="PartDto" TProperty="string" Property="p => p.ManufacturerCode ?? string.Empty" Title="@Text["Parts.Manufacturer"]" />
+        <PropertyColumn T="PartDto" TProperty="decimal" Property="p => p.UnitCost" Title="@Text["Parts.UnitCost"]" Format="N2" />
     </Columns>
-    <NoRecordsContent>
-        <MudText>@(_error is null ? Text["Parts.None"] : Text["Parts.Unavailable"])</MudText>
-    </NoRecordsContent>
-    <LoadingContent>
-        <MudText>@Text["Parts.Loading"]</MudText>
-    </LoadingContent>
-    <PagerContent>
-        <MudDataGridPager T="PartDto" PageSizeOptions="PageSizes" />
-    </PagerContent>
-</MudDataGrid>
-
+    <Editor>
+        @if (_form is not null)
+        {
+            <CatalogEditor Title="@(_form.Id is null ? Text["Parts.New"] : Text["Parts.Edit", _form.Code ?? string.Empty])"
+                           Error="@_formError" Notice="@_notice" Busy="_busy" OnSave="SaveAsync" OnCancel="() => _form = null">
+                <MudGrid Spacing="2">
+                    <MudItem xs="12" sm="4">
+                        <CatalogAutocomplete Route="api/v1/inventory/brands" Label="@Text["Parts.Brand"]" @bind-Value="_form.Brand" Required="true"
+                                             Disabled="_form.Id is not null" TestId="part-brand" />
+                    </MudItem>
+                    <MudItem xs="12" sm="4">
+                        <MudTextField T="string" @bind-Value="_form.Code" Label="@Text["Parts.OemPartNumber"]" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                      Disabled="_form.Id is not null" HelperText="@Text["Parts.CodeHelp"]" data-testid="part-code" />
+                    </MudItem>
+                    <MudItem xs="12" sm="4">
+                        <CatalogAutocomplete Route="api/v1/inventory/manufacturers" Label="@Text["Parts.Manufacturer"]" @bind-Value="_form.Manufacturer"
+                                             HelperText="@Text["Parts.ManufacturerHelp"]" TestId="part-manufacturer" />
+                    </MudItem>
+                    <MudItem xs="12">
+                        <MudTextField T="string" @bind-Value="_form.Name" Label="@Text["Parts.Description"]" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                      MaxLength="300" data-testid="part-description" />
+                    </MudItem>
+                    <MudItem xs="12" sm="4">
+                        <MudSelect T="long?" @bind-Value="_form.CategoryId" Label="@Text["Parts.Category"]" Variant="Variant.Outlined" Margin="Margin.Dense" data-testid="part-category">
+                            @foreach (var category in _categories)
+                            {
+                                <MudSelectItem T="long?" Value="category.Id">@category.Name</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" sm="2">
+                        <MudSelect T="long?" @bind-Value="_form.UomId" Label="@Text["Parts.Unit"]" Variant="Variant.Outlined" Margin="Margin.Dense" data-testid="part-unit">
+                            @foreach (var unit in _units)
+                            {
+                                <MudSelectItem T="long?" Value="unit.Id">@unit.Code</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="6" sm="2">
+                        <MudNumericField T="decimal?" @bind-Value="_form.WeightKg" Label="@Text["Parts.Weight"]" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                         Min="0" data-testid="part-weight" />
+                    </MudItem>
+                    <MudItem xs="6" sm="2">
+                        <MudNumericField T="decimal" @bind-Value="_form.UnitCost" Label="@Text["Parts.UnitCost"]" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                         Min="0" data-testid="part-cost" />
+                    </MudItem>
+                    <MudItem xs="12" sm="2">
+                        <MudCheckBox T="bool" @bind-Value="_form.IsConditionBased" Label="@Text["Parts.ConditionBased"]" data-testid="part-condition" />
+                    </MudItem>
+                </MudGrid>
+            </CatalogEditor>
+            @if (_form.Id is { } id)
+            {
+                <ResponsiblesPanel Segment="parts" Kind="part" RecordId="id" RecordName="@(_form.Code ?? string.Empty)" />
+            }
+        }
+    </Editor>
+</CatalogPage>
 
 @code {
-    private static readonly int[] PageSizes = [10, PartSearch.DefaultPageSize, 50, PartSearch.MaxPageSize];
+    private const string Route = "api/v1/inventory/parts";
 
-    private MudDataGrid<PartDto>? _grid;
-    private string? _search;
-    private string? _error;
+    private CatalogPage<PartDto>? _page;
+    private PartForm? _form;
+    private IReadOnlyList<ReferenceItem> _categories = [];
+    private IReadOnlyList<ReferenceItem> _units = [];
+    private string? _formError;
+    private string? _notice;
+    private bool _busy;
+    private bool _mayEdit;
 
-    /// <summary>
-    /// Server paging (MudDataGrid pages are 0-based, the API's 1-based). An error leaves the grid empty and shows the
-    /// problem with its reference; 401 and 403 are handled by the HTTP handler chain (redirect, snackbar).
-    /// </summary>
-    private async Task<GridData<PartDto>> LoadAsync(GridState<PartDto> state, CancellationToken cancellationToken)
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationState { get; set; }
+
+    protected override async Task OnParametersSetAsync()
     {
-        // Prerendering has no session cookie to call the API with; the grid loads once WebAssembly runs.
-        if (!RendererInfo.IsInteractive)
+        if (AuthenticationState is not null)
         {
-            return new GridData<PartDto> { Items = [], TotalItems = 0 };
+            _mayEdit = (await Authorization.AuthorizeAsync((await AuthenticationState).User, Permissions.Inventory.Part.Edit)).Succeeded;
         }
-
-        var result = await Inventory.SearchPartsAsync(_search, state.Page + 1, state.PageSize, cancellationToken);
-        var error = result.IsSuccess ? null : Messages.Describe(result.Problem!);
-        if (error != _error)
-        {
-            // The alert belongs to the page, which the grid's own reload doesn't re-render.
-            _error = error;
-            StateHasChanged();
-        }
-
-        return result.IsSuccess
-            ? new GridData<PartDto> { Items = result.Value!.Items, TotalItems = result.Value.TotalCount }
-            : new GridData<PartDto> { Items = [], TotalItems = 0 };
     }
 
-    private Task SearchAsync(string? _) => ReloadFromFirstPageAsync();
-
-    private Task ClearAsync(MouseEventArgs _)
+    private async Task StartEditAsync(PartDto? part)
     {
-        _search = null;
-        return ReloadFromFirstPageAsync();
+        _formError = null;
+        _notice = null;
+        if (_categories.Count == 0)
+        {
+            var categories = await Inventory.ListPartCategoriesAsync();
+            var units = await Inventory.ListUnitsOfMeasureAsync();
+            _categories = categories.IsSuccess ? categories.Value! : [];
+            _units = units.IsSuccess ? units.Value! : [];
+        }
+
+        _form = part is null ? new PartForm() : PartForm.From(part);
     }
 
-    private async Task ReloadFromFirstPageAsync()
+    private async Task SaveAsync()
     {
-        if (_grid is null)
+        if (_form is not { } form)
         {
             return;
         }
 
-        // A new search starts at its first page; NavigateTo reloads the server data.
-        if (_grid.CurrentPage != 0)
+        var body = new PartWrite(form.Code ?? string.Empty, form.Name ?? string.Empty, (short)(form.Brand?.Id ?? 0), (int)(form.CategoryId ?? 0),
+            (short)(form.UomId ?? 0), form.WeightKg, form.UnitCost, form.IsConditionBased, form.Manufacturer is { } maker ? (short)maker.Id : null);
+        var validation = new PartWriteValidator().Validate(body);
+        if (!validation.IsValid)
         {
-            _grid.NavigateTo(Page.First);
+            _formError = string.Join(" ", validation.Errors.Select(e => e.ErrorMessage));
+            return;
         }
-        else
+
+        _busy = true;
+        var result = form.Id is { } id
+            ? await Catalog.UpdateAsync<PartWrite, PartDto>(Route, id, body, form.Version!)
+            : await Catalog.CreateAsync<PartWrite, PartDto>(Route, body);
+        _busy = false;
+        if (result.IsSuccess)
         {
-            await _grid.ReloadServerData();
+            Snackbar.Add(Text["Parts.Saved", result.Value!.OemPartNumber], Severity.Success);
+            _form = null;
+            await _page!.ReloadAsync();
+            return;
         }
+
+        // 409 on an edit: someone changed the part since it was read. Reload it from the list and say so; the user decides.
+        if (result.Problem!.Status == 409 && form.Id is { } changedId
+            && await Catalog.ListAsync<PartDto>(Route, form.Code, false, 1, 25) is { IsSuccess: true } current
+            && current.Value!.Items.FirstOrDefault(p => p.Id == changedId) is { } fresh)
+        {
+            _form = PartForm.From(fresh);
+            _formError = null;
+            _notice = Text["Catalog.ChangedMeanwhile"];
+            return;
+        }
+
+        _formError = Messages.Describe(result.Problem);
+    }
+
+    private sealed class PartForm
+    {
+        public long? Id { get; init; }
+
+        public CatalogLookupItem? Brand { get; set; }
+
+        public string? Code { get; set; }
+
+        public string? Name { get; set; }
+
+        public long? CategoryId { get; set; }
+
+        public long? UomId { get; set; }
+
+        public decimal? WeightKg { get; set; }
+
+        public decimal UnitCost { get; set; }
+
+        public bool IsConditionBased { get; set; }
+
+        public CatalogLookupItem? Manufacturer { get; set; }
+
+        public string? Version { get; init; }
+
+        public static PartForm From(PartDto part) => new()
+        {
+            Id = part.Id,
+            Brand = new CatalogLookupItem(part.BrandId, part.BrandCode, part.BrandCode, null),
+            Code = part.OemPartNumber,
+            Name = part.Description,
+            CategoryId = part.CategoryId,
+            UomId = part.UomId,
+            WeightKg = part.WeightKg,
+            UnitCost = part.UnitCost,
+            IsConditionBased = part.IsConditionBased,
+            Manufacturer = part.ManufacturerId is { } maker ? new CatalogLookupItem(maker, part.ManufacturerCode ?? string.Empty, part.ManufacturerCode ?? string.Empty, null) : null,
+            Version = part.Version,
+        };
     }
 }

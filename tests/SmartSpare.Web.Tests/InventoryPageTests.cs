@@ -1,118 +1,135 @@
 using Bunit;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.DependencyInjection;
 using MudBlazor;
 using SmartSpare.ApiContracts;
+using SmartSpare.ApiContracts.Authorization;
 using SmartSpare.ApiContracts.Inventory;
+using SmartSpare.Web.Client.Features.Identity;
 using SmartSpare.Web.Client.Features.Inventory;
+using SmartSpare.Web.Client.Features.MasterData;
 using SmartSpare.Web.Client.Http;
 
 namespace SmartSpare.Web.Tests;
 
-/// <summary>The parts catalogue on the Inventory page: server paging, search, loading state and errors with a reference.</summary>
+/// <summary>
+/// The parts catalogue on the Inventory page (STAGE_7_PLAN 3.1, PR 7i1b) on the shared catalogue components: the list,
+/// the editor for planners (brand and OEM number fixed after creation, the shared validator), the responsibles panel,
+/// and a read-only page for a keeper.
+/// </summary>
 public sealed class InventoryPageTests : ClientTestContext
 {
-    private readonly FakeInventoryClient _inventory = new();
+    private readonly FakePartsCatalogClient _catalog = new();
+    private readonly FakePartReferenceClient _inventory = new();
 
     public InventoryPageTests()
     {
+        Services.AddScoped<CatalogClient>(_ => _catalog);
         Services.AddScoped<InventoryClient>(_ => _inventory);
+        Services.AddScoped<IdentityClient>(_ => new FakeOrganisationClient());
+        Services.AddLogging();
+        Services.AddPermissionAuthorization();
+        Services.AddTransient<IAuthorizationService, DefaultAuthorizationService>();
         UseWebAssemblyRenderer();
         Render<MudPopoverProvider>();
     }
 
     [Fact]
-    public void The_first_page_is_requested_from_the_server_and_shown()
+    public void The_list_shows_parts_with_brand_manufacturer_and_cost_from_the_catalogue_route()
     {
-        _inventory.Total = 60;
+        var page = Render<InventoryPage>(p => p.AddCascadingValue(State(User("planner", AppRoles.InventoryPlanner))));
 
-        var page = Render<InventoryPage>();
-
-        page.WaitForAssertion(() => page.FindAll("tbody tr").Count.ShouldBe(FakeInventoryClient.PageLength));
-        _inventory.Calls.ShouldHaveSingleItem().ShouldBe((null, 1, PartSearch.DefaultPageSize));
-        page.Markup.ShouldContain("P-0001");
-        page.Markup.ShouldContain("Engine oil filter");
+        page.WaitForAssertion(() => page.Find("[data-testid=catalog-grid]").TextContent.ShouldContain("RE504836"));
+        var grid = page.Find("[data-testid=catalog-grid]").TextContent;
+        grid.ShouldContain("Engine oil filter");
+        grid.ShouldContain("MANN");
+        _catalog.Routes.ShouldAllBe(r => r == "api/v1/inventory/parts");
     }
 
     [Fact]
-    public void While_the_server_answers_the_grid_shows_that_parts_are_loading()
+    public void A_planner_edits_a_part_with_brand_and_number_fixed_and_the_responsibles_panel_below()
     {
-        var pending = new TaskCompletionSource<ApiResult<PagedResponse<PartDto>>>();
-        _inventory.Next = pending.Task;
+        var page = Render<InventoryPage>(p => p.AddCascadingValue(State(User("planner", AppRoles.InventoryPlanner))));
+        page.WaitForAssertion(() => page.FindAll("[data-testid=catalog-edit]").ShouldHaveSingleItem());
 
-        var page = Render<InventoryPage>();
+        page.Find("[data-testid=catalog-edit]").Click();
 
-        page.WaitForAssertion(() => page.Markup.ShouldContain("Loading parts…"));
-        pending.SetResult(ApiResult.Success(new PagedResponse<PartDto>([FakeInventoryClient.Part(1)], 1, 25, 1)));
-        page.WaitForAssertion(() => page.Markup.ShouldNotContain("Loading parts…"));
-        page.Markup.ShouldContain("P-0001");
+        page.WaitForAssertion(() => page.Find("input[data-testid=part-code], [data-testid=part-code] input").HasAttribute("disabled").ShouldBeTrue());
+        page.Find("[data-testid=responsibles-panel]");
+        page.Find("input[data-testid=part-description], [data-testid=part-description] input").Change("Engine oil filter, long life");
+        page.Find("[data-testid=catalog-save]").Click();
+
+        page.WaitForAssertion(() => _catalog.Updates.ShouldHaveSingleItem().ShouldSatisfyAllConditions(
+            u => u.Id.ShouldBe(1042),
+            u => u.Version.ShouldBe("9120"),
+            u => u.Body.ShouldBe(new PartWrite("RE504836", "Engine oil filter, long life", 2, 11, 1, 0.45m, 18.40m, false, 1))));
     }
 
     [Fact]
-    public void A_search_reloads_from_the_first_page_with_the_text()
+    public void A_description_too_short_is_refused_on_the_form()
     {
-        _inventory.Total = 60;
-        var page = Render<InventoryPage>();
-        page.WaitForAssertion(() => _inventory.Calls.Count.ShouldBe(1));
+        var page = Render<InventoryPage>(p => p.AddCascadingValue(State(User("planner", AppRoles.InventoryPlanner))));
+        page.WaitForAssertion(() => page.FindAll("[data-testid=catalog-edit]").ShouldHaveSingleItem());
 
-        page.Find("[aria-label='Next page']").Click();
-        page.WaitForAssertion(() => _inventory.Calls[^1].Page.ShouldBe(2));
+        page.Find("[data-testid=catalog-edit]").Click();
+        page.WaitForAssertion(() => page.Find("[data-testid=part-description]"));
+        page.Find("input[data-testid=part-description], [data-testid=part-description] input").Change("ab");
+        page.Find("[data-testid=catalog-save]").Click();
 
-        page.Find("input[inputmode=search]").Input("re9");
-        page.WaitForAssertion(() => _inventory.Calls[^1].ShouldBe(("re9", 1, PartSearch.DefaultPageSize)), TimeSpan.FromSeconds(3));
+        page.WaitForAssertion(() => page.Find("[data-testid=catalog-editor-error]").TextContent.ShouldContain("3 to 300 characters"));
+        _catalog.Updates.ShouldBeEmpty();
     }
 
     [Fact]
-    public void An_error_leaves_the_grid_empty_and_shows_the_problem_with_its_reference()
+    public void A_keeper_reads_the_parts_but_gets_no_editing()
     {
-        _inventory.Next = Task.FromResult(ApiResult.Failure<PagedResponse<PartDto>>(
-            new ProblemInfo(503, ProblemCodes.ServiceUnavailable, "Service unavailable", null, "4f1c0e9d2b7a4c3e8f6d5b4a3c2e1f0a")));
+        var page = Render<InventoryPage>(p => p.AddCascadingValue(State(User("keeper", AppRoles.WarehouseKeeper))));
 
-        var page = Render<InventoryPage>();
-
-        page.WaitForAssertion(() => page.Find("[data-testid=parts-error]").TextContent
-            .ShouldBe("Something went wrong. Please try again. Reference: 4f1c0e9d2b7a4c3e8f6d5b4a3c2e1f0a"));
-        page.FindAll("tbody tr.mud-table-row").ShouldBeEmpty();
-        page.Markup.ShouldContain("The parts could not be loaded.");
-    }
-
-    [Fact]
-    public void No_match_says_so()
-    {
-        _inventory.Total = 0;
-
-        var page = Render<InventoryPage>();
-
-        page.WaitForAssertion(() => page.Markup.ShouldContain("No parts match the search."));
+        page.WaitForAssertion(() => page.Find("[data-testid=catalog-grid]").TextContent.ShouldContain("RE504836"));
+        page.FindAll("[data-testid=catalog-new]").ShouldBeEmpty();
+        page.FindAll("[data-testid=catalog-edit]").ShouldBeEmpty();
     }
 }
 
-/// <summary>An <see cref="InventoryClient"/> that serves a synthetic catalogue of <see cref="Total"/> parts.</summary>
-public sealed class FakeInventoryClient() : InventoryClient(new HttpClient())
+/// <summary>A <see cref="CatalogClient"/> with one part.</summary>
+public sealed class FakePartsCatalogClient() : CatalogClient(new HttpClient())
 {
-    public const int PageLength = 25;
+    public static readonly PartDto Part = new(
+        1042, "JD", "RE504836", "Engine oil filter", "Engine oil filters", "PCS", 18.40m, 2, 11, "OIL_FILTER", 1, 0.45m, false, 1, "MANN", false, "9120");
 
-    public List<(string? Search, int Page, int PageSize)> Calls { get; } = [];
+    public List<string> Routes { get; } = [];
 
-    public int Total { get; set; } = 3;
+    public List<(long Id, PartWrite Body, string Version)> Updates { get; } = [];
 
-    /// <summary>The answer to the next call, if the test decides it.</summary>
-    public Task<ApiResult<PagedResponse<PartDto>>>? Next { get; set; }
-
-    public static PartDto Part(int number) =>
-        new(number, "JD", $"P-{number:D4}", "Engine oil filter", "Engine oil filters", "PCS", 18.40m, 2, 11, "OIL_FILTER", 1, null, false, null, null, false, "1");
-
-    public override Task<ApiResult<PagedResponse<PartDto>>> SearchPartsAsync(
-        string? search, int page, int pageSize, CancellationToken cancellationToken = default)
+    public override Task<ApiResult<PagedResponse<T>>> ListAsync<T>(
+        string route, string? search, bool archived, int page, int pageSize, CancellationToken cancellationToken = default)
     {
-        Calls.Add((search, page, pageSize));
-        if (Next is { } next)
-        {
-            Next = null;
-            return next;
-        }
-
-        var items = Enumerable.Range((page - 1) * pageSize + 1, Math.Max(0, Math.Min(pageSize, Total - (page - 1) * pageSize)))
-            .Select(Part).ToList();
-        return Task.FromResult(ApiResult.Success(new PagedResponse<PartDto>(items, page, pageSize, Total)));
+        Routes.Add(route);
+        object items = new PagedResponse<PartDto>(archived ? [] : [Part], page, pageSize, archived ? 0 : 1);
+        return Task.FromResult(ApiResult.Success((PagedResponse<T>)items));
     }
+
+    public override Task<ApiResult<T>> UpdateAsync<TWrite, T>(string route, long id, TWrite body, string version, CancellationToken cancellationToken = default)
+    {
+        Routes.Add(route);
+        var write = (PartWrite)(object)body!;
+        Updates.Add((id, write, version));
+        return Task.FromResult(ApiResult.Success((T)(object)(Part with { Description = write.Name, Version = "9121" })));
+    }
+}
+
+/// <summary>An <see cref="InventoryClient"/> with the reference lists and an empty responsibles list.</summary>
+public sealed class FakePartReferenceClient() : InventoryClient(new HttpClient())
+{
+    public override Task<ApiResult<List<ReferenceItem>>> ListPartCategoriesAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(ApiResult.Success(new List<ReferenceItem> { new(11, "OIL_FILTER", "Engine oil filters") }));
+
+    public override Task<ApiResult<List<ReferenceItem>>> ListUnitsOfMeasureAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(ApiResult.Success(new List<ReferenceItem> { new(1, "PCS", "Pieces") }));
+
+    public override Task<ApiResult<IReadOnlyList<AssignmentRoleDto>>> ListAssignmentRolesAsync(string kind, CancellationToken cancellationToken = default) =>
+        Task.FromResult(ApiResult.Success((IReadOnlyList<AssignmentRoleDto>)[new AssignmentRoleDto("part", "BUYER", "Buyer", false)]));
+
+    public override Task<ApiResult<IReadOnlyList<ResponsibleDto>>> GetResponsiblesAsync(string segment, long id, CancellationToken cancellationToken = default) =>
+        Task.FromResult(ApiResult.Success((IReadOnlyList<ResponsibleDto>)[]));
 }

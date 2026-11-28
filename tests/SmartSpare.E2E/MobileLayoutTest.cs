@@ -56,7 +56,7 @@ public sealed partial class MobileLayoutTest(E2EEnvironment app)
         await Assertions.Expect(page).ToHaveURLAsync(InventoryUrl());
 
         // The parts grid with its rows loaded still fits: on a phone it lists each part as a stacked card.
-        await Assertions.Expect(page.Locator("[data-testid=parts-grid] tbody tr.mud-table-row").First).ToBeVisibleAsync(new() { Timeout = 30_000 });
+        await Assertions.Expect(page.Locator("[data-testid=catalog-grid] tbody tr.mud-table-row").First).ToBeVisibleAsync(new() { Timeout = 30_000 });
         await ShouldFitTheScreenAsync(page, "inventory page");
         await page.ScreenshotAsync(new PageScreenshotOptions { Path = Artifact("mobile-4-inventory.png") });
     }

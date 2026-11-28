@@ -34,7 +34,7 @@ public sealed partial class PartsCatalogueTest(E2EEnvironment app)
         await WaitUntilInteractiveAsync(page);
 
         // The first page: 25 rows of the demo catalogue and a pager with the total.
-        var rows = page.Locator("[data-testid=parts-grid] tbody tr.mud-table-row");
+        var rows = page.Locator("[data-testid=catalog-grid] tbody tr.mud-table-row");
         await Assertions.Expect(rows).ToHaveCountAsync(25, new() { Timeout = 30_000 });
         var firstPart = await rows.First.Locator("td").First.TextContentAsync();
         await page.ScreenshotAsync(new PageScreenshotOptions { Path = Artifact("parts-1-first-page.png"), FullPage = true });
@@ -50,7 +50,7 @@ public sealed partial class PartsCatalogueTest(E2EEnvironment app)
         await Assertions.Expect(rows.First).ToContainTextAsync("Heavy-duty straw chopper blade");
         await page.ScreenshotAsync(new PageScreenshotOptions { Path = Artifact("parts-2-search.png"), FullPage = true });
 
-        await Assertions.Expect(page.Locator("[data-testid=parts-error]")).ToHaveCountAsync(0);
+        await Assertions.Expect(page.Locator("[data-testid=catalog-error]")).ToHaveCountAsync(0);
     }
 
     private static Task WaitUntilInteractiveAsync(IPage page) =>

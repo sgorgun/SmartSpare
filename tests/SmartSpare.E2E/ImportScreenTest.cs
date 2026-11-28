@@ -53,7 +53,7 @@ public sealed partial class ImportScreenTest(E2EEnvironment app)
         await page.GetByRole(AriaRole.Link, new() { Name = "Parts" }).ClickAsync();
         await WaitUntilInteractiveAsync(page);
         await page.Locator("input[inputmode=search]").FillAsync(part);
-        var rows = page.Locator("[data-testid=parts-grid] tbody tr.mud-table-row");
+        var rows = page.Locator("[data-testid=catalog-grid] tbody tr.mud-table-row");
         await Assertions.Expect(rows).ToHaveCountAsync(1, new() { Timeout = 15_000 });
         await Assertions.Expect(rows.First).ToContainTextAsync(part);
     }

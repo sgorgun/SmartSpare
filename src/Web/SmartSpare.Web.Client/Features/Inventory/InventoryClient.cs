@@ -22,6 +22,14 @@ public class InventoryClient(HttpClient http) : ApiClientBase(http)
         return SendAsync<PagedResponse<PartDto>>(new HttpRequestMessage(HttpMethod.Get, "api/v1/inventory/parts?" + query), cancellationToken);
     }
 
+    /// <summary>The part categories of the reference data (PR 7i1b).</summary>
+    public virtual Task<ApiResult<List<ReferenceItem>>> ListPartCategoriesAsync(CancellationToken cancellationToken = default) =>
+        SendAsync<List<ReferenceItem>>(new HttpRequestMessage(HttpMethod.Get, "api/v1/inventory/part-categories"), cancellationToken);
+
+    /// <summary>The units of measure of the reference data (PR 7i1b).</summary>
+    public virtual Task<ApiResult<List<ReferenceItem>>> ListUnitsOfMeasureAsync(CancellationToken cancellationToken = default) =>
+        SendAsync<List<ReferenceItem>>(new HttpRequestMessage(HttpMethod.Get, "api/v1/inventory/units-of-measure"), cancellationToken);
+
     public virtual Task<ApiResult<PartDetails>> GetPartAsync(long id, CancellationToken cancellationToken = default) =>
         SendAsync<PartDetails>(
             new HttpRequestMessage(HttpMethod.Get, string.Create(CultureInfo.InvariantCulture, $"api/v1/inventory/parts/{id}")), cancellationToken);
@@ -41,12 +49,12 @@ public class InventoryClient(HttpClient http) : ApiClientBase(http)
             new HttpRequestMessage(HttpMethod.Get, "api/v1/inventory/assignment-roles?kind=" + Uri.EscapeDataString(kind)), cancellationToken);
 
     /// <summary><paramref name="segment"/> is <c>brands</c> or <c>warehouses</c>.</summary>
-    public virtual Task<ApiResult<IReadOnlyList<ResponsibleDto>>> GetResponsiblesAsync(string segment, short id, CancellationToken cancellationToken = default) =>
+    public virtual Task<ApiResult<IReadOnlyList<ResponsibleDto>>> GetResponsiblesAsync(string segment, long id, CancellationToken cancellationToken = default) =>
         SendAsync<IReadOnlyList<ResponsibleDto>>(
             new HttpRequestMessage(HttpMethod.Get, string.Create(CultureInfo.InvariantCulture, $"api/v1/inventory/{segment}/{id}/responsibles")), cancellationToken);
 
     public virtual Task<ApiResult<IReadOnlyList<ResponsibleDto>>> ReplaceResponsiblesAsync(
-        string segment, short id, ResponsiblesRequest request, CancellationToken cancellationToken = default) =>
+        string segment, long id, ResponsiblesRequest request, CancellationToken cancellationToken = default) =>
         SendAsync<IReadOnlyList<ResponsibleDto>>(
             new HttpRequestMessage(HttpMethod.Put, string.Create(CultureInfo.InvariantCulture, $"api/v1/inventory/{segment}/{id}/responsibles"))
             {
