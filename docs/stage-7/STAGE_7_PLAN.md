@@ -559,6 +559,19 @@ Effort: **S** ≈ a quarter day, **M** ≈ half a day, **L** ≈ a full day, at 
 
 **After 7h, responsibles permissions in SQL:** the endpoints already required `Inventory.Brand.ManageAssignments`, `Inventory.Warehouse.ManageAssignments` and `Inventory.Manufacturer.Edit`, but the tables had only plain grants. A statement trigger (`inventory/0019_assignment_permissions.sql`) now requires the same permission from the session (SS301), with the table owner exempt for migrations and seeds. A brand-manager assignment carries approval rights, so an inventory planner may edit the brand record but neither the API nor the database lets them assign its responsibles (integration test and T03).
 
+**After 7h, editable seeded roles (product owner, 28 November 2026; ADR 0028 amendment):**
+- **Roles:** seeded roles were already editable through the API, and the roles screen allowed ticking their permissions. Only the locked Administrator and Superadministrator roles are read-only. What was missing:
+  - renaming and describing a role on the screen;
+  - **Reset to default** (`POST /roles/{id}/reset`, back to the shipped `DefaultRoles` bundle, audited, with the SoD and own-role rules);
+  - **Copy role** (`POST /roles/{id}/copy`, any role but the Superadministrator).
+  - `RoleSummary` gains `HasDefault` and `IsDefault`, and the screen marks a seeded role "Changed from default".
+- **Positions:** positions other than the locked Superadministrator were already renamed and had their role template changed on the screen, and a change rotates the employees' stamps. Two gaps are fixed:
+  - The template offered only the six seeded roles, so new roles and copies could not be chosen. It now lists every active role by name, never the Superadministrator.
+  - The locked position showed edit buttons that the server refused. `PositionSummary` now has `IsLocked`, and the screen shows the lock instead.
+- **Tests:**
+  - **Session refresh:** a renamed position with a changed template ends its employees' sessions within 30 s, and their next sign-in carries the new roles.
+  - **Matrix:** an edit of the planner role followed by "Reset to default" gives exactly the golden matrix.
+
 **As built, 7h4 (closes #161):**
 - **Manufacturer responsibles:** `catalog.manufacturer_responsible` is the third record kind of the shared responsibles pattern (3.7), alongside brands and warehouses. It is audited, with `GET/PUT /manufacturers/{id}/responsibles`, and the responsibles panel appears in the manufacturer editor.
 - **Rights:** its one role, `ACCOUNT_MANAGER`, grants no rights. So the catalogue's edit permission is enough to change it (no ManageAssignments), nothing goes to Identity, and the golden matrix is unchanged.
@@ -652,6 +665,7 @@ Total: 3 S, 15 M, 9 L (7x1–7x4 added at the second checkpoint) ≈ 14.75 PR-da
 | PR | Finding | Kind | Fix |
 |---|---|---|---|
 | #186 | **Security fix.** The rights projection (`iam.employee_responsibility`, `iam.responsibility_source`) was writable by `app_write`, so every application login, including the Inventory and Fleet service logins, could change anyone's brand scope and hubs directly. 1.7 asked for exactly this T03 test, and 7d did not deliver it. | security | Direct privileges revoked; `iam.apply_responsibilities` (SECURITY DEFINER) is the only write path, executable only by the logins that host Identity; T03 +4; the privilege self-check flags direct writes. |
+| #210 | **Security fix, the second "API checked, database did not" finding after #186.** The responsibles endpoints required `Inventory.Brand.ManageAssignments`, `Inventory.Warehouse.ManageAssignments` and `Inventory.Manufacturer.Edit`, but `catalog.brand_responsible`, `inventory.warehouse_responsible` and `catalog.manufacturer_responsible` only had plain INSERT and DELETE grants to `app_write`. Any application login could therefore write a brand-manager assignment, which carries approval rights, without the permission. | security | A statement trigger requires the endpoint's permission from the session (`util.require_permission`, SS301), with the table owner exempt for migrations and seeds; integration test (a planner edits a brand but cannot assign its manager) and T03 +3. Rule for the rest of the stage: every new write path gets a T03 assertion next to its endpoint test. |
 | #186 | The account kept emptied copies of the employee's name, e-mail and phone (7e deviation). | privacy | Dropped by a forward-only Reporting migration after the masked audit view moved to the employee. |
 | #188 | A one-statement save outside the command pipeline runs without a transaction, so the session context is never set and the audit row has no user. | audit | Catalogue writes run in an explicit unit-of-work transaction. |
 | #183 | A sign-in that met a concurrent stamp rotation failed with 500. | correctness | The sign-in retries on the fresh row. |
