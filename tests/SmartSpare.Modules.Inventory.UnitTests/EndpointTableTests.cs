@@ -38,6 +38,8 @@ public sealed class EndpointTableTests
             "POST /api/v1/inventory/transfers/{id:long}/dispatch",
             "POST /api/v1/inventory/transfers/{id:long}/receive",
             "POST /api/v1/inventory/imports",
+            "GET /api/v1/inventory/imports/template",
+            "GET /api/v1/inventory/imports/export",
             "GET /api/v1/inventory/imports",
             "GET /api/v1/inventory/imports/{id:long}",
             "GET /internal/v1/inventory/warehouses",
@@ -57,6 +59,9 @@ public sealed class EndpointTableTests
             "PUT /api/v1/inventory/adjustment-reasons/{id:long}",
             "POST /api/v1/inventory/adjustment-reasons/{id:long}/archive",
             "POST /api/v1/inventory/adjustment-reasons/{id:long}/restore",
+            "GET /api/v1/inventory/adjustment-reasons/csv/template",
+            "GET /api/v1/inventory/adjustment-reasons/csv",
+            "POST /api/v1/inventory/adjustment-reasons/csv",
         ], ignoreOrder: true);
 
     [Theory]
@@ -80,6 +85,10 @@ public sealed class EndpointTableTests
     [InlineData("GET /api/v1/inventory/stock", Permissions.Inventory.Stock.View)]
     [InlineData("POST /api/v1/inventory/transfers", Permissions.Inventory.Transfer.Create)]
     [InlineData("POST /api/v1/inventory/imports", Permissions.Inventory.Import.Run)]
+    [InlineData("GET /api/v1/inventory/imports/template", Permissions.Inventory.Import.Run)]
+    [InlineData("GET /api/v1/inventory/imports/export", Permissions.Inventory.Import.Run)]
+    [InlineData("GET /api/v1/inventory/adjustment-reasons/csv", Permissions.Inventory.AdjustmentReason.View)]
+    [InlineData("POST /api/v1/inventory/adjustment-reasons/csv", Permissions.Inventory.AdjustmentReason.Edit)]
     [InlineData("GET /api/v1/inventory/imports", Permissions.Inventory.Import.View)]
     [InlineData("POST /api/v1/inventory/transfers/{id:long}/approve", Permissions.Inventory.Transfer.Approve)]
     [InlineData("POST /api/v1/inventory/transfers/{id:long}/cancel", Permissions.Inventory.Transfer.Cancel)]

@@ -13,6 +13,7 @@ using Microsoft.Extensions.DependencyInjection;
 using SmartSpare.ApiContracts;
 using SmartSpare.ApiContracts.Authorization;
 using SmartSpare.ApiContracts.Inventory;
+using SmartSpare.Infrastructure.Csv;
 using SmartSpare.Infrastructure.Http;
 using SmartSpare.Infrastructure.Messaging;
 using SmartSpare.Infrastructure.Persistence;
@@ -34,7 +35,7 @@ internal static class ImportErrors
 }
 
 /// <summary>Imports a CSV file: raw rows, then <c>staging.process_batch</c> validates and loads with its quality gate.</summary>
-internal sealed record ImportFileCommand(string Source, string FileName, byte[] Content) : ICommand<ImportBatchDetails>;
+internal sealed record ImportFileCommand(string Source, string FileName, byte[] Content, bool DryRun = false) : ICommand<ImportBatchDetails>;
 
 internal sealed class ImportFileCommandValidator : AbstractValidator<ImportFileCommand>
 {
@@ -83,6 +84,11 @@ internal sealed class ImportFileCommandHandler(
             return ImportErrors.Duplicate;
         }
 
+        if (command.DryRun)
+        {
+            await store.BeginDryRunAsync(cancellationToken).ConfigureAwait(false);
+        }
+
         var batch = new ImportBatch
         {
             Source = source,
@@ -97,7 +103,7 @@ internal sealed class ImportFileCommandHandler(
 
         await store.CopyRowsAsync(batch.Id, command.Source, parsed.Value, cancellationToken).ConfigureAwait(false);
         await store.ProcessBatchAsync(batch.Id, cancellationToken).ConfigureAwait(false);
-        if (source == ImportSource.PartCatalog)
+        if (source == ImportSource.PartCatalog && !command.DryRun)
         {
             // #12: the parts this load changed go to the outbox in the same transaction (STAGE_6_PLAN 5.2).
             var changed = await PartCatalogSnapshots.ChangedByBatchAsync(db, batch.Id, cancellationToken).ConfigureAwait(false);
@@ -105,7 +111,14 @@ internal sealed class ImportFileCommandHandler(
         }
 
         db.ChangeTracker.Clear();
-        return (await ImportReader.ReadAsync(db, batch.Id, cancellationToken).ConfigureAwait(false))!;
+        var details = (await ImportReader.ReadAsync(db, batch.Id, cancellationToken).ConfigureAwait(false))!;
+        if (command.DryRun)
+        {
+            // STAGE_7_PLAN 2.6: the dry run is the real import, rolled back after its report was read.
+            await store.EndDryRunAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        return details;
     }
 }
 
@@ -154,20 +167,29 @@ internal static class ImportEndpoints
             http.User.FindFirst(AppClaimTypes.Subject)?.Value ?? http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             _ => new FixedWindowRateLimiterOptions { PermitLimit = ImportLimits.PermitsPerMinute, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 })));
 
+    private static readonly Error SourceError =
+        Error.Validation("Inventory.ImportSource", $"The source must be one of: {string.Join(", ", ImportSources.All)}.");
+
+    private static IResult Csv(string text, string name) => Results.File(Encoding.UTF8.GetBytes(text), "text/csv; charset=utf-8", name);
+
     public static void Map(IEndpointRouteBuilder group)
     {
         group.MapPost("/imports", async (
                 [FromForm][Description("partCatalog or demandHistory.")] string source,
                 [Description("The CSV file, UTF-8, at most 10 MB and 50,000 rows.")] IFormFile file,
                 ICommandHandler<ImportFileCommand, ImportBatchDetails> handler,
-                CancellationToken cancellationToken) =>
+                CancellationToken cancellationToken,
+                [Description("true runs the whole import and rolls it back: 200 with the report the import would give.")] bool dryRun = false) =>
             {
                 using var buffer = new MemoryStream();
                 await file.CopyToAsync(buffer, cancellationToken).ConfigureAwait(false);
-                var result = await handler.Handle(new ImportFileCommand(source, file.FileName, buffer.ToArray()), cancellationToken).ConfigureAwait(false);
-                return result.IsSuccess
-                    ? Results.Created($"/api/v1/inventory/imports/{result.Value.Batch.Id}", result.Value)
-                    : result.Error.ToProblem();
+                var result = await handler.Handle(new ImportFileCommand(source, file.FileName, buffer.ToArray(), dryRun), cancellationToken).ConfigureAwait(false);
+                if (result.IsFailure)
+                {
+                    return result.Error.ToProblem();
+                }
+
+                return dryRun ? Results.Ok(result.Value) : Results.Created($"/api/v1/inventory/imports/{result.Value.Batch.Id}", result.Value);
             })
             .RequireAuthorization(Permissions.Inventory.Import.Run)
             .RequireRateLimiting(RateLimitPolicy)
@@ -182,10 +204,12 @@ internal static class ImportEndpoints
                 + "warehouse_code, brand_code, oem_part_number, quantity, doc_ref. The rows are stored as raw text, validated "
                 + "into staging and loaded into the catalogue or the demand ledger in one transaction (raw → staging → core). "
                 + "If more than 5 % of the rows are invalid nothing is loaded and the batch is answered with status failed "
-                + "(still 201): the report lists the row errors. The same file cannot be imported twice (409 "
+                + "(still 201): the report lists the row errors. With dryRun=true the same import runs and is rolled back: 200 "
+                + "with the report it would give; its batch is not kept. The same file cannot be imported twice (409 "
                 + "Inventory.ImportDuplicate). At most 10 MB, 50,000 rows and 5 imports a minute. Permission Inventory.Import.Run "
                 + "(administrators and inventory planners).")
             .Produces<ImportBatchDetails>(StatusCodes.Status201Created)
+            .Produces<ImportBatchDetails>(StatusCodes.Status200OK)
             .ProducesValidationProblem()
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
@@ -196,6 +220,39 @@ internal static class ImportEndpoints
                 "Inventory.ImportHeader", "The header must name exactly these columns: doc_date, warehouse_code, brand_code, oem_part_number, quantity, doc_ref. Missing: doc_ref.")))
             .WithResponseExample(StatusCodes.Status401Unauthorized, InventoryExamples.Unauthorized)
             .WithResponseExample(StatusCodes.Status409Conflict, InventoryExamples.Problem(ImportErrors.Duplicate));
+
+        group.MapGet("/imports/template", (
+                [Description("partCatalog or demandHistory.")] string source) =>
+                ImportSources.Columns.TryGetValue(source, out var columns)
+                    ? Csv(CsvFile.Write(columns, [ImportTemplates.ExampleRow(source)]), $"{source}-template.csv")
+                    : SourceError.ToProblem())
+            .RequireAuthorization(Permissions.Inventory.Import.Run)
+            .WithName("GetImportTemplate")
+            .WithSummary("Downloads the CSV template of a part catalogue or demand history import.")
+            .WithDescription("UTF-8 CSV with the source's header and one example row. Permission Inventory.Import.Run.")
+            .Produces(StatusCodes.Status200OK, contentType: "text/csv")
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden);
+
+        group.MapGet("/imports/export", async (
+                [Description("partCatalog or demandHistory.")] string source,
+                ImportStore store,
+                CancellationToken cancellationToken) =>
+                ImportSources.Columns.TryGetValue(source, out var columns)
+                    ? Csv(CsvFile.Write(columns, await store.ExportRowsAsync(source, cancellationToken).ConfigureAwait(false)), $"{source}.csv")
+                    : SourceError.ToProblem())
+            .RequireAuthorization(Permissions.Inventory.Import.Run)
+            .WithName("ExportImportSource")
+            .WithSummary("Exports the active parts or the demand history in the import's columns.")
+            .WithDescription(
+                "partCatalog: every active part by brand and OEM number; demandHistory: every historical demand movement of the "
+                + "ledger. The columns are the import's, so the file can be edited and imported (a demand history file "
+                + "imported again is refused as a duplicate). Permission Inventory.Import.Run.")
+            .Produces(StatusCodes.Status200OK, contentType: "text/csv")
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden);
 
         group.MapGet("/imports", async (
                 IQueryHandler<ListImportsQuery, PagedResponse<ImportBatchResponse>> handler,
@@ -236,4 +293,12 @@ internal static class ImportEndpoints
             .WithResponseExample(StatusCodes.Status401Unauthorized, InventoryExamples.Unauthorized)
             .WithResponseExample(StatusCodes.Status404NotFound, InventoryExamples.Problem(ImportErrors.NotFound));
     }
+}
+
+/// <summary>The example rows of the import templates, valid against the demo data.</summary>
+internal static class ImportTemplates
+{
+    public static IReadOnlyList<string?> ExampleRow(string source) => source == ImportSources.PartCatalog
+        ? ["JD", "RE504836", "Oil filter element", "OIL_FILTER", "PCS", "0.450", "18.90", "false"]
+        : ["2026-06-30", "KLP", "JD", "RE504836", "2", "INV-2026-0042"];
 }
