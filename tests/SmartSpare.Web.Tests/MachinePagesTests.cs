@@ -196,6 +196,22 @@ public sealed class MachinePagesTests : ClientTestContext
     }
 
     [Fact]
+    public void A_reading_at_an_archived_hub_is_saved_with_a_warning_and_no_order()
+    {
+        _fleet.NextReading = ApiResult.Success(new RecordReadingResponse(
+            new ReadingRow(33, Now, 1505.5m, ReadingSources.Manual, Guid.NewGuid()), 1505.5m, false, [],
+            [new ReadingWarning(ReadingWarning.HubArchived, "server text")]));
+        var entry = RenderEntry();
+
+        entry.Find("input[data-testid=reading-hours]").Input("1 505,5");
+        entry.Find("[data-testid=reading-save]").Click();
+
+        entry.WaitForAssertion(() => entry.Find("[data-testid=reading-warning]").TextContent.ShouldContain("home hub is archived"));
+        entry.FindAll("[data-testid=reading-drafted]").ShouldBeEmpty();
+        entry.Markup.ShouldContain("1,505.5");
+    }
+
+    [Fact]
     public void Saving_again_after_a_lost_answer_sends_the_identical_reading()
     {
         _fleet.NextReading = ApiResult.Failure<RecordReadingResponse>(new ProblemInfo(503, ProblemCodes.ServiceUnavailable, null, null, null));
@@ -246,6 +262,9 @@ public sealed class FakeFleetClient() : FleetClient(new HttpClient())
 
     public ApiResult<RecordReadingResponse>? NextReading { get; set; }
 
+    /// <summary>Rows added after the two standard rows of the due list.</summary>
+    public List<DueMaintenanceRow> ExtraDueRows { get; } = [];
+
     public override Task<ApiResult<PagedResponse<MachineSummary>>> ListMachinesAsync(
         string? search, short? warehouseId, string? dueStatus, int page, int pageSize, CancellationToken cancellationToken = default)
     {
@@ -266,7 +285,8 @@ public sealed class FakeFleetClient() : FleetClient(new HttpClient())
             new ReadingRow(32, request.ReadAt!.Value, request.Hours, ReadingSources.Manual, Guid.NewGuid()),
             request.Hours,
             false,
-            [new DraftedServiceOrder(501, "SO-2026-000501", 1500, false)])));
+            [new DraftedServiceOrder(501, "SO-2026-000501", 1500, false)],
+            [])));
     }
 
     public static ServiceOrderSummary OrderSummary(string status, string kit) => new(
@@ -359,8 +379,9 @@ public sealed class FakeFleetClient() : FleetClient(new HttpClient())
         return Task.FromResult(ApiResult.Success(new PagedResponse<DueMaintenanceRow>(
             [new DueMaintenanceRow(1, "JD6R150VLN2019OVD", "6R 150", "JD", "CUST-000001", 1, "VLN", 2580, Due("Engine service", 2500, -80, MaintenanceDueStatuses.Overdue)),
              new DueMaintenanceRow(7, "FT724KLP2024DEMO", "724 Vario", "FENDT", "CUST-000001", 3, "KLP", 760,
-                 Due("Engine service", 1500, 740, MaintenanceDueStatuses.Planned) with { OpenOrderThreshold = 750 })],
-            page, pageSize, 2)));
+                 Due("Engine service", 1500, 740, MaintenanceDueStatuses.Planned) with { OpenOrderThreshold = 750 }),
+             .. ExtraDueRows],
+            page, pageSize, 2 + ExtraDueRows.Count)));
     }
 }
 

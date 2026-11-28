@@ -95,6 +95,11 @@ internal sealed class FleetDueReader(FleetDbContext db, TimeProvider time)
         return id => codes.TryGetValue(id, out var code) ? code : id.ToString(System.Globalization.CultureInfo.InvariantCulture);
     }
 
+    /// <summary>Ids of the hubs Fleet's warehouse copy marks archived (ADR 0029): no order can be drafted there.</summary>
+    public async Task<IReadOnlySet<short>> ArchivedHubsAsync(CancellationToken cancellationToken) =>
+        (await db.Set<WarehouseSnapshot>().AsNoTracking().Where(w => w.IsArchived).Select(w => w.WarehouseId)
+            .ToListAsync(cancellationToken).ConfigureAwait(false)).ToHashSet();
+
     public static MachineSummary Summary(MachineRows.Row m, Func<short, string> warehouseCode, MaintenancePlanDue? next) => new(
         m.Id, m.Vin, m.ModelName, m.BrandCode, m.MachineType, m.CustomerCode, m.HomeWarehouseId, warehouseCode(m.HomeWarehouseId),
         m.CurrentEngineHours, m.EngineHoursReadAt, m.MachineStatus, next);
@@ -208,6 +213,7 @@ internal sealed class DueMaintenanceQueryHandler(FleetDbContext db, FleetDueRead
             .ToDictionary(m => m.Id);
         var plans = await due.PlansAsync(null, query.WarehouseId, query.HorizonDays, cancellationToken).ConfigureAwait(false);
         var code = await due.WarehouseCodesAsync(cancellationToken).ConfigureAwait(false);
+        var archived = await due.ArchivedHubsAsync(cancellationToken).ConfigureAwait(false);
         var listed = MaintenanceDueMapping.ListedStatuses(query.Status);
 
         var rows = MaintenanceDueMapping.ByDueDate(
@@ -217,7 +223,7 @@ internal sealed class DueMaintenanceQueryHandler(FleetDbContext db, FleetDueRead
                     {
                         var m = machines[p.Input.MachineId];
                         return new DueMaintenanceRow(m.Id, m.Vin, m.ModelName, m.BrandCode, m.CustomerCode, m.HomeWarehouseId,
-                            code(m.HomeWarehouseId), m.CurrentEngineHours, p.Due);
+                            code(m.HomeWarehouseId), m.CurrentEngineHours, p.Due, archived.Contains(m.HomeWarehouseId));
                     }),
                 r => r.Due)
             .ThenBy(r => r.Vin, StringComparer.Ordinal)

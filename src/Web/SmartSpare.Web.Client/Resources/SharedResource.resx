@@ -1056,6 +1056,12 @@
   <data name="Reading.Replayed" xml:space="preserve">
     <value>This reading was already saved: {0} h.</value>
   </data>
+  <data name="Reading.HubArchived" xml:space="preserve">
+    <value>Maintenance is due, but this machine's home hub is archived, so no service order was created. Move the machine to an active hub.</value>
+  </data>
+  <data name="Due.HubArchived" xml:space="preserve">
+    <value>Hub archived</value>
+  </data>
   <data name="Reading.Drafted" xml:space="preserve">
     <value>Service orders created</value>
   </data>

@@ -26,6 +26,12 @@
             </MudList>
             <MudText Typo="Typo.body2" Class="mb-2">@Text["Reading.KitReserving"]</MudText>
         }
+        @foreach (var warning in saved.Warnings)
+        {
+            <MudAlert Severity="Severity.Warning" Class="mb-2" data-testid="reading-warning">
+                @(warning.Code == ReadingWarning.HubArchived ? Text["Reading.HubArchived"].Value : warning.Message)
+            </MudAlert>
+        }
     </div>
     <MudButton OnClick="Close" Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Class="touch-target" data-testid="reading-done">
         @Text["Reading.Done"]

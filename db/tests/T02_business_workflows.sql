@@ -266,4 +266,23 @@ SELECT pg_temp.ok((SELECT count(*) FROM pg_inherits WHERE inhparent = 'audit.aud
 SELECT pg_temp.ok((SELECT min(occurred_at) >= date_trunc('month', now() - interval '180 days') - interval '1 month' FROM audit.audit_log),
                   'Retention: no audit record older than the retention window');
 
+
+-- ADR 0029 (PR 7j1b): a reading is never lost. At a home hub archived in Fleet's warehouse copy, fleet.log_engine_hours
+-- stores the reading and drafts nothing, instead of the guard trigger refusing the whole reading.
+SET LOCAL ROLE smartspare_owner;
+SELECT pg_temp.act_as('mantas.petrauskas');
+INSERT INTO fleet.machine (vin, model_id, customer_id, operating_condition_id, home_warehouse_id, manufacture_year)
+SELECT 'TESTLX0000002', mm.id, (SELECT min(id) FROM fleet.customer), oc.id, w.id, 2024
+FROM fleet.machine_model mm, ref.operating_condition oc, inventory.warehouse w
+WHERE mm.model_name = 'Lexion 8700' AND oc.code = 'NORMAL' AND w.code = 'MRJ';
+SELECT count(*) FROM fleet.log_engine_hours((SELECT id FROM fleet.machine WHERE vin = 'TESTLX0000002'), 440, now() - interval '10 days');
+INSERT INTO fleet.warehouse_snapshot (warehouse_id, code, name, is_central_hub, is_archived, source_occurred_at)
+SELECT id, code, name, is_central_hub, true, now() FROM inventory.warehouse WHERE code = 'MRJ'
+ON CONFLICT (warehouse_id) DO UPDATE SET is_archived = true;
+SELECT pg_temp.ok((SELECT count(*) = 0 FROM fleet.log_engine_hours((SELECT id FROM fleet.machine WHERE vin = 'TESTLX0000002'), 512, now() - interval '1 hour')),
+                  'ADR 0029: 512 h at an archived home hub drafts no service order');
+SELECT pg_temp.ok((SELECT current_engine_hours = 512 FROM fleet.machine WHERE vin = 'TESTLX0000002')
+                  AND NOT EXISTS (SELECT 1 FROM fleet.service_order so JOIN fleet.machine m ON m.id = so.machine_id WHERE m.vin = 'TESTLX0000002'),
+                  'ADR 0029: the reading is stored all the same (only SS100-SS104 reject a reading)');
+
 ROLLBACK;

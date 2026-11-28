@@ -123,7 +123,8 @@ public sealed record DueMaintenanceRow(
     [property: Description("Home hub id.")] short WarehouseId,
     [property: Description("Home hub code.")] string WarehouseCode,
     [property: Description("Current engine hours.")] decimal EngineHours,
-    [property: Description("The due calculation.")] MaintenancePlanDue Due);
+    [property: Description("The due calculation.")] MaintenancePlanDue Due,
+    [property: Description("True when the home hub is archived in Inventory: no service order can be drafted until the machine moves to an active hub (ADR 0029).")] bool HubArchived = false);
 
 /// <summary>One part of a service kit.</summary>
 [Description("One part of a service kit, with the data of Fleet's catalogue copy.")]

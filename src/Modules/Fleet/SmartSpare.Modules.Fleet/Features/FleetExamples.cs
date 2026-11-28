@@ -51,7 +51,7 @@ internal static class FleetExamples
 
     /// <summary>UC02: 512 h logged on the Lexion crosses the 500 h engine service, which is drafted; Inventory reserves the kit next.</summary>
     public static RecordReadingResponse RecordedReading { get; } = new(
-        Reading, EngineHours: 512, Replayed: false, DraftedOrders: [new DraftedServiceOrder(9001, "SO-2026-000412", 500, FullyReserved: false)]);
+        Reading, EngineHours: 512, Replayed: false, DraftedOrders: [new DraftedServiceOrder(9001, "SO-2026-000412", 500, FullyReserved: false)], Warnings: []);
 
     public static ServiceOrderSummary ServiceOrder { get; } = new(
         Id: 9001, Number: "SO-2026-000412", MachineId: 501, Vin: "LX901PNV2026", ModelName: "Lexion 8700", PlanName: "Engine service",
