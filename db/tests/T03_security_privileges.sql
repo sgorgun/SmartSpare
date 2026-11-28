@@ -85,6 +85,18 @@ SELECT pg_temp.expect_error($$SELECT util.require_permission('Procurement.Purcha
 SELECT set_config('app.user_permissions', 'Procurement.PurchaseOrder.Approve', false);
 SELECT pg_temp.ok(util.require_permission('Procurement.PurchaseOrder.Approve') = util.current_app_user(),
                   'DB-level permissions: a permission in app.user_permissions passes util.require_permission (#11)');
+-- ADR 0028: a brand-manager assignment carries approval rights. The planner edits brand records (Inventory.Brand.Edit)
+-- but the database refuses their assignment write too, not only the endpoint; the administrator passes.
+SELECT pg_temp.act_as('ignas.zukauskas');                 -- INVENTORY_PLANNER
+SELECT pg_temp.expect_error(
+    $$INSERT INTO catalog.brand_responsible (brand_id, employee_id, assignment_role)
+      SELECT b.id, e.id, 'BRAND_MANAGER' FROM catalog.brand b, iam.employee e ORDER BY b.id, e.id LIMIT 1$$,
+    'SS301', 'ADR 0028: a planner cannot write a brand-manager assignment in the database (Inventory.Brand.ManageAssignments)');
+SELECT pg_temp.expect_error($$DELETE FROM inventory.warehouse_responsible WHERE false$$, 'SS301',
+                            'ADR 0028: a planner cannot remove warehouse responsibles in the database (Inventory.Warehouse.ManageAssignments)');
+SELECT pg_temp.act_as('admin.smartspare');
+DELETE FROM catalog.brand_responsible WHERE false;
+SELECT pg_temp.ok(true, 'ADR 0028: the administrator holds Inventory.Brand.ManageAssignments and writes brand assignments');
 SELECT set_config('app.user_roles', 'ADMINISTRATOR', false);
 SELECT set_config('app.user_permissions', '', false);
 SELECT pg_temp.expect_error($$SELECT util.require_hub(1::smallint)$$, 'SS302',

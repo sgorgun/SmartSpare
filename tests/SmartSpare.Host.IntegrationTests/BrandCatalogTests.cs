@@ -58,6 +58,27 @@ public sealed class BrandCatalogTests(IdentityDatabaseFixture database) : IAsync
     }
 
     [Fact]
+    public async Task A_planner_edits_the_brand_record_but_only_an_administrator_assigns_its_brand_manager()
+    {
+        var brand = await CreateAsync("M");
+        var employee = await database.CreateUserAsync($"{_tag.ToLowerInvariant()}.bm", [AppRoles.BrandManager], []);
+        var assignment = new ResponsiblesRequest([new ResponsibleEntry(employee, "BRAND_MANAGER")]);
+
+        using (var edited = await SendAsync(Planner, HttpMethod.Put, $"{Brands}/{brand.Id}", new BrandWrite(brand.Code, "Edited by a planner", "DE"), brand.Version))
+        {
+            edited.StatusCode.ShouldBe(HttpStatusCode.OK, "Inventory.Brand.Edit");
+        }
+
+        using (var refused = await SendAsync(Planner, HttpMethod.Put, $"{Brands}/{brand.Id}/responsibles", assignment))
+        {
+            refused.StatusCode.ShouldBe(HttpStatusCode.Forbidden, "a brand manager gets approval rights: Inventory.Brand.ManageAssignments");
+        }
+
+        using var granted = await SendAsync(Admin, HttpMethod.Put, $"{Brands}/{brand.Id}/responsibles", assignment);
+        granted.StatusCode.ShouldBe(HttpStatusCode.OK, await granted.Content.ReadAsStringAsync(Ct));
+    }
+
+    [Fact]
     public async Task A_brand_with_active_parts_or_responsibles_cannot_be_archived_and_an_unused_one_is_archived_in_the_copies_too()
     {
         var used = await CreateAsync("U");
