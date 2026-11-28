@@ -109,6 +109,9 @@ public sealed class EndpointTableTests
             "POST /api/v1/inventory/part-analogues",
             "PUT /api/v1/inventory/part-analogues/{id:long}",
             "POST /api/v1/inventory/part-analogues/{id:long}/remove",
+            "GET /api/v1/inventory/part-analogues/csv/template",
+            "GET /api/v1/inventory/part-analogues/csv",
+            "POST /api/v1/inventory/part-analogues/csv",
         ], ignoreOrder: true);
 
     [Theory]
@@ -150,6 +153,7 @@ public sealed class EndpointTableTests
     [InlineData("PUT /api/v1/inventory/parts/{id:long}/responsibles", Permissions.Inventory.Part.Edit)]
     [InlineData("POST /api/v1/inventory/part-analogues", Permissions.Inventory.Part.Edit)]
     [InlineData("POST /api/v1/inventory/part-analogues/{id:long}/remove", Permissions.Inventory.Part.Edit)]
+    [InlineData("POST /api/v1/inventory/part-analogues/csv", Permissions.Inventory.Part.Edit)]
     [InlineData("GET /api/v1/inventory/imports", Permissions.Inventory.Import.View)]
     [InlineData("POST /api/v1/inventory/transfers/{id:long}/approve", Permissions.Inventory.Transfer.Approve)]
     [InlineData("POST /api/v1/inventory/transfers/{id:long}/cancel", Permissions.Inventory.Transfer.Cancel)]
