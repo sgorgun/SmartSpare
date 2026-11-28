@@ -33,6 +33,8 @@ public sealed class ImportPageTests : ClientTestContext
 
         page.WaitForAssertion(() => page.Find("[data-testid=import-history]").TextContent.ShouldContain("jd-catalogue.csv"));
         page.Find("[data-testid=import-columns]").TextContent.ShouldContain("brand_code,oem_part_number,description");
+        page.Find("[data-testid=import-optional-columns]").TextContent.ShouldContain("manufacturer_code");
+        page.Find("[data-testid=import-manufacturer-rule]").TextContent.ShouldContain("cannot clear it");
     }
 
     [Fact]

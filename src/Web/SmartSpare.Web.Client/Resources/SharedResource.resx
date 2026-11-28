@@ -474,6 +474,12 @@
   <data name="Imports.Columns" xml:space="preserve">
     <value>Header row:</value>
   </data>
+  <data name="Imports.OptionalColumns" xml:space="preserve">
+    <value>Optional:</value>
+  </data>
+  <data name="Imports.ManufacturerRule" xml:space="preserve">
+    <value>An empty manufacturer_code keeps the part's stored manufacturer, so a file cannot clear it: remove a part's manufacturer in the part editor. An unknown or archived code is a row error.</value>
+  </data>
   <data name="Imports.Rules" xml:space="preserve">
     <value>UTF-8 CSV, comma or semicolon separated, at most 10 MB and 50,000 rows. If more than 5 % of the rows are invalid, nothing is loaded.</value>
   </data>

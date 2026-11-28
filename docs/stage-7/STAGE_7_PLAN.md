@@ -557,6 +557,8 @@ Effort: **S** ≈ a quarter day, **M** ≈ half a day, **L** ≈ a full day, at 
 - **Deviation from 3.1:** the reason rule is an insert trigger rather than a `CHECK NOT VALID`, because the ledger is append-only and partitioned; the effect is the same.
 - **New policy:** `ManageCatalog` (planners, administrators). It only adds rows to the golden matrix; no existing right changed.
 
+**After 7h, responsibles permissions in SQL:** the endpoints already required `Inventory.Brand.ManageAssignments`, `Inventory.Warehouse.ManageAssignments` and `Inventory.Manufacturer.Edit`, but the tables had only plain grants. A statement trigger (`inventory/0019_assignment_permissions.sql`) now requires the same permission from the session (SS301), with the table owner exempt for migrations and seeds. A brand-manager assignment carries approval rights, so an inventory planner may edit the brand record but neither the API nor the database lets them assign its responsibles (integration test and T03).
+
 **As built, 7h4 (closes #161):**
 - **Manufacturer responsibles:** `catalog.manufacturer_responsible` is the third record kind of the shared responsibles pattern (3.7), alongside brands and warehouses. It is audited, with `GET/PUT /manufacturers/{id}/responsibles`, and the responsibles panel appears in the manufacturer editor.
 - **Rights:** its one role, `ACCOUNT_MANAGER`, grants no rights. So the catalogue's edit permission is enough to change it (no ManageAssignments), nothing goes to Identity, and the golden matrix is unchanged.
@@ -567,7 +569,7 @@ Effort: **S** ≈ a quarter day, **M** ≈ half a day, **L** ≈ a full day, at 
 - **Manufacturer catalogue:** `/api/v1/inventory/manufacturers` (code, name, optional country and website) on the shared mechanism, with CSV and a Manufacturers tab. A manufacturer with active parts cannot be archived (SS501). Nothing is published, since only Inventory uses manufacturers.
 - **Permissions:** `Inventory.Manufacturer.View` (60) for every role that sees parts, and `.Create`, `.Edit`, `.Archive` (61–63) for Administrator, Inventory planner and the Superadministrator. The golden matrix gains only these rows.
 - **Parts:** `catalog.part.manufacturer_id` (nullable FK). T001 seeds three makers and gives John Deere's oil filters to MANN+HUMMEL.
-- **Parts import:** an **optional** `manufacturer_code` column. The shared CSV reader learned optional columns, so old files import unchanged. An unknown or archived code is a row error (UNKNOWN_REF, counted by the 5 % gate), and an empty or missing code keeps the stored manufacturer. The template and export end with the column.
+- **Parts import:** an **optional** `manufacturer_code` column. The shared CSV reader learned optional columns, so old files import unchanged. An unknown or archived code is a row error (UNKNOWN_REF, counted by the 5 % gate), and an empty or missing code keeps the stored manufacturer, so a file cannot clear it: a part's manufacturer is removed in the part editor (parts CRUD, 7i). The import page and the API description say so. The template and export end with the column.
 
 **As built, 7h2 (part of #161):**
 - **Brand catalogue:** `/api/v1/inventory/brands` uses the shared mechanism, with CSV (`code,name,country_code`). Its paged list replaces the read-only list of PR 7d. The web client's brand list and the responsibilities page use it, and the Inventory area has a Brands tab.
