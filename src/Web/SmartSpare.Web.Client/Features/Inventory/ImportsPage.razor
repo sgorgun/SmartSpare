@@ -19,7 +19,15 @@
     </MudRadioGroup>
     <MudText Typo="Typo.body2" Class="mb-2" data-testid="import-columns">
         @Text["Imports.Columns"] <code>@string.Join(",", ImportSources.Columns[_source])</code>
+        @if (ImportSources.OptionalColumns[_source].Count > 0)
+        {
+            <span data-testid="import-optional-columns">@Text["Imports.OptionalColumns"] <code>@string.Join(",", ImportSources.OptionalColumns[_source])</code></span>
+        }
     </MudText>
+    @if (_source == ImportSources.PartCatalog)
+    {
+        <MudText Typo="Typo.caption" Class="mb-1" data-testid="import-manufacturer-rule">@Text["Imports.ManufacturerRule"]</MudText>
+    }
     <MudText Typo="Typo.caption" Class="mb-3">@Text["Imports.Rules"]</MudText>
 
     <MudFileUpload @ref="_upload" T="IBrowserFile" FilesChanged="UploadAsync" Accept=".csv,text/csv" MaximumFileCount="1" Disabled="_busy" data-testid="import-file">
