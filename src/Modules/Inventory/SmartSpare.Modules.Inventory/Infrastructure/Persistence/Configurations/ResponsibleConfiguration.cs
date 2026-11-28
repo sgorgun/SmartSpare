@@ -72,6 +72,18 @@ internal sealed class ManufacturerResponsibleConfiguration : IEntityTypeConfigur
     }
 }
 
+internal sealed class PartResponsibleConfiguration : IEntityTypeConfiguration<PartResponsible>
+{
+    public void Configure(EntityTypeBuilder<PartResponsible> builder)
+    {
+        ResponsibleMapping.Configure(builder, "catalog", "part_responsible", RecordKinds.Part);
+        builder.Property(x => x.PartId).HasColumnName("part_id").HasColumnType("bigint");
+        builder.HasOne<Domain.Catalog.Part>().WithMany().HasForeignKey(x => x.PartId).HasPrincipalKey(p => p.Id)
+            .HasConstraintName("fk_part_responsible_part").OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(x => new { x.PartId, x.EmployeeId, x.Role }).IsUnique().HasDatabaseName("uq_part_responsible");
+    }
+}
+
 internal sealed class WarehouseResponsibleConfiguration : IEntityTypeConfiguration<WarehouseResponsible>
 {
     public void Configure(EntityTypeBuilder<WarehouseResponsible> builder)

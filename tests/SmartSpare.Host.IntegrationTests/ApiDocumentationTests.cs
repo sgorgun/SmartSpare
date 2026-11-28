@@ -76,12 +76,13 @@ public sealed partial class ApiDocumentationTests : IAsyncLifetime
             "/api/v1/inventory/manufacturers", "/api/v1/inventory/manufacturers/csv", "/api/v1/inventory/manufacturers/csv/template",
             "/api/v1/inventory/manufacturers/lookup", "/api/v1/inventory/manufacturers/{id}", "/api/v1/inventory/manufacturers/{id}/archive",
             "/api/v1/inventory/manufacturers/{id}/history", "/api/v1/inventory/manufacturers/{id}/responsibles", "/api/v1/inventory/manufacturers/{id}/restore",
-            "/api/v1/inventory/movements", "/api/v1/inventory/parts", "/api/v1/inventory/parts/lookup", "/api/v1/inventory/parts/{id}",
-            "/api/v1/inventory/parts/{id}/archive", "/api/v1/inventory/parts/{id}/history", "/api/v1/inventory/parts/{id}/restore", "/api/v1/inventory/stock",
+            "/api/v1/inventory/movements", "/api/v1/inventory/part-categories", "/api/v1/inventory/parts", "/api/v1/inventory/parts/lookup", "/api/v1/inventory/parts/{id}",
+            "/api/v1/inventory/parts/{id}/archive", "/api/v1/inventory/parts/{id}/history", "/api/v1/inventory/parts/{id}/responsibles",
+            "/api/v1/inventory/parts/{id}/restore", "/api/v1/inventory/stock",
             "/api/v1/inventory/stock-adjustments", "/api/v1/inventory/stock/{warehouseId}/{partId}",
             "/api/v1/inventory/stock/{warehouseId}/{partId}/levels", "/api/v1/inventory/transfers", "/api/v1/inventory/transfers/{id}",
             "/api/v1/inventory/transfers/{id}/approve", "/api/v1/inventory/transfers/{id}/cancel",
-            "/api/v1/inventory/transfers/{id}/dispatch", "/api/v1/inventory/transfers/{id}/receive", "/api/v1/inventory/warehouses",
+            "/api/v1/inventory/transfers/{id}/dispatch", "/api/v1/inventory/transfers/{id}/receive", "/api/v1/inventory/units-of-measure", "/api/v1/inventory/warehouses",
             "/api/v1/inventory/warehouses/{id}/responsibles",
         ]);
 

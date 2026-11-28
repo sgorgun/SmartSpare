@@ -6,7 +6,8 @@ using SmartSpare.ApiContracts.Inventory;
 using SmartSpare.ApiContracts.MasterData;
 using SmartSpare.Infrastructure.Http;
 using SmartSpare.Infrastructure.MasterData;
-using SmartSpare.Modules.Inventory.Domain.Catalog;
+using SmartSpare.Modules.Inventory.Domain.Catalog;
+using SmartSpare.Modules.Inventory.Domain.Responsibilities;
 using SmartSpare.Modules.Inventory.Domain.Stock;
 using SmartSpare.Modules.Inventory.Domain.Transfers;
 using SmartSpare.Modules.Inventory.Features.PartCatalog;
@@ -20,7 +21,7 @@ namespace SmartSpare.Modules.Inventory.Features.Parts;
 /// PR 7i1). The OEM number is the code, unique per brand; the description is the name. Every write publishes
 /// <see cref="Contracts.PartCatalogChanged"/> in its transaction, so Fleet's part copy follows. An archived brand or
 /// manufacturer cannot be chosen (SS500, refused by the database), and a part that still has stock, open transfers or
-/// kit holds cannot be archived (SS501, also checked by the database for stock). <c>GET /parts/{id}</c> stays the part
+/// kit holds or responsible employees cannot be archived (SS501, the same conditions in the database). <c>GET /parts/{id}</c> stays the part
 /// with its stock per warehouse; the bulk import keeps its own CSV pipeline.
 /// </summary>
 internal static class PartCatalog
@@ -67,7 +68,7 @@ internal static class PartCatalog
         },
         Rules = "Permissions Inventory.Part.View to read and .Create, .Edit, .Archive to change (default roles: planners and administrators change). "
             + "The OEM number is unique per brand; brand and OEM number are fixed after creation. An archived brand or manufacturer cannot be chosen "
-            + "(422 SS500). A part with stock, open transfers or kit holds cannot be archived (409 SS501). The bulk CSV import is POST /imports.",
+            + "(422 SS500). A part with stock, open transfers, kit holds or responsible employees cannot be archived (409 SS501). The bulk CSV import is POST /imports.",
         Example = new PartDto(1042, "JD", "RE504836", "Engine oil filter", "Engine oil filters", "PCS", 18.40m, 2, 11, "OIL_FILTER", 1, 0.450m, false, 1, "MANN", false, "9120"),
         WriteExample = new PartWrite("RE504836", "Engine oil filter", 2, 11, 1, 0.450m, 18.40m, false, 1),
         LookupExample = new CatalogLookupItem(1042, "RE504836", "Engine oil filter", "JD"),
@@ -91,7 +92,7 @@ internal static class PartCatalog
         PartCatalogPublication.Queue(unitOfWork, snapshots);
     }
 
-    /// <summary>SS501 reasons: stock on hand or reserved per hub, open transfers and kit holds of the part.</summary>
+    /// <summary>SS501 reasons: stock on hand or reserved per hub, open transfers, kit holds and responsible employees of the part.</summary>
     private static async Task<IReadOnlyList<string>> ArchiveGuardAsync(IServiceProvider services, Part part, CancellationToken cancellationToken)
     {
         var db = services.GetRequiredService<InventoryDbContext>();
@@ -119,6 +120,12 @@ internal static class PartCatalog
         if (holds > 0)
         {
             reasons.Add($"{holds} kit hold(s) for service orders");
+        }
+
+        var responsibles = await db.Set<PartResponsible>().AsNoTracking().CountAsync(r => r.PartId == part.Id, cancellationToken).ConfigureAwait(false);
+        if (responsibles > 0)
+        {
+            reasons.Add($"{responsibles} responsible employee(s); remove them first");
         }
 
         return reasons;

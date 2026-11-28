@@ -23,7 +23,7 @@ internal static class ResponsibilityErrors
     public static readonly Error OwnAssignments = Error.Forbidden(
         "SS301", "You cannot change your own brand or hub assignments: someone else must grant you rights.");
 
-    public static readonly Error RecordNotFound = Error.NotFound("Inventory.RecordNotFound", "The brand or warehouse does not exist.");
+    public static readonly Error RecordNotFound = Error.NotFound("Inventory.RecordNotFound", "The brand, warehouse, manufacturer or part does not exist.");
 
     public static readonly Error UnknownRole = Error.Validation("Inventory.UnknownAssignmentRole", "An assignment role does not exist for this kind of record.");
 
@@ -32,9 +32,9 @@ internal static class ResponsibilityErrors
 
 internal sealed record ListAssignmentRolesQuery(string? RecordKind) : IQuery<IReadOnlyList<AssignmentRoleDto>>;
 
-internal sealed record ListResponsiblesQuery(string RecordKind, short RecordId) : IQuery<IReadOnlyList<ResponsibleDto>>;
+internal sealed record ListResponsiblesQuery(string RecordKind, long RecordId) : IQuery<IReadOnlyList<ResponsibleDto>>;
 
-internal sealed record ReplaceResponsiblesCommand(string RecordKind, short RecordId, ResponsiblesRequest Request) : ICommand<IReadOnlyList<ResponsibleDto>>;
+internal sealed record ReplaceResponsiblesCommand(string RecordKind, long RecordId, ResponsiblesRequest Request) : ICommand<IReadOnlyList<ResponsibleDto>>;
 
 internal sealed class ReplaceResponsiblesCommandValidator : AbstractValidator<ReplaceResponsiblesCommand>
 {
@@ -59,6 +59,7 @@ internal sealed class ReplaceResponsiblesCommandHandler(
         {
             RecordKinds.Brand => await db.Set<Domain.Catalog.Brand>().AsNoTracking().AnyAsync(b => b.Id == command.RecordId, cancellationToken).ConfigureAwait(false),
             RecordKinds.Manufacturer => await db.Set<Domain.Catalog.Manufacturer>().AsNoTracking().AnyAsync(m => m.Id == command.RecordId, cancellationToken).ConfigureAwait(false),
+            RecordKinds.Part => await db.Set<Domain.Catalog.Part>().AsNoTracking().AnyAsync(p => p.Id == command.RecordId, cancellationToken).ConfigureAwait(false),
             _ => await db.Set<Warehouse>().AsNoTracking().AnyAsync(w => w.Id == command.RecordId, cancellationToken).ConfigureAwait(false),
         };
         if (!exists)
@@ -112,16 +113,17 @@ internal sealed class ReplaceResponsiblesCommandHandler(
         {
             db.Add(command.RecordKind switch
             {
-                RecordKinds.Brand => new BrandResponsible(command.RecordId, add.EmployeeId, add.Role, user.UserId),
-                RecordKinds.Manufacturer => new ManufacturerResponsible(command.RecordId, add.EmployeeId, add.Role, user.UserId),
-                _ => (object)new WarehouseResponsible(command.RecordId, add.EmployeeId, add.Role, user.UserId),
+                RecordKinds.Brand => new BrandResponsible((short)command.RecordId, add.EmployeeId, add.Role, user.UserId),
+                RecordKinds.Manufacturer => new ManufacturerResponsible((short)command.RecordId, add.EmployeeId, add.Role, user.UserId),
+                RecordKinds.Part => new PartResponsible(command.RecordId, add.EmployeeId, add.Role, user.UserId),
+                _ => (object)new WarehouseResponsible((short)command.RecordId, add.EmployeeId, add.Role, user.UserId),
             });
         }
 
         if (change.RightsChanged)
         {
             unitOfWork.AddIntegrationEvent(new ResponsibilitiesChanged(
-                command.RecordKind, command.RecordId, [.. change.RightsBearing.Select(r => new ResponsibleAssignment(r.EmployeeId, r.Role))],
+                command.RecordKind, (short)command.RecordId, [.. change.RightsBearing.Select(r => new ResponsibleAssignment(r.EmployeeId, r.Role))],
                 user.UserId ?? Guid.Empty));
         }
 
@@ -134,6 +136,7 @@ internal sealed class ReplaceResponsiblesCommandHandler(
         {
             RecordKinds.Brand => [.. await db.Set<BrandResponsible>().Where(r => r.BrandId == command.RecordId).ToListAsync(cancellationToken).ConfigureAwait(false)],
             RecordKinds.Manufacturer => [.. await db.Set<ManufacturerResponsible>().Where(r => r.ManufacturerId == command.RecordId).ToListAsync(cancellationToken).ConfigureAwait(false)],
+            RecordKinds.Part => [.. await db.Set<PartResponsible>().Where(r => r.PartId == command.RecordId).ToListAsync(cancellationToken).ConfigureAwait(false)],
             _ => [.. await db.Set<WarehouseResponsible>().Where(r => r.WarehouseId == command.RecordId).ToListAsync(cancellationToken).ConfigureAwait(false)],
         };
 }
@@ -163,17 +166,18 @@ internal static class ResponsibleEndpoints
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .WithResponseExample(StatusCodes.Status200OK, new[] { new AssignmentRoleDto("warehouse", "KEEPER", "Keeper", true) });
 
-        // Rights-bearing assignments (brands, warehouses) need the ManageAssignments permission; a manufacturer's roles
-        // give no rights, so its catalogue's edit permission is enough (STAGE_7_PLAN 3.7).
-        foreach (var (segment, kind, view, manage) in new[]
+        // Rights-bearing assignments (brands, warehouses) need the ManageAssignments permission; a manufacturer's and a
+        // part's roles give no rights, so the catalogue's edit permission is enough (STAGE_7_PLAN 3.7).
+        foreach (var (segment, kind, view, manage, idType) in new[]
         {
-            ("brands", RecordKinds.Brand, Permissions.Inventory.Brand.View, Permissions.Inventory.Brand.ManageAssignments),
-            ("warehouses", RecordKinds.Warehouse, Permissions.Inventory.Warehouse.View, Permissions.Inventory.Warehouse.ManageAssignments),
-            ("manufacturers", RecordKinds.Manufacturer, Permissions.Inventory.Manufacturer.View, Permissions.Inventory.Manufacturer.Edit),
+            ("brands", RecordKinds.Brand, Permissions.Inventory.Brand.View, Permissions.Inventory.Brand.ManageAssignments, "int"),
+            ("warehouses", RecordKinds.Warehouse, Permissions.Inventory.Warehouse.View, Permissions.Inventory.Warehouse.ManageAssignments, "int"),
+            ("manufacturers", RecordKinds.Manufacturer, Permissions.Inventory.Manufacturer.View, Permissions.Inventory.Manufacturer.Edit, "int"),
+            ("parts", RecordKinds.Part, Permissions.Inventory.Part.View, Permissions.Inventory.Part.Edit, "long"),
         })
         {
-            v1.MapGet($"/{segment}/{{id:int}}/responsibles", async (
-                    [Description("Brand, warehouse or manufacturer id.")] short id, IQueryHandler<ListResponsiblesQuery, IReadOnlyList<ResponsibleDto>> handler,
+            v1.MapGet($"/{segment}/{{id:{idType}}}/responsibles", async (
+                    [Description("Brand, warehouse, manufacturer or part id.")] long id, IQueryHandler<ListResponsiblesQuery, IReadOnlyList<ResponsibleDto>> handler,
                     CancellationToken cancellationToken) =>
                     (await handler.Handle(new ListResponsiblesQuery(kind, id), cancellationToken).ConfigureAwait(false)).ToHttpResult())
                 .RequireAuthorization(view)
@@ -185,8 +189,8 @@ internal static class ResponsibleEndpoints
                 .ProducesProblem(StatusCodes.Status403Forbidden)
                 .WithResponseExample(StatusCodes.Status200OK, new[] { Example });
 
-            v1.MapPut($"/{segment}/{{id:int}}/responsibles", async (
-                    [Description("Brand, warehouse or manufacturer id.")] short id, ResponsiblesRequest request,
+            v1.MapPut($"/{segment}/{{id:{idType}}}/responsibles", async (
+                    [Description("Brand, warehouse, manufacturer or part id.")] long id, ResponsiblesRequest request,
                     ICommandHandler<ReplaceResponsiblesCommand, IReadOnlyList<ResponsibleDto>> handler, CancellationToken cancellationToken) =>
                     (await handler.Handle(new ReplaceResponsiblesCommand(kind, id, request), cancellationToken).ConfigureAwait(false)).ToHttpResult())
                 .RequireAuthorization(manage)
