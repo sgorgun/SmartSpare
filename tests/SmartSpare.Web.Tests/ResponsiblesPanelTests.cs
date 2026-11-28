@@ -85,7 +85,7 @@ public sealed class ResponsiblesPanelTests : ClientTestContext
 
     private sealed class FakeResponsiblesClient() : InventoryClient(new HttpClient())
     {
-        public List<(string Segment, short Id, ResponsiblesRequest Request)> Saved { get; } = [];
+        public List<(string Segment, long Id, ResponsiblesRequest Request)> Saved { get; } = [];
 
         public ApiResult<IReadOnlyList<ResponsibleDto>>? NextSave { get; set; }
 
@@ -93,7 +93,7 @@ public sealed class ResponsiblesPanelTests : ClientTestContext
             Task.FromResult(ApiResult.Success<IReadOnlyList<AssignmentRoleDto>>(
                 [new AssignmentRoleDto("warehouse", "KEEPER", "Keeper", true), new AssignmentRoleDto("warehouse", "HUB_MANAGER", "Hub manager", false)]));
 
-        public override Task<ApiResult<IReadOnlyList<ResponsibleDto>>> GetResponsiblesAsync(string segment, short id, CancellationToken cancellationToken = default) =>
+        public override Task<ApiResult<IReadOnlyList<ResponsibleDto>>> GetResponsiblesAsync(string segment, long id, CancellationToken cancellationToken = default) =>
             Task.FromResult(ApiResult.Success<IReadOnlyList<ResponsibleDto>>(
             [
                 new ResponsibleDto(Egle, "E0006", "Eglė Stankevičiūtė", true, "KEEPER", "Keeper", true),
@@ -101,7 +101,7 @@ public sealed class ResponsiblesPanelTests : ClientTestContext
             ]));
 
         public override Task<ApiResult<IReadOnlyList<ResponsibleDto>>> ReplaceResponsiblesAsync(
-            string segment, short id, ResponsiblesRequest request, CancellationToken cancellationToken = default)
+            string segment, long id, ResponsiblesRequest request, CancellationToken cancellationToken = default)
         {
             Saved.Add((segment, id, request));
             return Task.FromResult(NextSave ?? ApiResult.Success<IReadOnlyList<ResponsibleDto>>([]));

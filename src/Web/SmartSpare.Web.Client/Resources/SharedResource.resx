@@ -126,6 +126,33 @@
   <data name="Parts.Title" xml:space="preserve">
     <value>Parts catalogue</value>
   </data>
+  <data name="Parts.Intro" xml:space="preserve">
+    <value>Spare parts by brand and OEM part number. Planners and administrators add and change parts; a part with stock, open transfers, kit holds or responsible employees cannot be archived. The bulk CSV import is on the Import tab.</value>
+  </data>
+  <data name="Parts.New" xml:space="preserve">
+    <value>New part</value>
+  </data>
+  <data name="Parts.Edit" xml:space="preserve">
+    <value>Edit part {0}</value>
+  </data>
+  <data name="Parts.Saved" xml:space="preserve">
+    <value>Part {0} saved.</value>
+  </data>
+  <data name="Parts.CodeHelp" xml:space="preserve">
+    <value>Fixed after creation, like the brand.</value>
+  </data>
+  <data name="Parts.Manufacturer" xml:space="preserve">
+    <value>Manufacturer</value>
+  </data>
+  <data name="Parts.ManufacturerHelp" xml:space="preserve">
+    <value>Optional. Clear it here; the import never clears it.</value>
+  </data>
+  <data name="Parts.Weight" xml:space="preserve">
+    <value>Weight, kg</value>
+  </data>
+  <data name="Parts.ConditionBased" xml:space="preserve">
+    <value>Replaced as required</value>
+  </data>
   <data name="Parts.Search" xml:space="preserve">
     <value>Search by part number or description</value>
   </data>
