@@ -159,6 +159,73 @@ public sealed class PartAnalogueTests(IdentityDatabaseFixture database) : IAsync
         await RefusedAsync(new PartAnalogueCreate(a, b, AnalogueLinkTypes.Interchangeable, 1m, null, null), "SS500", "an archived part");
     }
 
+    [Fact]
+    public async Task A_csv_preview_reports_each_pair_error_by_line_column_and_rule_and_writes_nothing()
+    {
+        var (a, b, c) = (await PartAsync("20"), await PartAsync("21"), await PartAsync("22"));
+        await LinkAsync(b, a, AnalogueLinkTypes.Supersedes);
+        var csv = Lines(
+            "brand_code,oem_part_number,analogue_brand_code,analogue_oem_part_number,link_type,scaling_factor",
+            $"JD,{_tag}-22,JD,{_tag}-21,interchangeable,1",
+            $"JD,{_tag}-22,JD,{_tag}-20,supersedes,1",
+            $"JD,{_tag}-22,JD,{_tag}-21,interchangeable,1",
+            $"JD,{_tag}-99,JD,{_tag}-21,interchangeable,1",
+            $"JD,{_tag}-20,JD,{_tag}-21,interchangeable,1");
+
+        var result = await ImportAsync(csv, dryRun: true);
+
+        result.Applied.ShouldBeFalse();
+        result.Errors.Select(e => (e.Line, e.Column, e.Code)).ShouldBe(
+        [
+            (3, "analogue_oem_part_number", "RULE"),          // a second successor for -20
+            (4, "analogue_oem_part_number", "DUPLICATE"),     // the pair of line 2 again
+            (5, "oem_part_number", "UNKNOWN_REF"),            // no such part
+            (6, "link_type", "RETYPE"),                       // -20/-21 are linked as a supersession already
+        ]);
+        (await ViewAsync(c)).Links.ShouldBeEmpty("a preview writes nothing");
+    }
+
+    [Fact]
+    public async Task A_clean_csv_creates_links_exports_them_and_imports_back_unchanged()
+    {
+        var (a, b, c) = (await PartAsync("30"), await PartAsync("31"), await PartAsync("32"));
+        var csv = Lines(
+            "brand_code,oem_part_number,analogue_brand_code,analogue_oem_part_number,link_type,scaling_factor,valid_from,note",
+            $"JD,{_tag}-30,JD,{_tag}-31,interchangeable,1,2026-11-01,OEM and aftermarket",
+            $"JD,{_tag}-32,JD,{_tag}-30,supersedes,1.2,2026-11-15,");
+
+        var applied = await ImportAsync(csv, dryRun: false);
+        (applied.Applied, applied.Created, applied.Errors.Count).ShouldBe((true, 2, 0));
+        var view = await ViewAsync(a);
+        view.Group.Select(p => p.Id).ShouldBe([a, b], ignoreOrder: true);
+        view.Chain.Select(p => p.Id).ShouldBe([a, c]);
+
+        using var browser = _host.NewBrowser();
+        using var export = await browser.GetAsync($"{Links}/csv", bearer: _host.Token(Planner.Principal()));
+        var exported = await export.Content.ReadAsStringAsync(Ct);
+        exported.ShouldContain($"JD,{_tag}-30,JD,{_tag}-31,interchangeable,1,2026-11-01,OEM and aftermarket");
+        var mine = Lines([.. exported.TrimStart((char)0xFEFF).ReplaceLineEndings("\n").Split('\n')
+            .Where(l => l.StartsWith("brand_code", StringComparison.Ordinal) || l.Contains(_tag, StringComparison.Ordinal))]);
+        var again = await ImportAsync(mine, dryRun: false);
+        (again.Created, again.Updated, again.Unchanged).ShouldBe((0, 0, 2), "the export imports back without changes");
+    }
+
+    private static string Lines(params string[] lines) => string.Join("\n", lines) + "\n";
+
+    private async Task<SmartSpare.ApiContracts.MasterData.CatalogImportResult> ImportAsync(string csv, bool dryRun)
+    {
+        using var browser = _host.NewBrowser();
+        using var form = new MultipartFormDataContent();
+        var file = new ByteArrayContent(System.Text.Encoding.UTF8.GetBytes(csv));
+        file.Headers.ContentType = new MediaTypeHeaderValue("text/csv");
+        form.Add(file, "file", "analogues.csv");
+        using var request = new HttpRequestMessage(HttpMethod.Post, new Uri($"{Links}/csv?dryRun={(dryRun ? "true" : "false")}", UriKind.Relative)) { Content = form };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _host.Token(Planner.Principal()));
+        using var response = await browser.Client.SendAsync(request, Ct);
+        response.StatusCode.ShouldBe(HttpStatusCode.OK, await response.Content.ReadAsStringAsync(Ct));
+        return (await response.Content.ReadFromJsonAsync<SmartSpare.ApiContracts.MasterData.CatalogImportResult>(Ct))!;
+    }
+
     private Task<long> PartAsync(string suffix) =>
         database.ScalarAsync<long>(
             """

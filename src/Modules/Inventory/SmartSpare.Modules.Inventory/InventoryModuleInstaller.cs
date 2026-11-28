@@ -42,6 +42,7 @@ public sealed class InventoryModuleInstaller : IModuleInstaller
         services.AddScoped<TransferFunctions>();
         services.AddScoped<ImportStore>();
         services.AddScoped<ServiceKitStore>();
+        services.AddScoped<Features.PartAnalogues.PartAnalogueCsv>();
         services.TryAddScoped<SmartSpare.Infrastructure.MasterData.IActorNames, Infrastructure.Queries.EmployeeActorNames>();
         services.AddImportRateLimit();
         services.AddCatalogCsvRateLimit();
@@ -76,6 +77,7 @@ public sealed class InventoryModuleInstaller : IModuleInstaller
         Features.Parts.PartCatalog.Map(v1);
         Features.Parts.PartReferenceEndpoints.Map(v1);
         Features.PartAnalogues.PartAnalogueEndpoints.Map(v1);
+        Features.PartAnalogues.PartAnalogueCsvEndpoints.Map(v1);
     }
 
     public void MapInternalEndpoints(IEndpointRouteBuilder endpoints) => WarehouseQueriesEndpoint.Map(endpoints);
