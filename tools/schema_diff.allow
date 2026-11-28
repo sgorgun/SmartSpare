@@ -317,3 +317,8 @@
 
 # After 7h: the permission of every responsibles change checked in SQL too (ADR 0028).
 +\binventory\.trg_require_assignment_permission\b
+
+# #211: permissions granted by an upgrade to an edited seeded role.
++\biam\.grant_default_permission\b
++\bis_customised\b
++\bupgrade_pending\b

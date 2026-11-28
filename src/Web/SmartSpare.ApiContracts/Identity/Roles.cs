@@ -17,6 +17,7 @@ public sealed record RoleSummary(
     [property: Description("Codes of the positions whose template holds the role.")] IReadOnlyList<string> Positions,
     [property: Description("A seeded role shipped with a default permission set, which reset-to-default restores.")] bool HasDefault,
     [property: Description("Whether the permissions equal the shipped default set (false for roles without one).")] bool IsDefault,
+    [property: Description("Version whose upgrade granted a permission to this customised seeded role, until an administrator confirms it; null otherwise.")] string? UpgradePending,
     [property: Description("Concurrency version; send it back as If-Match.")] string Version);
 
 /// <summary>A new role.</summary>

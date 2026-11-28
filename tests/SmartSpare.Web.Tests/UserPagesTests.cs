@@ -133,8 +133,8 @@ public sealed class FakeUsersClient() : IdentityClient(new HttpClient())
     public override Task<ApiResult<List<RoleSummary>>> ListRolesAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(ApiResult.Success(new List<RoleSummary>
         {
-            new(4, AppRoles.WarehouseKeeper, "Warehouse keeper", null, [Permissions.Inventory.Stock.Adjust, Permissions.Inventory.Stock.View], false, false, ["WAREHOUSE_KEEPER"], true, false, "1"),
-            new(5, AppRoles.ServiceEngineer, "Service engineer", null, [Permissions.Fleet.EngineHours.Record], false, false, ["SERVICE_ENGINEER"], true, false, "1"),
+            new(4, AppRoles.WarehouseKeeper, "Warehouse keeper", null, [Permissions.Inventory.Stock.Adjust, Permissions.Inventory.Stock.View], false, false, ["WAREHOUSE_KEEPER"], true, false, null, "1"),
+            new(5, AppRoles.ServiceEngineer, "Service engineer", null, [Permissions.Fleet.EngineHours.Record], false, false, ["SERVICE_ENGINEER"], true, false, null, "1"),
         }));
 
     public override Task<ApiResult<UserFormOptions>> GetUserFormOptionsAsync(CancellationToken cancellationToken = default) =>

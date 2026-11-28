@@ -126,6 +126,10 @@ public class IdentityClient(HttpClient http) : ApiClientBase(http)
     public virtual Task<ApiResult<RoleSummary>> ResetRoleAsync(short id, string version, CancellationToken cancellationToken = default) =>
         SendAsync<RoleSummary>(WithVersion(new HttpRequestMessage(HttpMethod.Post, $"api/v1/identity/roles/{id}/reset"), version), cancellationToken);
 
+    /// <summary>Confirms the permissions an upgrade granted to a customised role (#211).</summary>
+    public virtual Task<ApiResult<RoleSummary>> ConfirmRoleUpgradeAsync(short id, string version, CancellationToken cancellationToken = default) =>
+        SendAsync<RoleSummary>(WithVersion(new HttpRequestMessage(HttpMethod.Post, $"api/v1/identity/roles/{id}/confirm-upgrade"), version), cancellationToken);
+
     /// <summary>Creates an editable copy of a role.</summary>
     public virtual Task<ApiResult<RoleSummary>> CopyRoleAsync(short id, CopyRoleRequest request, CancellationToken cancellationToken = default) =>
         SendAsync<RoleSummary>(

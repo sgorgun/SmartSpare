@@ -26,6 +26,10 @@ internal sealed class RoleConfiguration : IEntityTypeConfiguration<Role>
             .HasComment("A built-in role that cannot be changed or archived (ADR 0028).");
         builder.Property(x => x.IsArchived).HasColumnName("is_archived").HasColumnOrder(5).HasColumnType("boolean").HasDefaultValueSql("false").ValueGeneratedNever()
             .HasComment("Archived roles cannot be put in a role template.");
+        builder.Property(x => x.IsCustomised).HasColumnName("is_customised").HasColumnOrder(6).HasColumnType("boolean").HasDefaultValueSql("false").ValueGeneratedNever()
+            .HasComment("A seeded role whose permissions an administrator changed away from the shipped set (#211).");
+        builder.Property(x => x.UpgradePending).HasColumnName("upgrade_pending").HasColumnOrder(7).HasColumnType("character varying(20)")
+            .HasComment("Version whose migration granted a permission to this customised role, until an administrator confirms it (#211).");
         builder.Property<uint>("xmin").IsRowVersion();
 
         builder.HasMany(x => x.Permissions).WithOne().HasForeignKey(x => x.RoleId).HasConstraintName("fk_role_permission_role").OnDelete(DeleteBehavior.Cascade);

@@ -63,6 +63,7 @@ Product owner decision, following the usual ERP practice:
 - **Copy role** (`POST /roles/{id}/copy`) creates a new, editable role with the permissions and description of any role, a locked one included. The Superadministrator role is not copied.
 - **Golden access matrix:** it tests the seeded roles as shipped. An administrator's edit is user data and does not change it. `AccessMatrixTests` proves that an edit followed by a reset brings the shipped matrix back exactly.
 - **Later migrations** that give a new permission to a default role still grant it to that seeded role, edited or not, as the consequences below describe. A reset always uses the bundles of the running version.
+- **Upgrade grants are visible (#211).** Such migrations call `iam.grant_default_permission(role, permission, version)` instead of inserting into `iam.role_permission`. The grant is audited as the system user with the reason "granted by upgrade <version>". A role an administrator customised (`iam.role.is_customised`, set by an edit away from the shipped set and cleared by a reset) is marked `upgrade_pending`, shown as "Changed by upgrade <version>" until an administrator confirms it (`POST /roles/{id}/confirm-upgrade`, audited).
 
 ## Considered and rejected
 

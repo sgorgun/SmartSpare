@@ -43,6 +43,8 @@ internal sealed record RestoreRoleCommand(short Id, uint? Version) : ICommand<Ro
 
 internal sealed record ResetRoleCommand(short Id, uint? Version) : ICommand<RoleSummary>;
 
+internal sealed record ConfirmRoleUpgradeCommand(short Id, uint? Version) : ICommand<RoleSummary>;
+
 internal sealed record CopyRoleCommand(short Id, CopyRoleRequest Request) : ICommand<RoleSummary>;
 
 internal sealed class CopyRoleCommandValidator : AbstractValidator<CopyRoleCommand>
@@ -63,7 +65,8 @@ internal sealed class RoleAdministration(
     IQueryHandler<GetRoleQuery, RoleSummary> reader)
     : ICommandHandler<CreateRoleCommand, RoleSummary>, ICommandHandler<UpdateRoleCommand, RoleSummary>,
       ICommandHandler<ArchiveRoleCommand, RoleSummary>, ICommandHandler<RestoreRoleCommand, RoleSummary>,
-      ICommandHandler<ResetRoleCommand, RoleSummary>, ICommandHandler<CopyRoleCommand, RoleSummary>
+      ICommandHandler<ResetRoleCommand, RoleSummary>, ICommandHandler<CopyRoleCommand, RoleSummary>,
+      ICommandHandler<ConfirmRoleUpgradeCommand, RoleSummary>
 {
     public async Task<Result<RoleSummary>> Handle(CreateRoleCommand command, CancellationToken cancellationToken)
     {
@@ -112,6 +115,13 @@ internal sealed class RoleAdministration(
             var refusal = role.IsLocked ? RoleErrors.Locked : RoleErrors.NoDefault;
             return Task.FromResult(Result.Failure(refusal));
         }, cancellationToken);
+    }
+
+    /// <summary>Clears the "changed by upgrade" mark once an administrator has seen what the upgrade granted (#211); audited.</summary>
+    public Task<Result<RoleSummary>> Handle(ConfirmRoleUpgradeCommand command, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        return ChangeAsync(command.Id, command.Version, role => Task.FromResult(role.ConfirmUpgrade()), cancellationToken);
     }
 
     /// <summary>A new, editable role with the permissions and description of another; the Superadministrator role is not copied.</summary>
@@ -189,6 +199,12 @@ internal sealed class RoleAdministration(
             await stamps.RotateForRoleAsync(role.Id, cancellationToken).ConfigureAwait(false);
         }
 
+        // A seeded role away from its shipped set is customised: a later migration's grant to it is marked for review (#211).
+        if (DefaultRoles.Bundles.TryGetValue(role.Code, out var shipped))
+        {
+            role.MarkCustomised(!shipped.SetEquals(role.PermissionNames));
+        }
+
         return Result.Success();
     }
 
@@ -225,7 +241,7 @@ internal static class RoleEndpoints
 {
     private static readonly RoleSummary Example = new(
         7, "PURCHASING_CLERK", "Purchasing clerk", "Prepares purchase orders.", [Permissions.Procurement.PurchaseOrder.Create, Permissions.Inventory.Part.View],
-        false, false, ["PURCHASER"], false, false, "8841");
+        false, false, ["PURCHASER"], false, false, null, "8841");
 
     public static void Map(IEndpointRouteBuilder v1)
     {
@@ -295,6 +311,11 @@ internal static class RoleEndpoints
             "Needs If-Match. Refused for a locked role (422) and while a position's template holds it (409 SS501). Permission Organisation.Role.Edit.");
         MapState<RestoreRoleCommand>(roles, "restore", (id, v) => new RestoreRoleCommand(id, v), "RestoreRole", "Restores an archived role.",
             "Needs If-Match. Permission Organisation.Role.Edit.");
+        MapState<ConfirmRoleUpgradeCommand>(roles, "confirm-upgrade", (id, v) => new ConfirmRoleUpgradeCommand(id, v), "ConfirmRoleUpgrade",
+            "Confirms the permissions an upgrade granted to a customised role.",
+            "Needs If-Match. A migration that gives a new permission to a default role also grants it to the seeded role an administrator "
+            + "changed, audits it as the system user and marks the role \"changed by upgrade\" (upgradePending). This clears the mark, audited. "
+            + "422 Identity.NoUpgradePending when nothing waits. Permission Organisation.Role.Edit.");
         MapState<ResetRoleCommand>(roles, "reset", (id, v) => new ResetRoleCommand(id, v), "ResetRole", "Resets a seeded role to its default permissions.",
             "Needs If-Match. Restores the permission set the role shipped with; name and description stay. Audited, and the holders' sessions follow "
             + "within the session check. Refused for a role without a default (422 Identity.NoDefaultRole), a locked role (422), a role the caller "

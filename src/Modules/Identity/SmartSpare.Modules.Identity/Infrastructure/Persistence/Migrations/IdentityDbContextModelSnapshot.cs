@@ -597,6 +597,13 @@ namespace SmartSpare.Modules.Identity.Infrastructure.Persistence.Migrations
                         .HasDefaultValueSql("false")
                         .HasComment("Archived roles cannot be put in a role template.");
 
+                    b.Property<bool>("IsCustomised")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_customised")
+                        .HasColumnOrder(6)
+                        .HasDefaultValueSql("false")
+                        .HasComment("A seeded role whose permissions an administrator changed away from the shipped set (#211).");
+
                     b.Property<bool>("IsLocked")
                         .HasColumnType("boolean")
                         .HasColumnName("is_locked")
@@ -610,6 +617,12 @@ namespace SmartSpare.Modules.Identity.Infrastructure.Persistence.Migrations
                         .HasColumnName("name")
                         .HasColumnOrder(2)
                         .HasComment("Display name.");
+
+                    b.Property<string>("UpgradePending")
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("upgrade_pending")
+                        .HasColumnOrder(7)
+                        .HasComment("Version whose migration granted a permission to this customised role, until an administrator confirms it (#211).");
 
                     b.Property<uint>("xmin")
                         .IsConcurrencyToken()
