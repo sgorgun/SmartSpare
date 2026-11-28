@@ -480,6 +480,48 @@
   <data name="Imports.ManufacturerRule" xml:space="preserve">
     <value>An empty manufacturer_code keeps the part's stored manufacturer, so a file cannot clear it: remove a part's manufacturer in the part editor. An unknown or archived code is a row error.</value>
   </data>
+  <data name="Roles.Edit" xml:space="preserve">
+    <value>Edit</value>
+  </data>
+  <data name="Roles.EditTitle" xml:space="preserve">
+    <value>Edit role {0}</value>
+  </data>
+  <data name="Roles.Description" xml:space="preserve">
+    <value>Description</value>
+  </data>
+  <data name="Roles.AtDefault" xml:space="preserve">
+    <value>The permissions are the default set this role shipped with.</value>
+  </data>
+  <data name="Roles.ChangedFromDefault" xml:space="preserve">
+    <value>The permissions differ from the default set this role shipped with. "Reset to default" restores it; name and description stay.</value>
+  </data>
+  <data name="Roles.Modified" xml:space="preserve">
+    <value>Changed from default</value>
+  </data>
+  <data name="Roles.Reset" xml:space="preserve">
+    <value>Reset to default</value>
+  </data>
+  <data name="Roles.ResetDone" xml:space="preserve">
+    <value>{0} has its default permissions again.</value>
+  </data>
+  <data name="Roles.Copy" xml:space="preserve">
+    <value>Copy</value>
+  </data>
+  <data name="Roles.CopyTitle" xml:space="preserve">
+    <value>Copy role {0}</value>
+  </data>
+  <data name="Roles.CopyName" xml:space="preserve">
+    <value>{0} (copy)</value>
+  </data>
+  <data name="Roles.CopySave" xml:space="preserve">
+    <value>Create copy</value>
+  </data>
+  <data name="Positions.Locked" xml:space="preserve">
+    <value>Built in, locked</value>
+  </data>
+  <data name="Roles.Close" xml:space="preserve">
+    <value>Close</value>
+  </data>
   <data name="Imports.Rules" xml:space="preserve">
     <value>UTF-8 CSV, comma or semicolon separated, at most 10 MB and 50,000 rows. If more than 5 % of the rows are invalid, nothing is loaded.</value>
   </data>
@@ -1534,7 +1576,7 @@
     <value>Roles and permissions</value>
   </data>
   <data name="Roles.Intro" xml:space="preserve">
-    <value>A role is a named bundle of permissions; a position's role template gives its employees the permissions of its roles. Locked roles are built in and cannot be changed. Brand and hub scope come from assignments.</value>
+    <value>A role is a named bundle of permissions; a position's role template gives its employees the permissions of its roles. Seeded roles can be renamed and their permissions changed; "Reset to default" restores the permissions they shipped with. The locked Administrator and Superadministrator roles cannot be changed, but "Copy" makes an editable role from any role. Brand and hub scope come from assignments.</value>
   </data>
   <data name="Roles.Code" xml:space="preserve">
     <value>Code</value>

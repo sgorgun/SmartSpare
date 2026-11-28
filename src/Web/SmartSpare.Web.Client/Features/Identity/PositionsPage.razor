@@ -48,9 +48,9 @@
             <legend><MudText Typo="Typo.subtitle2">@Text["Positions.Template"]</MudText></legend>
             <MudText Typo="Typo.body2" Class="mb-1">@Text["Positions.TemplateHelp"]</MudText>
             <div class="d-flex flex-wrap" data-testid="role-template">
-                @foreach (var role in AppRoles.All)
+                @foreach (var role in RoleChoices(_editing.Roles))
                 {
-                    <MudCheckBox T="bool" Value="_editing.Roles.Contains(role)" ValueChanged="@(on => Toggle(_editing.Roles, role, on))" Label="@Text["Role." + role]" />
+                    <MudCheckBox T="bool" Value="_editing.Roles.Contains(role)" ValueChanged="@(on => Toggle(_editing.Roles, role, on))" Label="@RoleName(role)" />
                 }
             </div>
         </fieldset>
@@ -74,13 +74,17 @@
         <PropertyColumn Property="p => p.Name" Title="@Text["Positions.Name"]" />
         <TemplateColumn Title="@Text["Positions.Template"]">
             <CellTemplate>
-                <span data-testid="position-roles">@(context.Item.Roles.Count == 0 ? Text["Positions.NoRoles"].Value : string.Join(", ", context.Item.Roles.Select(r => Text["Role." + r].Value)))</span>
+                <span data-testid="position-roles">@(context.Item.Roles.Count == 0 ? Text["Positions.NoRoles"].Value : string.Join(", ", context.Item.Roles.Select(RoleName)))</span>
             </CellTemplate>
         </TemplateColumn>
         <PropertyColumn Property="p => p.ActiveEmployees" Title="@Text["Positions.Employees"]" />
         <TemplateColumn Title="" CellClass="text-right">
             <CellTemplate>
-                @if (context.Item.IsArchived)
+                @if (context.Item.IsLocked)
+                {
+                    <span data-testid="position-locked"><MudIcon Icon="@Icons.Material.Filled.Lock" Size="Size.Small" aria-hidden="true" /> @Text["Positions.Locked"]</span>
+                }
+                else if (context.Item.IsArchived)
                 {
                     <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="() => ActAsync(context.Item, RestoreAction)" data-testid="restore-position">@Text["Catalog.Restore"]</MudButton>
                 }
@@ -108,6 +112,37 @@
     private string? _formError;
     private bool _busy;
     private PositionForm? _editing;
+
+    // Roles are data (ADR 0028): the template offers every active role by name, including copies and new ones. Without
+    // Organisation.Role.View the list falls back to the seeded roles.
+    private List<RoleSummary>? _roles;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        var roles = await Identity.ListRolesAsync();
+        _roles = roles.IsSuccess ? roles.Value : null;
+    }
+
+    private IEnumerable<string> RoleChoices(IReadOnlyCollection<string> current) =>
+        _roles is null
+            ? AppRoles.All
+            : _roles.Where(r => (!r.IsArchived || current.Contains(r.Code)) && r.Code != AppRoles.Superadministrator).Select(r => r.Code);
+
+    private string RoleName(string code)
+    {
+        if (_roles?.Find(r => r.Code == code) is { } role)
+        {
+            return role.Name;
+        }
+
+        var text = Text["Role." + code];
+        return text.ResourceNotFound ? code : text.Value;
+    }
 
     private async Task<GridData<PositionSummary>> LoadAsync(GridState<PositionSummary> state, CancellationToken cancellationToken)
     {

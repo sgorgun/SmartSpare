@@ -54,6 +54,32 @@ public sealed class OrganisationPagesTests : ClientTestContext
     }
 
     [Fact]
+    public void The_template_offers_every_active_role_by_name_including_copies_but_never_the_superadministrator()
+    {
+        var page = Render<PositionsPage>();
+        page.WaitForAssertion(() => page.FindAll("[data-testid=edit-position]").Count.ShouldBe(2));
+
+        page.FindAll("[data-testid=edit-position]")[0].Click();
+
+        var template = page.Find("[data-testid=role-template]").TextContent;
+        template.ShouldContain("Senior brand manager");
+        template.ShouldNotContain("Superadministrator");
+        template.ShouldNotContain("Old role", customMessage: "archived roles cannot be chosen");
+    }
+
+    [Fact]
+    public void The_locked_superadministrator_position_offers_no_editing()
+    {
+        _identity.IncludeLocked = true;
+        var page = Render<PositionsPage>();
+
+        page.WaitForAssertion(() => page.FindAll("tbody tr.mud-table-row").Count.ShouldBe(3));
+        page.FindAll("[data-testid=edit-position]").Count.ShouldBe(2);
+        page.FindAll("[data-testid=archive-position]").Count.ShouldBe(2);
+        page.Find("[data-testid=position-locked]").TextContent.ShouldContain("locked");
+    }
+
+    [Fact]
     public void A_refused_template_change_shows_the_servers_sentence()
     {
         _identity.NextPositionUpdate = ApiResult.Failure<PositionSummary>(new ProblemInfo(409, "Identity.LastAdministrator", "Conflict",
@@ -131,9 +157,24 @@ public sealed class OrganisationPagesTests : ClientTestContext
 /// <summary>An <see cref="IdentityClient"/> with two positions and two employees.</summary>
 public sealed class FakeOrganisationClient() : IdentityClient(new HttpClient())
 {
-    private static readonly PositionSummary Director = new(3, "COMMERCIAL_DIRECTOR", "Commercial director", null, [AppRoles.BrandManager, AppRoles.Sponsor], false, 1, "41");
+    private static readonly PositionSummary Director = new(3, "COMMERCIAL_DIRECTOR", "Commercial director", null, [AppRoles.BrandManager, AppRoles.Sponsor], false, false, 1, "41");
 
-    private static readonly PositionSummary Accountant = new(8, "ACCOUNTANT", "Accountant", null, [], false, 2, "42");
+    private static readonly PositionSummary Accountant = new(8, "ACCOUNTANT", "Accountant", null, [], false, false, 2, "42");
+
+    private static readonly PositionSummary Superadministrator = new(9, "SUPERADMINISTRATOR", "Superadministrator", null, [AppRoles.Superadministrator], true, false, 1, "43");
+
+    /// <summary>Lists the locked Superadministrator position as well.</summary>
+    public bool IncludeLocked { get; set; }
+
+    public override Task<ApiResult<List<RoleSummary>>> ListRolesAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(ApiResult.Success(new List<RoleSummary>
+        {
+            new(2, AppRoles.BrandManager, "Brand manager", null, [], false, false, [], true, true, "1"),
+            new(5, AppRoles.Sponsor, "Sponsor", null, [], false, false, [], true, true, "2"),
+            new(10, "SENIOR_BRAND_MANAGER", "Senior brand manager", null, [], false, false, [], false, false, "3"),
+            new(11, "OLD_ROLE", "Old role", null, [], false, true, [], false, false, "4"),
+            new(12, AppRoles.Superadministrator, "Superadministrator", null, [], true, false, [], true, true, "5"),
+        }));
 
     private static readonly EmployeeSummary Tomas = new(Guid.NewGuid(), "E0001", "Tomas Radzevičius", "tomas@dealer.example", null, 3, "COMMERCIAL_DIRECTOR",
         "Commercial director", null, null, false, false, "tomas.radzevicius", "77");
@@ -153,7 +194,9 @@ public sealed class FakeOrganisationClient() : IdentityClient(new HttpClient())
 
     public override Task<ApiResult<PagedResponse<PositionSummary>>> ListPositionsAsync(
         string? search, bool archived, int page, int pageSize, CancellationToken cancellationToken = default) =>
-        Task.FromResult(ApiResult.Success(new PagedResponse<PositionSummary>([Director, Accountant], page, pageSize, 2)));
+        Task.FromResult(ApiResult.Success(IncludeLocked
+            ? new PagedResponse<PositionSummary>([Director, Accountant, Superadministrator], page, pageSize, 3)
+            : new PagedResponse<PositionSummary>([Director, Accountant], page, pageSize, 2)));
 
     public override Task<ApiResult<PositionSummary>> CreatePositionAsync(CreatePositionRequest request, CancellationToken cancellationToken = default)
     {
