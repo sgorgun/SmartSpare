@@ -200,7 +200,8 @@ internal static class ImportEndpoints
             .WithDescription(
                 "Multipart form with source (partCatalog or demandHistory) and file. The file is UTF-8 CSV with a header row; "
                 + "comma or semicolon separated; columns for partCatalog: brand_code, oem_part_number, description, "
-                + "category_code, uom_code, weight_kg, unit_cost, condition_based; for demandHistory: doc_date (YYYY-MM-DD), "
+                + "category_code, uom_code, weight_kg, unit_cost, condition_based and optionally manufacturer_code (an unknown or "
+                + "archived code is a row error, an empty one keeps the part's manufacturer); for demandHistory: doc_date (YYYY-MM-DD), "
                 + "warehouse_code, brand_code, oem_part_number, quantity, doc_ref. The rows are stored as raw text, validated "
                 + "into staging and loaded into the catalogue or the demand ledger in one transaction (raw → staging → core). "
                 + "If more than 5 % of the rows are invalid nothing is loaded and the batch is answered with status failed "
@@ -223,8 +224,8 @@ internal static class ImportEndpoints
 
         group.MapGet("/imports/template", (
                 [Description("partCatalog or demandHistory.")] string source) =>
-                ImportSources.Columns.TryGetValue(source, out var columns)
-                    ? Csv(CsvFile.Write(columns, [ImportTemplates.ExampleRow(source)]), $"{source}-template.csv")
+                ImportSources.Columns.ContainsKey(source)
+                    ? Csv(CsvFile.Write(ImportSources.AllColumns(source), [ImportTemplates.ExampleRow(source)]), $"{source}-template.csv")
                     : SourceError.ToProblem())
             .RequireAuthorization(Permissions.Inventory.Import.Run)
             .WithName("GetImportTemplate")
@@ -239,8 +240,8 @@ internal static class ImportEndpoints
                 [Description("partCatalog or demandHistory.")] string source,
                 ImportStore store,
                 CancellationToken cancellationToken) =>
-                ImportSources.Columns.TryGetValue(source, out var columns)
-                    ? Csv(CsvFile.Write(columns, await store.ExportRowsAsync(source, cancellationToken).ConfigureAwait(false)), $"{source}.csv")
+                ImportSources.Columns.ContainsKey(source)
+                    ? Csv(CsvFile.Write(ImportSources.AllColumns(source), await store.ExportRowsAsync(source, cancellationToken).ConfigureAwait(false)), $"{source}.csv")
                     : SourceError.ToProblem())
             .RequireAuthorization(Permissions.Inventory.Import.Run)
             .WithName("ExportImportSource")
@@ -299,6 +300,6 @@ internal static class ImportEndpoints
 internal static class ImportTemplates
 {
     public static IReadOnlyList<string?> ExampleRow(string source) => source == ImportSources.PartCatalog
-        ? ["JD", "RE504836", "Oil filter element", "OIL_FILTER", "PCS", "0.450", "18.90", "false"]
+        ? ["JD", "RE504836", "Oil filter element", "OIL_FILTER", "PCS", "0.450", "18.90", "false", null]
         : ["2026-06-30", "KLP", "JD", "RE504836", "2", "INV-2026-0042"];
 }

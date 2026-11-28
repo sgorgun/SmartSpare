@@ -26,6 +26,8 @@ internal sealed class PartCatalogRowConfiguration : IEntityTypeConfiguration<Par
         builder.Property(x => x.WeightKg).HasColumnName("weight_kg").HasColumnOrder(7).HasColumnType("text");
         builder.Property(x => x.UnitCost).HasColumnName("unit_cost").HasColumnOrder(8).HasColumnType("text");
         builder.Property(x => x.ConditionBased).HasColumnName("condition_based").HasColumnOrder(9).HasColumnType("text");
+        builder.Property(x => x.ManufacturerCode).HasColumnName("manufacturer_code").HasColumnOrder(10).HasColumnType("text")
+            .HasComment("Manufacturer code; the column is optional in the file (PR 7h3).");
 
         builder.HasOne<ImportBatch>().WithMany()
             .HasForeignKey(x => x.ImportBatchId)

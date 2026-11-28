@@ -10,6 +10,9 @@ internal sealed class Part
 
     public short BrandId { get; set; }
 
+    /// <summary>The maker (catalog.manufacturer), if known (PR 7h3).</summary>
+    public short? ManufacturerId { get; set; }
+
     public string OemPartNumber { get; set; } = null!;
 
     public string Description { get; set; } = null!;

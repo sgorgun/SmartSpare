@@ -240,6 +240,112 @@ namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("SmartSpare.Modules.Inventory.Domain.Catalog.Manufacturer", b =>
+                {
+                    b.Property<short>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("smallint")
+                        .HasColumnName("id")
+                        .HasColumnOrder(0)
+                        .HasComment("Surrogate primary key.");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<short>("Id"));
+
+                    b.Property<DateTimeOffset?>("ArchivedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("archived_at")
+                        .HasColumnOrder(51);
+
+                    b.Property<Guid?>("ArchivedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("archived_by")
+                        .HasColumnOrder(52)
+                        .HasComment("User who archived the record (iam.app_user).");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("code")
+                        .HasColumnOrder(1)
+                        .HasComment("Business key, e.g. MANN; never changes after creation.");
+
+                    b.Property<string>("CountryCode")
+                        .HasColumnType("character(2)")
+                        .HasColumnName("country_code")
+                        .HasColumnOrder(3)
+                        .HasComment("ISO 3166-1 alpha-2 country, if known.");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasColumnOrder(53)
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_archived")
+                        .HasColumnOrder(50)
+                        .HasDefaultValueSql("false")
+                        .HasComment("Archived instead of deleted: kept on history, cannot be chosen (SS500).");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("name")
+                        .HasColumnOrder(2)
+                        .HasComment("Display name.");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasColumnOrder(54)
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("Website")
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("website")
+                        .HasColumnOrder(4)
+                        .HasComment("Website, if known.");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id")
+                        .HasName("pk_manufacturer");
+
+                    b.HasIndex(new[] { "Code" }, "ix_manufacturer_code_trgm")
+                        .HasDatabaseName("ix_manufacturer_code_trgm");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex(new[] { "Code" }, "ix_manufacturer_code_trgm"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex(new[] { "Code" }, "ix_manufacturer_code_trgm"), new[] { "gin_trgm_ops" });
+
+                    b.HasIndex(new[] { "Name" }, "ix_manufacturer_name_trgm")
+                        .HasDatabaseName("ix_manufacturer_name_trgm");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex(new[] { "Name" }, "ix_manufacturer_name_trgm"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex(new[] { "Name" }, "ix_manufacturer_name_trgm"), new[] { "gin_trgm_ops" });
+
+                    b.HasIndex(new[] { "Code" }, "uq_manufacturer_code")
+                        .IsUnique()
+                        .HasDatabaseName("uq_manufacturer_code");
+
+                    b.ToTable("manufacturer", "catalog", t =>
+                        {
+                            t.HasComment("Makers of parts, e.g. MANN+HUMMEL; a part may name one (ADR 0025).");
+
+                            t.HasCheckConstraint("ck_manufacturer_archived", "((is_archived AND (archived_at IS NOT NULL)) OR ((NOT is_archived) AND (archived_at IS NULL)))");
+
+                            t.HasCheckConstraint("ck_manufacturer_code", "((code)::text ~ '^[A-Z0-9_]{2,20}$'::text)");
+
+                            t.HasCheckConstraint("ck_manufacturer_country", "((country_code IS NULL) OR (country_code ~ '^[A-Z]{2}$'::text))");
+                        });
+                });
+
             modelBuilder.Entity("SmartSpare.Modules.Inventory.Domain.Responsibilities.BrandResponsible", b =>
                 {
                     b.Property<long>("Id")
@@ -1445,6 +1551,12 @@ namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Migrations
                         .HasDefaultValueSql("false")
                         .HasComment("TRUE for parts replaced \"as required\" (air/cab filters, finding F6): demand only from the forecast stream.");
 
+                    b.Property<short?>("ManufacturerId")
+                        .HasColumnType("smallint")
+                        .HasColumnName("manufacturer_id")
+                        .HasColumnOrder(12)
+                        .HasComment("Maker of the part (catalog.manufacturer), if known.");
+
                     b.Property<string>("OemPartNumber")
                         .IsRequired()
                         .HasColumnType("character varying(40)")
@@ -1491,6 +1603,9 @@ namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Migrations
 
                     NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Description"), "gin");
                     NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Description"), new[] { "gin_trgm_ops" });
+
+                    b.HasIndex("ManufacturerId")
+                        .HasDatabaseName("ix_part_manufacturer");
 
                     b.HasIndex("OemPartNumber")
                         .HasDatabaseName("ix_part_oem_number_trgm");
@@ -1610,6 +1725,12 @@ namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Migrations
                         .HasColumnOrder(10)
                         .HasComment("Flag: valid.");
 
+                    b.Property<short?>("ManufacturerId")
+                        .HasColumnType("smallint")
+                        .HasColumnName("manufacturer_id")
+                        .HasColumnOrder(11)
+                        .HasComment("Resolved manufacturer, if the row named one (PR 7h3).");
+
                     b.Property<string>("OemPartNumber")
                         .HasColumnType("character varying(40)")
                         .HasColumnName("oem_part_number")
@@ -1675,6 +1796,12 @@ namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Migrations
                         .HasColumnName("description")
                         .HasColumnOrder(4)
                         .HasComment("Description.");
+
+                    b.Property<string>("ManufacturerCode")
+                        .HasColumnType("text")
+                        .HasColumnName("manufacturer_code")
+                        .HasColumnOrder(10)
+                        .HasComment("Manufacturer code; the column is optional in the file (PR 7h3).");
 
                     b.Property<string>("OemPartNumber")
                         .HasColumnType("text")
@@ -2065,6 +2192,12 @@ namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired()
                         .HasConstraintName("fk_part_category");
+
+                    b.HasOne("SmartSpare.Modules.Inventory.Domain.Catalog.Manufacturer", null)
+                        .WithMany()
+                        .HasForeignKey("ManufacturerId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .HasConstraintName("fk_part_manufacturer");
 
                     b.HasOne("SmartSpare.Modules.Inventory.Infrastructure.Persistence.RefUnitOfMeasure", null)
                         .WithMany()

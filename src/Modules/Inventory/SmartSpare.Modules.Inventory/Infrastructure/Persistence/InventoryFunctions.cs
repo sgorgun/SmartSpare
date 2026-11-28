@@ -51,8 +51,9 @@ internal sealed class ImportStore(InventoryDbContext db)
         var sql = source == ImportSources.PartCatalog
             ? """
               SELECT b.code, p.oem_part_number, p.description, c.code, u.code, p.weight_kg::text, p.unit_cost::text,
-                     CASE WHEN p.is_condition_based THEN 'true' ELSE 'false' END
+                     CASE WHEN p.is_condition_based THEN 'true' ELSE 'false' END, m.code
               FROM catalog.part p
+              LEFT JOIN catalog.manufacturer m ON m.id = p.manufacturer_id
               JOIN catalog.brand b ON b.id = p.brand_id
               JOIN ref.part_category c ON c.id = p.category_id
               JOIN ref.unit_of_measure u ON u.id = p.uom_id

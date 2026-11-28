@@ -10,7 +10,7 @@ public static class DefaultRoles
 {
     private static readonly string[] ReadEverything =
     [
-        Permissions.Inventory.Part.View, Permissions.Inventory.Brand.View, Permissions.Inventory.Warehouse.View,
+        Permissions.Inventory.Part.View, Permissions.Inventory.Brand.View, Permissions.Inventory.Manufacturer.View, Permissions.Inventory.Warehouse.View,
         Permissions.Inventory.Stock.View, Permissions.Inventory.Transfer.View, Permissions.Inventory.AdjustmentReason.View,
         Permissions.Fleet.Machine.View, Permissions.Fleet.ServiceOrder.View,
     ];
@@ -43,6 +43,7 @@ public static class DefaultRoles
             Permissions.Inventory.AdjustmentReason.Create, Permissions.Inventory.AdjustmentReason.Edit,
             Permissions.Inventory.AdjustmentReason.Archive,
             Permissions.Inventory.Brand.Create, Permissions.Inventory.Brand.Edit, Permissions.Inventory.Brand.Archive,
+            Permissions.Inventory.Manufacturer.Create, Permissions.Inventory.Manufacturer.Edit, Permissions.Inventory.Manufacturer.Archive,
             Permissions.Procurement.Supplier.Edit,   // stage 7 (PR 7x3): administrators only by default, ADR 0028
         ]),
         [AppRoles.BrandManager] = Set(
@@ -67,6 +68,7 @@ public static class DefaultRoles
             Permissions.Inventory.AdjustmentReason.Create, Permissions.Inventory.AdjustmentReason.Edit,
             Permissions.Inventory.AdjustmentReason.Archive,
             Permissions.Inventory.Brand.Create, Permissions.Inventory.Brand.Edit, Permissions.Inventory.Brand.Archive,
+            Permissions.Inventory.Manufacturer.Create, Permissions.Inventory.Manufacturer.Edit, Permissions.Inventory.Manufacturer.Archive,
         ]),
         [AppRoles.WarehouseKeeper] = Set(
         [

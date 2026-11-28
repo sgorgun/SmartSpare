@@ -33,6 +33,11 @@ internal sealed class PartConfiguration : IEntityTypeConfiguration<Part>
         builder.Property(x => x.CreatedAt).HasColumnName("created_at").HasColumnOrder(10).HasColumnType("timestamp with time zone").HasDefaultValueSql("now()").HasComment("Time the record was created.");
         builder.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasColumnOrder(11).HasColumnType("timestamp with time zone").HasDefaultValueSql("now()").HasComment("Time of the last change (maintained by trigger).");
 
+        builder.Property(x => x.ManufacturerId).HasColumnName("manufacturer_id").HasColumnOrder(12).HasColumnType("smallint")
+            .HasComment("Maker of the part (catalog.manufacturer), if known.");
+        builder.HasOne<Domain.Catalog.Manufacturer>().WithMany().HasForeignKey(x => x.ManufacturerId).HasPrincipalKey(x => x.Id)
+            .HasConstraintName("fk_part_manufacturer").OnDelete(DeleteBehavior.NoAction);
+        builder.HasIndex(x => x.ManufacturerId).HasDatabaseName("ix_part_manufacturer");
         builder.HasOne<Domain.Catalog.Brand>().WithMany()
             .HasForeignKey(x => x.BrandId)
             .HasPrincipalKey(x => x.Id)

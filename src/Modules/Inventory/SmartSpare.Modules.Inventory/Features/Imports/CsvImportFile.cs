@@ -15,7 +15,7 @@ internal static class CsvImportFile
 
     public static Result<CsvFile.Parsed> Parse(string content, string source) =>
         ImportSources.Columns.TryGetValue(source, out var expected)
-            ? CsvFile.Parse(content, expected, ImportLimits.MaxRows, "Inventory.Import")
+            ? CsvFile.Parse(content, expected, ImportLimits.MaxRows, "Inventory.Import", ImportSources.OptionalColumns[source])
             : Error.Validation("Inventory.ImportSource", $"The source must be one of: {string.Join(", ", ImportSources.All)}.");
 
     internal static char DetectSeparator(string content) => CsvFile.DetectSeparator(content);
