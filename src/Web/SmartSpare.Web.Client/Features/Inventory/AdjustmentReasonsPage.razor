@@ -12,7 +12,7 @@
 
 <InventoryTabs />
 <CatalogPage @ref="_page" TItem="AdjustmentReasonDto" Route="@Route" Title="@Text["Reasons.Title"]" Intro="@Text["Reasons.Intro"]"
-             NewLabel="@Text["Reasons.New"]" MayEdit="_mayEdit" OnEdit="StartEdit"
+             NewLabel="@Text["Reasons.New"]" MayEdit="_mayEdit" OnEdit="StartEdit" HasCsv="true"
              IdOf="r => r.Id" NameOf="r => r.Name" VersionOf="r => r.Version" IsArchivedOf="r => r.IsArchived">
     <Columns>
         <PropertyColumn T="AdjustmentReasonDto" TProperty="string" Property="r => r.Code" Title="@Text["Reasons.Code"]" />

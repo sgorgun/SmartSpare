@@ -35,6 +35,19 @@ public class CatalogClient(HttpClient http) : ApiClientBase(http)
                                                    + (string.IsNullOrWhiteSpace(search) ? string.Empty : "&search=" + Uri.EscapeDataString(search.Trim()))),
             cancellationToken);
 
+    /// <summary>Imports a CSV (multipart <c>file</c>); with <paramref name="dryRun"/> the server rolls the import back.</summary>
+    public virtual async Task<ApiResult<CatalogImportResult>> ImportCsvAsync(
+        string route, string fileName, byte[] content, bool dryRun, CancellationToken cancellationToken = default)
+    {
+        using var form = new MultipartFormDataContent();
+        var file = new ByteArrayContent(content);
+        file.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/csv");
+        form.Add(file, "file", fileName);
+        return await SendAsync<CatalogImportResult>(
+            new HttpRequestMessage(HttpMethod.Post, $"{route}/csv?dryRun={(dryRun ? "true" : "false")}") { Content = form }, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
     public virtual Task<ApiResult<T>> CreateAsync<TWrite, T>(string route, TWrite body, CancellationToken cancellationToken = default) =>
         SendAsync<T>(new HttpRequestMessage(HttpMethod.Post, route) { Content = JsonContent.Create(body) }, cancellationToken);
 

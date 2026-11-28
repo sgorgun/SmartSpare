@@ -31,6 +31,11 @@
     <MudAlert Severity="Severity.Error" Class="mb-3" data-testid="catalog-error">@_error</MudAlert>
 }
 
+@if (HasCsv)
+{
+    <CsvPanel Route="@Route" MayImport="MayEdit" OnImported="ReloadAsync" />
+}
+
 @Editor
 
 @if (_history is { } shown)
@@ -92,6 +97,10 @@
     /// <summary>The editing panel the page shows while a record is edited (a <c>CatalogEditor</c>), or nothing.</summary>
     [Parameter]
     public RenderFragment? Editor { get; set; }
+
+    /// <summary>Whether the catalogue has CSV template, export and import (STAGE_7_PLAN 2.6).</summary>
+    [Parameter]
+    public bool HasCsv { get; set; }
 
     /// <summary>Whether the user may change the catalogue (UX only; the server checks the policy).</summary>
     [Parameter]

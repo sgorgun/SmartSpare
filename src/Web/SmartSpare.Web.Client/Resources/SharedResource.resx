@@ -1569,4 +1569,52 @@
   <data name="Users.PositionOrigin" xml:space="preserve">
     <value>position {0}</value>
   </data>
+  <data name="Csv.Title" xml:space="preserve">
+    <value>CSV: template, export, import</value>
+  </data>
+  <data name="Csv.Template" xml:space="preserve">
+    <value>Template</value>
+  </data>
+  <data name="Csv.Export" xml:space="preserve">
+    <value>Export</value>
+  </data>
+  <data name="Csv.Choose" xml:space="preserve">
+    <value>Import a CSV file</value>
+  </data>
+  <data name="Csv.Rules" xml:space="preserve">
+    <value>UTF-8, comma or semicolon separated, at most 10 MB and 50,000 rows. Rows are matched by code: new codes are created, existing ones updated, unchanged rows skipped. You see a preview first; nothing is written until you apply it.</value>
+  </data>
+  <data name="Csv.Working" xml:space="preserve">
+    <value>Checking the file</value>
+  </data>
+  <data name="Csv.Preview" xml:space="preserve">
+    <value>Preview of {0}</value>
+  </data>
+  <data name="Csv.Counts" xml:space="preserve">
+    <value>{0} rows: {1} new, {2} changed, {3} unchanged, {4} errors.</value>
+  </data>
+  <data name="Csv.Line" xml:space="preserve">
+    <value>Line</value>
+  </data>
+  <data name="Csv.Column" xml:space="preserve">
+    <value>Column</value>
+  </data>
+  <data name="Csv.Code" xml:space="preserve">
+    <value>Error</value>
+  </data>
+  <data name="Csv.Message" xml:space="preserve">
+    <value>Message</value>
+  </data>
+  <data name="Csv.Apply" xml:space="preserve">
+    <value>Apply</value>
+  </data>
+  <data name="Csv.Gate" xml:space="preserve">
+    <value>More than 5 % of the rows have errors, so the file cannot be applied. Correct the rows and choose the file again.</value>
+  </data>
+  <data name="Csv.Applied" xml:space="preserve">
+    <value>Imported: {0} new, {1} changed.</value>
+  </data>
+  <data name="Csv.TooLarge" xml:space="preserve">
+    <value>A file has at most 10 MB.</value>
+  </data>
 </root>

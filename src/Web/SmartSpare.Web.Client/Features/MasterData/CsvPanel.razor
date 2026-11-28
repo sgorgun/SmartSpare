@@ -1,0 +1,162 @@
+@using SmartSpare.ApiContracts.MasterData
+@inject IStringLocalizer<SharedResource> Text
+@inject CatalogClient Catalog
+@inject ProblemMessages Messages
+@inject ISnackbar Snackbar
+
+@* CSV for a catalogue (STAGE_7_PLAN 2.6, 2.7): template and export as links (GET with the session cookie), and an
+   import that first runs as a dry run, the real import rolled back, so the preview table is exactly what "Apply" does. *@
+<MudExpansionPanels Class="mb-3" Elevation="0" Outlined="true">
+    <MudExpansionPanel Text="@Text["Csv.Title"]" data-testid="csv-panel">
+        <div class="d-flex flex-wrap align-center mb-2">
+            <MudButton Href="@($"{Route}/csv/template")" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Description" Class="touch-target mr-2"
+                       data-testid="csv-template">@Text["Csv.Template"]</MudButton>
+            <MudButton Href="@($"{Route}/csv")" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Download" Class="touch-target mr-2"
+                       data-testid="csv-export">@Text["Csv.Export"]</MudButton>
+            @if (MayImport)
+            {
+                <MudFileUpload T="IBrowserFile" FilesChanged="PreviewAsync" Accept=".csv,text/csv" MaximumFileCount="1" Disabled="_busy" data-testid="csv-file">
+                    <CustomContent>
+                        <MudButton OnClick="@context.OpenFilePickerAsync" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.UploadFile"
+                                   Disabled="_busy" Class="touch-target">@Text["Csv.Choose"]</MudButton>
+                    </CustomContent>
+                </MudFileUpload>
+            }
+        </div>
+        <MudText Typo="Typo.caption">@Text["Csv.Rules"]</MudText>
+
+        @if (_busy)
+        {
+            <MudProgressLinear Indeterminate="true" Class="mt-2" aria-label="@Text["Csv.Working"]" />
+        }
+
+        @if (_error is not null)
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-2" role="alert" data-testid="csv-error">@_error</MudAlert>
+        }
+
+        @if (_preview is { } preview)
+        {
+            <div class="mt-3" data-testid="csv-preview" aria-live="polite">
+                <MudText Typo="Typo.subtitle2">@Text["Csv.Preview", _fileName ?? string.Empty]</MudText>
+                <MudText Typo="Typo.body2" data-testid="csv-counts">@Text["Csv.Counts", preview.Rows, preview.Created, preview.Updated, preview.Unchanged, preview.Errors.Count]</MudText>
+                @if (preview.Errors.Count > 0)
+                {
+                    <MudSimpleTable Dense="true" Class="mt-2" data-testid="csv-errors">
+                        <thead>
+                            <tr><th scope="col">@Text["Csv.Line"]</th><th scope="col">@Text["Csv.Column"]</th><th scope="col">@Text["Csv.Code"]</th><th scope="col">@Text["Csv.Message"]</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var error in preview.Errors.Take(MaxShownErrors))
+                            {
+                                <tr><td>@error.Line</td><td>@error.Column</td><td>@error.Code</td><td>@error.Message</td></tr>
+                            }
+                        </tbody>
+                    </MudSimpleTable>
+                }
+
+                @if (PassesGate(preview))
+                {
+                    <MudButton OnClick="ApplyAsync" Disabled="_busy" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Check"
+                               Class="touch-target mt-2" data-testid="csv-apply">@Text["Csv.Apply"]</MudButton>
+                }
+                else
+                {
+                    <MudAlert Severity="Severity.Warning" Class="mt-2" data-testid="csv-gate">@Text["Csv.Gate"]</MudAlert>
+                }
+            </div>
+        }
+    </MudExpansionPanel>
+</MudExpansionPanels>
+
+@code {
+    private const int MaxShownErrors = 200;
+
+    private byte[]? _content;
+    private string? _fileName;
+    private CatalogImportResult? _preview;
+    private string? _error;
+    private bool _busy;
+
+    /// <summary>The catalogue's API route, e.g. <c>api/v1/inventory/adjustment-reasons</c>.</summary>
+    [Parameter, EditorRequired]
+    public string Route { get; set; } = string.Empty;
+
+    /// <summary>Whether the user may import (UX only; the server checks the create and edit permissions).</summary>
+    [Parameter]
+    public bool MayImport { get; set; }
+
+    /// <summary>After an applied import, so the list reloads.</summary>
+    [Parameter]
+    public EventCallback OnImported { get; set; }
+
+    /// <summary>The same gate as the server: at most 5 % of the rows with errors.</summary>
+    internal static bool PassesGate(CatalogImportResult result) =>
+        result.Errors.Select(e => e.Line).Distinct().Count() <= result.Rows * CatalogLimits.CsvErrorGate;
+
+    private async Task PreviewAsync(IBrowserFile? file)
+    {
+        if (file is null)
+        {
+            return;
+        }
+
+        _error = null;
+        _preview = null;
+        if (file.Size > CatalogLimits.MaxCsvBytes)
+        {
+            _error = Text["Csv.TooLarge"];
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            // Limited to the 10 MB the API accepts; S5693 does not see the limit passed to OpenReadStream.
+#pragma warning disable S5693
+            await using var stream = file.OpenReadStream(CatalogLimits.MaxCsvBytes);
+#pragma warning restore S5693
+            using var buffer = new MemoryStream();
+            await stream.CopyToAsync(buffer);
+            _content = buffer.ToArray();
+            _fileName = file.Name;
+            await RunAsync(dryRun: true);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task ApplyAsync()
+    {
+        _busy = true;
+        try
+        {
+            if (await RunAsync(dryRun: false) is { Applied: true } done)
+            {
+                Snackbar.Add(Text["Csv.Applied", done.Created, done.Updated], Severity.Success);
+                _preview = null;
+                _content = null;
+                await OnImported.InvokeAsync();
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task<CatalogImportResult?> RunAsync(bool dryRun)
+    {
+        var result = await Catalog.ImportCsvAsync(Route, _fileName ?? "import.csv", _content!, dryRun);
+        if (!result.IsSuccess)
+        {
+            _error = Messages.Describe(result.Problem!);
+            return null;
+        }
+
+        _preview = result.Value;
+        return result.Value;
+    }
+}
