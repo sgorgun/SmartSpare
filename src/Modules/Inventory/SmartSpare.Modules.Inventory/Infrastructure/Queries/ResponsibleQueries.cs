@@ -27,11 +27,15 @@ internal sealed class ResponsibleQueries(InventoryDbContext db, IEmployeeDirecto
     public async Task<Result<IReadOnlyList<ResponsibleDto>>> Handle(ListResponsiblesQuery query, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(query);
-        List<(Guid EmployeeId, string Role)> rows = query.RecordKind == RecordKinds.Brand
-            ? [.. (await db.Set<BrandResponsible>().AsNoTracking().Where(r => r.BrandId == query.RecordId)
-                .Select(r => new { r.EmployeeId, r.Role }).ToListAsync(cancellationToken).ConfigureAwait(false)).Select(r => (r.EmployeeId, r.Role))]
-            : [.. (await db.Set<WarehouseResponsible>().AsNoTracking().Where(r => r.WarehouseId == query.RecordId)
-                .Select(r => new { r.EmployeeId, r.Role }).ToListAsync(cancellationToken).ConfigureAwait(false)).Select(r => (r.EmployeeId, r.Role))];
+        List<(Guid EmployeeId, string Role)> rows = query.RecordKind switch
+        {
+            RecordKinds.Brand => [.. (await db.Set<BrandResponsible>().AsNoTracking().Where(r => r.BrandId == query.RecordId)
+                .Select(r => new { r.EmployeeId, r.Role }).ToListAsync(cancellationToken).ConfigureAwait(false)).Select(r => (r.EmployeeId, r.Role))],
+            RecordKinds.Manufacturer => [.. (await db.Set<ManufacturerResponsible>().AsNoTracking().Where(r => r.ManufacturerId == query.RecordId)
+                .Select(r => new { r.EmployeeId, r.Role }).ToListAsync(cancellationToken).ConfigureAwait(false)).Select(r => (r.EmployeeId, r.Role))],
+            _ => [.. (await db.Set<WarehouseResponsible>().AsNoTracking().Where(r => r.WarehouseId == query.RecordId)
+                .Select(r => new { r.EmployeeId, r.Role }).ToListAsync(cancellationToken).ConfigureAwait(false)).Select(r => (r.EmployeeId, r.Role))],
+        };
         var roles = await db.Set<RefAssignmentRole>().AsNoTracking().Where(r => r.RecordKind == query.RecordKind)
             .ToDictionaryAsync(r => r.Code, cancellationToken).ConfigureAwait(false);
         var people = (await employees.FindAsync([.. rows.Select(r => r.EmployeeId).Distinct()], cancellationToken).ConfigureAwait(false))

@@ -14,7 +14,7 @@ namespace SmartSpare.Modules.Inventory.Features.Manufacturers;
 /// <summary>
 /// The manufacturer catalogue under <c>/api/v1/inventory/manufacturers</c> (STAGE_7_PLAN 3.1, PR 7h3), built by the
 /// shared master-data mechanism (ADR 0025). Only Inventory uses manufacturers, so nothing is published. A manufacturer
-/// with active parts cannot be archived (SS501).
+/// with active parts or responsible employees cannot be archived (SS501).
 /// </summary>
 internal static class ManufacturerCatalog
 {
@@ -65,8 +65,21 @@ internal static class ManufacturerCatalog
 
     private static async Task<IReadOnlyList<string>> ArchiveGuardAsync(IServiceProvider services, Manufacturer manufacturer, CancellationToken cancellationToken)
     {
-        var parts = await services.GetRequiredService<InventoryDbContext>().Set<Part>().AsNoTracking()
-            .CountAsync(p => p.ManufacturerId == manufacturer.Id && p.IsActive, cancellationToken).ConfigureAwait(false);
-        return parts > 0 ? [$"{parts} active part(s)"] : [];
+        var db = services.GetRequiredService<InventoryDbContext>();
+        var parts = await db.Set<Part>().AsNoTracking().CountAsync(p => p.ManufacturerId == manufacturer.Id && p.IsActive, cancellationToken).ConfigureAwait(false);
+        var responsibles = await db.Set<Domain.Responsibilities.ManufacturerResponsible>().AsNoTracking()
+            .CountAsync(r => r.ManufacturerId == manufacturer.Id, cancellationToken).ConfigureAwait(false);
+        var reasons = new List<string>();
+        if (parts > 0)
+        {
+            reasons.Add($"{parts} active part(s)");
+        }
+
+        if (responsibles > 0)
+        {
+            reasons.Add($"{responsibles} responsible employee(s); remove them first");
+        }
+
+        return reasons;
     }
 }
