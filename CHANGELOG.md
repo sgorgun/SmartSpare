@@ -8,6 +8,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Breaking changes
+
+API changes an existing client must follow; each merge until the API expert review (2–10 December) adds its own.
+
+- **The part search endpoint is removed** (PR 7i1a, #214). `GET /api/v1/inventory/parts` is now the parts catalogue list
+  of the shared master-data mechanism (ADR 0025), at the same URL. Its rows are `PartDto` instead of `PartSummary`: the
+  former fields keep their names, and the reference ids and codes, the manufacturer, `isArchived` and `version` are added.
+  It also accepts `archived` and `sort`.
+- **Paging errors of the parts list** are `400 Catalog.InvalidPaging` instead of a validation problem with the `Page` or
+  `PageSize` field, like every catalogue list.
+- **Parts import:** a row whose brand is archived is reported as an unknown brand (`UNKNOWN_REF` on `brand_code`, message
+  "Unknown, archived or missing brand") and is counted by the 5 % gate, instead of being loaded.
+- **Part archive state:** `catalog.part.is_active` is replaced by `is_archived`, `archived_at` and `archived_by`. In the API,
+  `PartDetails.isActive` stays (it is `NOT is_archived`); SQL readers of `is_active` must switch.
+
 ### Changed
 
 - Schedule of 27 November 2026 (ARCHITECTURE_DECISIONS §13): application, thesis and presentation ready by 23 December,
