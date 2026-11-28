@@ -40,7 +40,11 @@ internal static class BrandCatalog
         Create = w => Brand.Create(w.Code, w.Name, w.CountryCode),
         Update = (b, w) => b.Update(w.Name, w.CountryCode),
         ArchiveGuard = ArchiveGuardAsync,
-        Publish = (unitOfWork, brands) => BrandCatalogPublication.Queue(unitOfWork, [.. brands.Select(BrandCatalogPublication.Snapshot)]),
+        Publish = (_, unitOfWork, brands, _) =>
+        {
+            BrandCatalogPublication.Queue(unitOfWork, [.. brands.Select(BrandCatalogPublication.Snapshot)]);
+            return Task.CompletedTask;
+        },
         Validator = new BrandWriteValidator(),
         Csv = new CatalogCsv<BrandDto, BrandWrite>
         {
@@ -69,7 +73,7 @@ internal static class BrandCatalog
     private static async Task<IReadOnlyList<string>> ArchiveGuardAsync(IServiceProvider services, Brand brand, CancellationToken cancellationToken)
     {
         var db = services.GetRequiredService<InventoryDbContext>();
-        var parts = await db.Set<Part>().AsNoTracking().CountAsync(p => p.BrandId == brand.Id && p.IsActive, cancellationToken).ConfigureAwait(false);
+        var parts = await db.Set<Part>().AsNoTracking().CountAsync(p => p.BrandId == brand.Id && !p.IsArchived, cancellationToken).ConfigureAwait(false);
         var responsibles = await db.Set<BrandResponsible>().AsNoTracking().CountAsync(r => r.BrandId == brand.Id, cancellationToken).ConfigureAwait(false);
         var reasons = new List<string>();
         if (parts > 0)

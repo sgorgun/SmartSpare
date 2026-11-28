@@ -24,6 +24,8 @@ public sealed class DatabaseErrorMapperTests
     [InlineData("SS302", ErrorType.Forbidden)]
     [InlineData("SS400", ErrorType.BusinessRule)]
     [InlineData("SS402", ErrorType.BusinessRule)]
+    [InlineData("SS500", ErrorType.BusinessRule)]
+    [InlineData("SS501", ErrorType.Conflict)]
     public void BusinessRuleStates_KeepTheirCodeAndMessage(string sqlState, ErrorType expected)
     {
         var error = DatabaseErrorMapper.ToError(Pg(sqlState, "Insufficient stock of part 7"));
