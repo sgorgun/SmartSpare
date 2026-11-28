@@ -22,6 +22,10 @@ API changes an existing client must follow; each merge until the API expert revi
   "Unknown, archived or missing brand") and is counted by the 5 % gate, instead of being loaded.
 - **Part archive state:** `catalog.part.is_active` is replaced by `is_archived`, `archived_at` and `archived_by`. In the API,
   `PartDetails.isActive` stays (it is `NOT is_archived`); SQL readers of `is_active` must switch.
+- **Part analogues** (PR 7i2a, ADR 0027): `catalog.part_analogue` has a surrogate `id` instead of the key
+  (`part_id`, `analogue_part_id`) and a required `link_type` (`interchangeable` | `supersedes`). Existing links became
+  supersessions. SQL writers must give the type; one link per pair, one successor per part and no supersession cycle are
+  enforced (SS502). There was no analogue API before, so no HTTP client breaks.
 
 ### Changed
 
