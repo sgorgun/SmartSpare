@@ -559,6 +559,25 @@ Effort: **S** ≈ a quarter day, **M** ≈ half a day, **L** ≈ a full day, at 
 
 **7i is split into four PRs (28 November 2026),** each green and merged before the next: **7i1a** parts on the shared catalogue mechanism (API, database, permissions); **7i1b** the parts screen and part responsibles; **7i2** the analogue rework (C2, ADR 0027) with CSV; **7i3** analogues on a service order's kit shortage, read-only. All belong to #162.
 
+**As built, 7i2b (part of #162; ADR 0027 decision 7):**
+- **CSV of links:** `GET /part-analogues/csv/template`, `GET /part-analogues/csv` and `POST /part-analogues/csv?dryRun=`, in the shape of the catalogue CSV endpoints, so the shared CSV panel works unchanged.
+  - A row names a pair by brand and OEM number (`valid_from` and `note` optional).
+  - It creates the link, or updates the factor, date and note of the same link.
+  - An import never removes or retypes a link, because both need the user's reason (`RETYPE` row error).
+  - Rows are checked against the existing links and the earlier rows with the API's rules. Errors name the line, column and rule: `UNKNOWN_REF`, `ARCHIVED`, `INVALID`, `DUPLICATE`, `RULE`, `RETYPE`.
+  - The 5 % gate and the rolled-back dry run are those of every catalogue.
+  - The export imports back unchanged.
+- **Screen:** an analogues panel in the part editor, below the responsibles:
+  - links seen from the part, its group and its supersession chain;
+  - linking by part autocomplete, relation (interchangeable, replaces, replaced by) and factor;
+  - a removal whose confirmation asks for the required reason;
+  - the analogue CSV panel below the parts list.
+- **Tests:**
+  - integration: a preview with an error of each kind writes nothing; a clean file applies; the export round trip;
+  - bUnit: links, group and chain; a removal without a reason sends nothing; read-only without the edit permission;
+  - e2e green.
+- **Breaking changes:** none (additions only).
+
 **As built, 7i2a (part of #162; ADR 0027):**
 - **Schema:** `catalog.part_analogue` gets a surrogate id, `link_type` (existing links became supersessions), note and audit columns.
   - One link per pair (`least`/`greatest` index); one successor per part (partial unique index).
