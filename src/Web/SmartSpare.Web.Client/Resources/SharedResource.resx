@@ -1650,4 +1650,40 @@
   <data name="Brands.Saved" xml:space="preserve">
     <value>Saved the brand {0}.</value>
   </data>
+  <data name="Inventory.Tab.Manufacturers" xml:space="preserve">
+    <value>Manufacturers</value>
+  </data>
+  <data name="Manufacturers.Title" xml:space="preserve">
+    <value>Manufacturers</value>
+  </data>
+  <data name="Manufacturers.Intro" xml:space="preserve">
+    <value>Makers of parts, for example MANN+HUMMEL for a filter sold under a machinery brand. A part may name one; the parts import fills it from the optional manufacturer_code column. A manufacturer with active parts cannot be archived.</value>
+  </data>
+  <data name="Manufacturers.New" xml:space="preserve">
+    <value>New manufacturer</value>
+  </data>
+  <data name="Manufacturers.Edit" xml:space="preserve">
+    <value>Edit manufacturer {0}</value>
+  </data>
+  <data name="Manufacturers.Code" xml:space="preserve">
+    <value>Code</value>
+  </data>
+  <data name="Manufacturers.CodeHelp" xml:space="preserve">
+    <value>2 to 20 capital letters, digits or underscores, e.g. MANN.</value>
+  </data>
+  <data name="Manufacturers.Name" xml:space="preserve">
+    <value>Name</value>
+  </data>
+  <data name="Manufacturers.Country" xml:space="preserve">
+    <value>Country</value>
+  </data>
+  <data name="Manufacturers.CountryHelp" xml:space="preserve">
+    <value>Two letters, e.g. DE, or empty.</value>
+  </data>
+  <data name="Manufacturers.Website" xml:space="preserve">
+    <value>Website</value>
+  </data>
+  <data name="Manufacturers.Saved" xml:space="preserve">
+    <value>Saved the manufacturer {0}.</value>
+  </data>
 </root>
