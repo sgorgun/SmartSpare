@@ -23,6 +23,19 @@ public sealed class CsvFileTests
         parsed.Rows[1].Values[2].ShouldBeNull();
     }
 
+    [Fact]
+    public void An_optional_column_may_be_present_or_absent_and_comes_after_the_expected_ones()
+    {
+        var with = CsvFile.Parse("note,code,name,requires_note\nhello,A,B,true\n", Columns, 10, "Test.Csv", ["note"]).Value;
+        with.Columns.ShouldBe(["code", "name", "requires_note", "note"]);
+        with.Rows[0].Values.ShouldBe(["A", "B", "true", "hello"]);
+
+        var without = CsvFile.Parse("code,name,requires_note\nA,B,true\n", Columns, 10, "Test.Csv", ["note"]).Value;
+        without.Columns.ShouldBe(Columns);
+
+        CsvFile.Parse("code,name,requires_note,other\nA,B,true,x\n", Columns, 10, "Test.Csv", ["note"]).Error.Description.ShouldContain("Optional: note.");
+    }
+
     [Theory]
     [InlineData("code,name\n", "Test.CsvHeader")]
     [InlineData("", "Test.CsvEmpty")]
