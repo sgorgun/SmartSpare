@@ -559,6 +559,23 @@ Effort: **S** ≈ a quarter day, **M** ≈ half a day, **L** ≈ a full day, at 
 
 **7i is split into four PRs (28 November 2026),** each green and merged before the next: **7i1a** parts on the shared catalogue mechanism (API, database, permissions); **7i1b** the parts screen and part responsibles; **7i2** the analogue rework (C2, ADR 0027) with CSV; **7i3** analogues on a service order's kit shortage, read-only. All belong to #162.
 
+**As built, 7i2a (part of #162; ADR 0027):**
+- **Schema:** `catalog.part_analogue` gets a surrogate id, `link_type` (existing links became supersessions), note and audit columns.
+  - One link per pair (`least`/`greatest` index); one successor per part (partial unique index).
+  - `trg_part_analogue_rules`: self-link, duplicate pair, second successor and supersession cycle raise SS502; an archived part raises SS500. It is serialised by an advisory lock; the integration test races two writers.
+  - The views follow ADR 0027 decision 5: `v_part_successor` resolves each part to the end of its chain, `v_part_analogue_group` gives its connected interchangeability component, and `v_part_demand_key` applies both in that order.
+- **API:**
+  - `GET /parts/{id}/analogues`: the links seen from the part, its group and its chain;
+  - `POST /part-analogues`, `PUT /part-analogues/{id}` and `POST /part-analogues/{id}/remove`, with `Inventory.Part.Edit`.
+- **Reason:** retyping or removing a link needs the user's reason, which the API contract requires (`400 Inventory.ReasonRequired`). `AuditReason` only passes that text to the audit inside the transaction.
+- **Why a POST action for remove:** the catalogue convention for state changes; DELETE bodies get dropped; a reason in a URL would land in logs.
+- **Tests:**
+  - unit tests of `AnalogueRules`;
+  - integration: both directions, group, chain, every SS502 rule, the concurrent cycle race, reasons in the audit, the mixed case (A ≈ B, A → C: the demand key sums to the total), archived part;
+  - T01 +4 (144 assertions);
+  - upgrade from v0.6.0 green.
+- **Breaking changes:** the table shape, for SQL writers only (CHANGELOG).
+
 **As built, 7i1b (part of #162):**
 - **Parts screen:** the Inventory page lists the parts catalogue on the shared components (search, archived switch, history). For planners and administrators it adds the editor:
   - brand and OEM number are fixed after creation;
