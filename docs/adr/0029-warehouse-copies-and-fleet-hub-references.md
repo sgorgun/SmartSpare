@@ -1,6 +1,6 @@
 # ADR 0029: Warehouse copies and Fleet hub references
 
-- Status: Accepted; amended by PR 7j1b (see the amendment)
+- Status: Accepted; amended by PRs 7j1b and 7j1c (see the amendments)
 - Date: 2026-11-28
 - Relates to: [STAGE_7_PLAN.md](../stage-7/STAGE_7_PLAN.md) sections 3.1 and 12.2 (PR 7j), [ADR 0003](0003-module-boundaries-and-integration-events.md), [ADR 0024](0024-acting-user-of-integration-events-and-jobs.md), [ADR 0025](0025-generic-master-data-mechanism.md), [ADR 0026](0026-employee-derived-authorization.md)
 
@@ -64,3 +64,46 @@ Option (b), checking the two Fleet conditions in the API only, was rejected by t
 
    The service order trigger stays and still refuses any other new order at an archived hub.
 2. **`IWarehouseQueries` is removed** with its HTTP client and its internal endpoint `/internal/v1/inventory/warehouses`. No production path used them after decision 1, and no stage 8 reader needs them: Forecasting can keep its own copy from `WarehouseCatalogChanged` if it ever needs hubs. The tests of the cross-service read pattern moved to `HttpEmployeeDirectory`, the read Inventory makes to Identity.
+
+## Amendment 2 (PR 7j1c, product owner, 28 November 2026): no synchronous read between modules
+
+**Rule.** A module that needs another module's data keeps a read-only copy fed by integration events, written only by a SECURITY DEFINER apply function (newest event wins) and filled the first time by a publish job. Adding a synchronous read between modules needs a change to this ADR.
+
+1. **The employee directory becomes a copy.** Inventory called Identity synchronously (`IEmployeeDirectory` over `/internal/v1/identity/employee-lookups` and `/account-owners`) for three things. None of them needs a strongly consistent answer:
+
+   | Use | Why a copy is enough |
+   |---|---|
+   | Assigning responsibles: are the added employees active? | Identity grants no right to an employee who left (`EffectiveRightsCalculator`), so a copy that still says "active" for a moment cannot give anyone rights. Identity stays the single source of rights (ADR 0026). |
+   | No self-granting: which employee owns the caller's account? | The account-to-employee link is required, unique and never changes. |
+   | Names in the responsibles list and in record history | Display only. |
+
+   Under scale-to-zero the synchronous call also made every assignment and history view wait for, or fail with, the Identity service (a 503 and up to the 30 s cold-start target). Now:
+   - Inventory keeps `inventory.employee_snapshot` (employee id, code, display name, active, account id), fed by the new `EmployeeDirectoryChanged`, which Identity writes with every employee change: create, edit, leave, restore, account creation and anonymisation. It is written only by `inventory.apply_employees`, and the job `identity.employee-publish` fills it the first time.
+   - The no-self-granting rule of ADR 0028 is now checked in the database too, by a row trigger on the rights-bearing responsibles that reads the copy (SS301). It closes an "API checked, database did not" gap.
+   - `IEmployeeDirectory`, `HttpEmployeeDirectory` and both internal endpoints are removed. Fleet and Procurement get their own copy when their catalogues need history names (7k, 7l), never a synchronous call.
+
+2. **Every remaining synchronous call between services.** All of them are gateway → Identity, the authentication path of ADR 0016; no module calls another module.
+
+   | Call | When | Timeout and failure | Cold start |
+   |---|---|---|---|
+   | Credential check (`ICredentialVerifier.VerifyAsync`, `/internal/v1/identity/credential-checks`) | Sign-in | The standard resilience handler of every HTTP client (`AddStandardResilienceHandler` in ServiceDefaults: retries, attempt and total timeouts); a transport failure or timeout is 503, never "wrong password" | The first sign-in after idle waits for Identity to start (the cold-start target of #85) |
+   | Session check (`ValidateSessionAsync`, `/session-checks`) | At most every 30 s per session (ADR 0026) | Same handler; when Identity cannot answer, that request gets 503 (`DependencyUnavailableException`) and the session is kept and checked again on the next request: never signed out by mistake | Identity stays warm while anyone is signed in |
+   | Role permissions (`IRolePermissions`, `/role-permissions`) | When the gateway builds a user's permissions; the map is cached and aged on the registered clock | Same handler; failure is 503 | As above |
+
+   The sign-in itself cannot be asynchronous, and the gateway is not a module. Out of scope: the CloudAMQP management API of the broker metrics job (an external service), and the browser composing a screen from several services through the gateway (no service-to-service call).
+
+3. **Personal data in event payloads.** `EmployeeDirectoryChanged` carries an employee's display name. After an anonymisation the name could remain in these places:
+
+   | Store | Holds the payload? | How long | Who can read it |
+   |---|---|---|---|
+   | `iam.outbox_message.payload` (Identity, the publisher) | yes | until delivered, then 7 days (`MessageRetention:OutboxDays`) | the Identity logins and the migrator; no application role of another module |
+   | `<module>.inbox_message` (the consumers) | no: only the message id, the consumer name and the time | 30 days | — |
+   | RabbitMQ queues | yes, while in flight | seconds; a dead-lettered message stays in the module's dead-letter queue until it is handled (ADR 0017), which raises an alert | the service's broker user |
+   | `inventory.employee_snapshot` | the current name | as long as the employee exists; anonymisation replaces it with "Anonymised Employee" | the Inventory logins |
+   | Logs and traces | no: payloads are not logged, and telemetry is filtered (ADR 0018) | — | — |
+
+   **Purge on anonymisation (cheap and safe, so done).** `iam.anonymise_employee` now also redacts the employee in every `EmployeeDirectoryChanged` row of `iam.outbox_message`, delivered or pending: the display name becomes "Anonymised Employee" and the code stays. This is one UPDATE on the publisher's own table, in the same transaction:
+   - a delivered row stays for tracing;
+   - a pending row is delivered redacted, which is harmless, because the anonymisation's own event is newer and wins in the copy anyway.
+
+   What remains is a message that is in flight at that moment or sits in a dead-letter queue. This is accepted: the time is bounded (seconds, or until the dead-letter alert is handled), and only the service's own broker user can read it.
