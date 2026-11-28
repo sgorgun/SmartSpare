@@ -42,6 +42,7 @@ public static class DefaultRoles
             Permissions.Inventory.Import.View, Permissions.Inventory.Import.Run,
             Permissions.Inventory.AdjustmentReason.Create, Permissions.Inventory.AdjustmentReason.Edit,
             Permissions.Inventory.AdjustmentReason.Archive,
+            Permissions.Inventory.Brand.Create, Permissions.Inventory.Brand.Edit, Permissions.Inventory.Brand.Archive,
             Permissions.Procurement.Supplier.Edit,   // stage 7 (PR 7x3): administrators only by default, ADR 0028
         ]),
         [AppRoles.BrandManager] = Set(
@@ -65,6 +66,7 @@ public static class DefaultRoles
             Permissions.Inventory.Import.View, Permissions.Inventory.Import.Run,
             Permissions.Inventory.AdjustmentReason.Create, Permissions.Inventory.AdjustmentReason.Edit,
             Permissions.Inventory.AdjustmentReason.Archive,
+            Permissions.Inventory.Brand.Create, Permissions.Inventory.Brand.Edit, Permissions.Inventory.Brand.Archive,
         ]),
         [AppRoles.WarehouseKeeper] = Set(
         [

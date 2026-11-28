@@ -9,10 +9,9 @@ using SmartSpare.SharedKernel;
 
 namespace SmartSpare.Modules.Inventory.Infrastructure.Queries;
 
-/// <summary>The read side of responsible employees (ADR 0026): roles, brands, and a record's responsibles with names.</summary>
+/// <summary>The read side of responsible employees (ADR 0026): roles and a record's responsibles with names.</summary>
 internal sealed class ResponsibleQueries(InventoryDbContext db, IEmployeeDirectory employees)
     : IQueryHandler<ListAssignmentRolesQuery, IReadOnlyList<AssignmentRoleDto>>,
-      IQueryHandler<ListBrandsQuery, IReadOnlyList<BrandDto>>,
       IQueryHandler<ListResponsiblesQuery, IReadOnlyList<ResponsibleDto>>
 {
     public async Task<Result<IReadOnlyList<AssignmentRoleDto>>> Handle(ListAssignmentRolesQuery query, CancellationToken cancellationToken)
@@ -24,10 +23,6 @@ internal sealed class ResponsibleQueries(InventoryDbContext db, IEmployeeDirecto
             .Select(r => new AssignmentRoleDto(r.RecordKind, r.Code, r.Name, r.GrantsScope))
             .ToListAsync(cancellationToken).ConfigureAwait(false);
     }
-
-    public async Task<Result<IReadOnlyList<BrandDto>>> Handle(ListBrandsQuery query, CancellationToken cancellationToken) =>
-        await db.Database.SqlQueryRaw<BrandDto>("SELECT id, code::text AS code, name::text AS name FROM catalog.brand ORDER BY code")
-            .ToListAsync(cancellationToken).ConfigureAwait(false);
 
     public async Task<Result<IReadOnlyList<ResponsibleDto>>> Handle(ListResponsiblesQuery query, CancellationToken cancellationToken)
     {
