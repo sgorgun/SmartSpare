@@ -27,6 +27,7 @@ Stage 8 pools demand across analogues when it builds the training series (STAGE_
    - **No archived part** in a new or changed link (SS500).
 
    The C# `AnalogueRules` applies the same rules first, for readable messages and per-row CSV errors.
+   - **Archiving (PR 7i3):** a part that is another part's successor, or has interchangeable links, cannot be archived (SS501 with the reason, in the API guard and in `trg_part_catalogue_guard`). Otherwise a chain could end in an archived part, which documents cannot choose (SS500), or a planner could be offered an archived stand-in. An old, superseded part may be archived: that is how a supersession normally ends.
 5. **Mixed case, the order stage 8 uses.** For a part P:
    1. **Resolve** P to the end of its supersession chain: `current(P)`, with the product of the chain's scaling factors.
    2. **Pool** by the interchangeability group of that final part: `group(current(P))`.
@@ -62,7 +63,7 @@ Stage 8 pools demand across analogues when it builds the training series (STAGE_
 
 - Stage 8 reads `v_part_demand_key` and needs no knowledge of the link table.
 - A planner can split an over-pooled group by removing one link; the reason is in the audit trail and the next forecast follows.
-- Substituting an analogue in a reservation is not built in stage 7 (tracked separately). Analogues are shown read-only on a service order's kit shortage (PR 7i3).
+- Substituting an analogue in a reservation is not built in stage 7 (#220). Analogues are shown read-only on a service order's kit shortage (PR 7i3) through `GET /parts/{id}/direct-analogues` and its batch form `GET /direct-analogues`. They show only direct interchangeable links and the current successor, never indirect group members, because transitivity (decision 2) is a forecasting assumption, not confirmed compatibility. Availability is on hand minus reserved at the hub. The web client composes this with Fleet's order through the gateway; the Fleet service never calls Inventory.
 
 ## Considered and rejected
 

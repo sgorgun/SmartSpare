@@ -226,6 +226,74 @@ public sealed class PartAnalogueTests(IdentityDatabaseFixture database) : IAsync
         return (await response.Content.ReadFromJsonAsync<SmartSpare.ApiContracts.MasterData.CatalogImportResult>(Ct))!;
     }
 
+    [Fact]
+    public async Task Direct_analogues_are_the_direct_interchangeable_links_and_the_current_successor_with_on_hand_minus_reserved()
+    {
+        // A ≈ B, B ≈ C (C is only an indirect group member of A), A → D → E (E is A's current successor).
+        var (a, b, c, d, e) = (await PartAsync("40"), await PartAsync("41"), await PartAsync("42"), await PartAsync("43"), await PartAsync("44"));
+        await LinkAsync(a, b, AnalogueLinkTypes.Interchangeable);
+        await LinkAsync(b, c, AnalogueLinkTypes.Interchangeable);
+        await LinkAsync(d, a, AnalogueLinkTypes.Supersedes);
+        await LinkAsync(e, d, AnalogueLinkTypes.Supersedes);
+        var klp = await database.ScalarAsync<short>("SELECT id FROM inventory.warehouse WHERE code = 'KLP'");
+        await StockAsync(b, klp, 10);
+        await database.ExecuteAsync(
+            """
+            INSERT INTO inventory.stock_reservation (warehouse_id, part_id, quantity, status, expires_at, service_order_line_id)
+            VALUES (@w, @p, 4, 'soft', now() + interval '1 day', 990777)
+            """,
+            ("w", klp), ("p", b));
+
+        using var browser = _host.NewBrowser();
+        using var response = await browser.GetAsync($"/api/v1/inventory/direct-analogues?partIds={a}&partIds={c}&warehouseId={klp}", bearer: _host.Token(Planner.Principal()));
+        response.StatusCode.ShouldBe(HttpStatusCode.OK, await response.Content.ReadAsStringAsync(Ct));
+        var answer = (await response.Content.ReadFromJsonAsync<List<DirectAnalogues>>(Ct))!;
+
+        answer.Select(x => x.PartId).ShouldBe([a, c], "one entry per part asked, in the order asked");
+        answer[0].Analogues.Select(x => (x.Part.Id, x.Kind, x.Available)).ShouldBe(
+            [(b, DirectAnalogueKinds.Interchangeable, 6m), (e, DirectAnalogueKinds.Successor, 0m)],
+            "B directly (10 on hand - 4 reserved), E as the end of the chain; never C, which is only in the same group");
+        answer[1].Analogues.Select(x => x.Part.Id).ShouldBe([b]);
+    }
+
+    [Fact]
+    public async Task A_successor_or_an_interchangeable_part_cannot_be_archived_but_an_old_superseded_part_can()
+    {
+        var (old, current, twin) = (await PartAsync("50"), await PartAsync("51"), await PartAsync("52"));
+        await LinkAsync(current, old, AnalogueLinkTypes.Supersedes);
+        await LinkAsync(current, twin, AnalogueLinkTypes.Interchangeable);
+
+        (await ArchiveReasonsAsync(current)).ShouldBe(["successor of 1 part(s); remove or change the supersession first", "1 interchangeable link(s); remove them first"]);
+        (await ArchiveReasonsAsync(twin)).ShouldBe(["1 interchangeable link(s); remove them first"]);
+        await database.ExecuteAsync("UPDATE catalog.part SET is_archived = true, archived_at = now() WHERE id = @id", ("id", old));
+        (await database.ScalarAsync<bool>("SELECT is_archived FROM catalog.part WHERE id = @id", ("id", old))).ShouldBeTrue("a superseded part may retire");
+
+        var refused = await Should.ThrowAsync<PostgresException>(() =>
+            database.ExecuteAsync("UPDATE catalog.part SET is_archived = true, archived_at = now() WHERE id = @id", ("id", current)));
+        refused.SqlState.ShouldBe("SS501", "the database refuses it too");
+        refused.MessageText.ShouldContain("successor of 1 part(s)");
+    }
+
+    private async Task<string?[]> ArchiveReasonsAsync(long part)
+    {
+        using var browser = _host.NewBrowser();
+        using var read = await browser.GetAsync($"/api/v1/inventory/parts?search={_tag}", bearer: _host.Token(Planner.Principal()));
+        var version = (await read.Content.ReadFromJsonAsync<SmartSpare.ApiContracts.PagedResponse<PartDto>>(Ct))!.Items.Single(p => p.Id == part).Version;
+        using var archive = await SendAsync(HttpMethod.Post, $"/api/v1/inventory/parts/{part}/archive", null, version);
+        archive.StatusCode.ShouldBe(HttpStatusCode.Conflict, await archive.Content.ReadAsStringAsync(Ct));
+        var body = await archive.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>(Ct);
+        return [.. body.GetProperty("reasons").EnumerateArray().Select(r => r.GetString())];
+    }
+
+    private Task StockAsync(long part, short warehouse, decimal quantity) =>
+        database.ExecuteAsync(
+            """
+            INSERT INTO inventory.warehouse_part (warehouse_id, part_id) VALUES (@w, @p);
+            INSERT INTO inventory.stock_movement (occurred_at, warehouse_id, part_id, movement_type_code, quantity, unit_cost, note)
+            VALUES (now(), @w, @p, 'OPENING_BALANCE', @q, 1, 'Analogue test stock');
+            """,
+            ("w", warehouse), ("p", part), ("q", quantity));
+
     private Task<long> PartAsync(string suffix) =>
         database.ScalarAsync<long>(
             """

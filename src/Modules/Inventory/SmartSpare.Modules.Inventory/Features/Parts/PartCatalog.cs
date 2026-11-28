@@ -68,7 +68,7 @@ internal static class PartCatalog
         },
         Rules = "Permissions Inventory.Part.View to read and .Create, .Edit, .Archive to change (default roles: planners and administrators change). "
             + "The OEM number is unique per brand; brand and OEM number are fixed after creation. An archived brand or manufacturer cannot be chosen "
-            + "(422 SS500). A part with stock, open transfers, kit holds or responsible employees cannot be archived (409 SS501). The bulk CSV import is POST /imports.",
+            + "(422 SS500). A part with stock, open transfers, kit holds, responsible employees, interchangeable links, or that is another part's successor cannot be archived (409 SS501). The bulk CSV import is POST /imports.",
         Example = new PartDto(1042, "JD", "RE504836", "Engine oil filter", "Engine oil filters", "PCS", 18.40m, 2, 11, "OIL_FILTER", 1, 0.450m, false, 1, "MANN", false, "9120"),
         WriteExample = new PartWrite("RE504836", "Engine oil filter", 2, 11, 1, 0.450m, 18.40m, false, 1),
         LookupExample = new CatalogLookupItem(1042, "RE504836", "Engine oil filter", "JD"),
@@ -92,7 +92,7 @@ internal static class PartCatalog
         PartCatalogPublication.Queue(unitOfWork, snapshots);
     }
 
-    /// <summary>SS501 reasons: stock on hand or reserved per hub, open transfers, kit holds and responsible employees of the part.</summary>
+    /// <summary>SS501 reasons: stock per hub, open transfers, kit holds, analogue links that need the part, and responsible employees.</summary>
     private static async Task<IReadOnlyList<string>> ArchiveGuardAsync(IServiceProvider services, Part part, CancellationToken cancellationToken)
     {
         var db = services.GetRequiredService<InventoryDbContext>();
@@ -120,6 +120,22 @@ internal static class PartCatalog
         if (holds > 0)
         {
             reasons.Add($"{holds} kit hold(s) for service orders");
+        }
+
+        // ADR 0027: a part that replaces others, or is linked as interchangeable, keeps its links meaningful; archiving it
+        // would leave a chain ending in an archived part or a group member nobody can choose (PR 7i3).
+        var replaces = await db.Set<PartAnalogue>().AsNoTracking()
+            .CountAsync(l => l.LinkType == AnalogueLinkType.Supersedes && l.PartId == part.Id, cancellationToken).ConfigureAwait(false);
+        if (replaces > 0)
+        {
+            reasons.Add($"successor of {replaces} part(s); remove or change the supersession first");
+        }
+
+        var interchangeable = await db.Set<PartAnalogue>().AsNoTracking()
+            .CountAsync(l => l.LinkType == AnalogueLinkType.Interchangeable && (l.PartId == part.Id || l.AnaloguePartId == part.Id), cancellationToken).ConfigureAwait(false);
+        if (interchangeable > 0)
+        {
+            reasons.Add($"{interchangeable} interchangeable link(s); remove them first");
         }
 
         var responsibles = await db.Set<PartResponsible>().AsNoTracking().CountAsync(r => r.PartId == part.Id, cancellationToken).ConfigureAwait(false);
