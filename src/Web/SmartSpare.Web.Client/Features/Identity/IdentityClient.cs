@@ -122,6 +122,15 @@ public class IdentityClient(HttpClient http) : ApiClientBase(http)
             WithVersion(new HttpRequestMessage(HttpMethod.Put, $"api/v1/identity/roles/{id}") { Content = System.Net.Http.Json.JsonContent.Create(request) }, version),
             cancellationToken);
 
+    /// <summary>Restores a seeded role's shipped permissions.</summary>
+    public virtual Task<ApiResult<RoleSummary>> ResetRoleAsync(short id, string version, CancellationToken cancellationToken = default) =>
+        SendAsync<RoleSummary>(WithVersion(new HttpRequestMessage(HttpMethod.Post, $"api/v1/identity/roles/{id}/reset"), version), cancellationToken);
+
+    /// <summary>Creates an editable copy of a role.</summary>
+    public virtual Task<ApiResult<RoleSummary>> CopyRoleAsync(short id, CopyRoleRequest request, CancellationToken cancellationToken = default) =>
+        SendAsync<RoleSummary>(
+            new HttpRequestMessage(HttpMethod.Post, $"api/v1/identity/roles/{id}/copy") { Content = System.Net.Http.Json.JsonContent.Create(request) }, cancellationToken);
+
     private static HttpRequestMessage WithVersion(HttpRequestMessage message, string version)
     {
         message.Headers.TryAddWithoutValidation("If-Match", $"\"{version}\"");

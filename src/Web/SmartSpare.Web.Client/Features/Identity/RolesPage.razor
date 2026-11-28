@@ -32,6 +32,49 @@
     <MudAlert Severity="Severity.Error" Class="mb-3" role="alert" data-testid="roles-error">@_error</MudAlert>
 }
 
+@if (_editing is not null)
+{
+    <MudPaper Outlined="true" Class="pa-4 mb-3" data-testid="role-editor">
+        <MudText Typo="Typo.h6" HtmlTag="h2" Class="mb-2">@Text["Roles.EditTitle", _editing.Code]</MudText>
+        <MudTextField T="string" @bind-Value="_editName" Label="@Text["Roles.Name"]" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-2"
+                      data-testid="role-editor-name" />
+        <MudTextField T="string" @bind-Value="_editDescription" Label="@Text["Roles.Description"]" Variant="Variant.Outlined" Margin="Margin.Dense"
+                      Lines="2" Class="mb-2" data-testid="role-editor-description" />
+        @if (_editing.HasDefault)
+        {
+            <MudText Typo="Typo.body2" Class="mb-2" data-testid="role-editor-default">
+                @(_editing.IsDefault ? Text["Roles.AtDefault"] : Text["Roles.ChangedFromDefault"])
+            </MudText>
+        }
+        <div class="d-flex flex-wrap">
+            <MudButton OnClick="SaveEditorAsync" Disabled="_busy" Variant="Variant.Filled" Color="Color.Primary" Class="mr-2 touch-target"
+                       data-testid="role-editor-save">@Text["Roles.Save", _editing.Name]</MudButton>
+            @if (_editing.HasDefault && !_editing.IsDefault)
+            {
+                <MudButton OnClick="ResetAsync" Disabled="_busy" Variant="Variant.Outlined" Color="Color.Warning" StartIcon="@Icons.Material.Filled.Restore"
+                           Class="mr-2 touch-target" data-testid="reset-role">@Text["Roles.Reset"]</MudButton>
+            }
+            <MudButton OnClick="() => _editing = null" Disabled="_busy" Variant="Variant.Text" Class="touch-target">@Text["Roles.Close"]</MudButton>
+        </div>
+    </MudPaper>
+}
+
+@if (_copying is not null)
+{
+    <MudPaper Outlined="true" Class="pa-4 mb-3" data-testid="role-copy">
+        <MudText Typo="Typo.h6" HtmlTag="h2" Class="mb-2">@Text["Roles.CopyTitle", _copying.Name]</MudText>
+        <div class="d-flex flex-wrap align-end">
+            <MudTextField T="string" @bind-Value="_copyCode" Label="@Text["Roles.Code"]" HelperText="@Text["Roles.CodeHelp"]" Variant="Variant.Outlined"
+                          Margin="Margin.Dense" Class="mr-2" data-testid="role-copy-code" />
+            <MudTextField T="string" @bind-Value="_copyName" Label="@Text["Roles.Name"]" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mr-2"
+                          data-testid="role-copy-name" />
+            <MudButton OnClick="CopyAsync" Disabled="_busy" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.ContentCopy"
+                       Class="mr-2 touch-target" data-testid="role-copy-save">@Text["Roles.CopySave"]</MudButton>
+            <MudButton OnClick="() => _copying = null" Disabled="_busy" Variant="Variant.Text" Class="touch-target">@Text["Roles.Close"]</MudButton>
+        </div>
+    </MudPaper>
+}
+
 @if (_roles.Count > 0)
 {
     <div style="overflow-x:auto">
@@ -51,10 +94,29 @@
                                     <strong>@role.Name</strong>
                                 </span>
                                 <MudText Typo="Typo.caption">@(role.IsLocked ? Text["Roles.Locked"].Value : role.Code)</MudText>
+                                @if (role.HasDefault && !role.IsDefault)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Outlined" data-testid="role-modified">@Text["Roles.Modified"]</MudChip>
+                                }
                                 @if (_mayEdit && !role.IsLocked && IsChanged(role))
                                 {
                                     <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary" Disabled="_busy" OnClick="() => SaveAsync(role)"
                                                Class="touch-target" data-testid="save-role">@Text["Roles.Save", role.Name]</MudButton>
+                                }
+                                @if (_mayEdit)
+                                {
+                                    <div class="d-flex">
+                                        @if (!role.IsLocked)
+                                        {
+                                            <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="() => StartEdit(role)" data-testid="edit-role"
+                                                       aria-label="@Text["Roles.EditTitle", role.Code]">@Text["Roles.Edit"]</MudButton>
+                                        }
+                                        @if (role.Code != AppRoles.Superadministrator)
+                                        {
+                                            <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="() => StartCopy(role)" data-testid="copy-role"
+                                                       aria-label="@Text["Roles.CopyTitle", role.Name]">@Text["Roles.Copy"]</MudButton>
+                                        }
+                                    </div>
                                 }
                             </div>
                         </th>
@@ -98,6 +160,12 @@
     private string? _error;
     private string? _newCode;
     private string? _newName;
+    private RoleSummary? _editing;
+    private string? _editName;
+    private string? _editDescription;
+    private RoleSummary? _copying;
+    private string? _copyCode;
+    private string? _copyName;
     private bool _busy;
     private bool _mayEdit;
 
@@ -177,6 +245,90 @@
         }
 
         Snackbar.Add(Text["Roles.Saved", role.Name], Severity.Success);
+        await LoadAsync();
+    }
+
+    private void StartEdit(RoleSummary role)
+    {
+        _copying = null;
+        _editing = role;
+        _editName = role.Name;
+        _editDescription = role.Description;
+    }
+
+    private void StartCopy(RoleSummary role)
+    {
+        _editing = null;
+        _copying = role;
+        _copyCode = null;
+        _copyName = Text["Roles.CopyName", role.Name].Value;
+    }
+
+    // Name and description, with any permission ticks pending for the role in the matrix.
+    private async Task SaveEditorAsync()
+    {
+        var role = _editing!;
+        var request = new UpdateRoleRequest(_editName?.Trim() ?? string.Empty, _editDescription,
+            [.. (_pending.TryGetValue(role.Id, out var pending) ? pending : (IEnumerable<string>)role.Permissions).Order(StringComparer.Ordinal)]);
+        var validation = new UpdateRoleRequestValidator().Validate(request);
+        if (!validation.IsValid)
+        {
+            _error = string.Join(" ", validation.Errors.Select(e => e.ErrorMessage));
+            return;
+        }
+
+        _busy = true;
+        var result = await Identity.UpdateRoleAsync(role.Id, request, role.Version);
+        _busy = false;
+        if (!result.IsSuccess)
+        {
+            _error = Messages.Describe(result.Problem!);
+            return;
+        }
+
+        _editing = null;
+        Snackbar.Add(Text["Roles.Saved", result.Value!.Name], Severity.Success);
+        await LoadAsync();
+    }
+
+    private async Task ResetAsync()
+    {
+        var role = _editing!;
+        _busy = true;
+        var result = await Identity.ResetRoleAsync(role.Id, role.Version);
+        _busy = false;
+        if (!result.IsSuccess)
+        {
+            _error = Messages.Describe(result.Problem!);
+            return;
+        }
+
+        _editing = null;
+        Snackbar.Add(Text["Roles.ResetDone", role.Name], Severity.Success);
+        await LoadAsync();
+    }
+
+    private async Task CopyAsync()
+    {
+        var request = new CopyRoleRequest(_copyCode?.Trim().ToUpperInvariant() ?? string.Empty, _copyName?.Trim() ?? string.Empty);
+        var validation = new CopyRoleRequestValidator().Validate(request);
+        if (!validation.IsValid)
+        {
+            _error = string.Join(" ", validation.Errors.Select(e => e.ErrorMessage));
+            return;
+        }
+
+        _busy = true;
+        var result = await Identity.CopyRoleAsync(_copying!.Id, request);
+        _busy = false;
+        if (!result.IsSuccess)
+        {
+            _error = Messages.Describe(result.Problem!);
+            return;
+        }
+
+        _copying = null;
+        Snackbar.Add(Text["Roles.Created", result.Value!.Name], Severity.Success);
         await LoadAsync();
     }
 

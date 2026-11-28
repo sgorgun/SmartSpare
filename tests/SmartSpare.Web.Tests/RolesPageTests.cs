@@ -10,7 +10,10 @@ using SmartSpare.Web.Client.Http;
 
 namespace SmartSpare.Web.Tests;
 
-/// <summary>The roles × permissions screen (ADR 0028, PR 7x4): grouped by module, searchable, locked roles read-only.</summary>
+/// <summary>
+/// The roles × permissions screen (ADR 0028, PR 7x4): grouped by module, searchable, locked roles read-only. Seeded roles
+/// are renamed, edited and reset to default; any role but the Superadministrator can be copied.
+/// </summary>
 public sealed class RolesPageTests : ClientTestContext
 {
     private readonly FakeRolesClient _identity = new();
@@ -30,7 +33,7 @@ public sealed class RolesPageTests : ClientTestContext
     {
         var page = Roles(AppRoles.Administrator);
 
-        page.WaitForAssertion(() => page.FindAll("[data-testid=role-column]").Count.ShouldBe(2));
+        page.WaitForAssertion(() => page.FindAll("[data-testid=role-column]").Count.ShouldBe(3));
         page.FindAll("[data-testid=module-row]").Select(r => r.TextContent.Trim()).ShouldBe(["Inventory", "Procurement"]);
         page.FindAll("[data-testid=permission-row]").Count.ShouldBe(3);
         page.FindAll("[data-testid=role-column]")[0].TextContent.ShouldContain("locked");
@@ -63,6 +66,40 @@ public sealed class RolesPageTests : ClientTestContext
         var (id, request, version) = _identity.Updates[0];
         (id, version).ShouldBe(((short)8, "41"));
         request.Permissions.ShouldBe([Permissions.Inventory.Part.View, Permissions.Inventory.Stock.View], ignoreOrder: true);
+    }
+
+    [Fact]
+    public void A_seeded_role_changed_from_default_is_flagged_renamed_and_reset()
+    {
+        var page = Roles(AppRoles.Administrator);
+        page.WaitForAssertion(() => page.FindAll("[data-testid=role-modified]").ShouldHaveSingleItem());
+
+        // Edit buttons: the clerk and the planner (the locked Administrator has none).
+        page.FindAll("[data-testid=edit-role]").Count.ShouldBe(2);
+        page.FindAll("[data-testid=edit-role]")[1].Click();
+        page.Find("[data-testid=role-editor-default]").TextContent.ShouldContain("differ from the default");
+        page.Find("input[data-testid=role-editor-name], [data-testid=role-editor-name] input").Change("Stock planner");
+        page.Find("[data-testid=role-editor-save]").Click();
+        page.WaitForAssertion(() => _identity.Updates.ShouldHaveSingleItem().Request.Name.ShouldBe("Stock planner"));
+
+        page.WaitForAssertion(() => page.FindAll("[data-testid=edit-role]").Count.ShouldBe(2));
+        page.FindAll("[data-testid=edit-role]")[1].Click();
+        page.Find("[data-testid=reset-role]").Click();
+        page.WaitForAssertion(() => _identity.Resets.ShouldHaveSingleItem().ShouldBe(((short)4, "12")));
+    }
+
+    [Fact]
+    public void A_locked_role_is_copied_into_a_new_editable_role()
+    {
+        var page = Roles(AppRoles.Administrator);
+        page.WaitForAssertion(() => page.FindAll("[data-testid=copy-role]").Count.ShouldBe(3));
+
+        page.FindAll("[data-testid=copy-role]")[0].Click();
+        page.Find("input[data-testid=role-copy-name], [data-testid=role-copy-name] input").GetAttribute("value").ShouldBe("Administrator (copy)");
+        page.Find("input[data-testid=role-copy-code], [data-testid=role-copy-code] input").Change("deputy_admin");
+        page.Find("[data-testid=role-copy-save]").Click();
+
+        page.WaitForAssertion(() => _identity.Copies.ShouldHaveSingleItem().ShouldBe(((short)1, new CopyRoleRequest("DEPUTY_ADMIN", "Administrator (copy)"))));
     }
 
     [Fact]
@@ -120,13 +157,30 @@ public sealed class FakeRolesClient() : IdentityClient(new HttpClient())
     public override Task<ApiResult<List<RoleSummary>>> ListRolesAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(ApiResult.Success(new List<RoleSummary>
         {
-            new(1, AppRoles.Administrator, "Administrator", null, [Permissions.Inventory.Part.View], true, false, ["SYSTEM_ADMINISTRATOR"], "7"),
-            new(8, "CLERK", "Clerk", null, [Permissions.Inventory.Part.View], false, false, [], "41"),
+            new(1, AppRoles.Administrator, "Administrator", null, [Permissions.Inventory.Part.View], true, false, ["SYSTEM_ADMINISTRATOR"], true, true, "7"),
+            new(8, "CLERK", "Clerk", null, [Permissions.Inventory.Part.View], false, false, [], false, false, "41"),
+            new(4, AppRoles.InventoryPlanner, "Inventory planner", null, [Permissions.Inventory.Part.View], false, false, [], true, false, "12"),
         }));
 
     public override Task<ApiResult<RoleSummary>> UpdateRoleAsync(short id, UpdateRoleRequest request, string version, CancellationToken cancellationToken = default)
     {
         Updates.Add((id, request, version));
-        return Task.FromResult(NextUpdate ?? ApiResult.Success(new RoleSummary(id, "CLERK", request.Name, null, request.Permissions, false, false, [], "42")));
+        return Task.FromResult(NextUpdate ?? ApiResult.Success(new RoleSummary(id, "CLERK", request.Name, null, request.Permissions, false, false, [], false, false, "42")));
+    }
+
+    public List<(short Id, string Version)> Resets { get; } = [];
+
+    public List<(short Id, CopyRoleRequest Request)> Copies { get; } = [];
+
+    public override Task<ApiResult<RoleSummary>> ResetRoleAsync(short id, string version, CancellationToken cancellationToken = default)
+    {
+        Resets.Add((id, version));
+        return Task.FromResult(ApiResult.Success(new RoleSummary(id, AppRoles.InventoryPlanner, "Inventory planner", null, [], false, false, [], true, true, "13")));
+    }
+
+    public override Task<ApiResult<RoleSummary>> CopyRoleAsync(short id, CopyRoleRequest request, CancellationToken cancellationToken = default)
+    {
+        Copies.Add((id, request));
+        return Task.FromResult(ApiResult.Success(new RoleSummary(20, request.Code, request.Name, null, [], false, false, [], false, false, "1")));
     }
 }
