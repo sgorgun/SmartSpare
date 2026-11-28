@@ -6,8 +6,9 @@ namespace SmartSpare.MigrationRunner;
 
 /// <summary>
 /// Bootstraps the server if needed, then applies every context's migrations in catalogue order, or only the Platform's and
-/// one module's with <see cref="MigrationRunnerOptions.Module"/> (ADR 0020). <see cref="RunsAfter"/> lists the few
-/// migrations that must wait for another module's migration when both are pending in the same run: module by module, a
+/// one module's with <see cref="MigrationRunnerOptions.Module"/> (ADR 0020). A migration with
+/// <see cref="MigrationDependsOnAttribute"/> waits for the other module's migration it names when both are pending in the
+/// same run: module by module, a
 /// database several migrations behind would otherwise run a later step of one module before an earlier step of another.
 /// The upgrade test from v0.6.0 (tools/upgrade_test.sh) covers it.
 /// </summary>
@@ -56,30 +57,8 @@ public sealed partial class DatabaseMigrator(
     }
 
     /// <summary>
-    /// Migrations that run only after other modules' migrations, when those are pending in the same run (module name,
-    /// migration id → the awaited module names and migration ids). Kept here, so no applied migration changes.
-    /// <list type="bullet">
-    /// <item>Stage 7's cross-module data migration (STAGE_7_PLAN 1.6): Identity drops the legacy access data only after
-    /// Reporting copied it into the assignments; matters when a database several migrations behind is upgraded.</item>
-    /// <item>The brand move (STAGE_7_PLAN 3.2): Inventory moves <c>ref.brand</c> to <c>catalog.brand</c> only after the
-    /// older migrations that name <c>ref.brand</c> in their SQL ran (Fleet's foreign key and machine card view, Reporting's
-    /// transitional views); matters on a fresh database.</item>
-    /// </list>
-    /// </summary>
-    public static readonly IReadOnlyDictionary<(string Module, string Migration), IReadOnlyList<(string Module, string Migration)>> RunsAfter =
-        new Dictionary<(string, string), IReadOnlyList<(string, string)>>
-        {
-            [("identity", "20261127163529_DropLegacyAccess")] = [("reporting", "20261127154602_LegacyAccessToAssignments")],
-            [("inventory", "20261128015020_BrandMove")] =
-            [
-                ("fleet", "20261116222230_InitialFleet"),
-                ("reporting", "20261116230254_TransitionalCrossModuleObjects"),
-            ],
-        };
-
-    /// <summary>
-    /// The pending migrations as runs of one context, in catalogue order. A context that reaches a migration listed in
-    /// <see cref="RunsAfter"/> while one of its awaited migrations is still pending in the run stops there and waits;
+    /// The pending migrations as runs of one context, in catalogue order. A context that reaches a migration whose
+    /// <see cref="IModuleDatabase.Dependencies"/> name a migration still pending in the run stops there and waits;
     /// the others go on in catalogue order, each stopping right after a migration a waiting context needs, so that the
     /// waiting context continues as soon as nothing holds it, before the rest of the awaited context. Without a listed
     /// migration pending this is exactly the catalogue order. Empties <paramref name="pending"/> as it plans.
@@ -96,10 +75,10 @@ public sealed partial class DatabaseMigrator(
             scope.FirstOrDefault(d => d.Name == awaited.Module) is { } other && pending[other].Contains(awaited.Migration, StringComparer.Ordinal);
 
         bool Held(IModuleDatabase database, string migration) =>
-            RunsAfter.TryGetValue((database.Name, migration), out var awaited) && awaited.Any(IsPending);
+            database.Dependencies.TryGetValue(migration, out var awaited) && awaited.Any(IsPending);
 
         bool Needed(IModuleDatabase database, string migration) =>
-            waiting.Any(w => RunsAfter[(w.Name, pending[w][0])].Contains((database.Name, migration)));
+            waiting.Any(w => w.Dependencies[pending[w][0]].Contains((database.Name, migration)));
 
         void Resume()
         {

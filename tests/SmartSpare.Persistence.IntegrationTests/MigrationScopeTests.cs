@@ -59,7 +59,7 @@ public sealed class MigrationScopeTests
     {
         // A database at v0.6.0: Identity's step 3 waits for Reporting's step 2 (STAGE_7_PLAN 1.6).
         var platform = Db("platform");
-        var identity = Db("identity");
+        var identity = Db("identity", new Dictionary<string, IReadOnlyList<(string Module, string Migration)>> { ["20261127163529_DropLegacyAccess"] = [("reporting", "20261127154602_LegacyAccessToAssignments")] });
         var inventory = Db("inventory");
         var reporting = Db("reporting");
         var pending = new Dictionary<IModuleDatabase, List<string>>
@@ -88,7 +88,7 @@ public sealed class MigrationScopeTests
     [Fact]
     public void Without_the_awaited_migration_pending_or_in_scope_the_order_is_the_catalogue_order()
     {
-        var identity = Db("identity");
+        var identity = Db("identity", new Dictionary<string, IReadOnlyList<(string Module, string Migration)>> { ["20261127163529_DropLegacyAccess"] = [("reporting", "20261127154602_LegacyAccessToAssignments")] });
         var pending = new Dictionary<IModuleDatabase, List<string>> { [identity] = ["20261127163529_DropLegacyAccess", "20261127215037_RequirePermission"] };
 
         SmartSpare.MigrationRunner.DatabaseMigrator.Plan([identity], pending)
@@ -98,7 +98,7 @@ public sealed class MigrationScopeTests
     [Fact]
     public void On_a_fresh_database_the_brand_move_waits_for_the_older_migrations_that_name_ref_brand()
     {
-        var inventory = Db("inventory");
+        var inventory = Db("inventory", new Dictionary<string, IReadOnlyList<(string Module, string Migration)>> { ["20261128015020_BrandMove"] = [("fleet", "20261116222230_InitialFleet"), ("reporting", "20261116230254_TransitionalCrossModuleObjects")] });
         var fleet = Db("fleet");
         var reporting = Db("reporting");
         var pending = new Dictionary<IModuleDatabase, List<string>>
@@ -121,10 +121,15 @@ public sealed class MigrationScopeTests
         ]);
     }
 
-    private static FakeDatabase Db(string name) => new(name);
+    private static FakeDatabase Db(string name, IReadOnlyDictionary<string, IReadOnlyList<(string Module, string Migration)>>? dependencies = null) =>
+        new(name, dependencies ?? new Dictionary<string, IReadOnlyList<(string Module, string Migration)>>());
 
-    private sealed class FakeDatabase(string name) : IModuleDatabase
+    private sealed class FakeDatabase(string name, IReadOnlyDictionary<string, IReadOnlyList<(string Module, string Migration)>> dependencies) : IModuleDatabase
     {
+        public IReadOnlyList<string> Migrations => [];
+
+        public IReadOnlyDictionary<string, IReadOnlyList<(string Module, string Migration)>> Dependencies => dependencies;
+
         public string Name => name;
 
         public string HistorySchema => name;

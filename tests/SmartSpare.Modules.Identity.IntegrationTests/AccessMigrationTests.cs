@@ -151,7 +151,7 @@ public sealed class AccessMigrationTests : IAsyncLifetime
     public async Task A_stage_6_database_migrated_in_one_pass_copies_the_legacy_brand_before_dropping_it()
     {
         // One pass over a stage 6 database: the runner holds Identity's step 3 until Reporting's copy of step 2 has run
-        // (DatabaseMigrator.RunsAfter), so the legacy brand list becomes an assignment instead of tripping the guard.
+        // ([MigrationDependsOn] on DropLegacyAccess), so the legacy brand list becomes an assignment instead of tripping the guard.
         await InsertLegacyBrandManagerAsync();
 
         await new DatabaseMigrator(_options, ModuleCatalog.ModuleCatalog.Databases(), NullLogger<DatabaseMigrator>.Instance).RunAsync(Ct);
