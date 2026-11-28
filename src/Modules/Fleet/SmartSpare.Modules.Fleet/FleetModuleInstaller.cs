@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using SmartSpare.Infrastructure.Jobs;
 using SmartSpare.Infrastructure.Messaging;
 using SmartSpare.Infrastructure.Modules;
 using SmartSpare.Infrastructure.Persistence;
@@ -35,6 +36,7 @@ public sealed class FleetModuleInstaller : IModuleInstaller
         services.AddScoped<ServiceOrderStore>();
         services.AddScoped<ServiceOrderReader>();
         services.AddScoped<ServiceOrderAccess>();
+        services.AddJob<Features.HubReferences.HubReferencePublishJob>();
         FleetDatabase.Instance.AddTo(services, assembly, configuration.GetConnectionString(PersistenceRegistration.ConnectionStringName), FleetDbContext.HistorySchema);
     }
 

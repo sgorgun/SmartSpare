@@ -70,6 +70,20 @@ SELECT pg_temp.expect_error($$UPDATE iam.responsibility_source SET source_occurr
 SET LOCAL ROLE smartspare_inventory;
 SELECT pg_temp.expect_error($$SELECT iam.apply_responsibilities('warehouse', 1::smallint, now(), '{}', '{}')$$, '42501',
                             'ADR 0026: only the Identity logins may apply responsibility changes');
+SELECT pg_temp.expect_error($$SELECT fleet.apply_warehouses(now(), '{}', '{}', '{}', '{}', '{}')$$, '42501',
+                            'ADR 0029: only the Fleet logins may apply warehouse changes to Fleet''s copy');
+SET LOCAL ROLE smartspare_fleet;
+SELECT pg_temp.expect_error($$SELECT iam.apply_warehouses(now(), '{}', '{}', '{}', '{}', '{}')$$, '42501',
+                            'ADR 0029: only the Identity logins may apply warehouse changes to Identity''s copy');
+SELECT pg_temp.expect_error($$SELECT inventory.apply_fleet_hub_references(now(), '{}', '{}', '{}', '{}')$$, '42501',
+                            'ADR 0029: only the Inventory logins may apply Fleet''s hub references');
+SET LOCAL ROLE smartspare_api;
+SELECT pg_temp.expect_error($$INSERT INTO fleet.warehouse_snapshot (warehouse_id, code, name, is_central_hub, is_archived, source_occurred_at) VALUES (32000, 'X', 'X', false, false, now())$$,
+                            '42501', 'ADR 0029: Fleet''s warehouse copy not writable directly (only fleet.apply_warehouses)');
+SELECT pg_temp.expect_error($$UPDATE iam.warehouse_snapshot SET is_archived = true WHERE false$$,
+                            '42501', 'ADR 0029: Identity''s warehouse copy not writable directly (only iam.apply_warehouses)');
+SELECT pg_temp.expect_error($$DELETE FROM inventory.fleet_hub_reference WHERE false$$,
+                            '42501', 'ADR 0029: the Fleet hub references not writable directly (only inventory.apply_fleet_hub_references)');
 SET LOCAL ROLE smartspare_api;
 SELECT pg_temp.ok((SELECT count(*) = 12 AND bool_and(coalesce(pg_temp.identity_v3_iterations(password_hash), 0) >= 220000)
                    FROM iam.app_user WHERE id::text LIKE '00000000-0000-4000-8000-0000000000__' AND anonymised_at IS NULL),

@@ -9,7 +9,6 @@ using SmartSpare.Modules.Fleet.Domain.Maintenance;
 using SmartSpare.Modules.Fleet.Features.Machines;
 using SmartSpare.Modules.Fleet.Features.Maintenance;
 using SmartSpare.Modules.Fleet.Infrastructure.Persistence;
-using SmartSpare.Modules.Inventory.Contracts;
 using SmartSpare.SharedKernel;
 
 namespace SmartSpare.Modules.Fleet.Infrastructure.Queries;
@@ -71,7 +70,7 @@ internal static class MachineRows
 }
 
 /// <summary>Computes the due calculation of every plan of the given machines and maps it to the API.</summary>
-internal sealed class FleetDueReader(FleetDbContext db, IWarehouseQueries warehouses, TimeProvider time)
+internal sealed class FleetDueReader(FleetDbContext db, TimeProvider time)
 {
     public DateOnly Today => DateOnly.FromDateTime(time.GetUtcNow().UtcDateTime);
 
@@ -88,10 +87,11 @@ internal sealed class FleetDueReader(FleetDbContext db, IWarehouseQueries wareho
             .ToDictionary(g => g.Key, g => (IReadOnlyList<(MachinePlanDueInput, MaintenancePlanDue)>)[.. MaintenanceDueMapping.ByUrgency(g, x => x.Due)]);
     }
 
-    /// <summary>Hub codes by id, from Inventory (in process or over its internal API).</summary>
+    /// <summary>Hub codes by id, from Fleet's warehouse copy (ADR 0029); the id itself while a hub is not yet copied.</summary>
     public async Task<Func<short, string>> WarehouseCodesAsync(CancellationToken cancellationToken)
     {
-        var codes = (await warehouses.GetAllAsync(cancellationToken).ConfigureAwait(false)).ToDictionary(w => w.Id, w => w.Code);
+        var codes = await db.Set<WarehouseSnapshot>().AsNoTracking()
+            .ToDictionaryAsync(w => w.WarehouseId, w => w.Code, cancellationToken).ConfigureAwait(false);
         return id => codes.TryGetValue(id, out var code) ? code : id.ToString(System.Globalization.CultureInfo.InvariantCulture);
     }
 

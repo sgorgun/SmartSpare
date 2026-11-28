@@ -8,7 +8,6 @@ using SmartSpare.Modules.Identity.Domain;
 using SmartSpare.Modules.Identity.Domain.Organisation;
 using SmartSpare.Modules.Identity.Features.Users;
 using SmartSpare.Modules.Identity.Infrastructure.Persistence;
-using SmartSpare.Modules.Inventory.Contracts;
 using SmartSpare.SharedKernel;
 
 namespace SmartSpare.Modules.Identity.Infrastructure.Queries;
@@ -20,7 +19,7 @@ namespace SmartSpare.Modules.Identity.Infrastructure.Queries;
 /// The masked user directory (<c>iam.v_app_user_masked</c>) with lockout, the employee and position, and every effective
 /// right with its origin (<see cref="EffectiveRightsCalculator"/>, ADR 0026), by user name.
 /// </summary>
-internal sealed class ListUsersQueryHandler(IdentityDbContext db, IWarehouseQueries warehouses) : IQueryHandler<ListUsersQuery, PagedResponse<UserSummary>>
+internal sealed class ListUsersQueryHandler(IdentityDbContext db) : IQueryHandler<ListUsersQuery, PagedResponse<UserSummary>>
 {
     private const string FromClause =
         """
@@ -71,7 +70,7 @@ internal sealed class ListUsersQueryHandler(IdentityDbContext db, IWarehouseQuer
                 PageSql,
                 Pattern(), new NpgsqlParameter<int>("limit", query.PageSize), new NpgsqlParameter<int>("offset", (query.Page - 1) * query.PageSize))
             .ToListAsync(cancellationToken).ConfigureAwait(false);
-        var hubs = (await warehouses.GetAllAsync(cancellationToken).ConfigureAwait(false)).ToDictionary(w => w.Id, w => w.Code);
+        var hubs = await db.Set<WarehouseSnapshot>().AsNoTracking().ToDictionaryAsync(w => w.WarehouseId, w => w.Code, cancellationToken).ConfigureAwait(false);
         return Result.Success(new PagedResponse<UserSummary>([.. rows.Select(r => r.ToDto(hubs))], query.Page, query.PageSize, total));
     }
 }
@@ -118,15 +117,15 @@ internal sealed record UserRow(
         new(right.Kind.ToString(), right.Value, right.Origin.ToString(), right.OriginName);
 }
 
-internal sealed class GetUserFormOptionsQueryHandler(IdentityDbContext db, IWarehouseQueries warehouses) : IQueryHandler<GetUserFormOptionsQuery, UserFormOptions>
+internal sealed class GetUserFormOptionsQueryHandler(IdentityDbContext db) : IQueryHandler<GetUserFormOptionsQuery, UserFormOptions>
 {
     public async Task<Result<UserFormOptions>> Handle(GetUserFormOptionsQuery query, CancellationToken cancellationToken)
     {
         var roles = await db.Set<Role>().AsNoTracking().OrderBy(r => r.Code).Select(r => r.Code).ToListAsync(cancellationToken).ConfigureAwait(false);
         var brands = await db.Database.SqlQueryRaw<string>("SELECT code::text AS \"Value\" FROM iam.brand_snapshot WHERE NOT is_archived ORDER BY code")
             .ToListAsync(cancellationToken).ConfigureAwait(false);
-        var hubs = (await warehouses.GetAllAsync(cancellationToken).ConfigureAwait(false))
-            .Where(w => w.IsActive).Select(w => new HubOption(w.Id, w.Code, w.Name)).ToList();
+        var hubs = await db.Set<WarehouseSnapshot>().AsNoTracking().Where(w => !w.IsArchived).OrderBy(w => w.Code)
+            .Select(w => new HubOption(w.WarehouseId, w.Code, w.Name)).ToListAsync(cancellationToken).ConfigureAwait(false);
         return new UserFormOptions(roles, brands, hubs);
     }
 }

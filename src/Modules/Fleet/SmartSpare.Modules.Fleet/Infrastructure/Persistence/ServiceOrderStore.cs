@@ -27,6 +27,13 @@ internal sealed class ServiceOrderStore(FleetDbContext db)
     public Task<MaintenancePlan?> PlanAsync(int id, CancellationToken cancellationToken) =>
         db.Set<MaintenancePlan>().AsNoTracking().SingleOrDefaultAsync(p => p.Id == id && p.IsActive, cancellationToken);
 
+    /// <summary>
+    /// Whether Fleet's warehouse copy says the hub is archived (ADR 0029); a hub missing from the copy is not known to be
+    /// archived. <c>trg_service_order_hub_not_archived</c> applies the same rule in the database.
+    /// </summary>
+    public Task<bool> HubArchivedAsync(short warehouseId, CancellationToken cancellationToken) =>
+        db.Set<WarehouseSnapshot>().AnyAsync(w => w.WarehouseId == warehouseId && w.IsArchived, cancellationToken);
+
     /// <summary>The ids among <paramref name="partIds"/> that are active parts of Fleet's catalogue copy.</summary>
     public async Task<IReadOnlySet<long>> ActivePartsAsync(IReadOnlyCollection<long> partIds, CancellationToken cancellationToken) =>
         (await db.Set<PartSnapshot>().AsNoTracking().Where(p => partIds.Contains(p.PartId) && p.IsActive).Select(p => p.PartId)

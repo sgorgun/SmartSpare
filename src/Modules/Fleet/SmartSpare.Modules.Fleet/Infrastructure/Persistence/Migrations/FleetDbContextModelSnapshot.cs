@@ -903,6 +903,63 @@ namespace SmartSpare.Modules.Fleet.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("SmartSpare.Modules.Fleet.Infrastructure.Persistence.WarehouseSnapshot", b =>
+                {
+                    b.Property<short>("WarehouseId")
+                        .HasColumnType("smallint")
+                        .HasColumnName("warehouse_id")
+                        .HasColumnOrder(0)
+                        .HasComment("Inventory warehouse id (inventory.warehouse.id); no cross-module FK.");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("code")
+                        .HasColumnOrder(1)
+                        .HasComment("Warehouse code, e.g. KLP.");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_archived")
+                        .HasColumnOrder(4)
+                        .HasComment("TRUE = archived in Inventory; no new service order or home hub may use it (SS500).");
+
+                    b.Property<bool>("IsCentralHub")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_central_hub")
+                        .HasColumnOrder(3)
+                        .HasComment("TRUE = the central hub.");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("name")
+                        .HasColumnOrder(2)
+                        .HasComment("Warehouse name.");
+
+                    b.Property<DateTimeOffset>("SourceOccurredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("source_occurred_at")
+                        .HasColumnOrder(5)
+                        .HasComment("OccurredAt of the event that wrote the row; older events are ignored.");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasColumnOrder(6)
+                        .HasDefaultValueSql("now()")
+                        .HasComment("Time of the last change.");
+
+                    b.HasKey("WarehouseId")
+                        .HasName("pk_warehouse_snapshot");
+
+                    b.ToTable("warehouse_snapshot", "fleet", t =>
+                        {
+                            t.HasComment("Read-only copy of the Inventory warehouses, fed by WarehouseCatalogChanged. Written only by fleet.apply_warehouses.");
+                        });
+                });
+
             modelBuilder.Entity("SmartSpare.Modules.Fleet.Domain.Machines.EngineHoursReading", b =>
                 {
                     b.HasOne("SmartSpare.Modules.Fleet.Domain.Machines.Machine", null)

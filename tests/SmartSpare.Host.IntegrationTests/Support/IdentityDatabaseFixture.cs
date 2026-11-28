@@ -44,14 +44,18 @@ public sealed class IdentityDatabaseFixture : IAsyncLifetime
             Password = options.Passwords.Api,
         }.ConnectionString;
 
-        // Fleet's and Identity's brand copies as the publish job would fill them (STAGE_7_PLAN 3.2); dated at the epoch,
-        // so the events of a test are newer.
+        // Fleet's and Identity's brand and warehouse copies as the publish jobs would fill them (STAGE_7_PLAN 3.2, ADR 0029);
+        // dated at the epoch, so the events of a test are newer.
         await ExecuteAsync(
             """
             INSERT INTO fleet.brand_snapshot (brand_id, code, name, is_archived, source_occurred_at)
             SELECT id, code, name, is_archived, 'epoch' FROM catalog.brand ON CONFLICT (brand_id) DO NOTHING;
             INSERT INTO iam.brand_snapshot (brand_id, code, name, is_archived, source_occurred_at)
             SELECT id, code, name, is_archived, 'epoch' FROM catalog.brand ON CONFLICT (brand_id) DO NOTHING;
+            INSERT INTO fleet.warehouse_snapshot (warehouse_id, code, name, is_central_hub, is_archived, source_occurred_at)
+            SELECT id, code, name, is_central_hub, NOT is_active, 'epoch' FROM inventory.warehouse ON CONFLICT (warehouse_id) DO NOTHING;
+            INSERT INTO iam.warehouse_snapshot (warehouse_id, code, name, is_central_hub, is_archived, source_occurred_at)
+            SELECT id, code, name, is_central_hub, NOT is_active, 'epoch' FROM inventory.warehouse ON CONFLICT (warehouse_id) DO NOTHING;
             """);
     }
 
