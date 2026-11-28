@@ -322,3 +322,7 @@
 +\biam\.grant_default_permission\b
 +\bis_customised\b
 +\bupgrade_pending\b
++^IF v_role_id IS NULL THEN RETURN;$
++^PERFORM set_config\('app\.(reason|user_id)', .*, true\);$
++^v_customised\s+boolean;$
++^v_(reason|user)\s+text := coalesce\(current_setting\('app\.(reason|user_id)', true\), ''\);$
