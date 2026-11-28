@@ -524,7 +524,7 @@ Effort: **S** ≈ a quarter day, **M** ≈ half a day, **L** ≈ a full day, at 
 | **7g** (#160) | M4: shared CSV parser, template, export, import with rolled-back dry run, duplicates, gate, upsert; parts and demand-history pipeline gain dry run, template, export | M | 7f | dry run = commit result (test); 5 % gate; parts import unchanged otherwise |
 | **7h** (#161) | C1 brand move, manufacturers, `part.manufacturer_id`, `BrandCatalogChanged` + Fleet snapshot, brand and manufacturer responsibles | M | 7g | schema diff with the move recorded; Fleet machine list shows brands from the snapshot |
 | **7i** (#162) | Parts CRUD (create, edit, archive with guard, `PartCatalogChanged` on every write), part responsibles, analogue rework (C2) with views and the part page tabs; ADR 0027 | L | 7h | SS502 rules incl. a concurrent cycle; snapshots updated on edit; archive guard |
-| **7j** (#163) | Warehouses and routes CRUD, archive guard incl. `IFleetQueries`, `IWarehouseQueries` cache expiry, warehouse responsibles screen | M | 7i | guard reasons; a renamed hub appears in Fleet within the cache time |
+| **7j** (#163), **next** (requirements in 12.2) | Warehouses and routes CRUD, archive guard incl. `IFleetQueries`, `IWarehouseQueries` cache expiry, warehouse responsibles screen | M | 7i | guard reasons; a renamed hub appears in Fleet within the cache time |
 | **7k** (#164) | Suppliers, part suppliers, prices with valid-from, primary, currency, `procurement.part_snapshot`, supplier responsibles, `ISupplierQueries` | L | 7i | one primary; price periods never overlap; CSV round trip |
 | **7l** (#165) | Customers (names, masking, anonymisation), machine models, machines CRUD | M | 7h | personal data masked; machine archive guard |
 | **7m** (#166) | Service works and kits; Fleet changes 4.3 (plan works, kit view, order works) | L | 7l | parity test and the kit flow unchanged; drafts carry works; T001 kits identical |
@@ -783,6 +783,54 @@ Total: 3 S, 15 M, 9 L (7x1–7x4 added at the second checkpoint) ≈ 14.75 PR-da
 | #204 | **Upgrade path.** Stage 7's migrations could not upgrade a v0.6.0 database in one pass: the runner applied Identity's `DropLegacyAccess` (step 3 of 1.6) before Reporting's copy (step 2), and the drift guard refused. Development databases never showed it, because they applied the steps PR by PR. | correctness | The runner holds a migration until the other module's migration it depends on has run; no applied migration changed. Each dependency is declared with `[MigrationDependsOn]` beside the migration that needs it, and `MigrationDependencyTests` guards the declarations (existing targets, no cycle, order respected). New check step `upgrade` builds v0.6.0 with demo data and migrates it with every PR (ADR 0020 amendment). |
 | 7h | **Brands are read by Identity too** (codes in the user list and form, brand assignment), which plan 3.2 did not cover. | boundary | Product owner, 28 November 2026: `iam.brand_snapshot`, the same pattern as Fleet (read-only, event-fed, ids kept, backfilled by the publish job). Brand assignment refuses archived brands (snapshot flag in Identity, checked again in Inventory); archiving a brand with active assignments is refused with SS501 and the reasons. 7h is split: **7h1** the move, `BrandCatalogChanged` and both snapshots, with the golden matrix unchanged; **7h2** the brand and manufacturer catalogues with their new permissions. |
 
+### 12.2 Status and next steps (handoff after 7i, 28 November 2026)
+
+**Done.** Each PR was merged on green CI and logged on #153:
+
+| Step | PRs | Issue |
+|---|---|---|
+| 7a–7g | plan, #155–#160, 7x1–7x4 (#195–#202), #203, #204, #206 | #155–#160, #189–#192 closed |
+| 7h | #205, #207, #208, #209 | #161 closed |
+| After 7h | #210 (assignment permissions in SQL), #212 (editable seeded roles, reset, copy), #213 (upgrade grants audited and marked) | #211 closed |
+| 7i | #214 (7i1a), #215 (follow-up), #216 (7i1b), #217 (7i2a, ADR 0027), #219 (7i2b), #221 (7i3) | #162 closed |
+
+**Next: 7j (#163), warehouses and transfer routes** (section 3.1). The product owner's requirements of 28 November 2026 add to the table row and section 3.1:
+
+1. **Code:** the warehouse code is immutable after creation (the shared rule: only an administrator changes a code); the name and the other fields are editable.
+2. **Archive guard:** archiving a warehouse is refused (SS501 with the reasons, in the API and the database) while it has any of:
+   - stock (on hand or reserved);
+   - open transfers (from or to it);
+   - kit holds;
+   - open service orders;
+   - active responsible assignments;
+   - machines whose home hub it is.
+3. **Writes to a new warehouse:** until a keeper is assigned, only holders of the "any hub" permission (`Organisation.Scope.AllHubs`) and superadministrators may write at it (`util.require_hub` already behaves so). A test proves it.
+4. **Routes:** a transfer route cannot be archived or changed while open transfers use it.
+5. **Copies in other modules:** Fleet's and Identity's warehouse copies are read-only and event-fed, the same pattern as brands (snapshot table written only by a SECURITY DEFINER apply function, newest event wins, a publish job for the initial fill). This replaces "no event, `IWarehouseQueries` caches" of the 3.1 table for those two modules.
+6. **Golden access matrix:** it only gains new rows.
+7. **Docs:** OpenAPI, API_DOCUMENTATION.md and the CHANGELOG breaking-changes section in the same PR.
+
+**Pending a decision at the start of 7j.** Requirement 2 asks for database parity, but two of its conditions (open service orders, machines based at the hub) are Fleet's data, and the Inventory database cannot read Fleet's schema (ADR 0003). Two options:
+- (a) an event-fed Inventory projection of Fleet's per-hub facts, so the trigger can check them;
+- (b) API-only for those two conditions, with the exception recorded in an ADR.
+
+Proposal: (a) if it fits the day; otherwise (b), recorded, and the database checks every Inventory-owned condition.
+
+**Remaining:** 7k (#164) to 7w (#176) as in the table above. Follow-ups:
+- #218: stage 8 measures `v_part_demand_key` on the demo catalogue and materializes it if slow;
+- #220 (future): analogue substitution in reservations;
+- #174 (7u): diagrams and data dictionary;
+- #199 (future): Grafana alert on superadministrator sign-in.
+
+**1 December checkpoint: review snapshot for the expert reviews (2–10 December).**
+1. **README "For reviewers" section**, at the top, through a normal PR:
+   - review against the tag `review-2026-12-01`, because `main` keeps moving with stages 7 and 8;
+   - how to run it (AppHost, "Load demo data");
+   - the demo users table;
+   - links to the diploma criteria documents, the API documentation, the ADRs and the CHANGELOG "Breaking changes" section.
+2. **Annotated tag `review-2026-12-01`** on a green `main`, after that PR. It is not a release, and the CHANGELOG gets no version.
+3. **Report** the tag and the README diff to the product owner, who notifies the experts.
+
 ## 13. Exit criteria, risk, dates and the cut order
 
 ### 13.1 Exit criteria for v0.7.0
@@ -860,3 +908,37 @@ Honestly: **only at the pace of stage 6, with no slack for surprises.** The nomi
 3. **Changed.** Administrator stays system administration under normal rules. In addition there is a **Superadministrator**: a locked position whose locked role template holds every permission, with no scope limit and no SoD validation. Superadministrators are ordinary employees in that position. Only another superadministrator moves someone into or out of it, never themselves, and the last one cannot be removed (409). It does not bypass database invariants or the self-approval ban. Demo data has one, with the password from the new parameter `superadmin-password`. Built in 7x1/7x3 (no separate PR).
 4. Approved, with the mapping table "old policy → new permission(s)" in the 7x1 PR and above.
 5. Approved: permissions are computed server-side, the internal token carries them, there is an 8 KB budget test, and the figure is in ADR 0028.
+
+### 14.3 Decisions in chat (product owner, 28 November 2026)
+
+Recorded here, or in the ADR or section named, so that none lives only in a conversation:
+
+1. **Default catalogue permissions:** brand, manufacturer and part Create, Edit and Archive go by default to Administrator and Inventory planner (and the Superadministrator), as seeded defaults; a dealer may change them (roles are data).
+2. **Brand-manager assignments** stay administrator-level (`Inventory.Brand.ManageAssignments`), although planners edit the brand record; enforced in the API and the database (#210).
+3. **Seeded roles:**
+   - editable;
+   - "Reset to default" restores the shipped permission set;
+   - "Copy role" makes an editable copy;
+   - the golden matrix tests the shipped roles;
+   - upgrade grants to an edited role are audited and marked.
+
+   See the ADR 0028 amendment (#212, #213).
+4. **Part analogues** (ADR 0027):
+   - interchangeability groups are connected components (over-pooling accepted);
+   - cycle checks cover supersession chains only;
+   - resolve-then-pool order, resolved conservatively;
+   - a mandatory user-given reason for removing or retyping a link (`POST …/remove` with a body);
+   - kit-shortage display of direct links and the successor only;
+   - linked parts cannot be archived.
+5. **Imports:** an empty `manufacturer_code` keeps the stored manufacturer; clearing it is done in the part editor.
+6. **Process:**
+   - local checks are only the affected steps, one at a time, and CI is the full gate;
+   - every endpoint is documented in the same PR, and a drift guard keeps API_DOCUMENTATION.md and OpenAPI in step;
+   - breaking API or SQL changes go into the CHANGELOG as they merge, until 10 December;
+   - an API guard without database parity is a bug;
+   - ADR first for model decisions;
+   - every real finding goes into 12.1.
+7. **Review snapshot:** the experts review the tag `review-2026-12-01` (12.2).
+8. **Deferred:**
+   - stage 8 demand-key performance (#218);
+   - analogue substitution (#220, future).
