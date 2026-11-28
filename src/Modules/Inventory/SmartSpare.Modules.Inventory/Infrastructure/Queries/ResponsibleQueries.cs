@@ -1,7 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using SmartSpare.ApiContracts.Inventory;
 using SmartSpare.Infrastructure.Messaging;
-using SmartSpare.Modules.Identity.Contracts;
 using SmartSpare.Modules.Inventory.Domain.Responsibilities;
 using SmartSpare.Modules.Inventory.Features.Responsibilities;
 using SmartSpare.Modules.Inventory.Infrastructure.Persistence;
@@ -10,7 +9,7 @@ using SmartSpare.SharedKernel;
 namespace SmartSpare.Modules.Inventory.Infrastructure.Queries;
 
 /// <summary>The read side of responsible employees (ADR 0026): roles and a record's responsibles with names.</summary>
-internal sealed class ResponsibleQueries(InventoryDbContext db, IEmployeeDirectory employees)
+internal sealed class ResponsibleQueries(InventoryDbContext db, EmployeeCopy employees)
     : IQueryHandler<ListAssignmentRolesQuery, IReadOnlyList<AssignmentRoleDto>>,
       IQueryHandler<ListResponsiblesQuery, IReadOnlyList<ResponsibleDto>>
 {

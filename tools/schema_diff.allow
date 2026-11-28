@@ -378,3 +378,11 @@
 +^IF FOUND THEN RAISE EXCEPTION 'The % % is archived and cannot be chosen', p_what, v_code USING ERRCODE = 'SS500';$
 # PR 7j1b (ADR 0029): a reading at an archived home hub is stored and drafts nothing; fleet.log_engine_hours says so.
 +^COMMENT ON FUNCTION fleet\.log_engine_hours\(.*\) IS 'UC02: validates and stores an engine-hours reading and drafts every plan due within 50 h; at a home hub archived
+# PR 7j1c (ADR 0029 amendment 2): Inventory's read-only employee copy, written only by apply_employees; the no-self-
+# granting row trigger on the rights-bearing responsibles; anonymisation also redacts Identity's event payloads.
++\binventory\.(employee_snapshot|apply_employees|trg_no_self_grant)\b
++\b(pk_employee_snapshot|ix_employee_snapshot_account|trg_no_self_grant)\b
++^BEGIN IF TG_OP = 'DELETE' THEN v_employee := OLD\.employee_id;
++^ELSE v_employee := NEW\.employee_id; v_kind := NEW\.record_kind; v_role := NEW\.assignment_role;$
++^v_(kind|role)\s+text;$
++^v_me\s+uuid := util\.current_app_user\(\);$

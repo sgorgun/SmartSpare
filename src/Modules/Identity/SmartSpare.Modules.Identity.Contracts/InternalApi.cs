@@ -3,8 +3,9 @@ using System.Security.Claims;
 namespace SmartSpare.Modules.Identity.Contracts;
 
 /// <summary>
-/// The Identity service's internal endpoints behind <see cref="ICredentialVerifier"/> (ADR 0016 section 1,
-/// STAGE_4_PLAN section 4). Only the gateway calls them, with its own service token (policy <c>GatewayOnly</c>).
+/// The Identity service's internal endpoints behind <see cref="ICredentialVerifier"/> and <see cref="IRolePermissions"/>
+/// (ADR 0016 section 1, STAGE_4_PLAN section 4). Only the gateway calls them; they are the only synchronous calls between
+/// services (ADR 0029 amendment 2).
 /// </summary>
 public static class IdentityInternalApi
 {
@@ -13,12 +14,6 @@ public static class IdentityInternalApi
     public const string CredentialChecks = Prefix + "/credential-checks";
 
     public const string SessionChecks = Prefix + "/session-checks";
-
-    /// <summary>Employee lookups of <see cref="IEmployeeDirectory"/> for other services (any signed-in caller, with the caller's token).</summary>
-    public const string EmployeeLookup = Prefix + "/employee-lookups";
-
-    /// <summary>POST, body: the account ids; answer: the <c>AccountOwner</c> list (<c>IEmployeeDirectory.FindAccountOwnersAsync</c>).</summary>
-    public const string AccountOwners = Prefix + "/account-owners";
 
     /// <summary>GET: role code → permissions of every role (<c>IRolePermissions</c>, ADR 0028), for the gateway.</summary>
     public const string RolePermissions = Prefix + "/role-permissions";

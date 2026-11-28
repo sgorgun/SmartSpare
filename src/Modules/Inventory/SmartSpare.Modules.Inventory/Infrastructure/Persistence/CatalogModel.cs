@@ -74,3 +74,21 @@ internal sealed class FleetHubReference
 
     public DateTimeOffset UpdatedAt { get; set; }
 }
+
+/// <summary>An Identity employee as Inventory copies it (ADR 0029 amendment 2); written only through <c>inventory.apply_employees</c>.</summary>
+internal sealed class EmployeeSnapshot
+{
+    public Guid EmployeeId { get; set; }
+
+    public string Code { get; set; } = null!;
+
+    public string DisplayName { get; set; } = null!;
+
+    public bool IsActive { get; set; }
+
+    public Guid? AccountId { get; set; }
+
+    public DateTimeOffset SourceOccurredAt { get; set; }
+
+    public DateTimeOffset UpdatedAt { get; set; }
+}

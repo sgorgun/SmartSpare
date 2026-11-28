@@ -107,6 +107,7 @@ internal sealed class EmployeeAdministration(
         await admin.EnterAsync(cancellationToken).ConfigureAwait(false);
         db.Add(employee);
         await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await EmployeeDirectoryPublication.QueueAsync(db, unitOfWork, [employee.Id], cancellationToken).ConfigureAwait(false);
         return await reader.Handle(new GetEmployeeQuery(employee.Id), cancellationToken).ConfigureAwait(false);
     }
 
@@ -252,6 +253,7 @@ internal sealed class EmployeeAdministration(
         await admin.EnterAsync(cancellationToken).ConfigureAwait(false);
         db.Add(user);
         await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await EmployeeDirectoryPublication.QueueAsync(db, unitOfWork, [employee.Id], cancellationToken).ConfigureAwait(false);
         return await reader.Handle(new GetEmployeeQuery(employee.Id), cancellationToken).ConfigureAwait(false);
     }
 
@@ -282,6 +284,7 @@ internal sealed class EmployeeAdministration(
 
         await admin.EnterAsync(cancellationToken).ConfigureAwait(false);
         await functions.AnonymiseEmployeeAsync(command.Id, cancellationToken).ConfigureAwait(false);
+        await EmployeeDirectoryPublication.QueueAsync(db, unitOfWork, [command.Id], cancellationToken).ConfigureAwait(false);
         return await reader.Handle(new GetEmployeeQuery(command.Id), cancellationToken).ConfigureAwait(false);
     }
 
@@ -314,6 +317,7 @@ internal sealed class EmployeeAdministration(
 
         await admin.EnterAsync(cancellationToken).ConfigureAwait(false);
         await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await EmployeeDirectoryPublication.QueueAsync(db, unitOfWork, [id], cancellationToken).ConfigureAwait(false);
         return await reader.Handle(new GetEmployeeQuery(id), cancellationToken).ConfigureAwait(false);
     }
 

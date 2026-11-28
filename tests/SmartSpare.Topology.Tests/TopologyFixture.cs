@@ -89,9 +89,8 @@ public sealed class TopologyFixture : IAsyncLifetime
 
         // Each service on its own login (ADR 0015 §5): the tests also prove those logins' privileges are enough.
         Identity = new ServiceFactory<IdentityService>(Login("smartspare_identity", passwords.Identity!), _rabbit.GetConnectionString());
-        // Inventory validates and names responsible employees through Identity's /internal/v1 (IEmployeeDirectory, ADR 0026).
-        Inventory = new ServiceFactory<InventoryService>(Login("smartspare_inventory", passwords.Inventory!), _rabbit.GetConnectionString(), services =>
-            services.AddHttpClient<IEmployeeDirectory, HttpEmployeeDirectory>().ConfigurePrimaryHttpMessageHandler(() => Identity.Server.CreateHandler()));
+        // Inventory reads employees from its own copy, fed over RabbitMQ (ADR 0029 amendment 2): no call to Identity.
+        Inventory = new ServiceFactory<InventoryService>(Login("smartspare_inventory", passwords.Inventory!), _rabbit.GetConnectionString());
 
         // Fleet reads hubs from its own warehouse copy, fed over RabbitMQ (ADR 0029): no call to Inventory.
         Fleet = new ServiceFactory<FleetService>(Login("smartspare_fleet", passwords.Fleet!), _rabbit.GetConnectionString());
@@ -166,7 +165,35 @@ public sealed class TopologyFixture : IAsyncLifetime
         command.Parameters.AddWithValue("hash", hash);
         command.Parameters.AddWithValue("roles", roles);
         await command.ExecuteNonQueryAsync(Ct);
+
+        // Inventory's employee copy learns the employee as after a deployment (ADR 0029 amendment 2): the Identity service
+        // runs its publish job and the event reaches the Inventory service over RabbitMQ.
+        await using (var scope = Identity.Services.CreateAsyncScope())
+        {
+            await scope.ServiceProvider.GetServices<IJob>().Single(j => j.Name == "identity.employee-publish").RunAsync(Ct);
+        }
+
+        await WaitForAsync("SELECT count(*) FROM inventory.employee_snapshot WHERE employee_id = @id AND account_id = @id", id, "EmployeeDirectoryChanged");
         return id;
+    }
+
+    private async Task WaitForAsync(string countSql, Guid id, string what)
+    {
+        for (var attempt = 0; attempt < 60; attempt++)
+        {
+            await using var connection = new NpgsqlConnection(_migrator);
+            await connection.OpenAsync(Ct);
+            await using var count = new NpgsqlCommand(countSql, connection);
+            count.Parameters.AddWithValue("id", id);
+            if ((long)(await count.ExecuteScalarAsync(Ct))! > 0)
+            {
+                return;
+            }
+
+            await Task.Delay(500, Ct);
+        }
+
+        throw new TimeoutException($"{what} did not reach the consumer within 30 s.");
     }
 
     /// <summary>A browser signed in through the gateway, with the antiforgery header of the signed-in user.</summary>

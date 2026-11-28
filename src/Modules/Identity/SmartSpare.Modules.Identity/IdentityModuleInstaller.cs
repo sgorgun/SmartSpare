@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using SmartSpare.Infrastructure.Jobs;
 using SmartSpare.Infrastructure.Messaging;
 using SmartSpare.Infrastructure.Modules;
 using SmartSpare.Infrastructure.Persistence;
@@ -86,7 +87,7 @@ public sealed class IdentityModuleInstaller : IModuleInstaller
         services.AddScoped<Infrastructure.Identity.AccountStamps>();
         services.AddScoped<Infrastructure.Identity.AdministratorGuard>();
         services.AddScoped<Infrastructure.Identity.RightsGuard>();
-        services.AddScoped<IEmployeeDirectory, Infrastructure.Queries.EmployeeDirectory>();
+        services.AddJob<Features.Organisation.EmployeeDirectoryPublishJob>();
         services.AddScoped<IRolePermissions, Infrastructure.Queries.RolePermissionReader>();
     }
 
@@ -134,6 +135,6 @@ public sealed class IdentityModuleInstaller : IModuleInstaller
     public void MapInternalEndpoints(IEndpointRouteBuilder endpoints)
     {
         Features.InternalChecks.InternalCheckEndpoints.Map(endpoints);
-        Features.InternalChecks.EmployeeLookupEndpoint.Map(endpoints);
+        Features.InternalChecks.RolePermissionsEndpoint.Map(endpoints);
     }
 }

@@ -1037,6 +1037,12 @@ UNION ALL
 SELECT 'service_order', id, warehouse_id, status IN ('draft', 'parts_reserved', 'in_progress'), 'epoch' FROM fleet.service_order
 ON CONFLICT (record_kind, record_id) DO NOTHING;
 
+-- Inventory's employee copy (ADR 0029 amendment 2), as if identity.employee-publish had run after the anonymisation above.
+INSERT INTO inventory.employee_snapshot (employee_id, code, display_name, is_active, account_id, source_occurred_at)
+SELECT e.id, e.code, e.full_name, NOT e.is_archived AND e.anonymised_at IS NULL, u.id, 'epoch'
+FROM iam.employee e LEFT JOIN iam.app_user u ON u.employee_id = e.id
+ON CONFLICT (employee_id) DO NOTHING;
+
 SELECT pg_temp.t001_act_as(NULL);
 CALL mart.refresh_all();
 COMMIT;
