@@ -108,5 +108,5 @@ public sealed class CsvImportFileTests
             [ImportStatuses.Uploaded, ImportStatuses.Validated, ImportStatuses.Loaded, ImportStatuses.Failed]);
     }
 
-    private static CsvImportFile.Parsed Parse(string content) => CsvImportFile.Parse(content, ImportSources.DemandHistory).Value;
+    private static SmartSpare.Infrastructure.Csv.CsvFile.Parsed Parse(string content) => CsvImportFile.Parse(content, ImportSources.DemandHistory).Value;
 }
