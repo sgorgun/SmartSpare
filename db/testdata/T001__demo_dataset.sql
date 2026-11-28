@@ -259,9 +259,9 @@ SELECT sp.id, daterange(date_trunc('year', current_date)::date, NULL),
        round(p.unit_cost * CASE WHEN sp.is_preferred THEN 1.00 ELSE 0.90 END, 2)
 FROM procurement.supplier_part sp JOIN catalog.part p ON p.id = sp.part_id;
 
--- Analogue link for a "new" SKU without history (US15).
-INSERT INTO catalog.part_analogue (part_id, analogue_part_id, scaling_factor)
-SELECT (SELECT id FROM catalog.part WHERE oem_part_number = 'RE900001'),
+-- Analogue link for a "new" SKU without history (US15): RE900001 supersedes an older JD oil filter (ADR 0027).
+INSERT INTO catalog.part_analogue (link_type, part_id, analogue_part_id, scaling_factor)
+SELECT 'supersedes', (SELECT id FROM catalog.part WHERE oem_part_number = 'RE900001'),
        (SELECT min(p.id) FROM catalog.part p JOIN ref.part_category c ON c.id = p.category_id
         WHERE c.code = 'OIL_FILTER' AND p.brand_id = (SELECT id FROM catalog.brand WHERE code = 'JD') AND p.oem_part_number <> 'RE900001'),
        1.200;

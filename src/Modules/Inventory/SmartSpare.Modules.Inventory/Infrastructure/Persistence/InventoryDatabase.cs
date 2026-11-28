@@ -29,6 +29,7 @@ internal sealed class InventoryDatabase : ModuleDatabase<InventoryDbContext>
         npgsql.MapEnum<TransferStatus>("transfer_status", "inventory");
         npgsql.MapEnum<ImportSource>("import_source", "raw");
         npgsql.MapEnum<ImportStatus>("import_status", "raw");
+        npgsql.MapEnum<Domain.Catalog.AnalogueLinkType>("analogue_link_type", "catalog");
     }
 }
 

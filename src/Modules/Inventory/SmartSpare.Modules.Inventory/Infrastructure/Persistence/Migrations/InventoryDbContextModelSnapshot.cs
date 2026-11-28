@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
+using SmartSpare.Modules.Inventory.Domain.Catalog;
 using SmartSpare.Modules.Inventory.Domain.Stock;
 using SmartSpare.Modules.Inventory.Domain.Transfers;
 using SmartSpare.Modules.Inventory.Infrastructure.Persistence;
@@ -22,6 +23,7 @@ namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Migrations
                 .HasAnnotation("ProductVersion", "10.0.15")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
+            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "catalog", "analogue_link_type", new[] { "interchangeable", "supersedes" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "inventory", "reservation_status", new[] { "soft", "firm", "consumed", "released", "expired" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "inventory", "transfer_status", new[] { "proposed", "approved", "dispatched", "received", "cancelled" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "raw", "import_source", new[] { "part_catalog", "demand_history" });
@@ -493,6 +495,108 @@ namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("ck_part_unit_cost", "(unit_cost >= (0)::numeric)");
 
                             t.HasCheckConstraint("ck_part_weight", "((weight_kg IS NULL) OR (weight_kg >= (0)::numeric))");
+                        });
+                });
+
+            modelBuilder.Entity("SmartSpare.Modules.Inventory.Domain.Catalog.PartAnalogue", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id")
+                        .HasComment("Surrogate primary key.");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<long>("AnaloguePartId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("analogue_part_id")
+                        .HasColumnOrder(1)
+                        .HasComment("The analogue; for a supersession the old part it replaces.");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasColumnOrder(4)
+                        .HasDefaultValueSql("now()")
+                        .HasComment("Time the record was created.");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by")
+                        .HasColumnOrder(7)
+                        .HasComment("User who linked the parts.");
+
+                    b.Property<AnalogueLinkType>("LinkType")
+                        .HasColumnType("catalog.analogue_link_type")
+                        .HasColumnName("link_type")
+                        .HasColumnOrder(5)
+                        .HasComment("interchangeable (symmetric, groups) or supersedes (new -> old, at most one successor, no cycles).");
+
+                    b.Property<string>("Note")
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("note")
+                        .HasColumnOrder(6);
+
+                    b.Property<long>("PartId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("part_id")
+                        .HasColumnOrder(0)
+                        .HasComment("The part; for a supersession the new part, for an interchangeable link the smaller id.");
+
+                    b.Property<decimal>("ScalingFactor")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("numeric(5,3)")
+                        .HasColumnName("scaling_factor")
+                        .HasColumnOrder(2)
+                        .HasDefaultValueSql("1.000")
+                        .HasComment("Units of the analogue per unit of the part, applied to the analogue's demand history (US15).");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasColumnOrder(8)
+                        .HasDefaultValueSql("now()")
+                        .HasComment("Time of the last change (maintained by trigger).");
+
+                    b.Property<DateOnly>("ValidFrom")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("date")
+                        .HasColumnName("valid_from")
+                        .HasColumnOrder(3)
+                        .HasDefaultValueSql("CURRENT_DATE");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id")
+                        .HasName("pk_part_analogue");
+
+                    b.HasIndex("PartId")
+                        .HasDatabaseName("ix_part_analogue_part");
+
+                    b.HasIndex(new[] { "AnaloguePartId" }, "ix_part_analogue_analogue")
+                        .HasDatabaseName("ix_part_analogue_analogue");
+
+                    b.HasIndex(new[] { "AnaloguePartId" }, "uq_part_analogue_one_successor")
+                        .IsUnique()
+                        .HasDatabaseName("uq_part_analogue_one_successor")
+                        .HasFilter("(link_type = 'supersedes'::catalog.analogue_link_type)");
+
+                    b.ToTable("part_analogue", "catalog", t =>
+                        {
+                            t.HasComment("Typed link between two parts (ADR 0027): interchangeable (stored once, smaller id first) or supersedes (new part -> old part), with a demand scaling factor (US15).");
+
+                            t.HasCheckConstraint("ck_part_analogue_distinct", "(part_id <> analogue_part_id)");
+
+                            t.HasCheckConstraint("ck_part_analogue_factor", "((scaling_factor > (0)::numeric) AND (scaling_factor <= (10)::numeric))");
+
+                            t.HasCheckConstraint("ck_part_analogue_interchangeable_order", "((link_type <> 'interchangeable'::catalog.analogue_link_type) OR (part_id < analogue_part_id))");
                         });
                 });
 
@@ -1818,59 +1922,6 @@ namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("SmartSpare.Modules.Inventory.Infrastructure.Persistence.PartAnalogue", b =>
-                {
-                    b.Property<long>("PartId")
-                        .HasColumnType("bigint")
-                        .HasColumnName("part_id")
-                        .HasColumnOrder(0)
-                        .HasComment("Reference to catalog.part.");
-
-                    b.Property<long>("AnaloguePartId")
-                        .HasColumnType("bigint")
-                        .HasColumnName("analogue_part_id")
-                        .HasColumnOrder(1)
-                        .HasComment("Reference to catalog.part.");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at")
-                        .HasColumnOrder(4)
-                        .HasDefaultValueSql("now()")
-                        .HasComment("Time the record was created.");
-
-                    b.Property<decimal>("ScalingFactor")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("numeric(5,3)")
-                        .HasColumnName("scaling_factor")
-                        .HasColumnOrder(2)
-                        .HasDefaultValueSql("1.000")
-                        .HasComment("Multiplier applied to the analogue's demand history (US15).");
-
-                    b.Property<DateOnly>("ValidFrom")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("date")
-                        .HasColumnName("valid_from")
-                        .HasColumnOrder(3)
-                        .HasDefaultValueSql("CURRENT_DATE");
-
-                    b.HasKey("PartId", "AnaloguePartId")
-                        .HasName("pk_part_analogue");
-
-                    b.HasIndex("AnaloguePartId")
-                        .HasDatabaseName("ix_part_analogue_analogue");
-
-                    b.ToTable("part_analogue", "catalog", t =>
-                        {
-                            t.HasComment("New SKU -> historical analogue/predecessor SKU with a demand scaling factor (US15).");
-
-                            t.HasCheckConstraint("ck_part_analogue_distinct", "(part_id <> analogue_part_id)");
-
-                            t.HasCheckConstraint("ck_part_analogue_factor", "((scaling_factor > (0)::numeric) AND (scaling_factor <= (10)::numeric))");
-                        });
-                });
-
             modelBuilder.Entity("SmartSpare.Modules.Inventory.Infrastructure.Persistence.PartCatalog", b =>
                 {
                     b.Property<long>("ImportBatchId")
@@ -2231,6 +2282,23 @@ namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Migrations
                     b.Navigation("Unit");
                 });
 
+            modelBuilder.Entity("SmartSpare.Modules.Inventory.Domain.Catalog.PartAnalogue", b =>
+                {
+                    b.HasOne("SmartSpare.Modules.Inventory.Domain.Catalog.Part", null)
+                        .WithMany()
+                        .HasForeignKey("AnaloguePartId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_part_analogue_analogue");
+
+                    b.HasOne("SmartSpare.Modules.Inventory.Domain.Catalog.Part", null)
+                        .WithMany()
+                        .HasForeignKey("PartId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_part_analogue_part");
+                });
+
             modelBuilder.Entity("SmartSpare.Modules.Inventory.Domain.Responsibilities.BrandResponsible", b =>
                 {
                     b.HasOne("SmartSpare.Modules.Inventory.Domain.Catalog.Brand", null)
@@ -2403,23 +2471,6 @@ namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_import_error_batch");
-                });
-
-            modelBuilder.Entity("SmartSpare.Modules.Inventory.Infrastructure.Persistence.PartAnalogue", b =>
-                {
-                    b.HasOne("SmartSpare.Modules.Inventory.Domain.Catalog.Part", null)
-                        .WithMany()
-                        .HasForeignKey("AnaloguePartId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_part_analogue_analogue");
-
-                    b.HasOne("SmartSpare.Modules.Inventory.Domain.Catalog.Part", null)
-                        .WithMany()
-                        .HasForeignKey("PartId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_part_analogue_part");
                 });
 
             modelBuilder.Entity("SmartSpare.Modules.Inventory.Infrastructure.Persistence.PartCatalog", b =>

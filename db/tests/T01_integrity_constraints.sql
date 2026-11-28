@@ -145,4 +145,23 @@ SELECT pg_temp.ok(
 SELECT pg_temp.expect_error($$UPDATE iam.app_user SET user_name = 'Tomas.Radzevicius' WHERE user_name = 'tomas.radzevicius'$$,
                             '23514', 'CHECK: user names are stored in lower case (#69)');
 
+-- ADR 0027 (PR 7i2a): part analogue rules hold in the database (SS502). Four fresh parts; 2 supersedes 1.
+INSERT INTO catalog.part (brand_id, oem_part_number, description, category_id, uom_id, unit_cost)
+SELECT b.id, 'T01-AN-' || n, 'Analogue rule part', c.id, u.id, 1
+FROM catalog.brand b, ref.part_category c, ref.unit_of_measure u, generate_series(1, 4) AS n
+WHERE b.code = 'JD' AND c.code = 'OIL_FILTER' AND u.code = 'PCS';
+INSERT INTO catalog.part_analogue (link_type, part_id, analogue_part_id)
+SELECT 'supersedes', (SELECT id FROM catalog.part WHERE oem_part_number = 'T01-AN-2'), (SELECT id FROM catalog.part WHERE oem_part_number = 'T01-AN-1');
+SELECT pg_temp.expect_error($$INSERT INTO catalog.part_analogue (link_type, part_id, analogue_part_id)
+    SELECT 'interchangeable', id, id FROM catalog.part WHERE oem_part_number = 'T01-AN-3'$$, 'SS502', 'ADR 0027: a part cannot be its own analogue');
+SELECT pg_temp.expect_error($$INSERT INTO catalog.part_analogue (link_type, part_id, analogue_part_id)
+    SELECT 'interchangeable', (SELECT id FROM catalog.part WHERE oem_part_number = 'T01-AN-1'), (SELECT id FROM catalog.part WHERE oem_part_number = 'T01-AN-2')$$,
+    'SS502', 'ADR 0027: one link per pair, whatever its type');
+SELECT pg_temp.expect_error($$INSERT INTO catalog.part_analogue (link_type, part_id, analogue_part_id)
+    SELECT 'supersedes', (SELECT id FROM catalog.part WHERE oem_part_number = 'T01-AN-3'), (SELECT id FROM catalog.part WHERE oem_part_number = 'T01-AN-1')$$,
+    'SS502', 'ADR 0027: a part has at most one successor');
+SELECT pg_temp.expect_error($$INSERT INTO catalog.part_analogue (link_type, part_id, analogue_part_id)
+    SELECT 'supersedes', (SELECT id FROM catalog.part WHERE oem_part_number = 'T01-AN-1'), (SELECT id FROM catalog.part WHERE oem_part_number = 'T01-AN-2')$$,
+    'SS502', 'ADR 0027: a supersession cannot close a cycle');
+
 ROLLBACK;

@@ -1,21 +1,7 @@
 namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence;
 
-// Analogues, warehouses and routes: plain data classes (ADR 0013 rule 3); warehouses and routes are seeded reference
-// data of the module. Parts are the Domain.Catalog.Part aggregate (PR 7i1).
-
-/// <summary>Row of <c>catalog.part_analogue</c>.</summary>
-internal sealed class PartAnalogue
-{
-    public long PartId { get; set; }
-
-    public long AnaloguePartId { get; set; }
-
-    public decimal ScalingFactor { get; set; }
-
-    public DateOnly ValidFrom { get; set; }
-
-    public DateTimeOffset CreatedAt { get; set; }
-}
+// Warehouses and routes: plain data classes (ADR 0013 rule 3); warehouses and routes are seeded reference
+// data of the module. Parts and their analogues are Domain.Catalog aggregates (PR 7i1, 7i2).
 
 /// <summary>Row of <c>inventory.warehouse</c>.</summary>
 internal sealed class Warehouse
