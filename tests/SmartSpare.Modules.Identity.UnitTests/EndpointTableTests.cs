@@ -113,7 +113,6 @@ public sealed class EndpointTableTests
         // warehouse queries come from the Inventory module or its HTTP client in a real host.
         var builder = WebApplication.CreateBuilder();
         new IdentityModuleInstaller().AddServices(builder.Services, builder.Configuration);
-        builder.Services.AddScoped<IWarehouseQueries>(_ => null!);
         var app = builder.Build();
         new IdentityModuleInstaller().MapEndpoints(app);
         return

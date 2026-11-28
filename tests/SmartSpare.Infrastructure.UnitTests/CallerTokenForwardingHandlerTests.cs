@@ -38,7 +38,7 @@ public sealed class CallerTokenForwardingHandlerTests
         var recorder = new Recorder();
         var handler = new CallerTokenForwardingHandler(new HttpContextAccessor { HttpContext = withRequest ? context : null }) { InnerHandler = recorder };
         using var client = new HttpClient(handler);
-        using var response = await client.GetAsync(new Uri("http://inventory/internal/v1/inventory/warehouses"), TestContext.Current.CancellationToken);
+        using var response = await client.GetAsync(new Uri("http://identity/internal/v1/identity/employee-lookups"), TestContext.Current.CancellationToken);
         return recorder.Authorization;
     }
 

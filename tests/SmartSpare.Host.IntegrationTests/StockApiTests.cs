@@ -233,27 +233,6 @@ public sealed class StockApiTests(IdentityDatabaseFixture database) : IAsyncLife
         (await response.Content.ReadAsStringAsync(Ct)).ShouldContain(field);
     }
 
-    [Fact]
-    public async Task Other_services_read_the_warehouses_through_the_internal_endpoint_with_the_callers_token()
-    {
-        using var browser = _host.NewBrowser();
-        var queries = new HttpWarehouseQueries(new HttpClient(new BearerHandler(Token(Planner), _host.Server.CreateHandler()))
-        {
-            BaseAddress = _host.Server.BaseAddress,
-        });
-
-        var warehouses = await queries.GetAllAsync(Ct);
-
-        warehouses.Count.ShouldBe(7);
-        warehouses.Select(w => w.Code).ShouldBe(warehouses.Select(w => w.Code).Order(StringComparer.Ordinal));
-        (await queries.ExistsAsync(warehouses[0].Id, Ct)).ShouldBeTrue();
-        (await queries.ExistsAsync(999, Ct)).ShouldBeFalse();
-
-        // Refused without a user: 401 from a service (bearer only), a redirect to sign-in from the single host's cookie scheme.
-        using var anonymous = await browser.GetAsync(InventoryInternalApi.Warehouses);
-        anonymous.StatusCode.ShouldBeOneOf(HttpStatusCode.Unauthorized, HttpStatusCode.Found);
-    }
-
     private string Token(TestUser user) => _host.Token(user.Principal());
 
     private async Task<HttpResponseMessage> PutLevelsAsync(string path, ChangeStockLevelsRequest body, string? ifMatch)
@@ -309,15 +288,6 @@ public sealed class StockApiTests(IdentityDatabaseFixture database) : IAsyncLife
                 FROM inventory.warehouse w WHERE w.code = @warehouse;
                 """,
                 ("part", partId), ("warehouse", warehouseCode), ("quantity", onHand));
-        }
-    }
-
-    private sealed class BearerHandler(string token, HttpMessageHandler inner) : DelegatingHandler(inner)
-    {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-            return base.SendAsync(request, cancellationToken);
         }
     }
 }

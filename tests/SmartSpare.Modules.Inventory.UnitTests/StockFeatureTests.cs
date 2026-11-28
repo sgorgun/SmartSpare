@@ -104,41 +104,6 @@ public sealed class StockFeatureTests
         SearchText.Pattern(search).ShouldBe(pattern);
 
     [Fact]
-    public async Task The_warehouse_client_reads_the_internal_endpoint()
-    {
-        var handler = new StubHandler(HttpStatusCode.OK,
-            """[{"id":1,"code":"KLP","name":"Klaipeda","isCentralHub":true,"isActive":true},{"id":2,"code":"OLD","name":"Old","isCentralHub":false,"isActive":false}]""");
-        var queries = new HttpWarehouseQueries(new HttpClient(handler) { BaseAddress = new Uri("http://inventory") });
-
-        var all = await queries.GetAllAsync(TestContext.Current.CancellationToken);
-
-        all.Select(w => w.Code).ShouldBe(["KLP", "OLD"]);
-        handler.LastPath.ShouldBe(InventoryInternalApi.Warehouses);
-        (await queries.ExistsAsync(1, TestContext.Current.CancellationToken)).ShouldBeTrue();
-        (await queries.ExistsAsync(2, TestContext.Current.CancellationToken)).ShouldBeFalse("deactivated hubs do not count");
-    }
-
-    [Theory]
-    [InlineData(HttpStatusCode.InternalServerError)]
-    [InlineData(HttpStatusCode.Unauthorized)]
-    public async Task A_failing_inventory_service_is_a_dependency_error_not_an_empty_list(HttpStatusCode status)
-    {
-        var queries = new HttpWarehouseQueries(new HttpClient(new StubHandler(status, "{}")) { BaseAddress = new Uri("http://inventory") });
-
-        var error = await Should.ThrowAsync<DependencyUnavailableException>(() => queries.GetAllAsync(TestContext.Current.CancellationToken));
-
-        error.Service.ShouldBe("inventory");
-    }
-
-    [Fact]
-    public async Task An_unreachable_inventory_service_is_a_dependency_error()
-    {
-        var queries = new HttpWarehouseQueries(new HttpClient(new StubHandler(new HttpRequestException("refused"))) { BaseAddress = new Uri("http://inventory") });
-
-        await Should.ThrowAsync<DependencyUnavailableException>(() => queries.GetAllAsync(TestContext.Current.CancellationToken));
-    }
-
-    [Fact]
     public void Command_validators_apply_the_request_rules()
     {
         new ChangeStockLevelsCommandValidator().TestValidate(new ChangeStockLevelsCommand(3, 1042, 5, 4, 1)).IsValid.ShouldBeFalse();
@@ -179,30 +144,5 @@ public sealed class StockFeatureTests
         public string? Reason => null;
 
         public IReadOnlyCollection<string> Roles => ["WAREHOUSE_KEEPER"];
-    }
-
-    private sealed class StubHandler : HttpMessageHandler
-    {
-        private readonly HttpStatusCode _status;
-        private readonly string _body = string.Empty;
-        private readonly Exception? _failure;
-
-        public StubHandler(HttpStatusCode status, string body)
-        {
-            _status = status;
-            _body = body;
-        }
-
-        public StubHandler(Exception failure) => _failure = failure;
-
-        public string? LastPath { get; private set; }
-
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            LastPath = request.RequestUri?.AbsolutePath;
-            return _failure is not null
-                ? Task.FromException<HttpResponseMessage>(_failure)
-                : Task.FromResult(new HttpResponseMessage(_status) { Content = new StringContent(_body, Encoding.UTF8, "application/json") });
-        }
     }
 }
