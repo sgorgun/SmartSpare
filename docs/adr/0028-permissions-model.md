@@ -40,6 +40,7 @@ Three layers.
   - A service with an older catalogue ignores bits it does not know, because none of its endpoints can require them, so services deploy independently.
   - Measured worst case now: **886 bytes**. The bitset costs about 26 characters at 150 permissions and 51 at 300.
   - The 8 KB budget test stays.
+  - **Re-measured with the superadministrator (28 November 2026, after PR 7x3b).** Its token is the largest: every permission, every role code including SUPERADMINISTRATOR, 12 brands and 6 hubs. Measured with today's 56 permissions: **916 bytes**. Only the bitset grows with the catalogue, so a test projects the size: **931 bytes at 120 permissions, 936 at 150 and 970 at 300**, against about 6 KB for names at 150. That is far below the ~6 KB line at which the product owner required a compact encoding, so no further change is needed. `InternalTokenTests` asserts the projection (< 1.5 KB) as well as the 8 KB budget.
 - The web client receives the permissions in its serialized authentication state and in `/bff/me`.
 
 **Guardrails** (PR 7x3):
