@@ -7,7 +7,7 @@ namespace SmartSpare.Infrastructure.Persistence;
 /// <summary>
 /// Turns expected database errors into <see cref="Error"/> values, so handlers return a
 /// <see cref="Result"/> instead of letting the exception escape (ADR 0002, Result pattern).
-/// Business rules raised by triggers and functions use custom SQLSTATEs SS100–SS402 and the catalogue codes SS500–SS501
+/// Business rules raised by triggers and functions use custom SQLSTATEs SS100–SS402 and the catalogue codes SS500–SS502
 /// (docs/database/DATABASE_DESIGN.md §6.3); constraint violations are the last line of defence.
 /// Anything else is unexpected and stays an exception.
 /// </summary>
@@ -42,6 +42,7 @@ public static class DatabaseErrorMapper
             "SS400" or "SS401" or "SS402" => ErrorType.BusinessRule,              // supplier conditions (US12)
             "SS500" => ErrorType.BusinessRule,                                    // an archived record chosen (ADR 0025)
             "SS501" => ErrorType.Conflict,                                        // archiving refused while in use (ADR 0025)
+            "SS502" => ErrorType.BusinessRule,                                    // part analogue rules (ADR 0027)
             _ => null,
         };
         if (businessType is { } type)

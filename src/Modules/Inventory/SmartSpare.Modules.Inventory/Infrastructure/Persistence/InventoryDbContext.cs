@@ -27,6 +27,7 @@ internal sealed class InventoryDbContext(DbContextOptions<InventoryDbContext> op
         modelBuilder.HasPostgresEnum<TransferStatus>("inventory", "transfer_status");
         modelBuilder.HasPostgresEnum<ImportSource>("raw", "import_source");
         modelBuilder.HasPostgresEnum<ImportStatus>("raw", "import_status");
+        modelBuilder.HasPostgresEnum<Domain.Catalog.AnalogueLinkType>("catalog", "analogue_link_type");
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(InventoryDbContext).Assembly);
 
         // Transactional outbox and idempotent inbox of this module (ADR 0003, MODULE_MAPPING 5.6).

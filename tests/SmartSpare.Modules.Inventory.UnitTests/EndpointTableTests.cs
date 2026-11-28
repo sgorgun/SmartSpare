@@ -103,6 +103,12 @@ public sealed class EndpointTableTests
             "PUT /api/v1/inventory/parts/{id:long}/responsibles",
             "GET /api/v1/inventory/part-categories",
             "GET /api/v1/inventory/units-of-measure",
+
+            // PR 7i2a: part analogues (ADR 0027).
+            "GET /api/v1/inventory/parts/{id:long}/analogues",
+            "POST /api/v1/inventory/part-analogues",
+            "PUT /api/v1/inventory/part-analogues/{id:long}",
+            "POST /api/v1/inventory/part-analogues/{id:long}/remove",
         ], ignoreOrder: true);
 
     [Theory]
@@ -142,6 +148,8 @@ public sealed class EndpointTableTests
     [InlineData("POST /api/v1/inventory/manufacturers/{id:long}/archive", Permissions.Inventory.Manufacturer.Archive)]
     [InlineData("PUT /api/v1/inventory/manufacturers/{id:int}/responsibles", Permissions.Inventory.Manufacturer.Edit)]
     [InlineData("PUT /api/v1/inventory/parts/{id:long}/responsibles", Permissions.Inventory.Part.Edit)]
+    [InlineData("POST /api/v1/inventory/part-analogues", Permissions.Inventory.Part.Edit)]
+    [InlineData("POST /api/v1/inventory/part-analogues/{id:long}/remove", Permissions.Inventory.Part.Edit)]
     [InlineData("GET /api/v1/inventory/imports", Permissions.Inventory.Import.View)]
     [InlineData("POST /api/v1/inventory/transfers/{id:long}/approve", Permissions.Inventory.Transfer.Approve)]
     [InlineData("POST /api/v1/inventory/transfers/{id:long}/cancel", Permissions.Inventory.Transfer.Cancel)]
