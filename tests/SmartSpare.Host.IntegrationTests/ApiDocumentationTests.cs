@@ -318,6 +318,54 @@ public sealed partial class ApiDocumentationTests : IAsyncLifetime
         response.Headers.GetValues("Content-Security-Policy").Single().ShouldNotContain("nonce-");
     }
 
+    /// <summary>
+    /// Drift guard (product owner, 28 November 2026): the endpoint table of <c>docs/architecture/API_DOCUMENTATION.md</c>
+    /// names every operation of the generated OpenAPI documents (method and path) and nothing that does not exist. A
+    /// table cell lists operations as backticked <c>METHOD /path</c> tokens (several methods as <c>GET/PUT</c>; a query
+    /// string is allowed and ignored); everything else in the row is prose.
+    /// </summary>
+    [Fact]
+    public async Task The_endpoint_table_of_the_api_documentation_lists_exactly_the_documented_operations()
+    {
+        var generated = new SortedSet<string>(StringComparer.Ordinal);
+        foreach (var document in new[] { BffEndpoints.DocumentName, "identity", "inventory", "fleet", "procurement", "forecasting", "reporting" })
+        {
+            foreach (var path in (await DocumentAsync(document)).GetProperty("paths").EnumerateObject())
+            {
+                foreach (var operation in path.Value.EnumerateObject().Where(o => HttpMethods.Contains(o.Name)))
+                {
+                    generated.Add($"{operation.Name.ToUpperInvariant()} {path.Name}");
+                }
+            }
+        }
+
+        var markdown = (await File.ReadAllTextAsync(Path.Combine(DemoDatabaseFixture.RepositoryRoot(), "docs", "architecture", "API_DOCUMENTATION.md"), Ct))
+            .ReplaceLineEndings("\n");
+        var table = markdown[markdown.IndexOf("| Document | Operation |", StringComparison.Ordinal)..];
+        var end = table.IndexOf("\n\n", StringComparison.Ordinal);
+        table = end > 0 ? table[..end] : table;
+        var listed = new SortedSet<string>(StringComparer.Ordinal);
+        foreach (var row in table.Split('\n').Where(l => l.StartsWith("| `", StringComparison.Ordinal)))
+        {
+            var operationCell = row.Split('|')[2];
+            foreach (Match token in OperationToken().Matches(operationCell))
+            {
+                foreach (var method in token.Groups["methods"].Value.Split('/'))
+                {
+                    listed.Add($"{method} {token.Groups["path"].Value}");
+                }
+            }
+        }
+
+        generated.Except(listed).ShouldBeEmpty("every generated operation is in the table of API_DOCUMENTATION.md");
+        listed.Except(generated).ShouldBeEmpty("the table lists only operations that exist");
+    }
+
+    private static readonly HashSet<string> HttpMethods = new(StringComparer.Ordinal) { "get", "post", "put", "delete", "patch" };
+
+    [GeneratedRegex(@"`(?<methods>(?:GET|POST|PUT|DELETE|PATCH)(?:/(?:GET|POST|PUT|DELETE|PATCH))*) (?<path>/[^`\s?]*)(?:\?[^`]*)?`")]
+    private static partial Regex OperationToken();
+
     [GeneratedRegex("'nonce-(?<nonce>[A-Za-z0-9_-]+)'")]
     private static partial Regex NonceSource();
 
