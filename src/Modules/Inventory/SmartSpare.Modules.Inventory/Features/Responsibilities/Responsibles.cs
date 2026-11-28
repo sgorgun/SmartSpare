@@ -48,7 +48,7 @@ internal sealed class ReplaceResponsiblesCommandValidator : AbstractValidator<Re
 /// assignments give rights.
 /// </summary>
 internal sealed class ReplaceResponsiblesCommandHandler(
-    InventoryDbContext db, IUnitOfWork<InventoryDbContext> unitOfWork, IEmployeeDirectory employees, ICurrentUser user,
+    InventoryDbContext db, IUnitOfWork<InventoryDbContext> unitOfWork, Infrastructure.Queries.EmployeeCopy employees, ICurrentUser user,
     IQueryHandler<ListResponsiblesQuery, IReadOnlyList<ResponsibleDto>> reader)
     : ICommandHandler<ReplaceResponsiblesCommand, IReadOnlyList<ResponsibleDto>>
 {
@@ -87,8 +87,9 @@ internal sealed class ReplaceResponsiblesCommandHandler(
         // ADR 0028: nobody changes their own rights-bearing assignments (someone else must grant rights).
         if (change.RightsChanged && user.UserId is { } me)
         {
-            var own = (await employees.FindAccountOwnersAsync([me], cancellationToken).ConfigureAwait(false)).Select(o => o.EmployeeId).ToHashSet();
-            if (change.Added.Concat(change.Removed).Any(r => roles[r.Role] && own.Contains(r.EmployeeId)))
+            // The account's employee from Inventory's employee copy (ADR 0029); trg_no_self_grant repeats the rule in the database.
+            var own = await employees.EmployeeOfAccountAsync(me, cancellationToken).ConfigureAwait(false);
+            if (change.Added.Concat(change.Removed).Any(r => roles[r.Role] && r.EmployeeId == own))
             {
                 return ResponsibilityErrors.OwnAssignments;
             }

@@ -42,7 +42,8 @@ public sealed class InventoryModuleInstaller : IModuleInstaller
         services.AddScoped<ImportStore>();
         services.AddScoped<ServiceKitStore>();
         services.AddScoped<Features.PartAnalogues.PartAnalogueCsv>();
-        services.TryAddScoped<SmartSpare.Infrastructure.MasterData.IActorNames, Infrastructure.Queries.EmployeeActorNames>();
+        services.AddScoped<Infrastructure.Queries.EmployeeCopy>();
+        services.TryAddScoped<SmartSpare.Infrastructure.MasterData.IActorNames>(sp => sp.GetRequiredService<Infrastructure.Queries.EmployeeCopy>());
         services.AddImportRateLimit();
         services.AddCatalogCsvRateLimit();
         services.AddJob<PartCatalogPublishJob>();

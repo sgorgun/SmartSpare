@@ -84,6 +84,16 @@ SELECT pg_temp.expect_error($$UPDATE iam.warehouse_snapshot SET is_archived = tr
                             '42501', 'ADR 0029: Identity''s warehouse copy not writable directly (only iam.apply_warehouses)');
 SELECT pg_temp.expect_error($$DELETE FROM inventory.fleet_hub_reference WHERE false$$,
                             '42501', 'ADR 0029: the Fleet hub references not writable directly (only inventory.apply_fleet_hub_references)');
+SELECT pg_temp.expect_error($$UPDATE inventory.employee_snapshot SET display_name = 'X' WHERE false$$,
+                            '42501', 'ADR 0029: Inventory''s employee copy not writable directly (only inventory.apply_employees)');
+SET LOCAL ROLE smartspare_identity;
+SELECT pg_temp.expect_error($$SELECT inventory.apply_employees(now(), '{}', '{}', '{}', '{}', '{}')$$, '42501',
+                            'ADR 0029: only the Inventory logins may apply employee changes to Inventory''s copy');
+SET LOCAL ROLE smartspare_api;
+SELECT pg_temp.act_as('admin.smartspare');
+SELECT pg_temp.expect_error($$INSERT INTO inventory.warehouse_responsible (warehouse_id, employee_id, record_kind, assignment_role)
+                              SELECT w.id, '00000000-0000-4000-8000-000000000011', 'warehouse', 'KEEPER' FROM inventory.warehouse w WHERE w.code = 'UTN'$$,
+                            'SS301', 'ADR 0028/0029: nobody gives themselves a rights-bearing assignment, checked in the database from the employee copy');
 SET LOCAL ROLE smartspare_api;
 SELECT pg_temp.ok((SELECT count(*) = 12 AND bool_and(coalesce(pg_temp.identity_v3_iterations(password_hash), 0) >= 220000)
                    FROM iam.app_user WHERE id::text LIKE '00000000-0000-4000-8000-0000000000__' AND anonymised_at IS NULL),

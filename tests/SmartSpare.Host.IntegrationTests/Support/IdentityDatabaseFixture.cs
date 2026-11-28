@@ -56,6 +56,9 @@ public sealed class IdentityDatabaseFixture : IAsyncLifetime
             SELECT id, code, name, is_central_hub, NOT is_active, 'epoch' FROM inventory.warehouse ON CONFLICT (warehouse_id) DO NOTHING;
             INSERT INTO iam.warehouse_snapshot (warehouse_id, code, name, is_central_hub, is_archived, source_occurred_at)
             SELECT id, code, name, is_central_hub, NOT is_active, 'epoch' FROM inventory.warehouse ON CONFLICT (warehouse_id) DO NOTHING;
+            INSERT INTO inventory.employee_snapshot (employee_id, code, display_name, is_active, account_id, source_occurred_at)
+            SELECT e.id, e.code, e.full_name, NOT e.is_archived AND e.anonymised_at IS NULL, u.id, 'epoch'
+            FROM iam.employee e LEFT JOIN iam.app_user u ON u.employee_id = e.id ON CONFLICT (employee_id) DO NOTHING;
             """);
     }
 
@@ -82,6 +85,8 @@ public sealed class IdentityDatabaseFixture : IAsyncLifetime
             SELECT @id, 'E' || lpad((coalesce((SELECT max(substr(code, 2)::int) FROM iam.employee), 0) + 1)::text, 6, '0'), 'Test User', p.id
             FROM iam.position p WHERE p.code = 'T_' || upper(left(replace(@id::text, '-', ''), 12));
             INSERT INTO iam.app_user (id, employee_id, user_name, password_hash) VALUES (@id, @id, @name, @hash);
+            INSERT INTO inventory.employee_snapshot (employee_id, code, display_name, is_active, account_id, source_occurred_at)
+            SELECT e.id, e.code, e.full_name, true, @id, 'epoch' FROM iam.employee e WHERE e.id = @id;
             INSERT INTO catalog.brand_responsible (brand_id, employee_id, record_kind, assignment_role)
             SELECT b.id, @id, 'brand', 'BRAND_MANAGER' FROM catalog.brand b WHERE b.code = ANY(@brands);
             INSERT INTO iam.employee_responsibility (record_kind, record_id, employee_id, assignment_role)

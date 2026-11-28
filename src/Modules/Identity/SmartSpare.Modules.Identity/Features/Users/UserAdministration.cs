@@ -129,6 +129,7 @@ internal sealed class UserAdministration(
 
         await admin.EnterAsync(cancellationToken).ConfigureAwait(false);
         await functions.AnonymiseEmployeeAsync(employee.Value, cancellationToken).ConfigureAwait(false);
+        await Organisation.EmployeeDirectoryPublication.QueueAsync(db, unitOfWork, [employee.Value], cancellationToken).ConfigureAwait(false);
         return await reader.ReadAsync(command.Id, cancellationToken).ConfigureAwait(false);
     }
 

@@ -1759,6 +1759,68 @@ namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("SmartSpare.Modules.Inventory.Infrastructure.Persistence.EmployeeSnapshot", b =>
+                {
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("employee_id")
+                        .HasColumnOrder(0)
+                        .HasComment("Identity employee id (iam.employee.id); no cross-module FK.");
+
+                    b.Property<Guid?>("AccountId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("account_id")
+                        .HasColumnOrder(4)
+                        .HasComment("The employee's account (iam.app_user.id), if any: the actor id of the audit trail.");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("code")
+                        .HasColumnOrder(1)
+                        .HasComment("Employee number.");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("display_name")
+                        .HasColumnOrder(2)
+                        .HasComment("Display name; 'Anonymised Employee' after a GDPR erasure.");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active")
+                        .HasColumnOrder(3)
+                        .HasComment("FALSE = left or anonymised; no new assignments.");
+
+                    b.Property<DateTimeOffset>("SourceOccurredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("source_occurred_at")
+                        .HasColumnOrder(5)
+                        .HasComment("OccurredAt of the event that wrote the row; older events are ignored.");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasColumnOrder(6)
+                        .HasDefaultValueSql("now()")
+                        .HasComment("Time of the last change.");
+
+                    b.HasKey("EmployeeId")
+                        .HasName("pk_employee_snapshot");
+
+                    b.HasIndex("AccountId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_employee_snapshot_account")
+                        .HasFilter("account_id IS NOT NULL");
+
+                    b.ToTable("employee_snapshot", "inventory", t =>
+                        {
+                            t.HasComment("Read-only copy of the Identity employees, fed by EmployeeDirectoryChanged. Written only by inventory.apply_employees. Holds a display name (personal data, anonymised with the employee).");
+                        });
+                });
+
             modelBuilder.Entity("SmartSpare.Modules.Inventory.Infrastructure.Persistence.FleetHubReference", b =>
                 {
                     b.Property<string>("RecordKind")
