@@ -29,6 +29,22 @@ BEGIN
     RAISE EXCEPTION 'FAIL  %: expected SQLSTATE %, but the statement succeeded', p_label, p_state;
 END $$;
 
+-- Like expect_error, and the message must contain p_text (a guard that lists its reasons).
+CREATE OR REPLACE FUNCTION pg_temp.expect_error_containing(p_sql text, p_state text, p_text text, p_label text) RETURNS void
+LANGUAGE plpgsql AS $$
+BEGIN
+    BEGIN
+        EXECUTE p_sql;
+    EXCEPTION WHEN others THEN
+        IF SQLSTATE = p_state AND position(p_text IN SQLERRM) > 0 THEN
+            RAISE NOTICE 'PASS  %  [% %]', p_label, SQLSTATE, left(SQLERRM, 110);
+            RETURN;
+        END IF;
+        RAISE EXCEPTION 'FAIL  %: expected SQLSTATE % with "%", got % (%)', p_label, p_state, p_text, SQLSTATE, SQLERRM;
+    END;
+    RAISE EXCEPTION 'FAIL  %: expected SQLSTATE %, but the statement succeeded', p_label, p_state;
+END $$;
+
 -- Asserts that the plan of p_sql uses the index p_index (EXPLAIN, no execution).
 CREATE OR REPLACE FUNCTION pg_temp.uses_index(p_sql text, p_index text, p_label text) RETURNS void
 LANGUAGE plpgsql AS $$

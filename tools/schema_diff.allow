@@ -332,3 +332,11 @@
 +^COMMENT ON COLUMN catalog\.part\.(archived_by|is_archived) IS
 +\bcatalog\.trg_part_catalogue_guard\b
 +^IF TG_OP = 'UPDATE' AND NEW\.is_archived AND NOT OLD\.is_archived THEN IF EXISTS \(SELECT 1 FROM inventory\.stock_balance s WHERE s\.part_id = NEW\.id
+# PR 7i1 follow-up: the part archive guard lists every reason (stock, open transfers, kit holds).
++^BEGIN IF TG_OP = 'INSERT' OR NEW\.brand_id IS DISTINCT FROM OLD\.brand_id THEN
++^IF TG_OP = 'UPDATE' AND NEW\.is_archived AND NOT OLD\.is_archived THEN SELECT coalesce\(array_agg\(
++^IF cardinality\(v_reasons\) > 0 THEN RAISE EXCEPTION 'Part % cannot be archived
++^IF v_count > 0 THEN v_reasons := v_reasons \|\| format\('%s (kit hold\(s\) for service orders|open transfer\(s\))', v_count\);$
++^SELECT count\(\*\) INTO v_count FROM inventory\.stock_reservation r WHERE r\.part_id = NEW\.id
++^SELECT count\(DISTINCT t\.id\) INTO v_count FROM inventory\.transfer_order t JOIN inventory\.transfer_order_line l
++^v_count\s+bigint;$
