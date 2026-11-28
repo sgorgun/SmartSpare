@@ -56,3 +56,10 @@ The product owner prefers the runner (25 November 2026).
 | Seven EF migration bundles run by the pipeline (ADR 0004, 0009, 0015 as written) | Microsoft's documented default, and naturally per service. But a second, untested path: the bootstrap would need a separate step, the catalogue order would be encoded in YAML, and the GitHub runner would need network access to the database. |
 | Aspire's `PublishAsMigrationBundle` | Aspire is used for local development only (ADR 0009); deployment is Bicep and GitHub Actions. |
 | Migrate on application start-up | Rejected by ADR 0004: every replica would race, and the application login would need DDL rights. |
+
+## Amendment (28 November 2026): order across modules and the upgrade test
+
+- **Order across modules.** One run still applies the contexts in catalogue order. A migration listed in `DatabaseMigrator.RunsAfter` waits while the other module's migration it depends on is still pending in the same run: the other contexts go on, and the waiting one resumes as soon as that migration has been applied.
+- **Why.** Stage 7's cross-module data migration has three steps: Identity `Organisation`, then Reporting `LegacyAccessToAssignments`, then Identity `DropLegacyAccess`. Module by module, a database from v0.6.0 ran Identity's third step before Reporting's second, and the drift guard refused it. Development databases never showed this, because they applied the steps PR by PR.
+- **What stays the same.** The rule lives in the runner, so no applied migration changed. A run with `--module` is unaffected, and on a fresh database the order is exactly the catalogue order.
+- **Upgrade test.** `tools/upgrade_test.sh`, run as check step `upgrade` in CI, builds the v0.6.0 database with that release's own runner and demo data, then applies the working tree's migrations. It requires brand ids and the data that points at brands, users, parts, machines and stock to be unchanged.

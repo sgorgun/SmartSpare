@@ -10,7 +10,7 @@
 #   tools/check.sh topology        # optional: gateway + services + PostgreSQL + RabbitMQ (Docker; CI job "Topology test")
 #
 # Steps: stale-terms deploy-paths restore vulnerabilities build format duplication check-model test architecture-debug coverage coverage-all integration database
-# schema-diff coverage-combined; optional: e2e topology (they need a build first, e.g. tools/check.sh restore build e2e topology)
+# schema-diff upgrade coverage-combined; optional: e2e topology (they need a build first, e.g. tools/check.sh restore build e2e topology)
 # Everything runs in the Release configuration, like CI. Test results and coverage (XPlat Code Coverage, as in CI) go
 # to TestResults/: the unit tests' to TestResults/<run>/, the integration tests' to TestResults/integration/<run>/.
 #
@@ -190,6 +190,11 @@ step_database() { RUNNER_ARGS="--no-build --configuration $CONFIGURATION" tools/
 # tools/schema_diff.allow does not document with its reason. The normalised dumps and the diff go to artifacts/schema-diff.
 step_schema_diff() { RUNNER_ARGS="--no-build --configuration $CONFIGURATION" tools/schema_diff.sh; }
 
+# The upgrade from the stage 6 release (tools/upgrade_test.sh): v0.6.0 builds its database and demo data with its own
+# MigrationRunner, then the working tree's migrations run; brand ids and the data pointing at brands, users, parts,
+# machines and stock must not change. Fingerprints and the diff go to artifacts/upgrade.
+step_upgrade() { RUNNER_ARGS="--no-build --configuration $CONFIGURATION" tools/upgrade_test.sh; }
+
 # Optional, not part of the default run: it needs a browser. Installs Chromium through the Playwright script the build
 # produced (CI sets PLAYWRIGHT_INSTALL_ARGS=--with-deps for the system libraries), then runs the smoke test.
 # Screenshots of every step go to TestResults/e2e, plus a Playwright trace when the test fails.
@@ -221,7 +226,7 @@ report_containers() {
 }
 
 FAST=(stale-terms deploy-paths restore vulnerabilities build format duplication check-model test architecture-debug coverage coverage-all)
-ALL=("${FAST[@]}" integration database schema-diff coverage-combined)
+ALL=("${FAST[@]}" integration database schema-diff upgrade coverage-combined)
 OPTIONAL=(e2e topology)
 
 if [ $# -eq 0 ]; then
@@ -241,6 +246,6 @@ for step in "${STEPS[@]}"; do
   fi
   echo "== $step"
   "$fn"
-  case "$step" in integration | database | schema-diff | e2e | topology) report_containers ;; esac
+  case "$step" in integration | database | schema-diff | upgrade | e2e | topology) report_containers ;; esac
 done
 echo "== OK: ${STEPS[*]}"

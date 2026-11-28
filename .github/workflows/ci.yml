@@ -90,6 +90,18 @@ jobs:
         with:
           name: schema-diff
           path: artifacts/schema-diff
+
+      # The stage 6 release (v0.6.0) builds its database with demo data, then this branch's migrations run on it; brand
+      # ids and the data that points at brands must survive (STAGE_7_PLAN 3.2, tools/upgrade_test.sh).
+      - name: Upgrade from v0.6.0 with demo data
+        run: tools/check.sh upgrade
+
+      - name: Upload the upgrade fingerprints
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: upgrade
+          path: artifacts/upgrade
           if-no-files-found: ignore
 
       - name: Upload test results

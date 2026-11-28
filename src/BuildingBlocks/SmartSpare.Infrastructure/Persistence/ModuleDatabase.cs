@@ -22,6 +22,9 @@ public interface IModuleDatabase
     /// <summary>Applies all pending migrations; returns their ids in the order applied.</summary>
     Task<IReadOnlyList<string>> MigrateAsync(string connectionString, CancellationToken cancellationToken);
 
+    /// <summary>Applies the pending migrations up to and including <paramref name="targetMigration"/>.</summary>
+    Task MigrateToAsync(string connectionString, string targetMigration, CancellationToken cancellationToken);
+
     /// <summary>True if the model differs from the last migration snapshot (a migration is missing).</summary>
     bool HasPendingModelChanges();
 }
@@ -46,6 +49,13 @@ public abstract class ModuleDatabase<TContext> : IModuleDatabase
         var pending = (await context.Database.GetPendingMigrationsAsync(cancellationToken).ConfigureAwait(false)).ToList();
         await context.Database.MigrateAsync(cancellationToken).ConfigureAwait(false);
         return pending;
+    }
+
+    public async Task MigrateToAsync(string connectionString, string targetMigration, CancellationToken cancellationToken)
+    {
+        await using var context = CreateContext(connectionString);
+        await Microsoft.EntityFrameworkCore.Infrastructure.AccessorExtensions.GetService<Microsoft.EntityFrameworkCore.Migrations.IMigrator>(context)
+            .MigrateAsync(targetMigration, cancellationToken).ConfigureAwait(false);
     }
 
     public bool HasPendingModelChanges()
