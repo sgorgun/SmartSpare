@@ -266,7 +266,7 @@ Tests follow the pyramid and run in CI on every pull request.
 | Unit | xUnit + Shouldly/AwesomeAssertions | Domain: states, invariants, calculations |
 | Integration | Testcontainers (real PostgreSQL 17) + WebApplicationFactory on the single host | Endpoints, migrations, triggers, Outbox, cookie and internal-token authentication |
 | Topology | Testcontainers (PostgreSQL, RabbitMQ) + gateway and two services | Routing through the gateway, `/internal` never routed (route-table test), internal token, an event round trip over RabbitMQ |
-| Database | 137 SQL assertions + concurrency test | Stock, locking, permissions, audit, session context, schema boundaries, service-kit reservation |
+| Database | 139 SQL assertions + concurrency test | Stock, locking, permissions, audit, session context, schema boundaries, service-kit reservation |
 | Architecture | NetArchTest | Module and layer boundaries, no topology concerns in modules |
 | UI components | bUnit | Forms, validation, status display |
 | End-to-end | Playwright | UC01, UC02 on desktop and tablet |

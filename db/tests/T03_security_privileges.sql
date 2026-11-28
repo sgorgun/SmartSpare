@@ -99,6 +99,28 @@ SELECT pg_temp.expect_error(
     $$UPDATE catalog.part SET is_archived = true, archived_at = now()
       WHERE id = (SELECT part_id FROM inventory.stock_balance WHERE on_hand_qty > 0 ORDER BY part_id LIMIT 1)$$,
     'SS501', 'PR 7i1: a part with stock on hand cannot be archived, whoever writes it');
+-- PR 7i1 follow-up: every reason of the API's archive guard holds in the database too. Prepared as the owner: a part
+-- without stock on an open transfer, and a kit hold on a stocked part.
+RESET ROLE;
+INSERT INTO catalog.part (brand_id, oem_part_number, description, category_id, uom_id, unit_cost)
+SELECT b.id, 'T03-PARITY-1', 'Part on an open transfer', c.id, u.id, 1
+FROM catalog.brand b, ref.part_category c, ref.unit_of_measure u WHERE b.code = 'JD' AND c.code = 'OIL_FILTER' AND u.code = 'PCS';
+INSERT INTO inventory.transfer_order (number, from_warehouse_id, to_warehouse_id)
+SELECT 'TR-2099-990001', f.id, t.id FROM inventory.warehouse f, inventory.warehouse t WHERE f.code = 'KLP' AND t.code = 'PNV';
+INSERT INTO inventory.transfer_order_line (transfer_order_id, part_id, quantity)
+SELECT o.id, p.id, 1 FROM inventory.transfer_order o, catalog.part p WHERE o.number = 'TR-2099-990001' AND p.oem_part_number = 'T03-PARITY-1';
+INSERT INTO inventory.stock_reservation (warehouse_id, part_id, quantity, status, expires_at, service_order_line_id)
+SELECT b.warehouse_id, b.part_id, 1, 'soft', now() + interval '1 day', 990001
+FROM inventory.stock_balance b WHERE b.on_hand_qty - b.reserved_qty >= 1 ORDER BY b.part_id, b.warehouse_id LIMIT 1;
+SET LOCAL ROLE smartspare_api;
+SELECT pg_temp.act_as('ignas.zukauskas');
+SELECT pg_temp.expect_error_containing(
+    $$UPDATE catalog.part SET is_archived = true, archived_at = now() WHERE oem_part_number = 'T03-PARITY-1'$$,
+    'SS501', '1 open transfer(s)', 'PR 7i1: a part on an open transfer cannot be archived in the database either');
+SELECT pg_temp.expect_error_containing(
+    $$UPDATE catalog.part SET is_archived = true, archived_at = now()
+      WHERE id = (SELECT part_id FROM inventory.stock_reservation WHERE service_order_line_id = 990001)$$,
+    'SS501', 'kit hold(s) for service orders', 'PR 7i1: a part with a kit hold cannot be archived in the database either');
 INSERT INTO catalog.brand (code, name, country_code, is_archived, archived_at) VALUES ('T03ARCH', 'Archived brand', 'DE', true, now());
 SELECT pg_temp.expect_error(
     $$INSERT INTO catalog.part (brand_id, oem_part_number, description, category_id, uom_id, unit_cost)
