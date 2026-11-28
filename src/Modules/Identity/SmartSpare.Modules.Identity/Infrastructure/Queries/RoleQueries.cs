@@ -43,6 +43,7 @@ internal sealed class RoleQueries(IdentityDbContext db) : IQueryHandler<ListRole
                 [.. holders.Where(h => h.RoleId == r.Role.Id).Select(h => h.Code).Order(StringComparer.Ordinal)],
                 DefaultRoles.Bundles.ContainsKey(r.Role.Code),
                 DefaultRoles.Bundles.TryGetValue(r.Role.Code, out var shipped) && shipped.SetEquals(r.Role.PermissionNames),
+                r.Role.UpgradePending,
                 Versions.Format(r.Version))),
         ];
     }

@@ -41,6 +41,12 @@ internal sealed class Role : AggregateRoot<short>
 
     public bool IsArchived { get; private set; }
 
+    /// <summary>A seeded role whose permissions an administrator changed away from the shipped set (#211).</summary>
+    public bool IsCustomised { get; private set; }
+
+    /// <summary>The version whose migration granted a permission to this customised role, until an administrator confirms it (#211).</summary>
+    public string? UpgradePending { get; private set; }
+
     public IReadOnlyCollection<RolePermission> Permissions => _permissions.AsReadOnly();
 
     public IReadOnlySet<string> PermissionNames => _permissions.Select(p => p.Permission).ToHashSet(StringComparer.Ordinal);
@@ -77,6 +83,28 @@ internal sealed class Role : AggregateRoot<short>
     }
 
     public void Restore() => IsArchived = false;
+
+    /// <summary>Records whether a seeded role differs from its shipped permissions; back at the default, a pending upgrade mark is moot.</summary>
+    public void MarkCustomised(bool customised)
+    {
+        IsCustomised = customised;
+        if (!customised)
+        {
+            UpgradePending = null;
+        }
+    }
+
+    /// <summary>An administrator has seen the permissions an upgrade granted.</summary>
+    public Result ConfirmUpgrade()
+    {
+        if (UpgradePending is null)
+        {
+            return RoleErrors.NoUpgradePending;
+        }
+
+        UpgradePending = null;
+        return Result.Success();
+    }
 
     private Result<bool> Apply(string? name, string? description, IEnumerable<string> permissions, Func<string, bool> isPermission)
     {
@@ -130,6 +158,8 @@ internal static class RoleErrors
     public static readonly Error NotFound = Error.NotFound("Identity.RoleNotFound", "The role does not exist.");
 
     public static readonly Error Locked = Error.BusinessRule("Identity.RoleLocked", "This built-in role is locked: it cannot be changed or archived.");
+
+    public static readonly Error NoUpgradePending = Error.BusinessRule("Identity.NoUpgradePending", "No upgrade change of this role is waiting for confirmation.");
 
     public static readonly Error NoDefault = Error.BusinessRule("Identity.NoDefaultRole", "Only a seeded role has a default permission set to reset to.");
 

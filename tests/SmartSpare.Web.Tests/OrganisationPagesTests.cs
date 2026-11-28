@@ -169,11 +169,11 @@ public sealed class FakeOrganisationClient() : IdentityClient(new HttpClient())
     public override Task<ApiResult<List<RoleSummary>>> ListRolesAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(ApiResult.Success(new List<RoleSummary>
         {
-            new(2, AppRoles.BrandManager, "Brand manager", null, [], false, false, [], true, true, "1"),
-            new(5, AppRoles.Sponsor, "Sponsor", null, [], false, false, [], true, true, "2"),
-            new(10, "SENIOR_BRAND_MANAGER", "Senior brand manager", null, [], false, false, [], false, false, "3"),
-            new(11, "OLD_ROLE", "Old role", null, [], false, true, [], false, false, "4"),
-            new(12, AppRoles.Superadministrator, "Superadministrator", null, [], true, false, [], true, true, "5"),
+            new(2, AppRoles.BrandManager, "Brand manager", null, [], false, false, [], true, true, null, "1"),
+            new(5, AppRoles.Sponsor, "Sponsor", null, [], false, false, [], true, true, null, "2"),
+            new(10, "SENIOR_BRAND_MANAGER", "Senior brand manager", null, [], false, false, [], false, false, null, "3"),
+            new(11, "OLD_ROLE", "Old role", null, [], false, true, [], false, false, null, "4"),
+            new(12, AppRoles.Superadministrator, "Superadministrator", null, [], true, false, [], true, true, null, "5"),
         }));
 
     private static readonly EmployeeSummary Tomas = new(Guid.NewGuid(), "E0001", "Tomas Radzevičius", "tomas@dealer.example", null, 3, "COMMERCIAL_DIRECTOR",

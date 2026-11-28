@@ -239,6 +239,59 @@ public sealed class RoleApiTests(IdentityDatabaseFixture database) : IAsyncLifet
     }
 
     [Fact]
+    public async Task An_upgrade_grant_to_a_customised_seeded_role_is_audited_as_the_system_user_and_marked_until_confirmed()
+    {
+        const string Version = "v9.9.9-test";
+        var roles = await GetAsync<List<RoleSummary>>(Roles);
+        var sponsor = roles.Single(r => r.Code == AppRoles.Sponsor);
+        var shipped = DefaultRoles.Bundles[AppRoles.Sponsor];
+        try
+        {
+            using (var edited = await PutAsync(sponsor.Id, new UpdateRoleRequest(sponsor.Name, sponsor.Description,
+                       [.. shipped.Where(p => p != Permissions.Inventory.Stock.View)]), sponsor.Version, _admin))
+            {
+                edited.StatusCode.ShouldBe(HttpStatusCode.OK, await edited.Content.ReadAsStringAsync(Ct));
+            }
+
+            (await database.ScalarAsync<bool>("SELECT is_customised FROM iam.role WHERE code = 'SPONSOR'")).ShouldBeTrue("an edit away from the shipped set");
+
+            // What a later permission migration does; an unchanged seeded role only gains the permission.
+            await database.ExecuteAsync(
+                "SELECT iam.grant_default_permission('SPONSOR', 'Inventory.Stock.View', @v); SELECT iam.grant_default_permission('BRAND_MANAGER', 'Audit.Log.View', @v);",
+                ("v", Version));
+
+            (await database.ScalarAsync<long>(
+                    "SELECT count(*) FROM audit.audit_log WHERE table_name = 'iam.role_permission' AND action = 'INSERT' "
+                    + "AND new_values ->> 'permission' = 'Inventory.Stock.View' AND user_id = '00000000-0000-4000-8000-00000000f001' AND reason = @reason",
+                    ("reason", "granted by upgrade " + Version)))
+                .ShouldBe(1, "the grant is audited as the system user with the upgrade version");
+            (await database.ScalarAsync<string>("SELECT coalesce(upgrade_pending, '') FROM iam.role WHERE code = 'BRAND_MANAGER'")).ShouldBeEmpty("the brand manager role was not customised");
+
+            var marked = (await GetAsync<List<RoleSummary>>(Roles)).Single(r => r.Code == AppRoles.Sponsor);
+            marked.UpgradePending.ShouldBe(Version);
+
+            using (var confirmed = await StateAsync(marked.Id, "confirm-upgrade", marked.Version))
+            {
+                confirmed.StatusCode.ShouldBe(HttpStatusCode.OK, await confirmed.Content.ReadAsStringAsync(Ct));
+                var role = (await confirmed.Content.ReadFromJsonAsync<RoleSummary>(Ct))!;
+                role.UpgradePending.ShouldBeNull();
+                using var again = await StateAsync(role.Id, "confirm-upgrade", role.Version);
+                again.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+                (await Problem.ReadAsync(again)).Code.ShouldBe("Identity.NoUpgradePending");
+            }
+        }
+        finally
+        {
+            await database.ExecuteAsync(
+                "DELETE FROM iam.role_permission rp USING iam.role r WHERE rp.role_id = r.id AND r.code = 'BRAND_MANAGER' AND rp.permission = 'Audit.Log.View'");
+            var current = (await GetAsync<List<RoleSummary>>(Roles)).Single(r => r.Code == AppRoles.Sponsor);
+            using var back = await StateAsync(current.Id, "reset", current.Version);
+        }
+
+        (await database.ScalarAsync<bool>("SELECT is_customised FROM iam.role WHERE code = 'SPONSOR'")).ShouldBeFalse("reset to default ends the customisation");
+    }
+
+    [Fact]
     public async Task Reset_to_default_is_refused_for_a_new_role_a_locked_role_and_a_role_one_holds()
     {
         var custom = await CreateRoleAsync("_NODEFAULT", [Permissions.Inventory.Part.View]);

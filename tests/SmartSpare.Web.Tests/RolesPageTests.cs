@@ -89,6 +89,19 @@ public sealed class RolesPageTests : ClientTestContext
     }
 
     [Fact]
+    public void A_role_changed_by_an_upgrade_is_marked_until_an_administrator_confirms()
+    {
+        var page = Roles(AppRoles.Administrator);
+        page.WaitForAssertion(() => page.Find("[data-testid=role-upgraded]").TextContent.ShouldContain("Changed by upgrade v0.7.0"));
+
+        page.FindAll("[data-testid=edit-role]")[1].Click();
+        page.Find("[data-testid=role-editor-upgrade]").TextContent.ShouldContain("v0.7.0");
+        page.Find("[data-testid=confirm-upgrade]").Click();
+
+        page.WaitForAssertion(() => _identity.Confirmations.ShouldHaveSingleItem().ShouldBe(((short)4, "12")));
+    }
+
+    [Fact]
     public void A_locked_role_is_copied_into_a_new_editable_role()
     {
         var page = Roles(AppRoles.Administrator);
@@ -157,30 +170,38 @@ public sealed class FakeRolesClient() : IdentityClient(new HttpClient())
     public override Task<ApiResult<List<RoleSummary>>> ListRolesAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(ApiResult.Success(new List<RoleSummary>
         {
-            new(1, AppRoles.Administrator, "Administrator", null, [Permissions.Inventory.Part.View], true, false, ["SYSTEM_ADMINISTRATOR"], true, true, "7"),
-            new(8, "CLERK", "Clerk", null, [Permissions.Inventory.Part.View], false, false, [], false, false, "41"),
-            new(4, AppRoles.InventoryPlanner, "Inventory planner", null, [Permissions.Inventory.Part.View], false, false, [], true, false, "12"),
+            new(1, AppRoles.Administrator, "Administrator", null, [Permissions.Inventory.Part.View], true, false, ["SYSTEM_ADMINISTRATOR"], true, true, null, "7"),
+            new(8, "CLERK", "Clerk", null, [Permissions.Inventory.Part.View], false, false, [], false, false, null, "41"),
+            new(4, AppRoles.InventoryPlanner, "Inventory planner", null, [Permissions.Inventory.Part.View], false, false, [], true, false, "v0.7.0", "12"),
         }));
 
     public override Task<ApiResult<RoleSummary>> UpdateRoleAsync(short id, UpdateRoleRequest request, string version, CancellationToken cancellationToken = default)
     {
         Updates.Add((id, request, version));
-        return Task.FromResult(NextUpdate ?? ApiResult.Success(new RoleSummary(id, "CLERK", request.Name, null, request.Permissions, false, false, [], false, false, "42")));
+        return Task.FromResult(NextUpdate ?? ApiResult.Success(new RoleSummary(id, "CLERK", request.Name, null, request.Permissions, false, false, [], false, false, null, "42")));
     }
 
     public List<(short Id, string Version)> Resets { get; } = [];
+
+    public List<(short Id, string Version)> Confirmations { get; } = [];
+
+    public override Task<ApiResult<RoleSummary>> ConfirmRoleUpgradeAsync(short id, string version, CancellationToken cancellationToken = default)
+    {
+        Confirmations.Add((id, version));
+        return Task.FromResult(ApiResult.Success(new RoleSummary(id, AppRoles.InventoryPlanner, "Inventory planner", null, [], false, false, [], true, false, null, "13")));
+    }
 
     public List<(short Id, CopyRoleRequest Request)> Copies { get; } = [];
 
     public override Task<ApiResult<RoleSummary>> ResetRoleAsync(short id, string version, CancellationToken cancellationToken = default)
     {
         Resets.Add((id, version));
-        return Task.FromResult(ApiResult.Success(new RoleSummary(id, AppRoles.InventoryPlanner, "Inventory planner", null, [], false, false, [], true, true, "13")));
+        return Task.FromResult(ApiResult.Success(new RoleSummary(id, AppRoles.InventoryPlanner, "Inventory planner", null, [], false, false, [], true, true, null, "13")));
     }
 
     public override Task<ApiResult<RoleSummary>> CopyRoleAsync(short id, CopyRoleRequest request, CancellationToken cancellationToken = default)
     {
         Copies.Add((id, request));
-        return Task.FromResult(ApiResult.Success(new RoleSummary(20, request.Code, request.Name, null, [], false, false, [], false, false, "1")));
+        return Task.FromResult(ApiResult.Success(new RoleSummary(20, request.Code, request.Name, null, [], false, false, [], false, false, null, "1")));
     }
 }

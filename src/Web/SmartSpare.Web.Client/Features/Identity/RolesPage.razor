@@ -46,6 +46,14 @@
                 @(_editing.IsDefault ? Text["Roles.AtDefault"] : Text["Roles.ChangedFromDefault"])
             </MudText>
         }
+        @if (_editing.UpgradePending is not null)
+        {
+            <MudAlert Severity="Severity.Info" Class="mb-2" data-testid="role-editor-upgrade">
+                @Text["Roles.UpgradedHelp", _editing.UpgradePending]
+                <MudButton OnClick="ConfirmUpgradeAsync" Disabled="_busy" Variant="Variant.Outlined" Color="Color.Info" Size="Size.Small" Class="ml-2 touch-target"
+                           data-testid="confirm-upgrade">@Text["Roles.ConfirmUpgrade"]</MudButton>
+            </MudAlert>
+        }
         <div class="d-flex flex-wrap">
             <MudButton OnClick="SaveEditorAsync" Disabled="_busy" Variant="Variant.Filled" Color="Color.Primary" Class="mr-2 touch-target"
                        data-testid="role-editor-save">@Text["Roles.Save", _editing.Name]</MudButton>
@@ -97,6 +105,11 @@
                                 @if (role.HasDefault && !role.IsDefault)
                                 {
                                     <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Outlined" data-testid="role-modified">@Text["Roles.Modified"]</MudChip>
+                                }
+                                @if (role.UpgradePending is not null)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined" Icon="@Icons.Material.Filled.Update"
+                                             data-testid="role-upgraded">@Text["Roles.Upgraded", role.UpgradePending]</MudChip>
                                 }
                                 @if (_mayEdit && !role.IsLocked && IsChanged(role))
                                 {
@@ -288,6 +301,23 @@
 
         _editing = null;
         Snackbar.Add(Text["Roles.Saved", result.Value!.Name], Severity.Success);
+        await LoadAsync();
+    }
+
+    private async Task ConfirmUpgradeAsync()
+    {
+        var role = _editing!;
+        _busy = true;
+        var result = await Identity.ConfirmRoleUpgradeAsync(role.Id, role.Version);
+        _busy = false;
+        if (!result.IsSuccess)
+        {
+            _error = Messages.Describe(result.Problem!);
+            return;
+        }
+
+        _editing = null;
+        Snackbar.Add(Text["Roles.UpgradeConfirmed", role.Name], Severity.Success);
         await LoadAsync();
     }
 

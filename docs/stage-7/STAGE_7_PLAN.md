@@ -571,6 +571,7 @@ Effort: **S** ≈ a quarter day, **M** ≈ half a day, **L** ≈ a full day, at 
 - **Tests:**
   - **Session refresh:** a renamed position with a changed template ends its employees' sessions within 30 s, and their next sign-in carries the new roles.
   - **Matrix:** an edit of the planner role followed by "Reset to default" gives exactly the golden matrix.
+- **Upgrade grants (#211, follow-up PR):** a permission migration calls `iam.grant_default_permission`, which audits the grant as the system user ("granted by upgrade <version>") and marks a customised seeded role "Changed by upgrade" until an administrator confirms it. 7i1 is the first migration that uses it.
 
 **As built, 7h4 (closes #161):**
 - **Manufacturer responsibles:** `catalog.manufacturer_responsible` is the third record kind of the shared responsibles pattern (3.7), alongside brands and warehouses. It is audited, with `GET/PUT /manufacturers/{id}/responsibles`, and the responsibles panel appears in the manufacturer editor.

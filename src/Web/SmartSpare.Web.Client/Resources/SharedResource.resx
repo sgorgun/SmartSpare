@@ -519,6 +519,18 @@
   <data name="Positions.Locked" xml:space="preserve">
     <value>Built in, locked</value>
   </data>
+  <data name="Roles.Upgraded" xml:space="preserve">
+    <value>Changed by upgrade {0}</value>
+  </data>
+  <data name="Roles.UpgradedHelp" xml:space="preserve">
+    <value>Upgrade {0} granted this role a new permission although its permissions had been changed here. Check the ticks in the matrix, then confirm.</value>
+  </data>
+  <data name="Roles.ConfirmUpgrade" xml:space="preserve">
+    <value>Confirm</value>
+  </data>
+  <data name="Roles.UpgradeConfirmed" xml:space="preserve">
+    <value>The upgrade change of {0} is confirmed.</value>
+  </data>
   <data name="Roles.Close" xml:space="preserve">
     <value>Close</value>
   </data>
