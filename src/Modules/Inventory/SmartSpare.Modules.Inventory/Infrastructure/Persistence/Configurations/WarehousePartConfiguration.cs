@@ -30,7 +30,7 @@ internal sealed class WarehousePartConfiguration : IEntityTypeConfiguration<Ware
         // PostgreSQL's xmin system column as the concurrency token (no DDL; STAGE_3_PLAN section 7).
         builder.Property<uint>("xmin").IsRowVersion();
 
-        builder.HasOne<Part>().WithMany()
+        builder.HasOne<Domain.Catalog.Part>().WithMany()
             .HasForeignKey(x => x.PartId)
             .HasPrincipalKey(x => x.Id)
             .HasConstraintName("fk_warehouse_part_part").OnDelete(DeleteBehavior.Restrict);

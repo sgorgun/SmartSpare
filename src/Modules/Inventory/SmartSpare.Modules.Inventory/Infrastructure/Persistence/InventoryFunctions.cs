@@ -57,7 +57,7 @@ internal sealed class ImportStore(InventoryDbContext db)
               JOIN catalog.brand b ON b.id = p.brand_id
               JOIN ref.part_category c ON c.id = p.category_id
               JOIN ref.unit_of_measure u ON u.id = p.uom_id
-              WHERE p.is_active
+              WHERE NOT p.is_archived
               ORDER BY b.code, p.oem_part_number
               """
             : """

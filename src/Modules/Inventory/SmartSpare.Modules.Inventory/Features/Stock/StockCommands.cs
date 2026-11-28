@@ -150,7 +150,7 @@ internal sealed class AdjustStockCommandHandler(
             return InventoryErrors.ReasonNotFound;
         }
 
-        var unitCost = await db.Set<Part>().AsNoTracking().Where(p => p.Id == command.PartId).Select(p => p.UnitCost)
+        var unitCost = await db.Set<Domain.Catalog.Part>().AsNoTracking().Where(p => p.Id == command.PartId).Select(p => p.UnitCost)
             .SingleAsync(cancellationToken).ConfigureAwait(false);
         var movement = StockMovement.Adjust(
             command.WarehouseId, command.PartId, command.Quantity, unitCost, reason, command.Note,

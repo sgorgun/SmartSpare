@@ -43,7 +43,7 @@
         var index = i;
         <MudGrid Spacing="2" Class="mb-1" data-testid="transfer-line">
             <MudItem xs="12" sm="7">
-                <MudAutocomplete T="PartSummary" @bind-Value="line.Part" SearchFunc="SearchPartsAsync" ToStringFunc="Describe"
+                <MudAutocomplete T="PartDto" @bind-Value="line.Part" SearchFunc="SearchPartsAsync" ToStringFunc="Describe"
                                  Label="@Text["Transfer.Part"]" Variant="Variant.Outlined" Margin="Margin.Dense" DebounceInterval="300"
                                  MinCharacters="2" ResetValueOnEmptyText="true" data-testid="@($"line-part-{index}")" />
             </MudItem>
@@ -98,13 +98,13 @@
         }
     }
 
-    private async Task<IEnumerable<PartSummary>> SearchPartsAsync(string? text, CancellationToken cancellationToken)
+    private async Task<IEnumerable<PartDto>> SearchPartsAsync(string? text, CancellationToken cancellationToken)
     {
         var result = await Inventory.SearchPartsAsync(text, 1, 10, cancellationToken);
         return result.IsSuccess ? result.Value!.Items : [];
     }
 
-    private static string Describe(PartSummary? part) => part is null ? string.Empty : $"{part.OemPartNumber} · {part.BrandCode} · {part.Description}";
+    private static string Describe(PartDto? part) => part is null ? string.Empty : $"{part.OemPartNumber} · {part.BrandCode} · {part.Description}";
 
     private async Task SubmitAsync()
     {
@@ -138,7 +138,7 @@
 
     private sealed class LineInput
     {
-        public PartSummary? Part { get; set; }
+        public PartDto? Part { get; set; }
 
         public decimal Quantity { get; set; } = 1;
     }

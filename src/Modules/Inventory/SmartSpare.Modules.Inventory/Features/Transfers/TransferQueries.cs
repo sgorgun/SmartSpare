@@ -44,7 +44,7 @@ internal sealed class TransferAccess(
     {
         ArgumentNullException.ThrowIfNull(order);
         var partIds = order.PartIds.ToArray();
-        var brands = await db.Set<Part>().AsNoTracking().Where(p => partIds.Contains(p.Id)).Select(p => p.BrandId).Distinct()
+        var brands = await db.Set<Domain.Catalog.Part>().AsNoTracking().Where(p => partIds.Contains(p.Id)).Select(p => p.BrandId).Distinct()
             .ToListAsync(cancellationToken).ConfigureAwait(false);
         return new TransferBrands(brands.ToHashSet());
     }

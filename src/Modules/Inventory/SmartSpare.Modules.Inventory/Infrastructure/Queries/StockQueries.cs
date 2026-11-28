@@ -14,7 +14,6 @@ using SmartSpare.Modules.Inventory.Domain.Transfers;
 using SmartSpare.Modules.Inventory.Features.GetPart;
 using SmartSpare.Modules.Inventory.Features.Imports;
 using SmartSpare.Modules.Inventory.Features.ListWarehouses;
-using SmartSpare.Modules.Inventory.Features.SearchParts;
 using SmartSpare.Modules.Inventory.Features.Stock;
 using SmartSpare.Modules.Inventory.Features.Transfers;
 using SmartSpare.Modules.Inventory.Infrastructure.Persistence;

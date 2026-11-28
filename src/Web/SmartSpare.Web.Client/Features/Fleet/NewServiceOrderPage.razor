@@ -57,7 +57,7 @@
         {
             <div class="d-flex flex-wrap align-end mt-2 gap-2">
                 <div class="flex-grow-1" style="min-width: 240px">
-                    <MudAutocomplete T="PartSummary" @bind-Value="_part" SearchFunc="SearchPartsAsync"
+                    <MudAutocomplete T="PartDto" @bind-Value="_part" SearchFunc="SearchPartsAsync"
                                      ToStringFunc="@(p => p is null ? string.Empty : $"{p.BrandCode} {p.OemPartNumber} · {p.Description}")"
                                      Label="@Text["NewOrder.Part"]" Variant="Variant.Outlined" DebounceInterval="300" MinCharacters="2"
                                      InputMode="InputMode.search" data-testid="new-part" />
@@ -106,12 +106,12 @@
     /// <summary>Opens the numeric keypad with a decimal separator on phones and tablets.</summary>
     private const InputMode DecimalInput = InputMode.@decimal;
 
-    private readonly List<(PartSummary Part, decimal Quantity)> _lines = [];
+    private readonly List<(PartDto Part, decimal Quantity)> _lines = [];
     private MachineSummary? _machineSummary;
     private MachineDetails? _machine;
     private bool _repair;
     private int? _planId;
-    private PartSummary? _part;
+    private PartDto? _part;
     private string? _quantity = "1";
     private string? _problem;
     private bool _busy;
@@ -147,7 +147,7 @@
         return result.IsSuccess ? result.Value!.Items : [];
     }
 
-    private async Task<IEnumerable<PartSummary>> SearchPartsAsync(string? text, CancellationToken cancellationToken)
+    private async Task<IEnumerable<PartDto>> SearchPartsAsync(string? text, CancellationToken cancellationToken)
     {
         var result = await Inventory.SearchPartsAsync(text, 1, 10, cancellationToken);
         return result.IsSuccess ? result.Value!.Items : [];

@@ -346,6 +346,206 @@ namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("SmartSpare.Modules.Inventory.Domain.Catalog.Part", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id")
+                        .HasColumnOrder(0)
+                        .HasComment("Surrogate primary key.");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTimeOffset?>("ArchivedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("archived_at")
+                        .HasColumnOrder(14);
+
+                    b.Property<Guid?>("ArchivedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("archived_by")
+                        .HasColumnOrder(15)
+                        .HasComment("User who archived the record (iam.app_user).");
+
+                    b.Property<short>("BrandId")
+                        .HasColumnType("smallint")
+                        .HasColumnName("brand_id")
+                        .HasColumnOrder(1)
+                        .HasComment("Reference to catalog.brand.");
+
+                    b.Property<int>("CategoryId")
+                        .HasColumnType("integer")
+                        .HasColumnName("category_id")
+                        .HasColumnOrder(4)
+                        .HasComment("Reference to ref.part_category.");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("oem_part_number")
+                        .HasColumnOrder(2)
+                        .HasComment("Manufacturer part number, upper-case, normalised during import.");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasColumnOrder(10)
+                        .HasDefaultValueSql("now()")
+                        .HasComment("Time the record was created.");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_archived")
+                        .HasColumnOrder(13)
+                        .HasDefaultValueSql("false")
+                        .HasComment("Archived instead of deleted: kept on history, cannot be chosen (SS500).");
+
+                    b.Property<bool>("IsConditionBased")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_condition_based")
+                        .HasColumnOrder(8)
+                        .HasDefaultValueSql("false")
+                        .HasComment("TRUE for parts replaced \"as required\" (air/cab filters, finding F6): demand only from the forecast stream.");
+
+                    b.Property<short?>("ManufacturerId")
+                        .HasColumnType("smallint")
+                        .HasColumnName("manufacturer_id")
+                        .HasColumnOrder(12)
+                        .HasComment("Maker of the part (catalog.manufacturer), if known.");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("description")
+                        .HasColumnOrder(3)
+                        .HasComment("Description.");
+
+                    b.Property<decimal>("UnitCost")
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("unit_cost")
+                        .HasColumnOrder(7)
+                        .HasComment("Standard (valuation) cost per unit, EUR. Money is numeric, never float.");
+
+                    b.Property<short>("UomId")
+                        .HasColumnType("smallint")
+                        .HasColumnName("uom_id")
+                        .HasColumnOrder(5)
+                        .HasComment("Reference to ref.unit_of_measure.");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasColumnOrder(11)
+                        .HasDefaultValueSql("now()")
+                        .HasComment("Time of the last change (maintained by trigger).");
+
+                    b.Property<decimal?>("WeightKg")
+                        .HasColumnType("numeric(9,3)")
+                        .HasColumnName("weight_kg")
+                        .HasColumnOrder(6);
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id")
+                        .HasName("pk_part");
+
+                    b.HasAlternateKey("BrandId", "Code")
+                        .HasName("uq_part_brand_oem");
+
+                    b.HasIndex("CategoryId")
+                        .HasDatabaseName("ix_part_category");
+
+                    b.HasIndex("Code")
+                        .HasDatabaseName("ix_part_oem_number_trgm");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Code"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Code"), new[] { "gin_trgm_ops" });
+
+                    b.HasIndex("ManufacturerId")
+                        .HasDatabaseName("ix_part_manufacturer");
+
+                    b.HasIndex("Name")
+                        .HasDatabaseName("ix_part_description_trgm");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Name"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Name"), new[] { "gin_trgm_ops" });
+
+                    b.HasIndex("UomId")
+                        .HasDatabaseName("ix_part_uom");
+
+                    b.ToTable("part", "catalog", t =>
+                        {
+                            t.HasComment("Spare part (SKU) catalogue; natural key = brand + OEM part number.");
+
+                            t.HasCheckConstraint("ck_part_archived", "((is_archived AND (archived_at IS NOT NULL)) OR ((NOT is_archived) AND (archived_at IS NULL)))");
+
+                            t.HasCheckConstraint("ck_part_description", "(length(btrim((description)::text)) >= 3)");
+
+                            t.HasCheckConstraint("ck_part_oem_number", "((oem_part_number)::text ~ '^[A-Z0-9][A-Z0-9.\\-/]{2,39}$'::text)");
+
+                            t.HasCheckConstraint("ck_part_unit_cost", "(unit_cost >= (0)::numeric)");
+
+                            t.HasCheckConstraint("ck_part_weight", "((weight_kg IS NULL) OR (weight_kg >= (0)::numeric))");
+                        });
+                });
+
+            modelBuilder.Entity("SmartSpare.Modules.Inventory.Domain.Catalog.PartCategory", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("code");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("name");
+
+                    b.HasKey("Id")
+                        .HasName("pk_part_category");
+
+                    b.ToTable("part_category", "ref", t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
+                });
+
+            modelBuilder.Entity("SmartSpare.Modules.Inventory.Domain.Catalog.UnitOfMeasure", b =>
+                {
+                    b.Property<short>("Id")
+                        .HasColumnType("smallint")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("code");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("name");
+
+                    b.HasKey("Id")
+                        .HasName("pk_unit_of_measure");
+
+                    b.ToTable("unit_of_measure", "ref", t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
+                });
+
             modelBuilder.Entity("SmartSpare.Modules.Inventory.Domain.Responsibilities.BrandResponsible", b =>
                 {
                     b.Property<long>("Id")
@@ -1558,138 +1758,6 @@ namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("SmartSpare.Modules.Inventory.Infrastructure.Persistence.Part", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint")
-                        .HasColumnName("id")
-                        .HasColumnOrder(0)
-                        .HasComment("Surrogate primary key.");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
-
-                    b.Property<short>("BrandId")
-                        .HasColumnType("smallint")
-                        .HasColumnName("brand_id")
-                        .HasColumnOrder(1)
-                        .HasComment("Reference to catalog.brand.");
-
-                    b.Property<int>("CategoryId")
-                        .HasColumnType("integer")
-                        .HasColumnName("category_id")
-                        .HasColumnOrder(4)
-                        .HasComment("Reference to ref.part_category.");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at")
-                        .HasColumnOrder(10)
-                        .HasDefaultValueSql("now()")
-                        .HasComment("Time the record was created.");
-
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasColumnType("character varying(300)")
-                        .HasColumnName("description")
-                        .HasColumnOrder(3)
-                        .HasComment("Description.");
-
-                    b.Property<bool>("IsActive")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasColumnName("is_active")
-                        .HasColumnOrder(9)
-                        .HasDefaultValueSql("true")
-                        .HasComment("FALSE = deactivated, kept for history.");
-
-                    b.Property<bool>("IsConditionBased")
-                        .HasColumnType("boolean")
-                        .HasColumnName("is_condition_based")
-                        .HasColumnOrder(8)
-                        .HasDefaultValueSql("false")
-                        .HasComment("TRUE for parts replaced \"as required\" (air/cab filters, finding F6): demand only from the forecast stream.");
-
-                    b.Property<short?>("ManufacturerId")
-                        .HasColumnType("smallint")
-                        .HasColumnName("manufacturer_id")
-                        .HasColumnOrder(12)
-                        .HasComment("Maker of the part (catalog.manufacturer), if known.");
-
-                    b.Property<string>("OemPartNumber")
-                        .IsRequired()
-                        .HasColumnType("character varying(40)")
-                        .HasColumnName("oem_part_number")
-                        .HasColumnOrder(2)
-                        .HasComment("Manufacturer part number, upper-case, normalised during import.");
-
-                    b.Property<decimal>("UnitCost")
-                        .HasColumnType("numeric(12,2)")
-                        .HasColumnName("unit_cost")
-                        .HasColumnOrder(7)
-                        .HasComment("Standard (valuation) cost per unit, EUR. Money is numeric, never float.");
-
-                    b.Property<short>("UomId")
-                        .HasColumnType("smallint")
-                        .HasColumnName("uom_id")
-                        .HasColumnOrder(5)
-                        .HasComment("Reference to ref.unit_of_measure.");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at")
-                        .HasColumnOrder(11)
-                        .HasDefaultValueSql("now()")
-                        .HasComment("Time of the last change (maintained by trigger).");
-
-                    b.Property<decimal?>("WeightKg")
-                        .HasColumnType("numeric(9,3)")
-                        .HasColumnName("weight_kg")
-                        .HasColumnOrder(6);
-
-                    b.HasKey("Id")
-                        .HasName("pk_part");
-
-                    b.HasAlternateKey("BrandId", "OemPartNumber")
-                        .HasName("uq_part_brand_oem");
-
-                    b.HasIndex("CategoryId")
-                        .HasDatabaseName("ix_part_category");
-
-                    b.HasIndex("Description")
-                        .HasDatabaseName("ix_part_description_trgm");
-
-                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Description"), "gin");
-                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Description"), new[] { "gin_trgm_ops" });
-
-                    b.HasIndex("ManufacturerId")
-                        .HasDatabaseName("ix_part_manufacturer");
-
-                    b.HasIndex("OemPartNumber")
-                        .HasDatabaseName("ix_part_oem_number_trgm");
-
-                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("OemPartNumber"), "gin");
-                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("OemPartNumber"), new[] { "gin_trgm_ops" });
-
-                    b.HasIndex("UomId")
-                        .HasDatabaseName("ix_part_uom");
-
-                    b.ToTable("part", "catalog", t =>
-                        {
-                            t.HasComment("Spare part (SKU) catalogue; natural key = brand + OEM part number.");
-
-                            t.HasCheckConstraint("ck_part_description", "(length(btrim((description)::text)) >= 3)");
-
-                            t.HasCheckConstraint("ck_part_oem_number", "((oem_part_number)::text ~ '^[A-Z0-9][A-Z0-9.\\-/]{2,39}$'::text)");
-
-                            t.HasCheckConstraint("ck_part_unit_cost", "(unit_cost >= (0)::numeric)");
-
-                            t.HasCheckConstraint("ck_part_weight", "((weight_kg IS NULL) OR (weight_kg >= (0)::numeric))");
-                        });
-                });
-
             modelBuilder.Entity("SmartSpare.Modules.Inventory.Infrastructure.Persistence.PartAnalogue", b =>
                 {
                     b.Property<long>("PartId")
@@ -1922,36 +1990,6 @@ namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("SmartSpare.Modules.Inventory.Infrastructure.Persistence.RefPartCategory", b =>
-                {
-                    b.Property<int>("Id")
-                        .HasColumnType("integer")
-                        .HasColumnName("id");
-
-                    b.HasKey("Id")
-                        .HasName("pk_part_category");
-
-                    b.ToTable("part_category", "ref", t =>
-                        {
-                            t.ExcludeFromMigrations();
-                        });
-                });
-
-            modelBuilder.Entity("SmartSpare.Modules.Inventory.Infrastructure.Persistence.RefUnitOfMeasure", b =>
-                {
-                    b.Property<short>("Id")
-                        .HasColumnType("smallint")
-                        .HasColumnName("id");
-
-                    b.HasKey("Id")
-                        .HasName("pk_unit_of_measure");
-
-                    b.ToTable("unit_of_measure", "ref", t =>
-                        {
-                            t.ExcludeFromMigrations();
-                        });
-                });
-
             modelBuilder.Entity("SmartSpare.Modules.Inventory.Infrastructure.Persistence.Warehouse", b =>
                 {
                     b.Property<short>("Id")
@@ -2095,6 +2133,44 @@ namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("SmartSpare.Modules.Inventory.Domain.Catalog.Part", b =>
+                {
+                    b.HasOne("SmartSpare.Modules.Inventory.Domain.Catalog.Brand", "Brand")
+                        .WithMany()
+                        .HasForeignKey("BrandId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("fk_part_brand");
+
+                    b.HasOne("SmartSpare.Modules.Inventory.Domain.Catalog.PartCategory", "Category")
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("fk_part_category");
+
+                    b.HasOne("SmartSpare.Modules.Inventory.Domain.Catalog.Manufacturer", "Manufacturer")
+                        .WithMany()
+                        .HasForeignKey("ManufacturerId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .HasConstraintName("fk_part_manufacturer");
+
+                    b.HasOne("SmartSpare.Modules.Inventory.Domain.Catalog.UnitOfMeasure", "Unit")
+                        .WithMany()
+                        .HasForeignKey("UomId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("fk_part_uom");
+
+                    b.Navigation("Brand");
+
+                    b.Navigation("Category");
+
+                    b.Navigation("Manufacturer");
+
+                    b.Navigation("Unit");
+                });
+
             modelBuilder.Entity("SmartSpare.Modules.Inventory.Domain.Responsibilities.BrandResponsible", b =>
                 {
                     b.HasOne("SmartSpare.Modules.Inventory.Domain.Catalog.Brand", null)
@@ -2171,7 +2247,7 @@ namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("SmartSpare.Modules.Inventory.Domain.Stock.WarehousePart", b =>
                 {
-                    b.HasOne("SmartSpare.Modules.Inventory.Infrastructure.Persistence.Part", null)
+                    b.HasOne("SmartSpare.Modules.Inventory.Domain.Catalog.Part", null)
                         .WithMany()
                         .HasForeignKey("PartId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -2198,7 +2274,7 @@ namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("SmartSpare.Modules.Inventory.Domain.Transfers.TransferOrderLine", b =>
                 {
-                    b.HasOne("SmartSpare.Modules.Inventory.Infrastructure.Persistence.Part", null)
+                    b.HasOne("SmartSpare.Modules.Inventory.Domain.Catalog.Part", null)
                         .WithMany()
                         .HasForeignKey("PartId")
                         .OnDelete(DeleteBehavior.NoAction)
@@ -2253,46 +2329,16 @@ namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Migrations
                         .HasConstraintName("fk_import_error_batch");
                 });
 
-            modelBuilder.Entity("SmartSpare.Modules.Inventory.Infrastructure.Persistence.Part", b =>
-                {
-                    b.HasOne("SmartSpare.Modules.Inventory.Domain.Catalog.Brand", null)
-                        .WithMany()
-                        .HasForeignKey("BrandId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired()
-                        .HasConstraintName("fk_part_brand");
-
-                    b.HasOne("SmartSpare.Modules.Inventory.Infrastructure.Persistence.RefPartCategory", null)
-                        .WithMany()
-                        .HasForeignKey("CategoryId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired()
-                        .HasConstraintName("fk_part_category");
-
-                    b.HasOne("SmartSpare.Modules.Inventory.Domain.Catalog.Manufacturer", null)
-                        .WithMany()
-                        .HasForeignKey("ManufacturerId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .HasConstraintName("fk_part_manufacturer");
-
-                    b.HasOne("SmartSpare.Modules.Inventory.Infrastructure.Persistence.RefUnitOfMeasure", null)
-                        .WithMany()
-                        .HasForeignKey("UomId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired()
-                        .HasConstraintName("fk_part_uom");
-                });
-
             modelBuilder.Entity("SmartSpare.Modules.Inventory.Infrastructure.Persistence.PartAnalogue", b =>
                 {
-                    b.HasOne("SmartSpare.Modules.Inventory.Infrastructure.Persistence.Part", null)
+                    b.HasOne("SmartSpare.Modules.Inventory.Domain.Catalog.Part", null)
                         .WithMany()
                         .HasForeignKey("AnaloguePartId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_part_analogue_analogue");
 
-                    b.HasOne("SmartSpare.Modules.Inventory.Infrastructure.Persistence.Part", null)
+                    b.HasOne("SmartSpare.Modules.Inventory.Domain.Catalog.Part", null)
                         .WithMany()
                         .HasForeignKey("PartId")
                         .OnDelete(DeleteBehavior.Cascade)

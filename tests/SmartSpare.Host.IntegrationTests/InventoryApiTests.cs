@@ -119,19 +119,17 @@ public sealed class InventoryApiTests(IdentityDatabaseFixture database) : IAsync
     }
 
     [Theory]
-    [InlineData("?pageSize=500", "PageSize")]
-    [InlineData("?pageSize=0", "PageSize")]
-    [InlineData("?page=0", "Page")]
-    public async Task Invalid_paging_is_a_validation_problem(string query, string field)
+    [InlineData("?pageSize=500")]
+    [InlineData("?pageSize=0")]
+    [InlineData("?page=0")]
+    public async Task Invalid_paging_is_a_validation_problem(string query)
     {
         using var browser = _host.NewBrowser();
 
         using var response = await browser.GetAsync($"/api/v1/inventory/parts{query}", bearer: _host.Token(Planner.Principal()));
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
-        (await Problem.ReadAsync(response)).Code.ShouldBe("Validation");
-        var body = await response.Content.ReadFromJsonAsync<ValidationBody>(Ct);
-        body!.Errors.ShouldContainKey(field);
+        (await Problem.ReadAsync(response)).Code.ShouldBe("Catalog.InvalidPaging", "the parts list is the shared catalogue list (PR 7i1)");
     }
 
     [Theory]
@@ -165,8 +163,8 @@ public sealed class InventoryApiTests(IdentityDatabaseFixture database) : IAsync
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    private Task<PagedResponse<PartSummary>> SearchAsync(string query) =>
-        GetAsync<PagedResponse<PartSummary>>("/api/v1/inventory/parts" + query);
+    private Task<PagedResponse<PartDto>> SearchAsync(string query) =>
+        GetAsync<PagedResponse<PartDto>>("/api/v1/inventory/parts" + query);
 
     private async Task<T> GetAsync<T>(string path)
     {
@@ -179,8 +177,8 @@ public sealed class InventoryApiTests(IdentityDatabaseFixture database) : IAsync
     private Task<long> AddPartAsync(string oemPartNumber, string description, bool active = true) =>
         database.ScalarAsync<long>(
             """
-            INSERT INTO catalog.part (brand_id, oem_part_number, description, category_id, uom_id, unit_cost, is_active)
-            SELECT b.id, @oem, @description, c.id, u.id, 18.40, @active
+            INSERT INTO catalog.part (brand_id, oem_part_number, description, category_id, uom_id, unit_cost, is_archived, archived_at)
+            SELECT b.id, @oem, @description, c.id, u.id, 18.40, NOT @active, CASE WHEN @active THEN NULL ELSE now() END
             FROM catalog.brand b, ref.part_category c, ref.unit_of_measure u
             WHERE b.code = 'JD' AND c.code = 'OIL_FILTER' AND u.code = 'PCS'
             RETURNING id
@@ -199,5 +197,4 @@ public sealed class InventoryApiTests(IdentityDatabaseFixture database) : IAsync
             """,
             ("part", partId), ("warehouse", warehouseCode), ("quantity", quantity));
 
-    private sealed record ValidationBody(Dictionary<string, string[]> Errors);
 }

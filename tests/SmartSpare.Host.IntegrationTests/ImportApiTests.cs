@@ -53,7 +53,7 @@ public sealed class ImportApiTests(IdentityDatabaseFixture database) : IAsyncLif
         details.Batch.UploadedBy.ShouldBe(Planner.Id);
         response.Headers.Location!.ToString().ShouldEndWith($"/api/v1/inventory/imports/{details.Batch.Id}");
 
-        var parts = await GetAsync<PagedResponse<PartSummary>>($"/api/v1/inventory/parts?search={_tag}");
+        var parts = await GetAsync<PagedResponse<PartDto>>($"/api/v1/inventory/parts?search={_tag}");
         parts.Items.Select(p => p.OemPartNumber).ShouldBe([$"{_tag}-001", $"{_tag}-002"], "normalised to upper case without spaces");
     }
 
@@ -147,7 +147,7 @@ public sealed class ImportApiTests(IdentityDatabaseFixture database) : IAsyncLif
         details.Batch.Message.ShouldNotBeNull().ShouldContain("nothing loaded");
         details.Errors.Select(e => (e.LineNo, e.Column, e.Code)).ShouldBe([(3, "brand_code", "UNKNOWN_REF"), (4, "unit_cost", "TYPE")]);
         details.ErrorCount.ShouldBe(2);
-        (await GetAsync<PagedResponse<PartSummary>>($"/api/v1/inventory/parts?search={_tag}-10")).TotalCount.ShouldBe(0);
+        (await GetAsync<PagedResponse<PartDto>>($"/api/v1/inventory/parts?search={_tag}-10")).TotalCount.ShouldBe(0);
 
         var again = await GetAsync<ImportBatchDetails>($"/api/v1/inventory/imports/{details.Batch.Id}");
         again.ShouldBeEquivalentTo(details);
@@ -195,7 +195,7 @@ public sealed class ImportApiTests(IdentityDatabaseFixture database) : IAsyncLif
         using var preview = await UploadAsync(Planner, ImportSources.PartCatalog, file, dryRun: true);
         preview.StatusCode.ShouldBe(HttpStatusCode.OK, await preview.Content.ReadAsStringAsync(Ct));
         var dry = (await preview.Content.ReadFromJsonAsync<ImportBatchDetails>(Ct))!;
-        (await GetAsync<PagedResponse<PartSummary>>($"/api/v1/inventory/parts?search={_tag}-30")).TotalCount.ShouldBe(0, "rolled back");
+        (await GetAsync<PagedResponse<PartDto>>($"/api/v1/inventory/parts?search={_tag}-30")).TotalCount.ShouldBe(0, "rolled back");
         (await GetAsync<PagedResponse<ImportBatchResponse>>("/api/v1/inventory/imports?pageSize=100")).Items.ShouldNotContain(b => b.FileName == $"{_tag}.csv");
 
         using var real = await UploadAsync(Planner, ImportSources.PartCatalog, file);
@@ -204,7 +204,7 @@ public sealed class ImportApiTests(IdentityDatabaseFixture database) : IAsyncLif
         (done.Batch.Status, done.Batch.TotalRows, done.Batch.ValidRows, done.Batch.ErrorRows, done.Batch.LoadedRows, done.ErrorCount)
             .ShouldBe((dry.Batch.Status, dry.Batch.TotalRows, dry.Batch.ValidRows, dry.Batch.ErrorRows, dry.Batch.LoadedRows, dry.ErrorCount),
                 "the preview is the commit's report");
-        (await GetAsync<PagedResponse<PartSummary>>($"/api/v1/inventory/parts?search={_tag}-30")).TotalCount.ShouldBe(2);
+        (await GetAsync<PagedResponse<PartDto>>($"/api/v1/inventory/parts?search={_tag}-30")).TotalCount.ShouldBe(2);
     }
 
     [Fact]

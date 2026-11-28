@@ -23,11 +23,11 @@ internal sealed class PartAnalogueConfiguration : IEntityTypeConfiguration<PartA
         builder.Property(x => x.ValidFrom).HasColumnName("valid_from").HasColumnOrder(3).HasColumnType("date").HasDefaultValueSql("CURRENT_DATE");
         builder.Property(x => x.CreatedAt).HasColumnName("created_at").HasColumnOrder(4).HasColumnType("timestamp with time zone").HasDefaultValueSql("now()").HasComment("Time the record was created.");
 
-        builder.HasOne<Part>().WithMany()
+        builder.HasOne<Domain.Catalog.Part>().WithMany()
             .HasForeignKey(x => x.AnaloguePartId)
             .HasPrincipalKey(x => x.Id)
             .HasConstraintName("fk_part_analogue_analogue").OnDelete(DeleteBehavior.Restrict);
-        builder.HasOne<Part>().WithMany()
+        builder.HasOne<Domain.Catalog.Part>().WithMany()
             .HasForeignKey(x => x.PartId)
             .HasPrincipalKey(x => x.Id)
             .HasConstraintName("fk_part_analogue_part").OnDelete(DeleteBehavior.Cascade);

@@ -12,7 +12,7 @@ internal static class PartCatalogSnapshots
 {
     private const string Select =
         """
-        SELECT p.id AS part_id, b.code AS brand_code, p.oem_part_number, p.description, u.code AS unit_of_measure, p.is_active
+        SELECT p.id AS part_id, b.code AS brand_code, p.oem_part_number, p.description, u.code AS unit_of_measure, NOT p.is_archived AS is_active
         FROM catalog.part p
         JOIN catalog.brand b ON b.id = p.brand_id
         JOIN ref.unit_of_measure u ON u.id = p.uom_id
@@ -34,6 +34,11 @@ internal static class PartCatalogSnapshots
                                 AND s.brand_id = p.brand_id AND s.oem_part_number = p.oem_part_number)
                 ORDER BY p.id
                 """, batchId)
+            .ToListAsync(cancellationToken).ConfigureAwait(false);
+
+    /// <summary>The given parts after a catalogue write (PR 7i1), read in the write's transaction.</summary>
+    public static async Task<IReadOnlyList<PartSnapshot>> ByIdsAsync(InventoryDbContext db, IReadOnlyCollection<long> ids, CancellationToken cancellationToken) =>
+        await db.Database.SqlQueryRaw<PartSnapshot>(Select + "WHERE p.id = ANY({0}) ORDER BY p.id", ids.ToArray())
             .ToListAsync(cancellationToken).ConfigureAwait(false);
 
     /// <summary>The whole catalogue, in part id order.</summary>
