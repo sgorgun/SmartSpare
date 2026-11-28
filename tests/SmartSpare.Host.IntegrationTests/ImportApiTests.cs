@@ -186,6 +186,54 @@ public sealed class ImportApiTests(IdentityDatabaseFixture database) : IAsyncLif
     }
 
     [Fact]
+    public async Task A_dry_run_reports_what_the_import_does_and_keeps_nothing()
+    {
+        var file = CatalogHeader + "\n"
+            + $"JD,{_tag}-301,Dry run filter,OIL_FILTER,PCS,0.45,18.40,no\n"
+            + $"JD,{_tag}-302,Dry run seal kit,OIL_FILTER,PCS,,7.10,yes\n";
+
+        using var preview = await UploadAsync(Planner, ImportSources.PartCatalog, file, dryRun: true);
+        preview.StatusCode.ShouldBe(HttpStatusCode.OK, await preview.Content.ReadAsStringAsync(Ct));
+        var dry = (await preview.Content.ReadFromJsonAsync<ImportBatchDetails>(Ct))!;
+        (await GetAsync<PagedResponse<PartSummary>>($"/api/v1/inventory/parts?search={_tag}-30")).TotalCount.ShouldBe(0, "rolled back");
+        (await GetAsync<PagedResponse<ImportBatchResponse>>("/api/v1/inventory/imports?pageSize=100")).Items.ShouldNotContain(b => b.FileName == $"{_tag}.csv");
+
+        using var real = await UploadAsync(Planner, ImportSources.PartCatalog, file);
+        real.StatusCode.ShouldBe(HttpStatusCode.Created, "the dry run did not record the file, so it is not a duplicate");
+        var done = (await real.Content.ReadFromJsonAsync<ImportBatchDetails>(Ct))!;
+        (done.Batch.Status, done.Batch.TotalRows, done.Batch.ValidRows, done.Batch.ErrorRows, done.Batch.LoadedRows, done.ErrorCount)
+            .ShouldBe((dry.Batch.Status, dry.Batch.TotalRows, dry.Batch.ValidRows, dry.Batch.ErrorRows, dry.Batch.LoadedRows, dry.ErrorCount),
+                "the preview is the commit's report");
+        (await GetAsync<PagedResponse<PartSummary>>($"/api/v1/inventory/parts?search={_tag}-30")).TotalCount.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task The_template_and_the_export_use_the_import_columns()
+    {
+        var template = await TextAsync($"/api/v1/inventory/imports/template?source={ImportSources.PartCatalog}");
+        template.TrimStart((char)0xFEFF).Split("\r\n")[0].ShouldBe(CatalogHeader);
+
+        using (var loaded = await UploadAsync(Planner, ImportSources.PartCatalog, CatalogHeader + $"\nJD,{_tag}-401,Exported filter,OIL_FILTER,PCS,0.450,18.40,no\n"))
+        {
+            loaded.StatusCode.ShouldBe(HttpStatusCode.Created);
+        }
+
+        var export = await TextAsync($"/api/v1/inventory/imports/export?source={ImportSources.PartCatalog}");
+        export.ShouldContain($"JD,{_tag}-401,Exported filter,OIL_FILTER,PCS,0.450,18.40,false");
+        (await TextAsync($"/api/v1/inventory/imports/export?source={ImportSources.DemandHistory}")).TrimStart((char)0xFEFF)
+            .ShouldStartWith("doc_date,warehouse_code,brand_code,oem_part_number,quantity,doc_ref");
+    }
+
+    private async Task<string> TextAsync(string path)
+    {
+        using var browser = _host.NewBrowser();
+        using var response = await browser.GetAsync(path, bearer: _host.Token(Planner.Principal()));
+        response.StatusCode.ShouldBe(HttpStatusCode.OK, await response.Content.ReadAsStringAsync(Ct));
+        response.Content.Headers.ContentType!.MediaType.ShouldBe("text/csv");
+        return await response.Content.ReadAsStringAsync(Ct);
+    }
+
+    [Fact]
     public async Task A_wrong_header_is_a_validation_problem_and_stores_nothing()
     {
         using var response = await UploadAsync(Planner, ImportSources.PartCatalog, "brand,part\nJD,X\n");
@@ -220,7 +268,7 @@ public sealed class ImportApiTests(IdentityDatabaseFixture database) : IAsyncLif
         statuses[^1].ShouldBe(HttpStatusCode.TooManyRequests);
     }
 
-    private async Task<HttpResponseMessage> UploadAsync(TestUser user, string source, string csv, Browser? browser = null)
+    private async Task<HttpResponseMessage> UploadAsync(TestUser user, string source, string csv, Browser? browser = null, bool dryRun = false)
     {
         var own = browser is null ? _host.NewBrowser() : null;
         try
@@ -230,7 +278,7 @@ public sealed class ImportApiTests(IdentityDatabaseFixture database) : IAsyncLif
                 { new StringContent(source), "source" },
                 { new ByteArrayContent(Encoding.UTF8.GetBytes(csv)) { Headers = { ContentType = new MediaTypeHeaderValue("text/csv") } }, "file", $"{_tag}.csv" },
             };
-            using var request = new HttpRequestMessage(HttpMethod.Post, new Uri("/api/v1/inventory/imports", UriKind.Relative)) { Content = content };
+            using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(dryRun ? "/api/v1/inventory/imports?dryRun=true" : "/api/v1/inventory/imports", UriKind.Relative)) { Content = content };
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _host.Token(user.Principal()));
             return await (browser ?? own)!.Client.SendAsync(request, Ct);
         }

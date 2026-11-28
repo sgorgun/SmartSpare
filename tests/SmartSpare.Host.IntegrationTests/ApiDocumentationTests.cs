@@ -65,11 +65,13 @@ public sealed partial class ApiDocumentationTests : IAsyncLifetime
         var paths = root.GetProperty("paths");
         paths.EnumerateObject().Select(p => p.Name).Order(StringComparer.Ordinal).ShouldBe(
         [
-            "/api/v1/inventory/adjustment-reasons", "/api/v1/inventory/adjustment-reasons/lookup", "/api/v1/inventory/adjustment-reasons/{id}",
+            "/api/v1/inventory/adjustment-reasons", "/api/v1/inventory/adjustment-reasons/csv", "/api/v1/inventory/adjustment-reasons/csv/template",
+            "/api/v1/inventory/adjustment-reasons/lookup", "/api/v1/inventory/adjustment-reasons/{id}",
             "/api/v1/inventory/adjustment-reasons/{id}/archive", "/api/v1/inventory/adjustment-reasons/{id}/history",
             "/api/v1/inventory/adjustment-reasons/{id}/restore",
             "/api/v1/inventory/assignment-roles", "/api/v1/inventory/brands", "/api/v1/inventory/brands/{id}/responsibles",
-            "/api/v1/inventory/imports", "/api/v1/inventory/imports/{id}", "/api/v1/inventory/movements", "/api/v1/inventory/parts", "/api/v1/inventory/parts/{id}", "/api/v1/inventory/stock",
+            "/api/v1/inventory/imports", "/api/v1/inventory/imports/export", "/api/v1/inventory/imports/template", "/api/v1/inventory/imports/{id}",
+            "/api/v1/inventory/movements", "/api/v1/inventory/parts", "/api/v1/inventory/parts/{id}", "/api/v1/inventory/stock",
             "/api/v1/inventory/stock-adjustments", "/api/v1/inventory/stock/{warehouseId}/{partId}",
             "/api/v1/inventory/stock/{warehouseId}/{partId}/levels", "/api/v1/inventory/transfers", "/api/v1/inventory/transfers/{id}",
             "/api/v1/inventory/transfers/{id}/approve", "/api/v1/inventory/transfers/{id}/cancel",
@@ -102,7 +104,8 @@ public sealed partial class ApiDocumentationTests : IAsyncLifetime
             ("/api/v1/inventory/transfers/{id}/cancel", "post", ["200", "400", "401", "403", "404", "409"]),
             ("/api/v1/inventory/transfers/{id}/dispatch", "post", ["200", "401", "403", "404", "409"]),
             ("/api/v1/inventory/transfers/{id}/receive", "post", ["200", "401", "403", "404", "409"]),
-            ("/api/v1/inventory/imports", "post", ["201", "400", "401", "403", "409", "429"]),
+            ("/api/v1/inventory/imports", "post", ["201", "200", "400", "401", "403", "409", "429"]),
+            ("/api/v1/inventory/adjustment-reasons/csv", "post", ["200", "400", "401", "403", "429"]),
             ("/api/v1/inventory/imports", "get", ["200", "400", "401", "403"]),
             ("/api/v1/inventory/imports/{id}", "get", ["200", "401", "403", "404"]),
         })
