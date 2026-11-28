@@ -166,6 +166,8 @@ FKs **to the Platform** (`ref.*`) are kept by decision D3 and are not listed as 
 
 *Warehouse copies and Fleet hub references (ADR 0029, PR 7j1):* Fleet and Identity read warehouses from read-only copies with Inventory's ids, `fleet.warehouse_snapshot` and `iam.warehouse_snapshot`, fed by `WarehouseCatalogChanged`, backfilled by the job `inventory.warehouse-catalog-publish` and written only through `fleet.apply_warehouses` / `iam.apply_warehouses`; they no longer call Inventory, and `IWarehouseQueries` was removed in 7j1b. Fleet refuses an archived hub for a new service order or a machine's home hub (SS500, API and trigger). Inventory keeps `inventory.fleet_hub_reference`, one row per Fleet service order or machine with its hub and whether it is open, fed by `HubReferencesChanged`, backfilled by `fleet.hub-reference-publish` and written only through `inventory.apply_fleet_hub_references`, so the warehouse archive guard checks Fleet's conditions in Inventory's own schema.
 
+*Employee copy (ADR 0029 amendment 2, PR 7j1c):* Inventory reads employees from `inventory.employee_snapshot` (id, code, display name, active, account id), fed by `EmployeeDirectoryChanged`, backfilled by `identity.employee-publish` and written only through `inventory.apply_employees`. No module calls another module synchronously; only the gateway calls Identity (sign-in, session check, role permissions).
+
 ### 2.1 Actor columns → `iam.app_user` (15)
 
 | FK | Replacement |
