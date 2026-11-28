@@ -92,9 +92,8 @@ public sealed class TopologyFixture : IAsyncLifetime
         Inventory = new ServiceFactory<InventoryService>(Login("smartspare_inventory", passwords.Inventory!), _rabbit.GetConnectionString(), services =>
             services.AddHttpClient<IEmployeeDirectory, HttpEmployeeDirectory>().ConfigurePrimaryHttpMessageHandler(() => Identity.Server.CreateHandler()));
 
-        // Fleet asks Inventory for hub codes over /internal/v1 (IWarehouseQueries): here the in-memory Inventory host.
-        Fleet = new ServiceFactory<FleetService>(Login("smartspare_fleet", passwords.Fleet!), _rabbit.GetConnectionString(), services =>
-            services.AddHttpClient<IWarehouseQueries, HttpWarehouseQueries>().ConfigurePrimaryHttpMessageHandler(() => Inventory.Server.CreateHandler()));
+        // Fleet reads hubs from its own warehouse copy, fed over RabbitMQ (ADR 0029): no call to Inventory.
+        Fleet = new ServiceFactory<FleetService>(Login("smartspare_fleet", passwords.Fleet!), _rabbit.GetConnectionString());
         Gateway = new GatewayFactory(this);
 
         // Start every service, so each consumer's queue exists before anything is published.

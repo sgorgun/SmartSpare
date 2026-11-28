@@ -1025,6 +1025,18 @@ SELECT id, code, name, is_archived, 'epoch' FROM catalog.brand ON CONFLICT (bran
 INSERT INTO iam.brand_snapshot (brand_id, code, name, is_archived, source_occurred_at)
 SELECT id, code, name, is_archived, 'epoch' FROM catalog.brand ON CONFLICT (brand_id) DO NOTHING;
 
+-- Fleet's and Identity's copies of the warehouses and Inventory's projection of Fleet's hub references (ADR 0029), as if
+-- inventory.warehouse-catalog-publish and fleet.hub-reference-publish had run; dated at the epoch, so any real event is newer.
+INSERT INTO fleet.warehouse_snapshot (warehouse_id, code, name, is_central_hub, is_archived, source_occurred_at)
+SELECT id, code, name, is_central_hub, NOT is_active, 'epoch' FROM inventory.warehouse ON CONFLICT (warehouse_id) DO NOTHING;
+INSERT INTO iam.warehouse_snapshot (warehouse_id, code, name, is_central_hub, is_archived, source_occurred_at)
+SELECT id, code, name, is_central_hub, NOT is_active, 'epoch' FROM inventory.warehouse ON CONFLICT (warehouse_id) DO NOTHING;
+INSERT INTO inventory.fleet_hub_reference (record_kind, record_id, warehouse_id, is_open, source_occurred_at)
+SELECT 'machine', id, home_warehouse_id, status = 'active', 'epoch'::timestamptz FROM fleet.machine
+UNION ALL
+SELECT 'service_order', id, warehouse_id, status IN ('draft', 'parts_reserved', 'in_progress'), 'epoch' FROM fleet.service_order
+ON CONFLICT (record_kind, record_id) DO NOTHING;
+
 SELECT pg_temp.t001_act_as(NULL);
 CALL mart.refresh_all();
 COMMIT;

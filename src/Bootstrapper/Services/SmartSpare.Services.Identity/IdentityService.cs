@@ -1,7 +1,4 @@
-using Microsoft.Extensions.DependencyInjection;
-using SmartSpare.Infrastructure.Http;
 using SmartSpare.Modules.Identity;
-using SmartSpare.Modules.Inventory.Contracts;
 
 namespace SmartSpare.Services.Identity;
 
@@ -13,11 +10,6 @@ public sealed class IdentityService
     {
     }
 
-    // User administration validates home hubs with the Inventory service, as the calling administrator (#46).
-    public static Task<int> Main(string[] args) => ServiceHost.RunAsync(args, new IdentityModuleInstaller(), services =>
-    {
-        services.AddTransient<CallerTokenForwardingHandler>();
-        services.AddHttpClient<IWarehouseQueries, HttpWarehouseQueries>(client => client.BaseAddress = new Uri("http://inventory"))
-            .AddHttpMessageHandler<CallerTokenForwardingHandler>();
-    });
+    // Hubs come from the module's own warehouse copy, fed by WarehouseCatalogChanged (ADR 0029): no call to Inventory.
+    public static Task<int> Main(string[] args) => ServiceHost.RunAsync(args, new IdentityModuleInstaller());
 }

@@ -63,3 +63,25 @@ public sealed record ServiceOrderLinesChanged(
     IReadOnlyList<long> RemovedLineIds,
     Guid ActorId,
     DateTimeOffset ChangedAt) : IntegrationEvent, IActedByUser;
+
+/// <summary>
+/// A Fleet record that holds a hub, as Inventory projects it (ADR 0029): a service order (open = draft, parts reserved or
+/// in progress) or a machine (open = active, the hub is its home hub).
+/// </summary>
+public sealed record HubReference(string RecordKind, long RecordId, short WarehouseId, bool IsOpen)
+{
+    public const string ServiceOrder = "service_order";
+
+    public const string Machine = "machine";
+}
+
+/// <summary>
+/// Fleet records that hold a hub were created or changed state (ADR 0029, PR 7j1): the current state of each record a write
+/// touched, so Inventory's <c>inventory.fleet_hub_reference</c> keeps the newest state per record and the warehouse archive
+/// guard sees open service orders and machines based at a hub. Written in the same transaction as the change;
+/// <c>fleet.hub-reference-publish</c> sends every record, in chunks of at most <see cref="MaxReferences"/>.
+/// </summary>
+public sealed record HubReferencesChanged(IReadOnlyList<HubReference> References) : IntegrationEvent
+{
+    public const int MaxReferences = 500;
+}

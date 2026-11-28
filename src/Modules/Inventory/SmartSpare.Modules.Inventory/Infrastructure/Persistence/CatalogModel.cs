@@ -58,3 +58,19 @@ internal sealed class DemandException
     public DateTimeOffset FlaggedAt { get; set; }
 }
 #pragma warning restore S2166
+
+/// <summary>A Fleet record that holds a hub, as Inventory projects it (ADR 0029); written only through <c>inventory.apply_fleet_hub_references</c>.</summary>
+internal sealed class FleetHubReference
+{
+    public string RecordKind { get; set; } = null!;
+
+    public long RecordId { get; set; }
+
+    public short WarehouseId { get; set; }
+
+    public bool IsOpen { get; set; }
+
+    public DateTimeOffset SourceOccurredAt { get; set; }
+
+    public DateTimeOffset UpdatedAt { get; set; }
+}

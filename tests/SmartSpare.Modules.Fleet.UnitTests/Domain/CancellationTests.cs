@@ -66,6 +66,21 @@ public sealed class CancellationTests
     }
 
     [Fact]
+    public void Hub_references_name_each_order_and_its_hub_and_round_trip_through_the_outbox()
+    {
+        var order = Draft();
+
+        var references = ServiceOrderEvents.HubReferences([order], open: false);
+
+        references.ShouldBe([new HubReference(HubReference.ServiceOrder, 9001, 5, false)]);
+        var sent = new HubReferencesChanged(references) { OccurredAt = Now };
+        var message = IntegrationEventSerializer.ToOutboxMessage(sent);
+        var received = (HubReferencesChanged)IntegrationEventSerializer.Deserialize(message.Type, message.Payload);
+        received.References.ShouldBe(references);
+        received.OccurredAt.ShouldBe(Now);
+    }
+
+    [Fact]
     public void Only_an_open_order_with_a_reason_is_cancelled()
     {
         Draft().Cancel(" ", Now).Error.ShouldBe(FleetErrors.CancelReasonRequired);

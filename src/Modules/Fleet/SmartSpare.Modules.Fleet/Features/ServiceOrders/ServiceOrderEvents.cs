@@ -33,6 +33,13 @@ internal static class ServiceOrderEvents
     }
 
 
+    /// <summary>
+    /// The hubs the orders hold, open or closed, for Inventory's projection of Fleet's hub references (ADR 0029), which the
+    /// warehouse archive guard reads. Written with every draft, completion and cancellation.
+    /// </summary>
+    public static HubReference[] HubReferences(IEnumerable<ServiceOrder> orders, bool open) =>
+        [.. orders.Select(o => new HubReference(HubReference.ServiceOrder, o.Id, o.WarehouseId, open))];
+
     /// <summary>The edited kit: removed line ids and the new lines with the ids they got when saved.</summary>
     public static ServiceOrderLinesChanged LinesChanged(ServiceOrder order, KitLineChange change, Guid actorId, DateTimeOffset changedAt)
     {

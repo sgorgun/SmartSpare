@@ -368,3 +368,9 @@
 # PR 7i3: a part that replaces others or has interchangeable links cannot be archived (ADR 0027).
 +^IF v_count > 0 THEN v_reasons := v_reasons \|\| format\('(%s interchangeable link\(s\); remove them first|successor of %s part\(s\); remove or change the supersession first)', v_count\);$
 +^SELECT count\(\*\) INTO v_count FROM catalog\.part_analogue a WHERE a\.link_type = '(interchangeable|supersedes)' AND
+# PR 7j1 (ADR 0029): Fleet's and Identity's read-only warehouse copies, written only by apply_warehouses; Fleet's
+# archived-hub guard on new service orders and machine home hubs; Inventory's projection of Fleet's hub references,
+# written only by apply_fleet_hub_references.
++\b(fleet|iam)\.(warehouse_snapshot|apply_warehouses)\b
++\bfleet\.(require_hub_not_archived|trg_service_order_hub_not_archived|trg_machine_home_hub_not_archived)\b
++\binventory\.(fleet_hub_reference|apply_fleet_hub_references)\b

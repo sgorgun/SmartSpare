@@ -164,4 +164,18 @@ SELECT pg_temp.expect_error($$INSERT INTO catalog.part_analogue (link_type, part
     SELECT 'supersedes', (SELECT id FROM catalog.part WHERE oem_part_number = 'T01-AN-1'), (SELECT id FROM catalog.part WHERE oem_part_number = 'T01-AN-2')$$,
     'SS502', 'ADR 0027: a supersession cannot close a cycle');
 
+
+-- ADR 0029: Fleet refuses an archived hub, reading its warehouse copy (the database side of the API check).
+UPDATE fleet.warehouse_snapshot SET is_archived = true
+ WHERE warehouse_id = (SELECT home_warehouse_id FROM fleet.machine WHERE status = 'active' ORDER BY id LIMIT 1);
+SELECT pg_temp.expect_error($$INSERT INTO fleet.service_order (machine_id, warehouse_id, trigger_engine_hours, created_by)
+    SELECT m.id, m.home_warehouse_id, m.current_engine_hours, '00000000-0000-4000-8000-000000000001'
+    FROM fleet.machine m WHERE m.status = 'active' ORDER BY m.id LIMIT 1$$,
+    'SS500', 'ADR 0029: no new service order at an archived hub');
+SELECT pg_temp.expect_error($$UPDATE fleet.machine SET home_warehouse_id = (SELECT warehouse_id FROM fleet.warehouse_snapshot WHERE is_archived LIMIT 1)
+    WHERE id = (SELECT max(id) FROM fleet.machine WHERE home_warehouse_id <> (SELECT warehouse_id FROM fleet.warehouse_snapshot WHERE is_archived LIMIT 1))$$,
+    'SS500', 'ADR 0029: a machine cannot be moved to an archived home hub');
+SELECT pg_temp.ok((SELECT count(*) FROM (SELECT fleet.require_hub_not_archived(32000::smallint, 'hub')) x) = 1,
+                  'ADR 0029: a hub missing from the copy is not known to be archived and is allowed');
+
 ROLLBACK;

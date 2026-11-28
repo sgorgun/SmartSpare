@@ -72,3 +72,21 @@ internal sealed class PartSnapshot
 
     public DateTimeOffset UpdatedAt { get; set; }
 }
+
+/// <summary>Read-only copy of an Inventory warehouse (ADR 0029), written only through <c>fleet.apply_warehouses</c>.</summary>
+internal sealed class WarehouseSnapshot
+{
+    public short WarehouseId { get; set; }
+
+    public string Code { get; set; } = null!;
+
+    public string Name { get; set; } = null!;
+
+    public bool IsCentralHub { get; set; }
+
+    public bool IsArchived { get; set; }
+
+    public DateTimeOffset SourceOccurredAt { get; set; }
+
+    public DateTimeOffset UpdatedAt { get; set; }
+}

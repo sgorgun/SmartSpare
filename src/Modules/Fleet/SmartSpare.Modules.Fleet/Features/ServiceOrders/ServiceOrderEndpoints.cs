@@ -9,6 +9,7 @@ using SmartSpare.ApiContracts.Fleet;
 using SmartSpare.Infrastructure.Http;
 using SmartSpare.Infrastructure.Messaging;
 using SmartSpare.Infrastructure.Persistence;
+using SmartSpare.Modules.Fleet.Contracts;
 using SmartSpare.Modules.Fleet.Domain;
 using SmartSpare.Modules.Fleet.Domain.Maintenance;
 using SmartSpare.Modules.Fleet.Domain.ServiceOrders;
@@ -70,6 +71,11 @@ internal sealed class CreateServiceOrderCommandHandler(
             return FleetErrors.MachineNotActive;
         }
 
+        if (await store.HubArchivedAsync(machine.HomeWarehouseId, cancellationToken).ConfigureAwait(false))
+        {
+            return FleetErrors.HubArchived;
+        }
+
         long orderId;
         if (request.MaintenancePlanId is { } planId)
         {
@@ -111,6 +117,7 @@ internal sealed class CreateServiceOrderCommandHandler(
 
         var order = await store.ReadAsync(orderId, cancellationToken).ConfigureAwait(false);
         unitOfWork.AddIntegrationEvent(ServiceOrderEvents.Drafted(order, user.UserId ?? Guid.Empty, time.GetUtcNow()));
+        unitOfWork.AddIntegrationEvent(new HubReferencesChanged(ServiceOrderEvents.HubReferences([order], open: true)));
         return orderId;
     }
 }
@@ -177,17 +184,22 @@ internal sealed class CompleteServiceOrderCommandHandler(
         }
 
         var actor = user.UserId ?? Guid.Empty;
+        var hubReferences = new List<HubReference>(ServiceOrderEvents.HubReferences([order], open: false));
         if (command.EngineHours > machine.CurrentEngineHours)
         {
             var drafted = await readings.LogAsync(machine.Id, command.EngineHours, now, Domain.Machines.ReadingSource.ServiceVisit, cancellationToken)
                 .ConfigureAwait(false);
-            foreach (var draft in await readings.OrdersAsync([.. drafted.Select(d => d.ServiceOrderId)], cancellationToken).ConfigureAwait(false))
+            var drafts = await readings.OrdersAsync([.. drafted.Select(d => d.ServiceOrderId)], cancellationToken).ConfigureAwait(false);
+            foreach (var draft in drafts)
             {
                 unitOfWork.AddIntegrationEvent(ServiceOrderEvents.Drafted(draft, actor, now));
             }
+
+            hubReferences.AddRange(ServiceOrderEvents.HubReferences(drafts, open: true));
         }
 
         await store.CompleteAsync(order.Id, command.EngineHours, cancellationToken).ConfigureAwait(false);
+        unitOfWork.AddIntegrationEvent(new HubReferencesChanged(hubReferences));
         var kit = ServiceOrderEvents.Completed(order, actor, now);
         if (kit.Lines.Count > 0)
         {
@@ -234,6 +246,7 @@ internal sealed class CancelServiceOrderCommandHandler(ServiceOrderStore store, 
 
         await store.CancelAsync(order.Id, order.CancelReason!, cancellationToken).ConfigureAwait(false);
         unitOfWork.AddIntegrationEvent(ServiceOrderEvents.Cancelled(order, order.CancelReason!, user.UserId ?? Guid.Empty, now));
+        unitOfWork.AddIntegrationEvent(new HubReferencesChanged(ServiceOrderEvents.HubReferences([order], open: false)));
         return order.Id;
     }
 }
@@ -363,7 +376,8 @@ internal static class ServiceOrderEndpoints
                 + "at the plan's next engine-hour threshold (the due calculation), with the plan's kit; a plan that already has an open "
                 + "order is a 409 (Fleet.ServiceOrderExists). With lines: an unplanned repair with parts from Fleet's catalogue copy "
                 + "(422 Fleet.UnknownPart otherwise). Either way the order starts as a draft whose kit Inventory reserves right after "
-                + "(kitStatus reserving). Permission Fleet.ServiceOrder.Create, the roles of "
+                + "(kitStatus reserving). A machine whose home hub is archived in Inventory gets no new order (422 SS500, checked "
+                + "against Fleet's warehouse copy and again by the database). Permission Fleet.ServiceOrder.Create, the roles of "
                 + "fleet.create_service_order_draft.")
             .Accepts<CreateServiceOrderRequest>("application/json")
             .Produces<ServiceOrderDetails>(StatusCodes.Status201Created)

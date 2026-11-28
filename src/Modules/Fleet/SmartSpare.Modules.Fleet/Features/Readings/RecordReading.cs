@@ -8,6 +8,7 @@ using SmartSpare.ApiContracts.Fleet;
 using SmartSpare.Infrastructure.Http;
 using SmartSpare.Infrastructure.Messaging;
 using SmartSpare.Infrastructure.Persistence;
+using SmartSpare.Modules.Fleet.Contracts;
 using SmartSpare.Modules.Fleet.Domain;
 using SmartSpare.Modules.Fleet.Domain.Machines;
 using SmartSpare.Modules.Fleet.Features.ServiceOrders;
@@ -99,11 +100,15 @@ internal sealed class RecordReadingCommandHandler(ReadingStore store, IUnitOfWor
         var drafted = await store.LogAsync(command.MachineId, command.Hours, readAt, source, cancellationToken).ConfigureAwait(false);
         if (drafted.Count > 0)
         {
-            // #12, X6: Inventory reserves each kit; the outbox rows commit with the reading and the drafts.
-            foreach (var order in await store.OrdersAsync([.. drafted.Select(d => d.ServiceOrderId)], cancellationToken).ConfigureAwait(false))
+            // #12, X6: Inventory reserves each kit; the outbox rows commit with the reading and the drafts. ADR 0029: Inventory
+            // also learns that the hubs now have open orders.
+            var orders = await store.OrdersAsync([.. drafted.Select(d => d.ServiceOrderId)], cancellationToken).ConfigureAwait(false);
+            foreach (var order in orders)
             {
                 unitOfWork.AddIntegrationEvent(ServiceOrderEvents.Drafted(order, user.UserId ?? Guid.Empty, now));
             }
+
+            unitOfWork.AddIntegrationEvent(new HubReferencesChanged(ServiceOrderEvents.HubReferences(orders, open: true)));
         }
 
         var stored = (await store.ReadingAtAsync(command.MachineId, readAt, cancellationToken).ConfigureAwait(false))!;

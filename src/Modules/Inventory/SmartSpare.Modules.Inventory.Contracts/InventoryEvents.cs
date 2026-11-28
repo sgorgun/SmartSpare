@@ -68,6 +68,17 @@ public sealed record BrandSnapshot(short BrandId, string Code, string Name, bool
 /// </summary>
 public sealed record BrandCatalogChanged(IReadOnlyList<BrandSnapshot> Brands) : IntegrationEvent;
 
+/// <summary>A warehouse as the other modules copy it: id, code, name, the central hub flag and whether it is archived.</summary>
+public sealed record WarehouseSnapshot(short WarehouseId, string Code, string Name, bool IsCentralHub, bool IsArchived);
+
+/// <summary>
+/// Warehouses of Inventory's network were added or changed (ADR 0029, PR 7j). Fleet and Identity keep read-only copies
+/// (<c>fleet.warehouse_snapshot</c>, <c>iam.warehouse_snapshot</c>) with the same ids, newest event winning; the network
+/// has a handful of hubs, so one event carries every warehouse a write touched, and
+/// <c>inventory.warehouse-catalog-publish</c> sends them all for the initial fill and as a repair tool.
+/// </summary>
+public sealed record WarehouseCatalogChanged(IReadOnlyList<WarehouseSnapshot> Warehouses) : IntegrationEvent;
+
 /// <summary>The quantity Inventory holds for one service order line.</summary>
 public sealed record ReservedKitLine(long LineId, decimal ReservedQty);
 

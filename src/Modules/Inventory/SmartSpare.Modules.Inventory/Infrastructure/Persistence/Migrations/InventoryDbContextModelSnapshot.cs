@@ -1759,6 +1759,61 @@ namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("SmartSpare.Modules.Inventory.Infrastructure.Persistence.FleetHubReference", b =>
+                {
+                    b.Property<string>("RecordKind")
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("record_kind")
+                        .HasColumnOrder(0)
+                        .HasComment("service_order or machine.");
+
+                    b.Property<long>("RecordId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("record_id")
+                        .HasColumnOrder(1)
+                        .HasComment("Fleet record id (fleet.service_order.id or fleet.machine.id); no cross-module FK.");
+
+                    b.Property<bool>("IsOpen")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_open")
+                        .HasColumnOrder(3)
+                        .HasComment("TRUE = an open service order (draft, parts reserved, in progress) or an active machine.");
+
+                    b.Property<DateTimeOffset>("SourceOccurredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("source_occurred_at")
+                        .HasColumnOrder(4)
+                        .HasComment("OccurredAt of the event that wrote the row; older events are ignored.");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasColumnOrder(5)
+                        .HasDefaultValueSql("now()")
+                        .HasComment("Time of the last change.");
+
+                    b.Property<short>("WarehouseId")
+                        .HasColumnType("smallint")
+                        .HasColumnName("warehouse_id")
+                        .HasColumnOrder(2)
+                        .HasComment("The hub the record holds: the order's hub or the machine's home hub.");
+
+                    b.HasKey("RecordKind", "RecordId")
+                        .HasName("pk_fleet_hub_reference");
+
+                    b.HasIndex("WarehouseId")
+                        .HasDatabaseName("ix_fleet_hub_reference_open")
+                        .HasFilter("is_open");
+
+                    b.ToTable("fleet_hub_reference", "inventory", t =>
+                        {
+                            t.HasComment("Read-only projection of the Fleet records that hold a hub, fed by HubReferencesChanged. Written only by inventory.apply_fleet_hub_references.");
+
+                            t.HasCheckConstraint("ck_fleet_hub_reference_kind", "record_kind IN ('service_order', 'machine')");
+                        });
+                });
+
             modelBuilder.Entity("SmartSpare.Modules.Inventory.Infrastructure.Persistence.ImportBatch", b =>
                 {
                     b.Property<long>("Id")

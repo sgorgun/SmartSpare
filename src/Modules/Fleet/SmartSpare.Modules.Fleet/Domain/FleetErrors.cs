@@ -69,6 +69,13 @@ internal static class FleetErrors
     public static readonly Error MaintenancePlanNotFound = Error.NotFound(
         "Fleet.MaintenancePlanNotFound", "The maintenance plan does not exist or does not belong to the machine's model.");
 
+    /// <summary>
+    /// SS500 (ADR 0025, 0029): the machine's home hub is archived in Inventory, so no new service order can be placed
+    /// there. The database refuses the same through <c>trg_service_order_hub_not_archived</c>.
+    /// </summary>
+    public static readonly Error HubArchived = Error.BusinessRule(
+        "SS500", "The machine's home hub is archived and cannot be chosen for a new service order. Move the machine to an active hub first.");
+
     /// <summary>A state transition the state machine does not allow (SS300 in the database).</summary>
     public static Error InvalidTransition(object from, string action) => Error.Conflict(
         "SS300", $"A service order that is {Describe(from)} cannot be {action}.");
