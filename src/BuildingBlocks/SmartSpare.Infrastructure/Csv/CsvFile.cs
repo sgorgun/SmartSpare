@@ -7,7 +7,7 @@ namespace SmartSpare.Infrastructure.Csv;
 /// <summary>
 /// The one CSV reader and writer of SmartSpare (STAGE_7_PLAN 2.6), shared by the parts and demand-history pipeline and
 /// every master-data catalogue. Reading: UTF-8 text with or without BOM; a header row naming the expected columns in any
-/// order (case-insensitive); comma or semicolon as separator, detected from the header; RFC 4180 quoting (quotes around
+/// order (case-insensitive), plus any of the optional columns; comma or semicolon as separator, detected from the header; RFC 4180 quoting (quotes around
 /// a field, doubled quotes inside, separators and line breaks inside quotes); empty lines skipped; at most
 /// <c>maxRows</c> data rows. A row with more fields than the header is refused as a whole-file error, because its values
 /// would land in the wrong columns. Empty values become <see langword="null"/>. Writing: comma separated, CRLF, a BOM so
@@ -22,10 +22,11 @@ public static class CsvFile
     /// Parses <paramref name="content"/>. Errors are validation errors whose codes start with <paramref name="errorPrefix"/>,
     /// followed by <c>Empty</c>, <c>Header</c>, <c>Shape</c> or <c>TooLarge</c> (for example <c>Inventory.ImportHeader</c>).
     /// </summary>
-    public static Result<Parsed> Parse(string content, IReadOnlyList<string> expected, int maxRows, string errorPrefix)
+    public static Result<Parsed> Parse(string content, IReadOnlyList<string> expected, int maxRows, string errorPrefix, IReadOnlyList<string>? optional = null)
     {
         ArgumentNullException.ThrowIfNull(content);
         ArgumentNullException.ThrowIfNull(expected);
+        optional ??= [];
         var records = Records(content.TrimStart((char)0xFEFF)).GetEnumerator();
         using (records)
         {
@@ -36,17 +37,20 @@ public static class CsvFile
 
             var header = records.Current.Fields.Select(f => (f ?? string.Empty).Trim().ToLowerInvariant()).ToArray();
             var missing = expected.Except(header, StringComparer.Ordinal).ToList();
-            var unknown = header.Except(expected, StringComparer.Ordinal).ToList();
+            var unknown = header.Except(expected, StringComparer.Ordinal).Except(optional, StringComparer.Ordinal).ToList();
             if (missing.Count > 0 || unknown.Count > 0 || header.Distinct(StringComparer.Ordinal).Count() != header.Length)
             {
                 return Error.Validation(
                     errorPrefix + "Header",
                     $"The header must name exactly these columns: {string.Join(", ", expected)}."
+                    + (optional.Count > 0 ? $" Optional: {string.Join(", ", optional)}." : string.Empty)
                     + (missing.Count > 0 ? $" Missing: {string.Join(", ", missing)}." : string.Empty)
                     + (unknown.Count > 0 ? $" Unknown: {string.Join(", ", unknown)}." : string.Empty));
             }
 
-            var positions = expected.Select(c => Array.IndexOf(header, c)).ToArray();
+            // The optional columns the file has follow the expected ones, so the rows match Parsed.Columns.
+            var columns = expected.Concat(optional.Where(o => header.Contains(o, StringComparer.Ordinal))).ToArray();
+            var positions = columns.Select(c => Array.IndexOf(header, c)).ToArray();
             var rows = new List<(int, string?[])>();
             while (records.MoveNext())
             {
@@ -69,7 +73,7 @@ public static class CsvFile
                 rows.Add((lineNo, [.. positions.Select(p => p < fields.Count && !string.IsNullOrWhiteSpace(fields[p]) ? fields[p] : null)]));
             }
 
-            return new Parsed([.. expected], rows);
+            return new Parsed(columns, rows);
         }
     }
 
