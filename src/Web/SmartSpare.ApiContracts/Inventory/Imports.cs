@@ -17,6 +17,16 @@ public static class ImportSources
         [PartCatalog] = ["brand_code", "oem_part_number", "description", "category_code", "uom_code", "weight_kg", "unit_cost", "condition_based"],
         [DemandHistory] = ["doc_date", "warehouse_code", "brand_code", "oem_part_number", "quantity", "doc_ref"],
     };
+
+    /// <summary>Columns a file may add (PR 7h3): the parts' manufacturer code; empty keeps the stored manufacturer.</summary>
+    public static IReadOnlyDictionary<string, IReadOnlyList<string>> OptionalColumns { get; } = new Dictionary<string, IReadOnlyList<string>>
+    {
+        [PartCatalog] = ["manufacturer_code"],
+        [DemandHistory] = [],
+    };
+
+    /// <summary>Every column of a source as templates and exports write them: the expected ones, then the optional ones.</summary>
+    public static IReadOnlyList<string> AllColumns(string source) => [.. Columns[source], .. OptionalColumns[source]];
 }
 
 /// <summary>Values of <see cref="ImportBatchResponse.Status"/>.</summary>

@@ -74,6 +74,19 @@ public sealed class EndpointTableTests
             "GET /api/v1/inventory/brands/csv/template",
             "GET /api/v1/inventory/brands/csv",
             "POST /api/v1/inventory/brands/csv",
+
+            // The manufacturer catalogue (STAGE_7_PLAN 3.1, PR 7h3).
+            "GET /api/v1/inventory/manufacturers",
+            "GET /api/v1/inventory/manufacturers/lookup",
+            "GET /api/v1/inventory/manufacturers/{id:long}",
+            "GET /api/v1/inventory/manufacturers/{id:long}/history",
+            "POST /api/v1/inventory/manufacturers",
+            "PUT /api/v1/inventory/manufacturers/{id:long}",
+            "POST /api/v1/inventory/manufacturers/{id:long}/archive",
+            "POST /api/v1/inventory/manufacturers/{id:long}/restore",
+            "GET /api/v1/inventory/manufacturers/csv/template",
+            "GET /api/v1/inventory/manufacturers/csv",
+            "POST /api/v1/inventory/manufacturers/csv",
         ], ignoreOrder: true);
 
     [Theory]
@@ -105,6 +118,9 @@ public sealed class EndpointTableTests
     [InlineData("PUT /api/v1/inventory/brands/{id:long}", Permissions.Inventory.Brand.Edit)]
     [InlineData("POST /api/v1/inventory/brands/{id:long}/archive", Permissions.Inventory.Brand.Archive)]
     [InlineData("POST /api/v1/inventory/brands/csv", Permissions.Inventory.Brand.Edit)]
+    [InlineData("GET /api/v1/inventory/manufacturers", Permissions.Inventory.Manufacturer.View)]
+    [InlineData("POST /api/v1/inventory/manufacturers", Permissions.Inventory.Manufacturer.Create)]
+    [InlineData("POST /api/v1/inventory/manufacturers/{id:long}/archive", Permissions.Inventory.Manufacturer.Archive)]
     [InlineData("GET /api/v1/inventory/imports", Permissions.Inventory.Import.View)]
     [InlineData("POST /api/v1/inventory/transfers/{id:long}/approve", Permissions.Inventory.Transfer.Approve)]
     [InlineData("POST /api/v1/inventory/transfers/{id:long}/cancel", Permissions.Inventory.Transfer.Cancel)]

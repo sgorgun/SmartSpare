@@ -288,3 +288,24 @@
 +GRANT INSERT,UPDATE ON TABLE catalog\.brand TO app_write
 +\b(fleet|iam)\.brand_snapshot\b
 +\b(fleet|iam)\.apply_brands\b
+
+# PR 7h3 (STAGE_7_PLAN 3.1): manufacturers. catalog.manufacturer is a master-data catalogue; a part may name its maker
+# (part.manufacturer_id, FK and index); the parts import gains the optional manufacturer_code column (raw and staging
+# columns), validates it and loads it without clearing a stored maker when the value is empty.
++\bcatalog\.manufacturer\b
++ix_part_manufacturer
+-CREATE TABLE catalog\.part \( (?!.*manufacturer_id)
++CREATE TABLE catalog\.part \( .*manufacturer_id
+-CREATE TABLE raw\.part_catalog_row \( (?!.*manufacturer_code)
++CREATE TABLE raw\.part_catalog_row \( .*manufacturer_code
+-CREATE TABLE staging\.part_catalog \( (?!.*manufacturer_id)
++CREATE TABLE staging\.part_catalog \( .*manufacturer_id
++COMMENT ON COLUMN (raw\.part_catalog_row\.manufacturer_code|staging\.part_catalog\.manufacturer_id) IS
+-BEGIN -- Upsert by natural key; only rows whose values actually change are updated\. INSERT INTO catalog\.part AS p \((?!.*manufacturer_id)
++BEGIN -- Upsert by natural key; only rows whose values actually change are updated\. INSERT INTO catalog\.part AS p \(.*manufacturer_id
+-CREATE TEMP TABLE tmp_pc ON COMMIT DROP AS (?!.*manufacturer_code)
++CREATE TEMP TABLE tmp_pc ON COMMIT DROP AS .*manufacturer_code
+-INSERT INTO staging\.import_error \(import_batch_id, line_no, column_name, error_code, message\) SELECT t\.import_batch_id, t\.line_no, e\.col, e\.code, e\.msg FROM tmp_pc t (?!.*manufacturer_code)
++INSERT INTO staging\.import_error \(import_batch_id, line_no, column_name, error_code, message\) SELECT t\.import_batch_id, t\.line_no, e\.col, e\.code, e\.msg FROM tmp_pc t .*manufacturer_code
+-INSERT INTO staging\.part_catalog \(import_batch_id, line_no, brand_id, oem_part_number, description, category_id, uom_id, weight_kg, unit_cost, is_condition_based, is_valid\)
++INSERT INTO staging\.part_catalog \(import_batch_id, line_no, brand_id, oem_part_number, description, category_id, uom_id, weight_kg, unit_cost, is_condition_based, is_valid, manufacturer_id\)

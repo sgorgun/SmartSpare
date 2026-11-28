@@ -63,6 +63,8 @@ public sealed class AppPoliciesTests
         // Added after PR 7x1, each with its default holders (ADR 0028).
         ("7x3: supplier maintenance", [AppRoles.Administrator], [Permissions.Procurement.Supplier.Edit]),
         ("7h2: brand catalogue", [AppRoles.Administrator, AppRoles.InventoryPlanner], [Permissions.Inventory.Brand.Create, Permissions.Inventory.Brand.Edit, Permissions.Inventory.Brand.Archive]),
+        ("7h3: read manufacturers", [.. AppRoles.All], [Permissions.Inventory.Manufacturer.View]),
+        ("7h3: manufacturer catalogue", [AppRoles.Administrator, AppRoles.InventoryPlanner], [Permissions.Inventory.Manufacturer.Create, Permissions.Inventory.Manufacturer.Edit, Permissions.Inventory.Manufacturer.Archive]),
     ];
 
     private static readonly IAuthorizationService Authorization = new ServiceCollection()

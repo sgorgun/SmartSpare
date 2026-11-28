@@ -70,6 +70,14 @@ public static class Permissions
             public const string ManageAssignments = "Inventory.Brand.ManageAssignments";
         }
 
+        public static class Manufacturer
+        {
+            public const string View = "Inventory.Manufacturer.View";
+            public const string Create = "Inventory.Manufacturer.Create";
+            public const string Edit = "Inventory.Manufacturer.Edit";
+            public const string Archive = "Inventory.Manufacturer.Archive";
+        }
+
         public static class Warehouse
         {
             public const string View = "Inventory.Warehouse.View";
@@ -235,6 +243,10 @@ public static class Permissions
         P(Inventory.Brand.Create, 57, "Add brands."),
         P(Inventory.Brand.Edit, 58, "Change brands."),
         P(Inventory.Brand.Archive, 59, "Archive or restore brands."),
+        P(Inventory.Manufacturer.View, 60, "See part manufacturers."),
+        P(Inventory.Manufacturer.Create, 61, "Add part manufacturers."),
+        P(Inventory.Manufacturer.Edit, 62, "Change part manufacturers."),
+        P(Inventory.Manufacturer.Archive, 63, "Archive or restore part manufacturers."),
     ];
 
     /// <summary>Whether <paramref name="name"/> is a permission of the catalogue.</summary>

@@ -27,6 +27,8 @@ internal sealed class PartCatalogConfiguration : IEntityTypeConfiguration<PartCa
         builder.Property(x => x.UnitCost).HasColumnName("unit_cost").HasColumnOrder(8).HasColumnType("numeric(12,2)");
         builder.Property(x => x.IsConditionBased).HasColumnName("is_condition_based").HasColumnOrder(9).HasColumnType("boolean").HasComment("Flag: condition based.");
         builder.Property(x => x.IsValid).HasColumnName("is_valid").HasColumnOrder(10).HasColumnType("boolean").HasComment("Flag: valid.");
+        builder.Property(x => x.ManufacturerId).HasColumnName("manufacturer_id").HasColumnOrder(11).HasColumnType("smallint")
+            .HasComment("Resolved manufacturer, if the row named one (PR 7h3).");
 
         builder.HasOne<PartCatalogRow>().WithMany()
             .HasForeignKey(x => new { x.ImportBatchId, x.LineNo })

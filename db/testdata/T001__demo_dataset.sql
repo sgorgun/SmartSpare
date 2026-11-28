@@ -1009,6 +1009,15 @@ INSERT INTO fleet.part_snapshot (part_id, brand_code, oem_part_number, descripti
 SELECT p.id, b.code, p.oem_part_number, p.description, u.code, p.is_active, now()
 FROM catalog.part p JOIN catalog.brand b ON b.id = p.brand_id JOIN ref.unit_of_measure u ON u.id = p.uom_id;
 
+-- Part manufacturers (STAGE_7_PLAN 3.1, PR 7h3): three makers; the oil filters of John Deere are made by MANN+HUMMEL.
+INSERT INTO catalog.manufacturer (code, name, country_code, website) VALUES
+    ('MANN', 'MANN+HUMMEL', 'DE', 'https://www.mann-hummel.com'),
+    ('BOSCH', 'Robert Bosch', 'DE', 'https://www.bosch.com'),
+    ('DONALDSON', 'Donaldson', 'US', 'https://www.donaldson.com');
+UPDATE catalog.part SET manufacturer_id = (SELECT id FROM catalog.manufacturer WHERE code = 'MANN')
+ WHERE brand_id = (SELECT id FROM catalog.brand WHERE code = 'JD')
+   AND category_id = (SELECT id FROM ref.part_category WHERE code = 'OIL_FILTER');
+
 -- Fleet's and Identity's copies of the brands (STAGE_7_PLAN 3.2), as if inventory.brand-catalog-publish had run; dated
 -- at the epoch, so any real BrandCatalogChanged is newer.
 INSERT INTO fleet.brand_snapshot (brand_id, code, name, is_archived, source_occurred_at)

@@ -211,7 +211,7 @@ public sealed class ImportApiTests(IdentityDatabaseFixture database) : IAsyncLif
     public async Task The_template_and_the_export_use_the_import_columns()
     {
         var template = await TextAsync($"/api/v1/inventory/imports/template?source={ImportSources.PartCatalog}");
-        template.TrimStart((char)0xFEFF).Split("\r\n")[0].ShouldBe(CatalogHeader);
+        template.TrimStart((char)0xFEFF).Split("\r\n")[0].ShouldBe(CatalogHeader + ",manufacturer_code", "the optional column of PR 7h3 comes last");
 
         using (var loaded = await UploadAsync(Planner, ImportSources.PartCatalog, CatalogHeader + $"\nJD,{_tag}-401,Exported filter,OIL_FILTER,PCS,0.450,18.40,no\n"))
         {
@@ -219,7 +219,7 @@ public sealed class ImportApiTests(IdentityDatabaseFixture database) : IAsyncLif
         }
 
         var export = await TextAsync($"/api/v1/inventory/imports/export?source={ImportSources.PartCatalog}");
-        export.ShouldContain($"JD,{_tag}-401,Exported filter,OIL_FILTER,PCS,0.450,18.40,false");
+        export.ShouldContain($"JD,{_tag}-401,Exported filter,OIL_FILTER,PCS,0.450,18.40,false,\r\n");
         (await TextAsync($"/api/v1/inventory/imports/export?source={ImportSources.DemandHistory}")).TrimStart((char)0xFEFF)
             .ShouldStartWith("doc_date,warehouse_code,brand_code,oem_part_number,quantity,doc_ref");
     }

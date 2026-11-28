@@ -71,6 +71,9 @@ internal sealed class PartCatalogRow
     public string? UnitCost { get; set; }
 
     public string? ConditionBased { get; set; }
+
+    /// <summary>Manufacturer code, optional column (PR 7h3).</summary>
+    public string? ManufacturerCode { get; set; }
 }
 
 /// <summary>Row of <c>raw.demand_history_row</c>.</summary>
@@ -115,6 +118,9 @@ internal sealed class PartCatalog
     public decimal? UnitCost { get; set; }
 
     public bool? IsConditionBased { get; set; }
+
+    /// <summary>Resolved manufacturer, if the row named one (PR 7h3).</summary>
+    public short? ManufacturerId { get; set; }
 
     public bool IsValid { get; set; }
 }
