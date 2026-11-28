@@ -15,6 +15,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Npgsql;
 using SmartSpare.ApiContracts.Identity;
+using SmartSpare.Infrastructure.Jobs;
 using SmartSpare.Infrastructure.Security;
 using SmartSpare.Modules.Identity;
 using SmartSpare.Modules.Identity.Contracts;
@@ -100,6 +101,34 @@ public sealed class TopologyFixture : IAsyncLifetime
         _ = Identity.Server;
         _ = Inventory.Server;
         _ = Fleet.Server;
+
+        // Fleet's warehouse copy is filled as after a deployment (ADR 0029): the Inventory service runs the publish job
+        // and its event reaches the Fleet service over RabbitMQ.
+        await using (var scope = Inventory.Services.CreateAsyncScope())
+        {
+            await scope.ServiceProvider.GetServices<IJob>().Single(j => j.Name == "inventory.warehouse-catalog-publish").RunAsync(Ct);
+        }
+
+        await WaitForWarehouseCopyAsync();
+    }
+
+    private async Task WaitForWarehouseCopyAsync()
+    {
+        for (var attempt = 0; attempt < 60; attempt++)
+        {
+            await using var connection = new NpgsqlConnection(_migrator);
+            await connection.OpenAsync(Ct);
+            await using var command = new NpgsqlCommand(
+                "SELECT count(*) FROM fleet.warehouse_snapshot s JOIN inventory.warehouse w ON w.id = s.warehouse_id AND w.code = s.code", connection);
+            if ((long)(await command.ExecuteScalarAsync(Ct))! >= 7)
+            {
+                return;
+            }
+
+            await Task.Delay(500, Ct);
+        }
+
+        throw new TimeoutException("WarehouseCatalogChanged did not reach the Fleet service within 30 s.");
     }
 
     public async ValueTask DisposeAsync()

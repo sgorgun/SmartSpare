@@ -33,7 +33,7 @@ public sealed class FleetTopologyTests(TopologyFixture topology)
 
         var row = machines!.Items.ShouldHaveSingleItem();
         row.Id.ShouldBe(machine);
-        row.WarehouseCode.ShouldBe("KLP", "the Fleet service read the hub code from the Inventory service");
+        row.WarehouseCode.ShouldBe("KLP", "the Fleet service read the hub code from its warehouse copy, fed over RabbitMQ (ADR 0029)");
         plans.StatusCode.ShouldBe(HttpStatusCode.OK);
         topology.Forwarded.ShouldContain(f => f.Service == "fleet" && f.Path == "/api/v1/fleet/machines");
     }

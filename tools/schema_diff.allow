@@ -374,3 +374,5 @@
 +\b(fleet|iam)\.(warehouse_snapshot|apply_warehouses)\b
 +\bfleet\.(require_hub_not_archived|trg_service_order_hub_not_archived|trg_machine_home_hub_not_archived)\b
 +\binventory\.(fleet_hub_reference|apply_fleet_hub_references)\b
++\b(trg_machine_home_hub_not_archived|trg_service_order_hub_not_archived)\b
++^IF FOUND THEN RAISE EXCEPTION 'The % % is archived and cannot be chosen', p_what, v_code USING ERRCODE = 'SS500';$
