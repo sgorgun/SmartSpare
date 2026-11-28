@@ -25,7 +25,7 @@ public sealed class InternalTokenTests(FakeIdentityHostFactory factory) : IClass
     {
         // The worst case: every permission of the catalogue (a superadministrator), every role, brands and hubs.
         var claims = new List<Claim> { new(AppClaimTypes.Subject, Guid.NewGuid().ToString()), new(AppClaimTypes.Name, "superadmin.smartspare") };
-        claims.AddRange(AppRoles.All.Select(r => new Claim(AppClaimTypes.Role, r)));
+        claims.AddRange(AppRoles.All.Append(AppRoles.Superadministrator).Select(r => new Claim(AppClaimTypes.Role, r)));
         claims.AddRange(Permissions.All.Select(p => new Claim(AppClaimTypes.Permission, p.Name)));
         claims.AddRange(Enumerable.Range(1, 12).Select(b => new Claim(AppClaimTypes.Brand, b.ToString(System.Globalization.CultureInfo.InvariantCulture))));
         claims.AddRange(Enumerable.Range(1, 6).Select(h => new Claim(AppClaimTypes.Warehouse, h.ToString(System.Globalization.CultureInfo.InvariantCulture))));
@@ -38,6 +38,35 @@ public sealed class InternalTokenTests(FakeIdentityHostFactory factory) : IClass
         jwt.Claims.ShouldNotContain(c => c.Type == AppClaimTypes.Permission, "names never travel; the compact bitset does");
         PermissionBitset.Decode(jwt.GetClaim(AppClaimTypes.PermissionSet).Value).Count.ShouldBe(Permissions.All.Count);
         jwt.GetClaim(AppClaimTypes.PermissionVersion).Value.ShouldBe(Permissions.CatalogueVersion.ToString(System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    /// <summary>
+    /// The superadministrator's token at the catalogue sizes expected later (ADR 0028): only the bitset grows with the
+    /// catalogue, by one bit per code, so the projection adds the longer bitset, base64url-encoded again inside the JWT
+    /// payload, to today's measured worst case. Names would cost about 40 bytes per permission instead.
+    /// </summary>
+    [Theory]
+    [InlineData(120)]
+    [InlineData(150)]
+    [InlineData(300)]
+    public void The_superadministrator_token_stays_small_at_the_projected_catalogue_size(int permissions)
+    {
+        var claims = new List<Claim> { new(AppClaimTypes.Subject, Guid.NewGuid().ToString()), new(AppClaimTypes.Name, "superadmin.smartspare") };
+        claims.AddRange(AppRoles.All.Append(AppRoles.Superadministrator).Select(r => new Claim(AppClaimTypes.Role, r)));
+        claims.AddRange(Permissions.All.Select(p => new Claim(AppClaimTypes.Permission, p.Name)));
+        claims.AddRange(Enumerable.Range(1, 12).Select(b => new Claim(AppClaimTypes.Brand, b.ToString(System.Globalization.CultureInfo.InvariantCulture))));
+        claims.AddRange(Enumerable.Range(1, 6).Select(h => new Claim(AppClaimTypes.Warehouse, h.ToString(System.Globalization.CultureInfo.InvariantCulture))));
+        var token = factory.Token(new ClaimsPrincipal(new ClaimsIdentity(claims, "test")));
+        var measured = Encoding.ASCII.GetByteCount(token);
+        var bitsetNow = new JsonWebToken(token).GetClaim(AppClaimTypes.PermissionSet).Value.Length;
+
+        var bitsetThen = System.Buffers.Text.Base64Url.GetEncodedLength((permissions / 8) + 1);
+        var projected = measured + (int)Math.Ceiling((bitsetThen - bitsetNow) * 4 / 3.0);
+
+        TestContext.Current.SendDiagnosticMessage(
+            $"Superadministrator token: {measured} bytes with {Permissions.All.Count} permissions; projected {projected} bytes with {permissions}");
+        projected.ShouldBeLessThan(1500, "the bitset keeps the worst case far below the ~6 KB line at which a compact encoding was required");
+        projected.ShouldBeLessThan(TokenBudgetBytes);
     }
 
     [Fact]
