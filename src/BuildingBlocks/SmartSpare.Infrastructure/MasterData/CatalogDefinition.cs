@@ -69,6 +69,13 @@ public sealed record CatalogDefinition<TRecord, TId, TDto, TWrite>
 
     public required IValidator<TWrite> Validator { get; init; }
 
+    /// <summary>
+    /// Integration events of a write (for example <c>BrandCatalogChanged</c>): called with the created or changed records
+    /// after they were saved in the write's transaction, so they have their ids; events it adds to the unit of work commit
+    /// with the change (outbox). Also called once for the records an applied CSV import wrote. None: nothing is published.
+    /// </summary>
+    public Action<SmartSpare.Infrastructure.Persistence.IUnitOfWork, IReadOnlyList<TRecord>>? Publish { get; init; }
+
     /// <summary>CSV template, export and import (STAGE_7_PLAN 2.6); none: the catalogue has no CSV endpoints.</summary>
     public CatalogCsv<TDto, TWrite>? Csv { get; init; }
 
