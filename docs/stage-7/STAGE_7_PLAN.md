@@ -557,6 +557,17 @@ Effort: **S** ≈ a quarter day, **M** ≈ half a day, **L** ≈ a full day, at 
 - **Deviation from 3.1:** the reason rule is an insert trigger rather than a `CHECK NOT VALID`, because the ledger is append-only and partitioned; the effect is the same.
 - **New policy:** `ManageCatalog` (planners, administrators). It only adds rows to the golden matrix; no existing right changed.
 
+**As built, 7g (#160):**
+- **One CSV reader and writer** (`SmartSpare.Infrastructure.Csv.CsvFile`). The parts and demand-history import uses it through a thin wrapper, so its error codes are unchanged.
+- **Catalogues:** a catalogue opts in with a `CatalogCsv` part of its definition (columns, row to write, record to row, example). `MapCatalog` then adds:
+  - `GET …/csv/template` and `GET …/csv` (export of the active records, which imports back unchanged);
+  - `POST …/csv?dryRun=`: upsert by code, DUPLICATE, ARCHIVED and INVALID row errors, unchanged rows not written, and the 5 % gate.
+- **The dry run is the import, rolled back.** It runs in one transaction, is saved so the database checks answer too, and is committed only when it is not a dry run and within the gate. A test shows that the preview's counts equal the commit's.
+- **Rights:** the import needs both the edit permission (the endpoint's single policy) and the create permission (checked in the handler, 403).
+- **Parts and demand history:** `POST /imports?dryRun=true` uses a savepoint inside the command's transaction, so the batch, its rows and the load roll back and the file is not recorded as imported. Also added: `GET /imports/template` and `GET /imports/export`.
+- **Web:** a `CsvPanel` on `CatalogPage` (`HasCsv`) with the template and export links, a dry-run preview table, and Apply only within the gate. It is on the adjustment reasons page.
+- **Moved to 7h:** the manufacturer column of the parts files, because manufacturers arrive in 7h (#161).
+
 **As built, 7x4 (#192):**
 - **Roles screen** (`/admin/roles`, Organisation tab "Roles"): one column per role and one row per permission, grouped by module and searchable. Locked roles are read-only. A holder of `Organisation.Role.Edit` ticks permissions and saves one role with its version, or creates a role. A refusal (separation of duties, the own role, a stale version) is shown with its reason, and the pending change is kept.
 - **Effective rights with origin** on the users page: each account lists its permissions as "permission ← role ← position".
