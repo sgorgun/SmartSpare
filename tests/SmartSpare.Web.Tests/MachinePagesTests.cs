@@ -369,4 +369,15 @@ public sealed class FakeWarehouses() : InventoryClient(new HttpClient())
 {
     public override Task<ApiResult<IReadOnlyList<WarehouseResponse>>> ListWarehousesAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(ApiResult.Success<IReadOnlyList<WarehouseResponse>>([]));
+
+    /// <summary>The direct-analogue calls of the service order page (PR 7i3), recorded.</summary>
+    public List<(IReadOnlyCollection<long> PartIds, short WarehouseId)> AnalogueCalls { get; } = [];
+
+    public override Task<ApiResult<List<DirectAnalogues>>> ListDirectAnaloguesAsync(
+        IReadOnlyCollection<long> partIds, short warehouseId, CancellationToken cancellationToken = default)
+    {
+        AnalogueCalls.Add((partIds, warehouseId));
+        return Task.FromResult(ApiResult.Success(partIds.Select(id => new DirectAnalogues(id, warehouseId,
+            id == 1203 ? [new DirectAnalogue(new PartRef(2203, "MANN", "OIL-10W40-AM", "Engine oil 10W-40, aftermarket", false), DirectAnalogueKinds.Interchangeable, 1m, 40m)] : [])).ToList()));
+    }
 }

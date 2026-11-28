@@ -143,6 +143,10 @@ else
                         }
                     </tbody>
                 </MudSimpleTable>
+                @if (order.Status != ServiceOrderStatuses.Cancelled && order.Status != ServiceOrderStatuses.Completed)
+                {
+                    <KitShortageAnalogues Lines="_order.Lines" WarehouseId="order.WarehouseId" WarehouseCode="@order.WarehouseCode" />
+                }
             }
         </MudItem>
         <MudItem xs="12" md="4">

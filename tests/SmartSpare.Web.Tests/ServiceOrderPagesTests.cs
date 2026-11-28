@@ -26,12 +26,14 @@ public sealed class ServiceOrderPagesTests : ClientTestContext
 
     private readonly FakeFleetClient _fleet = new();
 
+    private readonly FakeWarehouses _inventory = new();
+
     private readonly FakeTimeProvider _time = new(Now);
 
     public ServiceOrderPagesTests()
     {
         Services.AddScoped<FleetClient>(_ => _fleet);
-        Services.AddScoped<InventoryClient>(_ => new FakeWarehouses());
+        Services.AddScoped<InventoryClient>(_ => _inventory);
         Services.AddSingleton<TimeProvider>(_time);
         Services.AddLogging();
         Services.AddPermissionAuthorization();
@@ -51,6 +53,33 @@ public sealed class ServiceOrderPagesTests : ClientTestContext
         page.FindAll("[data-testid=action-start]").ShouldBeEmpty();
         page.FindAll("[data-testid=action-cancel]").ShouldBeEmpty();
         page.FindAll("[aria-label='Status: In progress']").ShouldHaveSingleItem();
+    }
+
+    [Fact]
+    public void A_short_line_shows_its_direct_analogues_with_what_is_available_at_the_hub_from_one_request()
+    {
+        _fleet.OrderAnswers.Enqueue(ApiResult.Success(FakeFleetClient.Order(ServiceOrderStatuses.Draft, KitStatuses.Partial, [], reserved: 10)));
+
+        var page = RenderOrder();
+
+        page.WaitForAssertion(() => page.Find("[data-testid=kit-shortage-analogues]").TextContent.ShouldContain("OIL-10W40-AM"));
+        page.Find("[data-testid=kit-shortage-analogues]").TextContent.ShouldContain("40 available");
+        page.Find("[data-testid=kit-shortage-analogues]").TextContent.ShouldContain("KLP");
+        _inventory.AnalogueCalls.ShouldHaveSingleItem().ShouldSatisfyAllConditions(
+            c => c.PartIds.ShouldBe([1203L], "only the short line"),
+            c => c.WarehouseId.ShouldBe((short)3, "the order's hub"));
+    }
+
+    [Fact]
+    public void A_fully_reserved_kit_asks_for_no_analogues()
+    {
+        _fleet.OrderAnswers.Enqueue(ApiResult.Success(FakeFleetClient.Order(ServiceOrderStatuses.PartsReserved, KitStatuses.Reserved, [])));
+
+        var page = RenderOrder();
+
+        page.WaitForAssertion(() => page.Find("[data-testid=order-lines]"));
+        page.FindAll("[data-testid=kit-shortage-analogues]").ShouldBeEmpty();
+        _inventory.AnalogueCalls.ShouldBeEmpty();
     }
 
     [Fact]

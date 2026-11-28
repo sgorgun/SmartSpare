@@ -222,6 +222,27 @@
   <data name="Analogues.CsvIntro" xml:space="preserve">
     <value>Pairs by brand and OEM number. An import creates links or updates their factor, date and note; it never removes a link or changes its type, which need a reason on the part's analogues.</value>
   </data>
+  <data name="Order.Analogues.Title" xml:space="preserve">
+    <value>Analogues of the short parts at {0}</value>
+  </data>
+  <data name="Order.Analogues.Intro" xml:space="preserve">
+    <value>Directly interchangeable parts and the current successor, with what is available (on hand minus reserved) at the hub. For information only: the kit is not changed.</value>
+  </data>
+  <data name="Order.Analogues.None" xml:space="preserve">
+    <value>No direct analogue.</value>
+  </data>
+  <data name="Order.Analogues.Kind.interchangeable" xml:space="preserve">
+    <value>interchangeable</value>
+  </data>
+  <data name="Order.Analogues.Kind.successor" xml:space="preserve">
+    <value>current successor</value>
+  </data>
+  <data name="Order.Analogues.Available" xml:space="preserve">
+    <value>{0} available</value>
+  </data>
+  <data name="Order.Analogues.Unavailable" xml:space="preserve">
+    <value>The analogues could not be loaded.</value>
+  </data>
   <data name="Parts.Search" xml:space="preserve">
     <value>Search by part number or description</value>
   </data>
