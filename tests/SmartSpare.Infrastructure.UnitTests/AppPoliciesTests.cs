@@ -65,6 +65,7 @@ public sealed class AppPoliciesTests
         ("7h2: brand catalogue", [AppRoles.Administrator, AppRoles.InventoryPlanner], [Permissions.Inventory.Brand.Create, Permissions.Inventory.Brand.Edit, Permissions.Inventory.Brand.Archive]),
         ("7h3: read manufacturers", [.. AppRoles.All], [Permissions.Inventory.Manufacturer.View]),
         ("7h3: manufacturer catalogue", [AppRoles.Administrator, AppRoles.InventoryPlanner], [Permissions.Inventory.Manufacturer.Create, Permissions.Inventory.Manufacturer.Edit, Permissions.Inventory.Manufacturer.Archive]),
+        ("7i1: parts catalogue", [AppRoles.Administrator, AppRoles.InventoryPlanner], [Permissions.Inventory.Part.Create, Permissions.Inventory.Part.Edit, Permissions.Inventory.Part.Archive]),
     ];
 
     private static readonly IAuthorizationService Authorization = new ServiceCollection()

@@ -72,9 +72,19 @@ public sealed record CatalogDefinition<TRecord, TId, TDto, TWrite>
     /// <summary>
     /// Integration events of a write (for example <c>BrandCatalogChanged</c>): called with the created or changed records
     /// after they were saved in the write's transaction, so they have their ids; events it adds to the unit of work commit
-    /// with the change (outbox). Also called once for the records an applied CSV import wrote. None: nothing is published.
+    /// with the change (outbox). It may read the module's data through the services (parts: the codes of a snapshot).
+    /// Also called once for the records an applied CSV import wrote. None: nothing is published.
     /// </summary>
-    public Action<SmartSpare.Infrastructure.Persistence.IUnitOfWork, IReadOnlyList<TRecord>>? Publish { get; init; }
+    public Func<IServiceProvider, SmartSpare.Infrastructure.Persistence.IUnitOfWork, IReadOnlyList<TRecord>, CancellationToken, Task>? Publish { get; init; }
+
+    /// <summary>
+    /// Where a code must be unique when it is not unique in the whole catalogue: the records whose codes may collide with
+    /// the given one (parts: the same brand, because the OEM number is unique per brand). None: the whole catalogue.
+    /// </summary>
+    public Func<TRecord, Expression<Func<TRecord, bool>>>? CodeScope { get; init; }
+
+    /// <summary>False when the catalogue keeps its own <c>GET {route}/{id}</c> (parts: with stock); the others are mapped as usual.</summary>
+    public bool MapDetail { get; init; } = true;
 
     /// <summary>CSV template, export and import (STAGE_7_PLAN 2.6); none: the catalogue has no CSV endpoints.</summary>
     public CatalogCsv<TDto, TWrite>? Csv { get; init; }

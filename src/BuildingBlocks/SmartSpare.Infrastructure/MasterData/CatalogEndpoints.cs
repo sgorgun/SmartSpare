@@ -73,26 +73,30 @@ public static class CatalogEndpoints
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .WithResponseExample(StatusCodes.Status200OK, new[] { d.LookupExample });
 
-        group.MapGet("/{id:long}", async ([Description("Record id.")] long id, HttpContext http, CancellationToken cancellationToken) =>
-            {
-                if (Key<TId>(id) is not { } key)
+        // A catalogue with a richer read of its own (parts: with stock per warehouse) keeps it at this route.
+        if (d.MapDetail)
+        {
+            group.MapGet("/{id:long}", async ([Description("Record id.")] long id, HttpContext http, CancellationToken cancellationToken) =>
                 {
-                    return CatalogErrors.NotFound.ToProblem();
-                }
+                    if (Key<TId>(id) is not { } key)
+                    {
+                        return CatalogErrors.NotFound.ToProblem();
+                    }
 
-                var result = await Service<TContext, TRecord, TId, TDto, TWrite>(http, d).GetAsync(key, cancellationToken).ConfigureAwait(false);
-                return result.IsSuccess ? new ETagResult(TypedResults.Ok(result.Value), d.VersionOf(result.Value)) : result.Error.ToProblem();
-            })
-            .RequireAuthorization(d.ViewPermission)
-            .WithName($"Get{d.OperationNoun}")
-            .WithSummary($"Returns one {d.Noun}.")
-            .WithDescription($"The {d.Noun}; the ETag header carries its version for If-Match.")
-            .Produces<TDto>()
-            .ProducesProblem(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status403Forbidden)
-            .ProducesProblem(StatusCodes.Status404NotFound)
-            .WithResponseExample(StatusCodes.Status200OK, d.Example)
-            .WithResponseExample(StatusCodes.Status404NotFound, notFound);
+                    var result = await Service<TContext, TRecord, TId, TDto, TWrite>(http, d).GetAsync(key, cancellationToken).ConfigureAwait(false);
+                    return result.IsSuccess ? new ETagResult(TypedResults.Ok(result.Value), d.VersionOf(result.Value)) : result.Error.ToProblem();
+                })
+                .RequireAuthorization(d.ViewPermission)
+                .WithName($"Get{d.OperationNoun}")
+                .WithSummary($"Returns one {d.Noun}.")
+                .WithDescription($"The {d.Noun}; the ETag header carries its version for If-Match.")
+                .Produces<TDto>()
+                .ProducesProblem(StatusCodes.Status401Unauthorized)
+                .ProducesProblem(StatusCodes.Status403Forbidden)
+                .ProducesProblem(StatusCodes.Status404NotFound)
+                .WithResponseExample(StatusCodes.Status200OK, d.Example)
+                .WithResponseExample(StatusCodes.Status404NotFound, notFound);
+        }
 
         group.MapGet("/{id:long}/history", async (
                 [Description("Record id.")] long id, HttpContext http, CancellationToken cancellationToken,

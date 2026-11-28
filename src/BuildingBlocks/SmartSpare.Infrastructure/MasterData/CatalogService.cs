@@ -71,7 +71,7 @@ public sealed class CatalogService<TContext, TRecord, TId, TDto, TWrite>(
                 return created.Error;
             }
 
-            if (await CodeTakenAsync(created.Value.Code, null, ct).ConfigureAwait(false))
+            if (await CodeTakenAsync(created.Value, created.Value.Code, null, ct).ConfigureAwait(false))
             {
                 return CatalogErrors.CodeTaken;
             }
@@ -103,7 +103,7 @@ public sealed class CatalogService<TContext, TRecord, TId, TDto, TWrite>(
                     return CatalogErrors.CodeFixed;
                 }
 
-                if (await CodeTakenAsync(code.Value, record.Id, cancellationToken).ConfigureAwait(false))
+                if (await CodeTakenAsync(record, code.Value, record.Id, cancellationToken).ConfigureAwait(false))
                 {
                     return CatalogErrors.CodeTaken;
                 }
@@ -281,9 +281,9 @@ public sealed class CatalogService<TContext, TRecord, TId, TDto, TWrite>(
         {
             // Saved even for a dry run, so the database's own checks answer the preview as they will the commit.
             await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-            if (written.Count > 0)
+            if (written.Count > 0 && definition.Publish is { } publish)
             {
-                definition.Publish?.Invoke(unitOfWork, written);   // rolled back with the import unless it is applied
+                await publish(services, unitOfWork, written, cancellationToken).ConfigureAwait(false);   // rolled back unless applied
             }
         }
 
@@ -310,10 +310,18 @@ public sealed class CatalogService<TContext, TRecord, TId, TDto, TWrite>(
         return query.Where(r => EF.Functions.ILike(r.Code, pattern) || EF.Functions.ILike(r.Name, pattern));
     }
 
-    private Task<bool> CodeTakenAsync(string code, TId? except, CancellationToken cancellationToken) =>
-        except is { } id
-            ? db.Set<TRecord>().AsNoTracking().AnyAsync(r => r.Code == code && !r.Id.Equals(id), cancellationToken)
-            : db.Set<TRecord>().AsNoTracking().AnyAsync(r => r.Code == code, cancellationToken);
+    private Task<bool> CodeTakenAsync(TRecord record, string code, TId? except, CancellationToken cancellationToken)
+    {
+        var query = db.Set<TRecord>().AsNoTracking().Where(r => r.Code == code);
+        if (definition.CodeScope is { } scope)
+        {
+            query = query.Where(scope(record));
+        }
+
+        return except is { } id
+            ? query.AnyAsync(r => !r.Id.Equals(id), cancellationToken)
+            : query.AnyAsync(cancellationToken);
+    }
 
     /// <summary>
     /// Runs one write in an explicit transaction of the module, as the transaction decorator does for command handlers:
@@ -355,7 +363,7 @@ public sealed class CatalogService<TContext, TRecord, TId, TDto, TWrite>(
         if (outcome.IsSuccess && definition.Publish is { } publish)
         {
             await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-            publish(unitOfWork, [outcome.Value]);
+            await publish(services, unitOfWork, [outcome.Value], cancellationToken).ConfigureAwait(false);
         }
 
         return outcome;

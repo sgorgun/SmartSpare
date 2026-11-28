@@ -73,9 +73,12 @@ public abstract class MasterRecord<TId> : AggregateRoot<TId>
     }
 
     /// <summary>Sets the name; <see langword="true"/> if it changed.</summary>
-    protected Result<bool> Rename(string? name)
+    protected Result<bool> Rename(string? name) => Rename(name, MasterRecordRules.MaxNameLength);
+
+    /// <summary>Sets the name of a catalogue whose name column is longer (parts: a 300-character description).</summary>
+    protected Result<bool> Rename(string? name, int maxLength)
     {
-        var normalised = MasterRecordRules.NormaliseName(name);
+        var normalised = MasterRecordRules.NormaliseName(name, maxLength);
         if (normalised.IsFailure)
         {
             return normalised.Error;
@@ -102,9 +105,12 @@ public static class MasterRecordRules
     }
 
     /// <summary>A trimmed name of 1 to <see cref="MaxNameLength"/> characters.</summary>
-    public static Result<string> NormaliseName(string? name)
+    public static Result<string> NormaliseName(string? name) => NormaliseName(name, MaxNameLength);
+
+    /// <summary>A trimmed name of 1 to <paramref name="maxLength"/> characters.</summary>
+    public static Result<string> NormaliseName(string? name, int maxLength)
     {
         var trimmed = name?.Trim() ?? string.Empty;
-        return trimmed.Length is > 0 and <= MaxNameLength ? trimmed : CatalogErrors.InvalidName;
+        return trimmed.Length > 0 && trimmed.Length <= maxLength ? trimmed : CatalogErrors.InvalidName;
     }
 }

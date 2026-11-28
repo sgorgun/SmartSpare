@@ -75,6 +75,9 @@ public sealed class PermissionBitsetTests
         [61] = "Inventory.Manufacturer.Create",
         [62] = "Inventory.Manufacturer.Edit",
         [63] = "Inventory.Manufacturer.Archive",
+        [64] = "Inventory.Part.Create",
+        [65] = "Inventory.Part.Edit",
+        [66] = "Inventory.Part.Archive",
     };
 
     [Fact]
