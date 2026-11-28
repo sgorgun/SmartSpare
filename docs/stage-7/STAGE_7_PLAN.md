@@ -314,7 +314,7 @@ One Inventory migration moves the table (`ALTER TABLE ref.brand SET SCHEMA catal
 |---|---|---|---|
 | Customers | `fleet.customer` (+ `name`, `kind` company \| individual, archive, audit with `name` excluded) | code `CUST-NNNNNN` / name; many farmers are private persons, so the name is personal data: masked for roles without access, removed by the new `fleet.anonymise_customer` (decided, section 14, Q2); guard: active machines | `ManageFleetData` |
 | Machine models | `fleet.machine_model` (+ `code`, archive) | `CL-LEX-8900` / "Lexion 8900"; brand (snapshot), machine type (`ref`); guard: active machines, active service works | `ManageFleetData` |
-| Machines | `fleet.machine` (existing) | code = VIN / name = model and year; model, customer, operating condition, home hub (`IWarehouseQueries`), year, commissioning date; engine hours are never edited here (readings only); archive = out of service; guard: open service orders | `ManageFleetData` |
+| Machines | `fleet.machine` (existing) | code = VIN / name = model and year; model, customer, operating condition, home hub (Fleet's warehouse copy, ADR 0029), year, commissioning date; engine hours are never edited here (readings only); archive = out of service; guard: open service orders | `ManageFleetData` |
 | Service works | `fleet.service_work` (new), `fleet.service_work_part` (new) | operation code (`^[A-Z0-9-]{2,20}$`) / name, norm hours (0 < h ≤ 999.99), applicable model or brand (none = any), standard kit (part from the snapshot, quantity > 0, active parts only); guard: active maintenance plans using it | `ManageFleetData` |
 
 ### 3.6 Identity / organisation
@@ -559,16 +559,27 @@ Effort: **S** ≈ a quarter day, **M** ≈ half a day, **L** ≈ a full day, at 
 
 **7j is split into two PRs (product owner, 28 November 2026),** each green and merged before the next: **7j1** the warehouse copies in Fleet and Identity, the two events, the two publish jobs and Inventory's projection of Fleet's hub references, with the golden matrix unchanged; **7j2** the warehouse and route catalogues, their permissions, the archive guards, the responsibles screen and the docs. Both belong to #163.
 
+**As built, 7j1b (part of #163; ADR 0029 amendment; product owner's follow-ups of 14.3 item 10):**
+- **A reading is never lost:**
+  - `fleet.log_engine_hours` (new script `fleet/0013`) stores the reading and drafts nothing when Fleet's copy marks the home hub archived.
+  - `POST /machines/{id}/readings` answers 201 with `warnings: [Fleet.HubArchived]` when a service is due. The engineer's entry shows the warning in place of the drafted orders.
+  - The due list row has `hubArchived`; the page shows a "Hub archived" chip and offers no new order for that machine.
+- **`IWarehouseQueries` removed** with its HTTP client, its in-module implementation and `/internal/v1/inventory/warehouses`; Inventory maps no internal endpoint now.
+  - The cross-service read tests moved to `HttpEmployeeDirectory`: client unit tests (internal path, no request for no ids, 500/401 and unreachable are 503) and the caller-token integration test.
+- **#85** lists the five publish jobs as one-time post-deployment steps.
+- **Tests:** integration (the reading is stored with the warning and no order, the due list flags the machine); bUnit (warning on the entry; chip and no order button on the due list); SQL T02 +2, 155 assertions.
+- **Breaking changes:** none. The new response fields are additions; the removed endpoint was internal and never described.
+
 **As built, 7j1 (part of #163; ADR 0029):**
 - **ADR 0029** records the model and the accepted event-lag window (decision 1 of 14.3 item 9).
 - **Warehouse copies:** `fleet.warehouse_snapshot` and `iam.warehouse_snapshot` (id, code, name, central hub, archived) with Inventory's ids.
   - They are fed by the new `WarehouseCatalogChanged` (newest event wins) and filled by the job `inventory.warehouse-catalog-publish`.
   - `fleet.apply_warehouses` / `iam.apply_warehouses` (SECURITY DEFINER) is the only write path, executable only by `smartspare_api` and the module's own login.
-  - Fleet's machine and service order lists and Identity's user list and form read hub codes and names from the copies. The Fleet and Identity services no longer call Inventory; `IWarehouseQueries` and its internal endpoint stay for later readers.
+  - Fleet's machine and service order lists and Identity's user list and form read hub codes and names from the copies. The Fleet and Identity services no longer call Inventory; `IWarehouseQueries` and its internal endpoint were removed in 7j1b.
   - Until 7j2 publishes on every write, the copy's archived flag is `NOT inventory.warehouse.is_active`.
 - **Fleet's archived-hub guard:** a new service order at a hub the copy marks archived is refused with SS500, in the API (`POST /service-orders`) and in the database (`trg_service_order_hub_not_archived`); so is a machine created with, or moved to, an archived home hub (`trg_machine_home_hub_not_archived`).
   - The API side of the machine rule comes with the machine editor in 7l, which is the first API that sets a home hub.
-  - A reading that would draft an order at an archived hub is refused by the trigger, so the reading is not stored either. This can only happen inside the event-lag window, because 7j2's guard refuses to archive a hub with active machines.
+  - As first built, a reading that would draft an order at an archived hub was refused by the trigger, reading included. 7j1b changed this: the reading is always stored.
   - A hub missing from the copy is allowed, so a database upgraded before the publish job ran keeps working.
 - **Fleet hub references in Inventory:** `inventory.fleet_hub_reference` (one row per service order or machine: hub, open), fed by the new `HubReferencesChanged` and filled by the job `fleet.hub-reference-publish`.
   - Fleet writes the event in the same transaction as every draft (reading, create, completion's follow-up drafts), completion and cancellation.
@@ -971,3 +982,7 @@ Recorded here, or in the ADR or section named, so that none lives only in a conv
    5. #163 and this plan are updated in the 7j PRs.
    6. **Split:** 7j1 (copies, events, publish jobs, the Fleet facts projection; matrix unchanged) and 7j2 (catalogues, guards, responsibles screen, docs).
    7. **Review tag:** `review-2026-12-01` is set on 1 December on a green `main`, after 7j if it is merged by then, and never in the middle of a PR. The README section links the existing sections instead of copying them.
+10. **Follow-ups of 7j1 (product owner, 28 November 2026), built in 7j1b:**
+    1. **Never lose an engine-hours reading.** At an archived home hub the reading is stored (only SS100–SS104 reject a reading), the draft is skipped, the API returns a warning that maintenance is due but the hub is archived, and the due list flags the machine "hub archived"; API and database aligned, with tests. Recorded in the ADR 0029 amendment.
+    2. **`IWarehouseQueries` and its internal endpoint are removed**, because no production path uses them; their tests move to the current cross-service read. No stage 8 need was found.
+    3. **#85** gets `inventory.warehouse-catalog-publish`, `fleet.hub-reference-publish` and `inventory.brand-catalog-publish` as one-time post-deployment steps.

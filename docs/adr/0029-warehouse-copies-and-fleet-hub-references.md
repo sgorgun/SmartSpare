@@ -1,6 +1,6 @@
 # ADR 0029: Warehouse copies and Fleet hub references
 
-- Status: Accepted
+- Status: Accepted; amended by PR 7j1b (see the amendment)
 - Date: 2026-11-28
 - Relates to: [STAGE_7_PLAN.md](../stage-7/STAGE_7_PLAN.md) sections 3.1 and 12.2 (PR 7j), [ADR 0003](0003-module-boundaries-and-integration-events.md), [ADR 0024](0024-acting-user-of-integration-events-and-jobs.md), [ADR 0025](0025-generic-master-data-mechanism.md), [ADR 0026](0026-employee-derived-authorization.md)
 
@@ -26,7 +26,7 @@ Option (b), checking the two Fleet conditions in the API only, was rejected by t
    - They are fed by the new event `WarehouseCatalogChanged` from Inventory, newest event wins per row.
    - No login may write them. `fleet.apply_warehouses` / `iam.apply_warehouses` (SECURITY DEFINER) is the only write path, executable only by the logins that host the module.
    - The job `inventory.warehouse-catalog-publish` fills them the first time and repairs them.
-   - Fleet and Identity read hub codes and the archived flag from their copy and no longer call `IWarehouseQueries`. The contract and its internal endpoint stay, as the reference implementation of a cross-service read; stage 8 may use it.
+   - Fleet and Identity read hub codes and the archived flag from their copy. `IWarehouseQueries`, its HTTP client and its internal endpoint are removed (amendment).
 2. **Fleet hub references in Inventory.** `inventory.fleet_hub_reference` holds one row per Fleet record that holds a hub: `(record_kind, record_id) → warehouse_id, is_open`.
    - `record_kind` is `service_order` (open = draft, parts reserved or in progress) or `machine` (open = active).
    - It is fed by the new event `HubReferencesChanged` from Fleet: a state transfer of the records a write touched, newest event wins per record.
@@ -39,6 +39,8 @@ Option (b), checking the two Fleet conditions in the API only, was rejected by t
    - a machine created with, or moved to, an archived home hub.
 
    A hub with no row in the copy is not known to be archived and is allowed, so a database upgraded before the publish job ran keeps working.
+
+   **A reading is never lost** (amendment). An engine-hours reading that makes a service due at an archived home hub is stored, and no order is drafted; the API answers with the warning `Fleet.HubArchived`, and the due list flags the machine "hub archived".
 5. **Accepted limitation: the event-lag window.** Each side checks its own copy of the other side's facts, so a hub archive and a Fleet write that happen within the delivery time of the events can both succeed.
    - **Example:** Inventory archives hub X while no open record is known at it; at the same moment Fleet drafts a service order at X, whose copy does not yet say X is archived.
    - **Window:** the time from one side's commit until the other side applies the event. Over RabbitMQ that is milliseconds; in the single host one outbox dispatcher cycle. It grows while the consuming service is down or scaled to zero, because the outbox keeps the event until it is delivered.
@@ -52,3 +54,13 @@ Option (b), checking the two Fleet conditions in the API only, was rejected by t
 - Two new publish jobs, which run once after the deployment that introduces them (stage 10, #85) and whenever a copy needs repair.
 - Hub renames reach Fleet and Identity with event latency instead of a 60-second cache, which replaces "`IWarehouseQueries` caches expire after 60 s" in STAGE_7_PLAN 3.1.
 - Inventory's database checks every archive condition itself, including the two that Fleet owns.
+
+## Amendment (PR 7j1b, product owner, 28 November 2026)
+
+1. **A reading is never lost.** An engine-hours reading is a field fact; only the reading rules SS100–SS104 may reject it. Decision 4 first let the service order trigger refuse a reading that would draft an order at an archived hub, which refused the reading too. Now:
+   - `fleet.log_engine_hours` stores the reading and drafts nothing when the copy marks the machine's home hub archived;
+   - `POST /machines/{id}/readings` answers 201 with the warning `Fleet.HubArchived` when a service is due;
+   - the due list flags the machine (`hubArchived`) and offers no new order there.
+
+   The service order trigger stays and still refuses any other new order at an archived hub.
+2. **`IWarehouseQueries` is removed** with its HTTP client and its internal endpoint `/internal/v1/inventory/warehouses`. No production path used them after decision 1, and no stage 8 reader needs them: Forecasting can keep its own copy from `WarehouseCatalogChanged` if it ever needs hubs. The tests of the cross-service read pattern moved to `HttpEmployeeDirectory`, the read Inventory makes to Identity.
