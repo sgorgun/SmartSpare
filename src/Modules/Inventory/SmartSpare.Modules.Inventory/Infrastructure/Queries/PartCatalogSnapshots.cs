@@ -14,7 +14,7 @@ internal static class PartCatalogSnapshots
         """
         SELECT p.id AS part_id, b.code AS brand_code, p.oem_part_number, p.description, u.code AS unit_of_measure, p.is_active
         FROM catalog.part p
-        JOIN ref.brand b ON b.id = p.brand_id
+        JOIN catalog.brand b ON b.id = p.brand_id
         JOIN ref.unit_of_measure u ON u.id = p.uom_id
 
         """;

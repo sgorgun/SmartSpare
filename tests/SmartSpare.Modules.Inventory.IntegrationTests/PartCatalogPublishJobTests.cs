@@ -23,7 +23,7 @@ public sealed class PartCatalogPublishJobTests(InventoryDatabaseFixture database
             WITH ins AS (
                 INSERT INTO catalog.part (brand_id, oem_part_number, description, category_id, uom_id, unit_cost)
                 SELECT b.id, 'PUB' || g, 'Published part', c.id, u.id, 1
-                FROM generate_series(1, 3) g, ref.brand b, ref.part_category c, ref.unit_of_measure u
+                FROM generate_series(1, 3) g, catalog.brand b, ref.part_category c, ref.unit_of_measure u
                 WHERE b.code = 'JD' AND c.code = 'OIL_FILTER' AND u.code = 'PCS'
                 ON CONFLICT DO NOTHING RETURNING 1)
             SELECT count(*)::int FROM ins

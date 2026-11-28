@@ -17,14 +17,10 @@ internal sealed class MachineModelConfiguration : IEntityTypeConfiguration<Machi
         builder.HasAlternateKey(x => new { x.BrandId, x.ModelName }).HasName("uq_machine_model_brand_name");
 
         builder.Property(x => x.Id).HasColumnName("id").HasColumnOrder(0).HasColumnType("integer").UseIdentityByDefaultColumn().HasComment("Surrogate primary key.");
-        builder.Property(x => x.BrandId).HasColumnName("brand_id").HasColumnOrder(1).HasColumnType("smallint").HasComment("Reference to ref.brand.");
+        builder.Property(x => x.BrandId).HasColumnName("brand_id").HasColumnOrder(1).HasColumnType("smallint").HasComment("Inventory brand id (catalog.brand.id); no cross-module FK, the name comes from fleet.brand_snapshot.");
         builder.Property(x => x.MachineTypeId).HasColumnName("machine_type_id").HasColumnOrder(2).HasColumnType("smallint").HasComment("Reference to ref.machine_type.");
         builder.Property(x => x.ModelName).HasColumnName("model_name").HasColumnOrder(3).HasColumnType("character varying(80)");
 
-        builder.HasOne<RefBrand>().WithMany()
-            .HasForeignKey(x => x.BrandId)
-            .HasPrincipalKey(x => x.Id)
-            .HasConstraintName("fk_machine_model_brand").OnDelete(DeleteBehavior.NoAction);
         builder.HasOne<RefMachineType>().WithMany()
             .HasForeignKey(x => x.MachineTypeId)
             .HasPrincipalKey(x => x.Id)

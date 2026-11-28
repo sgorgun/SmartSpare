@@ -39,7 +39,7 @@ public sealed class ResponsibilityFlowTests(IdentityDatabaseFixture database) : 
         _host = new HostFactory { ConnectionString = database.ApiConnectionString };
         _klp = await database.ScalarAsync<short>("SELECT id FROM inventory.warehouse WHERE code = 'KLP'");
         _pnv = await database.ScalarAsync<short>("SELECT id FROM inventory.warehouse WHERE code = 'PNV'");
-        _claas = await database.ScalarAsync<short>("SELECT id FROM ref.brand WHERE code = 'CLAAS'");
+        _claas = await database.ScalarAsync<short>("SELECT id FROM catalog.brand WHERE code = 'CLAAS'");
     }
 
     public async ValueTask DisposeAsync() => await _host.DisposeAsync();

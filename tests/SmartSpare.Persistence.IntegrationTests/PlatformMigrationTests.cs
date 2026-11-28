@@ -53,7 +53,6 @@ public sealed class PlatformMigrationTests(MigratedDatabaseFixture db)
     // Row counts of the reference data of the V016 database (the former seed R001), unchanged by the port.
     [Theory]
     [InlineData("unit_of_measure", 5)]
-    [InlineData("brand", 8)]
     [InlineData("machine_type", 6)]
     [InlineData("part_category", 31)]
     [InlineData("operating_condition", 4)]
@@ -63,6 +62,10 @@ public sealed class PlatformMigrationTests(MigratedDatabaseFixture db)
     [InlineData("agro_calendar_week", 53)]
     public async Task ReferenceData_IsSeeded(string table, long expected) =>
         (await db.ScalarAsync<long>($"SELECT count(*) FROM ref.{table}")).ShouldBe(expected);
+
+    [Fact]
+    public async Task The_seeded_brands_moved_to_Inventory_with_their_ids() =>
+        (await db.ScalarAsync<long>("SELECT count(*) FROM catalog.brand WHERE id BETWEEN 1 AND 8")).ShouldBe(8, "ref.brand moved to catalog.brand (STAGE_7_PLAN 3.2)");
 
     [Fact]
     public async Task AuditLog_HasMonthlyPartitionsAndDefault()

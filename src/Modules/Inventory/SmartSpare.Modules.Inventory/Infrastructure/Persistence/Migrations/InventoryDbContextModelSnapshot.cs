@@ -137,6 +137,109 @@ namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("SmartSpare.Modules.Inventory.Domain.Catalog.Brand", b =>
+                {
+                    b.Property<short>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("smallint")
+                        .HasColumnName("id")
+                        .HasColumnOrder(0)
+                        .HasComment("Surrogate primary key.");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<short>("Id"));
+
+                    b.Property<DateTimeOffset?>("ArchivedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("archived_at")
+                        .HasColumnOrder(51);
+
+                    b.Property<Guid?>("ArchivedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("archived_by")
+                        .HasColumnOrder(52)
+                        .HasComment("User who archived the record (iam.app_user).");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("code")
+                        .HasColumnOrder(1)
+                        .HasComment("Business key, e.g. CLAAS; never changes after creation.");
+
+                    b.Property<string>("CountryCode")
+                        .IsRequired()
+                        .HasColumnType("character(2)")
+                        .HasColumnName("country_code")
+                        .HasColumnOrder(3)
+                        .HasComment("ISO 3166-1 alpha-2 country of the manufacturer.");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasColumnOrder(53)
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_archived")
+                        .HasColumnOrder(50)
+                        .HasDefaultValueSql("false")
+                        .HasComment("Archived instead of deleted: kept on history, cannot be chosen (SS500).");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("name")
+                        .HasColumnOrder(2)
+                        .HasComment("Display name.");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasColumnOrder(54)
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id")
+                        .HasName("pk_brand");
+
+                    b.HasIndex(new[] { "Code" }, "ix_brand_code_trgm")
+                        .HasDatabaseName("ix_brand_code_trgm");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex(new[] { "Code" }, "ix_brand_code_trgm"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex(new[] { "Code" }, "ix_brand_code_trgm"), new[] { "gin_trgm_ops" });
+
+                    b.HasIndex(new[] { "Name" }, "ix_brand_name_trgm")
+                        .HasDatabaseName("ix_brand_name_trgm");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex(new[] { "Name" }, "ix_brand_name_trgm"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex(new[] { "Name" }, "ix_brand_name_trgm"), new[] { "gin_trgm_ops" });
+
+                    b.HasIndex(new[] { "Code" }, "uq_brand_code")
+                        .IsUnique()
+                        .HasDatabaseName("uq_brand_code");
+
+                    b.HasIndex(new[] { "Name" }, "uq_brand_name")
+                        .IsUnique()
+                        .HasDatabaseName("uq_brand_name");
+
+                    b.ToTable("brand", "catalog", t =>
+                        {
+                            t.HasComment("Machinery / OEM brands (Claas, John Deere, Fendt, Massey Ferguson, Lemken, Väderstad ...).");
+
+                            t.HasCheckConstraint("ck_brand_archived", "((is_archived AND (archived_at IS NOT NULL)) OR ((NOT is_archived) AND (archived_at IS NULL)))");
+
+                            t.HasCheckConstraint("ck_brand_country", "country_code ~ '^[A-Z]{2}$'");
+                        });
+                });
+
             modelBuilder.Entity("SmartSpare.Modules.Inventory.Domain.Responsibilities.BrandResponsible", b =>
                 {
                     b.Property<long>("Id")
@@ -1304,7 +1407,7 @@ namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Migrations
                         .HasColumnType("smallint")
                         .HasColumnName("brand_id")
                         .HasColumnOrder(1)
-                        .HasComment("Reference to ref.brand.");
+                        .HasComment("Reference to catalog.brand.");
 
                     b.Property<int>("CategoryId")
                         .HasColumnType("integer")
@@ -1632,21 +1735,6 @@ namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("SmartSpare.Modules.Inventory.Infrastructure.Persistence.RefBrand", b =>
-                {
-                    b.Property<short>("Id")
-                        .HasColumnType("smallint")
-                        .HasColumnName("id");
-
-                    b.HasKey("Id")
-                        .HasName("pk_brand");
-
-                    b.ToTable("brand", "ref", t =>
-                        {
-                            t.ExcludeFromMigrations();
-                        });
-                });
-
             modelBuilder.Entity("SmartSpare.Modules.Inventory.Infrastructure.Persistence.RefPartCategory", b =>
                 {
                     b.Property<int>("Id")
@@ -1822,7 +1910,7 @@ namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("SmartSpare.Modules.Inventory.Domain.Responsibilities.BrandResponsible", b =>
                 {
-                    b.HasOne("SmartSpare.Modules.Inventory.Infrastructure.Persistence.RefBrand", null)
+                    b.HasOne("SmartSpare.Modules.Inventory.Domain.Catalog.Brand", null)
                         .WithMany()
                         .HasForeignKey("BrandId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -1964,7 +2052,7 @@ namespace SmartSpare.Modules.Inventory.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("SmartSpare.Modules.Inventory.Infrastructure.Persistence.Part", b =>
                 {
-                    b.HasOne("SmartSpare.Modules.Inventory.Infrastructure.Persistence.RefBrand", null)
+                    b.HasOne("SmartSpare.Modules.Inventory.Domain.Catalog.Brand", null)
                         .WithMany()
                         .HasForeignKey("BrandId")
                         .OnDelete(DeleteBehavior.NoAction)

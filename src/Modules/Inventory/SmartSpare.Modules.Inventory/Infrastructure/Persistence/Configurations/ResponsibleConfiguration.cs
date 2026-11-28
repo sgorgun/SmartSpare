@@ -54,7 +54,7 @@ internal sealed class BrandResponsibleConfiguration : IEntityTypeConfiguration<B
     {
         ResponsibleMapping.Configure(builder, "catalog", "brand_responsible", RecordKinds.Brand);
         builder.Property(x => x.BrandId).HasColumnName("brand_id").HasColumnType("smallint");
-        builder.HasOne<RefBrand>().WithMany().HasForeignKey(x => x.BrandId).HasPrincipalKey(b => b.Id)
+        builder.HasOne<Domain.Catalog.Brand>().WithMany().HasForeignKey(x => x.BrandId).HasPrincipalKey(b => b.Id)
             .HasConstraintName("fk_brand_responsible_brand").OnDelete(DeleteBehavior.Restrict);
         builder.HasIndex(x => new { x.BrandId, x.EmployeeId, x.Role }).IsUnique().HasDatabaseName("uq_brand_responsible");
     }

@@ -26,7 +26,7 @@ internal sealed class ResponsibleQueries(InventoryDbContext db, IEmployeeDirecto
     }
 
     public async Task<Result<IReadOnlyList<BrandDto>>> Handle(ListBrandsQuery query, CancellationToken cancellationToken) =>
-        await db.Database.SqlQueryRaw<BrandDto>("SELECT id, code::text AS code, name::text AS name FROM ref.brand ORDER BY code")
+        await db.Database.SqlQueryRaw<BrandDto>("SELECT id, code::text AS code, name::text AS name FROM catalog.brand ORDER BY code")
             .ToListAsync(cancellationToken).ConfigureAwait(false);
 
     public async Task<Result<IReadOnlyList<ResponsibleDto>>> Handle(ListResponsiblesQuery query, CancellationToken cancellationToken)

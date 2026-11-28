@@ -16,7 +16,6 @@ internal sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> opti
 
     public DbSet<UnitOfMeasure> UnitsOfMeasure => Set<UnitOfMeasure>();
 
-    public DbSet<Brand> Brands => Set<Brand>();
 
     public DbSet<MachineType> MachineTypes => Set<MachineType>();
 
@@ -45,7 +44,6 @@ internal sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> opti
         modelBuilder.HasPostgresExtension("pgcrypto");
 
         ConfigureUnitOfMeasure(modelBuilder.Entity<UnitOfMeasure>());
-        ConfigureBrand(modelBuilder.Entity<Brand>());
         ConfigureAssignmentRole(modelBuilder.Entity<AssignmentRole>());
         ConfigureMachineType(modelBuilder.Entity<MachineType>());
         ConfigurePartCategory(modelBuilder.Entity<PartCategory>());
@@ -87,23 +85,6 @@ internal sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> opti
         e.Property(x => x.Code).HasMaxLength(30).HasComment("Business code, e.g. BRAND_MANAGER.");
         e.Property(x => x.Name).HasMaxLength(80).HasComment("Display name.");
         e.Property(x => x.GrantsScope).HasComment("TRUE if the assignment gives a right: brand approval scope or hub access.");
-    }
-
-    private static void ConfigureBrand(EntityTypeBuilder<Brand> e)
-    {
-        e.ToTable("brand", "ref", t =>
-        {
-            t.HasComment("Machinery / OEM brands (Claas, John Deere, Fendt, Massey Ferguson, Lemken, Väderstad ...).");
-            t.HasCheckConstraint("ck_brand_country", "country_code ~ '^[A-Z]{2}$'");
-        });
-        e.HasKey(x => x.Id).HasName("pk_brand");
-        e.HasAlternateKey(x => x.Code).HasName("uq_brand_code");
-        e.HasAlternateKey(x => x.Name).HasName("uq_brand_name");
-        e.Property(x => x.Id).UseIdentityByDefaultColumn().HasComment("Surrogate primary key.");
-        e.Property(x => x.Code).HasMaxLength(10).HasComment("Business code (natural key).");
-        e.Property(x => x.Name).HasMaxLength(80).HasComment("Display name.");
-        e.Property(x => x.CountryCode).HasColumnType("character(2)")
-            .HasComment("ISO 3166-1 alpha-2 country of the manufacturer.");
     }
 
     private static void ConfigureMachineType(EntityTypeBuilder<MachineType> e)

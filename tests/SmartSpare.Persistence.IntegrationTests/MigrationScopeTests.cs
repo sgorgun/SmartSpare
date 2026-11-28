@@ -95,6 +95,32 @@ public sealed class MigrationScopeTests
             .ShouldHaveSingleItem().Target.ShouldBe("20261127215037_RequirePermission", "a per-module run (--module identity) is not held back");
     }
 
+    [Fact]
+    public void On_a_fresh_database_the_brand_move_waits_for_the_older_migrations_that_name_ref_brand()
+    {
+        var inventory = Db("inventory");
+        var fleet = Db("fleet");
+        var reporting = Db("reporting");
+        var pending = new Dictionary<IModuleDatabase, List<string>>
+        {
+            [inventory] = ["20261116222434_InitialInventory", "20261128015020_BrandMove"],
+            [fleet] = ["20261116222230_InitialFleet", "20261128015031_BrandSnapshot"],
+            [reporting] = ["20261116230246_InitialReporting", "20261116230254_TransitionalCrossModuleObjects", "20261127154602_LegacyAccessToAssignments"],
+        };
+
+        var runs = SmartSpare.MigrationRunner.DatabaseMigrator.Plan([inventory, fleet, reporting], pending);
+
+        runs.Select(r => (r.Database.Name, r.Target)).ShouldBe(
+        [
+            ("inventory", "20261116222434_InitialInventory"),
+            ("fleet", "20261116222230_InitialFleet"),
+            ("fleet", "20261128015031_BrandSnapshot"),
+            ("reporting", "20261116230254_TransitionalCrossModuleObjects"),
+            ("inventory", "20261128015020_BrandMove"),
+            ("reporting", "20261127154602_LegacyAccessToAssignments"),
+        ]);
+    }
+
     private static FakeDatabase Db(string name) => new(name);
 
     private sealed class FakeDatabase(string name) : IModuleDatabase

@@ -25,7 +25,7 @@ internal sealed class ResponsibilityPublishJob(InventoryDbContext db, IUnitOfWor
             .ToListAsync(cancellationToken).ConfigureAwait(false);
         bool Grants(string kind, string role) => scope.Exists(r => r.RecordKind == kind && r.Code == role);
 
-        var brands = await db.Set<RefBrand>().AsNoTracking().Select(b => b.Id).ToListAsync(cancellationToken).ConfigureAwait(false);
+        var brands = await db.Set<Domain.Catalog.Brand>().AsNoTracking().Select(b => b.Id).ToListAsync(cancellationToken).ConfigureAwait(false);
         var brandRows = await db.Set<BrandResponsible>().AsNoTracking().ToListAsync(cancellationToken).ConfigureAwait(false);
         foreach (var brand in brands)
         {

@@ -199,8 +199,8 @@ public sealed class InventoryMigrationTests(MigratedDatabaseFixture db) : Module
             await ExecuteAsync(connection, transaction, """
                 INSERT INTO catalog.part (brand_id, oem_part_number, description, category_id, uom_id, unit_cost)
                 SELECT b.id, 'TEST-SS200', 'Probe part for the ledger trigger', c.id, u.id, 10
-                FROM ref.brand b, ref.part_category c, ref.unit_of_measure u
-                WHERE b.code = (SELECT min(code) FROM ref.brand) AND c.code = 'CAB_FILTER' AND u.code = 'PCS'
+                FROM catalog.brand b, ref.part_category c, ref.unit_of_measure u
+                WHERE b.code = (SELECT min(code) FROM catalog.brand) AND c.code = 'CAB_FILTER' AND u.code = 'PCS'
                 """);
 
             var error = await Should.ThrowAsync<PostgresException>(() => ExecuteAsync(connection, transaction, """
@@ -241,7 +241,7 @@ public sealed class FleetMigrationTests(MigratedDatabaseFixture db) : ModuleMigr
             await ExecuteAsync(connection, transaction, """
                 INSERT INTO fleet.customer (customer_code, region_warehouse_id) SELECT 'CUST-999001', id FROM inventory.warehouse WHERE code = 'PNV';
                 INSERT INTO fleet.machine_model (brand_id, machine_type_id, model_name)
-                SELECT (SELECT min(id) FROM ref.brand), (SELECT min(id) FROM ref.machine_type), 'Probe 1000';
+                SELECT (SELECT min(id) FROM catalog.brand), (SELECT min(id) FROM ref.machine_type), 'Probe 1000';
                 INSERT INTO fleet.machine (vin, model_id, customer_id, operating_condition_id, home_warehouse_id, manufacture_year)
                 SELECT 'TESTVIN0001', mm.id, c.id, (SELECT min(id) FROM ref.operating_condition), c.region_warehouse_id, 2024
                 FROM fleet.machine_model mm, fleet.customer c WHERE mm.model_name = 'Probe 1000' AND c.customer_code = 'CUST-999001';

@@ -57,6 +57,17 @@ public sealed record PartCatalogChanged(IReadOnlyList<PartSnapshot> Parts) : Int
     public const int MaxParts = 500;
 }
 
+/// <summary>A brand as the other modules copy it: id, code, name and whether it is archived.</summary>
+public sealed record BrandSnapshot(short BrandId, string Code, string Name, bool IsArchived);
+
+/// <summary>
+/// Brands of Inventory's catalogue were added or changed (STAGE_7_PLAN 3.2, PR 7h1). Fleet and Identity keep read-only
+/// copies (<c>fleet.brand_snapshot</c>, <c>iam.brand_snapshot</c>) with the same ids; the catalogue has a few dozen
+/// brands, so one event carries every brand a write touched, and <c>inventory.brand-catalog-publish</c> sends them all
+/// for the initial fill and as a repair tool.
+/// </summary>
+public sealed record BrandCatalogChanged(IReadOnlyList<BrandSnapshot> Brands) : IntegrationEvent;
+
 /// <summary>The quantity Inventory holds for one service order line.</summary>
 public sealed record ReservedKitLine(long LineId, decimal ReservedQty);
 

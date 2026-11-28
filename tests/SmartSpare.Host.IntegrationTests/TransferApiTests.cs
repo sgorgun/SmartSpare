@@ -279,7 +279,7 @@ public sealed class TransferApiTests(IdentityDatabaseFixture database) : IAsyncL
             """
             INSERT INTO catalog.part (brand_id, oem_part_number, description, category_id, uom_id, unit_cost)
             SELECT b.id, @oem, 'Transfer test part', c.id, u.id, 18.40
-            FROM ref.brand b, ref.part_category c, ref.unit_of_measure u
+            FROM catalog.brand b, ref.part_category c, ref.unit_of_measure u
             WHERE b.code = @brand AND c.code = 'OIL_FILTER' AND u.code = 'PCS'
             RETURNING id
             """,

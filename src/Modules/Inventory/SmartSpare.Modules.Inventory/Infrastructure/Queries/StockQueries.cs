@@ -41,7 +41,7 @@ internal static class StockRows
         FROM inventory.warehouse_part wp
         JOIN inventory.warehouse w ON w.id = wp.warehouse_id
         JOIN catalog.part p ON p.id = wp.part_id
-        JOIN ref.brand b ON b.id = p.brand_id
+        JOIN catalog.brand b ON b.id = p.brand_id
         JOIN ref.unit_of_measure u ON u.id = p.uom_id
         LEFT JOIN inventory.stock_balance sb ON sb.warehouse_id = wp.warehouse_id AND sb.part_id = wp.part_id
         LEFT JOIN LATERAL (

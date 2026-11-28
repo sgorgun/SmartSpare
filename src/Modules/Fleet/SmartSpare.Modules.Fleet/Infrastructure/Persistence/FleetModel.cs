@@ -38,6 +38,22 @@ internal sealed class MachineModel
 /// written only by the consumer of <c>PartCatalogChanged</c>. <see cref="SourceOccurredAt"/> is the time of the event
 /// that wrote the row, so a redelivered or late event never overwrites newer data.
 /// </summary>
+/// <summary>Read-only copy of an Inventory brand (STAGE_7_PLAN 3.2), written only by the BrandCatalogChanged consumer.</summary>
+internal sealed class BrandSnapshot
+{
+    public short BrandId { get; set; }
+
+    public string Code { get; set; } = null!;
+
+    public string Name { get; set; } = null!;
+
+    public bool IsArchived { get; set; }
+
+    public DateTimeOffset SourceOccurredAt { get; set; }
+
+    public DateTimeOffset UpdatedAt { get; set; }
+}
+
 internal sealed class PartSnapshot
 {
     public long PartId { get; set; }

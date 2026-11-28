@@ -5,3 +5,7 @@
 # ADR 0011 D2: the supplier tables (and their sequences, constraints, indexes, triggers, grants and
 # every reference to them) move from catalog to procurement.
 catalog.supplier => procurement.supplier
+
+# STAGE_7_PLAN 3.2 (decision C1, PR 7h1): the brands move from the Platform's ref schema to Inventory's catalog schema,
+# with their ids, sequence, constraints, grants and every foreign key and view that points at them.
+ref.brand => catalog.brand
