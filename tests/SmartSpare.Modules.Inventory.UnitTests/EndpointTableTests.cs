@@ -42,7 +42,6 @@ public sealed class EndpointTableTests
             "GET /api/v1/inventory/imports/export",
             "GET /api/v1/inventory/imports",
             "GET /api/v1/inventory/imports/{id:long}",
-            "GET /internal/v1/inventory/warehouses",
             "GET /api/v1/inventory/assignment-roles",
             "GET /api/v1/inventory/brands",
             "GET /api/v1/inventory/brands/{id:int}/responsibles",
@@ -163,7 +162,6 @@ public sealed class EndpointTableTests
     [InlineData("POST /api/v1/inventory/transfers/{id:long}/cancel", Permissions.Inventory.Transfer.Cancel)]
     [InlineData("POST /api/v1/inventory/transfers/{id:long}/dispatch", Permissions.Inventory.Transfer.Dispatch)]
     [InlineData("POST /api/v1/inventory/transfers/{id:long}/receive", Permissions.Inventory.Transfer.Receive)]
-    [InlineData("GET /internal/v1/inventory/warehouses", Permissions.Inventory.Warehouse.View)]
     [InlineData("PUT /api/v1/inventory/brands/{id:int}/responsibles", Permissions.Inventory.Brand.ManageAssignments)]
     [InlineData("PUT /api/v1/inventory/warehouses/{id:int}/responsibles", Permissions.Inventory.Warehouse.ManageAssignments)]
     [InlineData("POST /api/v1/inventory/adjustment-reasons/{id:long}/archive", Permissions.Inventory.AdjustmentReason.Archive)]
@@ -171,9 +169,9 @@ public sealed class EndpointTableTests
         Endpoints.Single(e => Describe(e) == route).Metadata.GetOrderedMetadata<IAuthorizeData>().Single().Policy.ShouldBe(policy);
 
     [Fact]
-    public void The_internal_query_is_not_described() =>
-        Endpoints.Single(e => e.RoutePattern.RawText!.StartsWith("/internal/", StringComparison.Ordinal))
-            .Metadata.GetMetadata<IExcludeFromDescriptionMetadata>()!.ExcludeFromDescription.ShouldBeTrue();
+    public void Inventory_maps_no_internal_endpoint_since_the_warehouse_copies() =>
+        Endpoints.ShouldNotContain(e => e.RoutePattern.RawText!.StartsWith("/internal/", StringComparison.Ordinal),
+            "Fleet and Identity read warehouses from their own copies (ADR 0029)");
 
     private static string Describe(RouteEndpoint endpoint) =>
         $"{endpoint.Metadata.GetMetadata<IHttpMethodMetadata>()!.HttpMethods.Single()} {endpoint.RoutePattern.RawText}";

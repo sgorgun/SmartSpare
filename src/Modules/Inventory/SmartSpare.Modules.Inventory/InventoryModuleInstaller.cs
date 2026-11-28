@@ -36,7 +36,6 @@ public sealed class InventoryModuleInstaller : IModuleInstaller
         var assembly = typeof(InventoryModuleInstaller).Assembly;
         services.AddHandlersFromAssembly(assembly);
         services.TryAddSingleton(TimeProvider.System);
-        services.AddScoped<IWarehouseQueries, WarehouseQueries>();
         services.AddScoped<TransferAccess>();
         services.AddScoped<TransferDetailsReader>();
         services.AddScoped<TransferFunctions>();
@@ -82,5 +81,4 @@ public sealed class InventoryModuleInstaller : IModuleInstaller
         Features.PartAnalogues.DirectAnalogueEndpoints.Map(v1);
     }
 
-    public void MapInternalEndpoints(IEndpointRouteBuilder endpoints) => WarehouseQueriesEndpoint.Map(endpoints);
 }
