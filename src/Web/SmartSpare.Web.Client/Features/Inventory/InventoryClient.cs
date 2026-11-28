@@ -30,6 +30,15 @@ public class InventoryClient(HttpClient http) : ApiClientBase(http)
     public virtual Task<ApiResult<List<ReferenceItem>>> ListUnitsOfMeasureAsync(CancellationToken cancellationToken = default) =>
         SendAsync<List<ReferenceItem>>(new HttpRequestMessage(HttpMethod.Get, "api/v1/inventory/units-of-measure"), cancellationToken);
 
+    /// <summary>The direct analogues of several parts with their availability at a hub (PR 7i3), in one request.</summary>
+    public virtual Task<ApiResult<List<DirectAnalogues>>> ListDirectAnaloguesAsync(
+        IReadOnlyCollection<long> partIds, short warehouseId, CancellationToken cancellationToken = default)
+    {
+        var query = string.Join("&", partIds.Select(id => string.Create(CultureInfo.InvariantCulture, $"partIds={id}")))
+            + string.Create(CultureInfo.InvariantCulture, $"&warehouseId={warehouseId}");
+        return SendAsync<List<DirectAnalogues>>(new HttpRequestMessage(HttpMethod.Get, "api/v1/inventory/direct-analogues?" + query), cancellationToken);
+    }
+
     /// <summary>A part's links, group and supersession chain (ADR 0027).</summary>
     public virtual Task<ApiResult<PartAnaloguesView>> GetPartAnaloguesAsync(long partId, CancellationToken cancellationToken = default) =>
         SendAsync<PartAnaloguesView>(new HttpRequestMessage(HttpMethod.Get, string.Create(CultureInfo.InvariantCulture, $"api/v1/inventory/parts/{partId}/analogues")), cancellationToken);

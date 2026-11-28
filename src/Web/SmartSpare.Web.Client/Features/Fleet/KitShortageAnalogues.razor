@@ -1,0 +1,78 @@
+@using SmartSpare.ApiContracts.Fleet
+@using SmartSpare.ApiContracts.Inventory
+@using SmartSpare.Web.Client.Features.Inventory
+@inject IStringLocalizer<SharedResource> Text
+@inject InventoryClient Inventory
+
+@* Read-only stand-ins for the short parts of a kit (PR 7i3, ADR 0027): direct interchangeable links and the current
+   successor, with what is available (on hand minus reserved) at the order's hub. The page composes Inventory's answer
+   with Fleet's order through the gateway; nothing is substituted (#220). *@
+@if (_shortages.Count > 0 && _answer is { } answer)
+{
+    <section aria-labelledby="@_headingId" class="mt-3" data-testid="kit-shortage-analogues">
+        <MudText Typo="Typo.subtitle2" HtmlTag="h4" id="@_headingId">@Text["Order.Analogues.Title", WarehouseCode]</MudText>
+        <MudText Typo="Typo.caption" Class="mb-1">@Text["Order.Analogues.Intro"]</MudText>
+        @foreach (var line in _shortages)
+        {
+            var analogues = answer.FirstOrDefault(a => a.PartId == line.PartId)?.Analogues ?? [];
+            <div class="mb-1" data-testid="kit-shortage-analogue-line">
+                <MudText Typo="Typo.body2"><b>@(line.OemPartNumber ?? line.PartId.ToString(System.Globalization.CultureInfo.InvariantCulture))</b></MudText>
+                @if (analogues.Count == 0)
+                {
+                    <MudText Typo="Typo.caption">@Text["Order.Analogues.None"]</MudText>
+                }
+                else
+                {
+                    <ul class="ml-4">
+                        @foreach (var analogue in analogues)
+                        {
+                            <li>
+                                <MudText Typo="Typo.body2">
+                                    @analogue.Part.BrandCode @analogue.Part.OemPartNumber — @Text["Order.Analogues.Kind." + analogue.Kind] ·
+                                    @Text["Order.Analogues.Available", analogue.Available.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)]
+                                </MudText>
+                            </li>
+                        }
+                    </ul>
+                }
+            </div>
+        }
+    </section>
+}
+else if (_error is not null)
+{
+    <MudText Typo="Typo.caption" Color="Color.Error" Class="mt-2" data-testid="kit-shortage-analogues-error">@_error</MudText>
+}
+
+@code {
+    private readonly string _headingId = "shortage-analogues-" + Guid.NewGuid().ToString("N")[..8];
+    private List<ServiceOrderLineResponse> _shortages = [];
+    private List<DirectAnalogues>? _answer;
+    private string? _error;
+    private string _loadedKey = string.Empty;
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<ServiceOrderLineResponse> Lines { get; set; } = [];
+
+    [Parameter, EditorRequired]
+    public short WarehouseId { get; set; }
+
+    [Parameter, EditorRequired]
+    public string WarehouseCode { get; set; } = string.Empty;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _shortages = [.. Lines.Where(l => l.QtyMissing > 0)];
+        var key = string.Join(',', _shortages.Select(l => l.PartId).Order()) + "@" + WarehouseId;
+        if (_shortages.Count == 0 || key == _loadedKey)
+        {
+            return;
+        }
+
+        // One request for every short line of the order (the batch form).
+        _loadedKey = key;
+        var result = await Inventory.ListDirectAnaloguesAsync([.. _shortages.Select(l => l.PartId).Distinct()], WarehouseId);
+        _answer = result.IsSuccess ? result.Value : null;
+        _error = result.IsSuccess ? null : Text["Order.Analogues.Unavailable"].Value;
+    }
+}
