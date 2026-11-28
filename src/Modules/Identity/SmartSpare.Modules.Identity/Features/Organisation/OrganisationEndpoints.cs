@@ -55,7 +55,7 @@ internal static class ETagResults
 internal static class PositionEndpoints
 {
     private static readonly PositionSummary Example = new(
-        2, "BRAND_MANAGER", "Brand manager", "Responsible for the parts business of one or more brands.", [AppRoles.BrandManager], false, 2, "8841");
+        2, "BRAND_MANAGER", "Brand manager", "Responsible for the parts business of one or more brands.", [AppRoles.BrandManager], false, false, 2, "8841");
 
     public static void Map(IEndpointRouteBuilder v1)
     {

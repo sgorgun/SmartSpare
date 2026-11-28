@@ -4,7 +4,8 @@ namespace SmartSpare.ApiContracts.Authorization;
 /// The permissions of the seeded roles (ADR 0028). They reproduce exactly the rights the role policies gave before
 /// stage 7 PR 7x1 (the mapping table is in STAGE_7_PLAN 1.8 and <c>DefaultRolesTests</c> proves it). The database seed
 /// (<c>db/sql/identity/0011_permissions.sql</c>) holds the same bundles; a test fails if the two differ. Roles are data:
-/// administrators change them later, so code reads the database, not this table, except to seed and to test.
+/// administrators change them later, so code reads the database, not this table, except to seed, to test and to reset a
+/// seeded role to its shipped permissions ("Reset to default"). The golden access matrix tests these bundles as shipped.
 /// </summary>
 public static class DefaultRoles
 {

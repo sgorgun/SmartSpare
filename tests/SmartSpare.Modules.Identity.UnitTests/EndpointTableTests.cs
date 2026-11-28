@@ -52,6 +52,10 @@ public sealed class EndpointTableTests
             "PUT /api/v1/identity/roles/{id:int}",
             "POST /api/v1/identity/roles/{id:int}/archive",
             "POST /api/v1/identity/roles/{id:int}/restore",
+
+            // Seeded roles editable like any other: reset to the shipped permissions, copy (product owner, 28 November 2026).
+            "POST /api/v1/identity/roles/{id:int}/reset",
+            "POST /api/v1/identity/roles/{id:int}/copy",
         ], ignoreOrder: true);
 
     [Fact]

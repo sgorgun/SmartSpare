@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using SmartSpare.ApiContracts.Authorization;
 using SmartSpare.ApiContracts.Identity;
 using SmartSpare.Infrastructure.Http;
 using SmartSpare.Infrastructure.Messaging;
@@ -11,7 +12,7 @@ using SmartSpare.SharedKernel;
 
 namespace SmartSpare.Modules.Identity.Infrastructure.Queries;
 
-/// <summary>Roles with their permissions and the positions whose template holds them (ADR 0028).</summary>
+/// <summary>Roles with their permissions, the positions whose template holds them and whether they equal their shipped default (ADR 0028).</summary>
 internal sealed class RoleQueries(IdentityDbContext db) : IQueryHandler<ListRolesQuery, IReadOnlyList<RoleSummary>>, IQueryHandler<GetRoleQuery, RoleSummary>
 {
     public async Task<Result<IReadOnlyList<RoleSummary>>> Handle(ListRolesQuery query, CancellationToken cancellationToken) =>
@@ -40,6 +41,8 @@ internal sealed class RoleQueries(IdentityDbContext db) : IQueryHandler<ListRole
                 r.Role.Id, r.Role.Code, r.Role.Name, r.Role.Description,
                 [.. r.Role.PermissionNames.Order(StringComparer.Ordinal)], r.Role.IsLocked, r.Role.IsArchived,
                 [.. holders.Where(h => h.RoleId == r.Role.Id).Select(h => h.Code).Order(StringComparer.Ordinal)],
+                DefaultRoles.Bundles.ContainsKey(r.Role.Code),
+                DefaultRoles.Bundles.TryGetValue(r.Role.Code, out var shipped) && shipped.SetEquals(r.Role.PermissionNames),
                 Versions.Format(r.Version))),
         ];
     }

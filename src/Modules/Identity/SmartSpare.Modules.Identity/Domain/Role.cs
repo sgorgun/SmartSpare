@@ -131,6 +131,8 @@ internal static class RoleErrors
 
     public static readonly Error Locked = Error.BusinessRule("Identity.RoleLocked", "This built-in role is locked: it cannot be changed or archived.");
 
+    public static readonly Error NoDefault = Error.BusinessRule("Identity.NoDefaultRole", "Only a seeded role has a default permission set to reset to.");
+
     public static readonly Error OwnRole = Error.Forbidden("SS301", "You cannot change a role you hold: someone else must grant you rights.");
 
     public static readonly Error OwnPosition = Error.Forbidden("SS301", "You cannot change your own position or its role template: someone else must grant you rights.");

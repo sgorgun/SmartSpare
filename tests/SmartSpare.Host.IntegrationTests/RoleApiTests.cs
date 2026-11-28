@@ -202,6 +202,133 @@ public sealed class RoleApiTests(IdentityDatabaseFixture database) : IAsyncLifet
         (await Problem.ReadAsync(assignment)).Code.ShouldBe("SS301");
     }
 
+    [Fact]
+    public async Task A_seeded_role_is_renamed_and_edited_and_reset_to_default_restores_its_shipped_permissions_audited()
+    {
+        var sponsor = (await GetAsync<List<RoleSummary>>(Roles)).Single(r => r.Code == AppRoles.Sponsor);
+        (sponsor.HasDefault, sponsor.IsDefault, sponsor.IsLocked).ShouldBe((true, true, false), "seeded roles are editable and ship at their default");
+        var shipped = DefaultRoles.Bundles[AppRoles.Sponsor];
+        var trimmed = shipped.Where(p => p != Permissions.Inventory.Stock.View).Order(StringComparer.Ordinal).ToList();
+
+        try
+        {
+            using (var edited = await PutAsync(sponsor.Id, new UpdateRoleRequest("Sponsor (edited)", sponsor.Description, trimmed), sponsor.Version, _admin))
+            {
+                edited.StatusCode.ShouldBe(HttpStatusCode.OK, await edited.Content.ReadAsStringAsync(Ct));
+                var role = (await edited.Content.ReadFromJsonAsync<RoleSummary>(Ct))!;
+                (role.Name, role.HasDefault, role.IsDefault).ShouldBe(("Sponsor (edited)", true, false));
+                sponsor = role;
+            }
+
+            using var reset = await StateAsync(sponsor.Id, "reset", sponsor.Version);
+            reset.StatusCode.ShouldBe(HttpStatusCode.OK, await reset.Content.ReadAsStringAsync(Ct));
+            var restored = (await reset.Content.ReadFromJsonAsync<RoleSummary>(Ct))!;
+            restored.Permissions.ShouldBe([.. shipped.Order(StringComparer.Ordinal)], "the shipped permission set is back");
+            (restored.Name, restored.IsDefault).ShouldBe(("Sponsor (edited)", true), "reset restores the permissions only; the name stays");
+            (await database.ScalarAsync<long>(
+                    "SELECT count(*) FROM audit.audit_log WHERE table_name = 'iam.role_permission' AND action = 'INSERT' "
+                    + "AND new_values ->> 'permission' = 'Inventory.Stock.View' AND (new_values ->> 'role_id')::smallint = @role",
+                    ("role", sponsor.Id)))
+                .ShouldBeGreaterThan(0, "the reset is audited like any permission change");
+        }
+        finally
+        {
+            var current = (await GetAsync<List<RoleSummary>>(Roles)).Single(r => r.Code == AppRoles.Sponsor);
+            using var back = await PutAsync(current.Id, new UpdateRoleRequest("Sponsor", current.Description, [.. shipped]), current.Version, _admin);
+        }
+    }
+
+    [Fact]
+    public async Task Reset_to_default_is_refused_for_a_new_role_a_locked_role_and_a_role_one_holds()
+    {
+        var custom = await CreateRoleAsync("_NODEFAULT", [Permissions.Inventory.Part.View]);
+        using (var noDefault = await StateAsync(custom.Id, "reset", custom.Version))
+        {
+            noDefault.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+            (await Problem.ReadAsync(noDefault)).Code.ShouldBe("Identity.NoDefaultRole");
+        }
+
+        var roles = await GetAsync<List<RoleSummary>>(Roles);
+        var administrator = roles.Single(r => r.Code == AppRoles.Administrator);
+        using (var locked = await StateAsync(administrator.Id, "reset", administrator.Version))
+        {
+            locked.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+            (await Problem.ReadAsync(locked)).Code.ShouldBe("Identity.RoleLocked");
+        }
+
+        var planner = roles.Single(r => r.Code == AppRoles.InventoryPlanner);
+        var holder = new TestUser(_admin.Id, _admin.UserName, IdentityDatabaseFixture.Password, [AppRoles.Administrator, AppRoles.InventoryPlanner], []);
+        using var own = await SendAsync(HttpMethod.Post, $"{Roles}/{planner.Id}/reset", null, planner.Version, holder);
+        own.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await Problem.ReadAsync(own)).Code.ShouldBe("SS301");
+    }
+
+    [Fact]
+    public async Task A_copy_of_the_locked_administrator_role_is_an_editable_role_and_the_superadministrator_is_not_copied()
+    {
+        var roles = await GetAsync<List<RoleSummary>>(Roles);
+        var administrator = roles.Single(r => r.Code == AppRoles.Administrator);
+        using var browser = _host.NewBrowser();
+
+        using (var copied = await browser.PostAsync($"{Roles}/{administrator.Id}/copy", new CopyRoleRequest($"{_tag}_ADMIN", "Deputy administrator"), bearer: Token(_admin)))
+        {
+            copied.StatusCode.ShouldBe(HttpStatusCode.Created, await copied.Content.ReadAsStringAsync(Ct));
+            var copy = (await copied.Content.ReadFromJsonAsync<RoleSummary>(Ct))!;
+            (copy.IsLocked, copy.HasDefault, copy.Name).ShouldBe((false, false, "Deputy administrator"));
+            copy.Permissions.ShouldBe(administrator.Permissions);
+
+            using var trimmed = await PutAsync(copy.Id, new UpdateRoleRequest(copy.Name, null, [Permissions.Organisation.Role.View]), copy.Version, _admin);
+            trimmed.StatusCode.ShouldBe(HttpStatusCode.OK, "the copy is editable");
+        }
+
+        using (var again = await browser.PostAsync($"{Roles}/{administrator.Id}/copy", new CopyRoleRequest($"{_tag}_ADMIN", "Twice"), bearer: Token(_admin)))
+        {
+            again.StatusCode.ShouldBe(HttpStatusCode.Conflict, "the code of a copy must be new");
+        }
+
+        var superadministrator = roles.Single(r => r.Code == AppRoles.Superadministrator);
+        using var refused = await browser.PostAsync($"{Roles}/{superadministrator.Id}/copy", new CopyRoleRequest($"{_tag}_ALL", "Everything"), bearer: Token(_admin));
+        refused.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+        (await Problem.ReadAsync(refused)).Code.ShouldBe("Identity.SuperadministratorRole");
+    }
+
+    [Fact]
+    public async Task A_renamed_position_with_a_changed_template_refreshes_its_employees_sessions_within_30_seconds()
+    {
+        var userName = $"{_tag.ToLowerInvariant()}.moved";
+        var id = await database.CreateUserAsync(userName, [AppRoles.ServiceEngineer], []);
+        var positionId = await database.ScalarAsync<short>("SELECT position_id FROM iam.employee WHERE id = @id", ("id", id));
+        var position = await GetAsync<PositionSummary>($"/api/v1/identity/positions/{positionId}");
+        using var session = _host.NewBrowser();
+        await session.LoginOrFailAsync(new TestUser(id, userName, IdentityDatabaseFixture.Password, [AppRoles.ServiceEngineer], []));
+
+        using (var changed = await SendAsync(HttpMethod.Put, $"/api/v1/identity/positions/{positionId}",
+                   new UpdatePositionRequest("Senior engineer", null, [AppRoles.ServiceEngineer, AppRoles.WarehouseKeeper]), position.Version))
+        {
+            changed.StatusCode.ShouldBe(HttpStatusCode.OK, await changed.Content.ReadAsStringAsync(Ct));
+            (await changed.Content.ReadFromJsonAsync<PositionSummary>(Ct))!.Name.ShouldBe("Senior engineer");
+        }
+
+        _host.Time.Advance(TimeSpan.FromSeconds(30));
+
+        (await session.MeAsync()).IsAuthenticated.ShouldBeFalse("a template change rotates the employees' stamps, so the session check ends the session within 30 seconds");
+        using var again = _host.NewBrowser();
+        await again.LoginOrFailAsync(new TestUser(id, userName, IdentityDatabaseFixture.Password, [AppRoles.ServiceEngineer, AppRoles.WarehouseKeeper], []));
+        (await again.MeAsync()).Roles.ShouldBe([AppRoles.ServiceEngineer, AppRoles.WarehouseKeeper], ignoreOrder: true, "the next sign-in carries the new template");
+    }
+
+    [Fact]
+    public async Task The_locked_superadministrator_position_is_listed_locked_and_cannot_be_renamed()
+    {
+        var positionId = await database.ScalarAsync<short>("SELECT id FROM iam.position WHERE code = 'SUPERADMINISTRATOR'");
+        var position = await GetAsync<PositionSummary>($"/api/v1/identity/positions/{positionId}");
+        position.IsLocked.ShouldBeTrue();
+
+        using var refused = await SendAsync(HttpMethod.Put, $"/api/v1/identity/positions/{positionId}", new UpdatePositionRequest("Renamed", null, []), position.Version);
+        refused.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+        (await Problem.ReadAsync(refused)).Code.ShouldBe("Identity.PositionLocked");
+    }
+
     private async Task<RoleSummary> CreateRoleAsync(string suffix, string[] permissions)
     {
         using var browser = _host.NewBrowser();
