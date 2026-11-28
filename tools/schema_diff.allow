@@ -314,3 +314,6 @@
 +\bcatalog\.manufacturer_responsible\b
 +\buq_manufacturer_responsible\b
 +\bcatalog\.manufacturer_responsible_id_seq\b
+
+# After 7h: the permission of every responsibles change checked in SQL too (ADR 0028).
++\binventory\.trg_require_assignment_permission\b
