@@ -43,6 +43,16 @@ internal sealed class ReadingStore(FleetDbContext db)
                 new NpgsqlParameter<string>("source", SqlName(source)))
             .ToListAsync(cancellationToken).ConfigureAwait(false);
 
+    /// <summary>Whether Fleet's warehouse copy says the hub is archived (ADR 0029), as <c>fleet.log_engine_hours</c> checks it.</summary>
+    public Task<bool> HubArchivedAsync(short warehouseId, CancellationToken cancellationToken) =>
+        db.Set<WarehouseSnapshot>().AnyAsync(w => w.WarehouseId == warehouseId && w.IsArchived, cancellationToken);
+
+    /// <summary>Whether a plan of the machine is due within 50 h without an open order: the drafting rule of <c>fleet.log_engine_hours</c>.</summary>
+    public Task<bool> AnyDueAsync(long machineId, CancellationToken cancellationToken) =>
+        db.Database.SqlQueryRaw<bool>(
+                "SELECT EXISTS (SELECT 1 FROM fleet.fn_maintenance_due(@machine, 50)) AS \"Value\"", new NpgsqlParameter<long>("machine", machineId))
+            .SingleAsync(cancellationToken);
+
     /// <summary>The drafted orders with their kit lines, for <c>ServiceOrderDrafted</c>.</summary>
     public async Task<IReadOnlyList<ServiceOrder>> OrdersAsync(IReadOnlyCollection<long> orderIds, CancellationToken cancellationToken) =>
         await db.Set<ServiceOrder>().AsNoTracking().Include(o => o.Lines).Where(o => orderIds.Contains(o.Id)).OrderBy(o => o.Id)

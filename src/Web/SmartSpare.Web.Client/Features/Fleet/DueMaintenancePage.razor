@@ -62,7 +62,15 @@
         <TemplateColumn Title="@Text["Machines.Model"]">
             <CellTemplate>@context.Item.BrandCode @context.Item.ModelName</CellTemplate>
         </TemplateColumn>
-        <PropertyColumn Property="r => r.WarehouseCode" Title="@Text["Stock.Hub"]" />
+        <TemplateColumn Title="@Text["Stock.Hub"]">
+            <CellTemplate>
+                @context.Item.WarehouseCode
+                @if (context.Item.HubArchived)
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Warning" Icon="@Icons.Material.Filled.Inventory2" data-testid="due-hub-archived">@Text["Due.HubArchived"]</MudChip>
+                }
+            </CellTemplate>
+        </TemplateColumn>
         <TemplateColumn Title="@Text["Orders.Service"]">
             <CellTemplate>@context.Item.Due.PlanName</CellTemplate>
         </TemplateColumn>
@@ -77,7 +85,7 @@
         </TemplateColumn>
         <TemplateColumn Title="" CellClass="text-right">
             <CellTemplate>
-                @if (_mayCreate && context.Item.Due.OpenOrderThreshold is null)
+                @if (_mayCreate && context.Item.Due.OpenOrderThreshold is null && !context.Item.HubArchived)
                 {
                     <MudButton Href="@NewOrderHref(context.Item)" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" Class="touch-target"
                                StartIcon="@Icons.Material.Filled.Add" aria-label="@Text["Due.CreateFor", context.Item.Due.PlanName, context.Item.Vin].Value"

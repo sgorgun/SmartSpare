@@ -85,7 +85,7 @@ internal sealed class RecordReadingCommandHandler(ReadingStore store, IUnitOfWor
         if (existing is not null)
         {
             return existing.ReadingHours == command.Hours
-                ? Response(existing, existing.ReadingHours, replayed: true, [])
+                ? Response(existing, existing.ReadingHours, replayed: true, [], [])
                 : FleetErrors.ReadingConflict;
         }
 
@@ -111,15 +111,29 @@ internal sealed class RecordReadingCommandHandler(ReadingStore store, IUnitOfWor
             unitOfWork.AddIntegrationEvent(new HubReferencesChanged(ServiceOrderEvents.HubReferences(orders, open: true)));
         }
 
+        // ADR 0029: at an archived home hub fleet.log_engine_hours keeps the reading and drafts nothing; say so when a
+        // service is due, so the reading is never lost and the missing order is never silent.
+        IReadOnlyList<ReadingWarning> warnings = drafted.Count == 0
+                       && await store.HubArchivedAsync(machine.HomeWarehouseId, cancellationToken).ConfigureAwait(false)
+                       && await store.AnyDueAsync(command.MachineId, cancellationToken).ConfigureAwait(false)
+            ? [HubArchivedWarning]
+            : [];
         var stored = (await store.ReadingAtAsync(command.MachineId, readAt, cancellationToken).ConfigureAwait(false))!;
         var current = await store.MachineAsync(command.MachineId, cancellationToken).ConfigureAwait(false);
-        return Response(stored, current.CurrentEngineHours, replayed: false, drafted);
+        return Response(stored, current.CurrentEngineHours, replayed: false, drafted, warnings);
     }
 
-    private static RecordReadingResponse Response(EngineHoursReading reading, decimal engineHours, bool replayed, IReadOnlyList<DraftedOrder> drafted) =>
+    /// <summary>The warning of a reading that made a service due at an archived home hub (ADR 0029).</summary>
+    public static readonly ReadingWarning HubArchivedWarning = new(
+        ReadingWarning.HubArchived,
+        "The reading is stored and maintenance is due, but the machine's home hub is archived, so no service order was drafted. Move the machine to an active hub.");
+
+    private static RecordReadingResponse Response(
+        EngineHoursReading reading, decimal engineHours, bool replayed, IReadOnlyList<DraftedOrder> drafted, IReadOnlyList<ReadingWarning> warnings) =>
         new(new ReadingRow(reading.Id, reading.ReadAt, reading.ReadingHours, ReadingSourceNames.Name(reading.Source), reading.RecordedBy),
             engineHours, replayed,
-            [.. drafted.Select(d => new DraftedServiceOrder(d.ServiceOrderId, d.ServiceOrderNumber, d.DueEngineHours, d.FullyReserved))]);
+            [.. drafted.Select(d => new DraftedServiceOrder(d.ServiceOrderId, d.ServiceOrderNumber, d.DueEngineHours, d.FullyReserved))],
+            warnings);
 }
 
 internal static class RecordReadingEndpoint
@@ -152,7 +166,9 @@ internal static class RecordReadingEndpoint
                 + "hours not below the last reading (SS100, the odometer-rollback case A1) and not rising faster than wall-clock "
                 + "time (SS101). Each refusal is a 422 with the code. A valid reading is stored by fleet.log_engine_hours, which "
                 + "drafts a service order with its kit for every plan due within 50 h (US05); the response lists them, and Inventory "
-                + "reserves each kit right after (ServiceOrderDrafted → ServiceKitReserved). "
+                + "reserves each kit right after (ServiceOrderDrafted → ServiceKitReserved). A reading is never lost: when the machine's "
+                + "home hub is archived in Inventory, the reading is stored, nothing is drafted, and warnings holds Fleet.HubArchived "
+                + "if a service is due (ADR 0029). "
                 + "Concurrent readings of one machine are handled one after the other. Posting an identical reading again (same "
                 + "time and hours) is a safe retry: 200 with the stored reading and replayed = true; a different value at the "
                 + "same time is a 409. Permission Fleet.EngineHours.Record, the same roles as "

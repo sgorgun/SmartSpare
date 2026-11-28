@@ -108,7 +108,7 @@ public sealed class WarehouseCopyTests(IdentityDatabaseFixture database) : IAsyn
     }
 
     [Fact]
-    public async Task Fleet_refuses_a_new_service_order_at_an_archived_hub_in_the_API_and_the_database()
+    public async Task Fleet_refuses_a_new_service_order_at_an_archived_hub_and_keeps_every_reading()
     {
         var (machine, _, _) = await _seed.MachineWithStockedKitAsync("A", oilOnHand: 50, filterOnHand: 5);
         await SetCopiesAsync(archived: false);
@@ -125,14 +125,27 @@ public sealed class WarehouseCopyTests(IdentityDatabaseFixture database) : IAsyn
             (await Problem.ReadAsync(create)).Code.ShouldBe("SS500");
         }
 
-        // A reading that would draft an order there is refused by the database trigger, and nothing is written.
+        // A reading is never lost (PR 7j1b): it is stored, nothing is drafted, and the response warns that a service is due.
         using (var reading = await PostAsync($"/api/v1/fleet/machines/{machine}/readings", new RecordReadingRequest(512, DateTimeOffset.UtcNow.AddMinutes(-5)), Engineer))
         {
-            reading.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity, await reading.Content.ReadAsStringAsync(Ct));
-            (await Problem.ReadAsync(reading)).Code.ShouldBe("SS500");
+            reading.StatusCode.ShouldBe(HttpStatusCode.Created, await reading.Content.ReadAsStringAsync(Ct));
+            var recorded = (await reading.Content.ReadFromJsonAsync<RecordReadingResponse>(Ct))!;
+            (recorded.EngineHours, recorded.DraftedOrders.Count).ShouldBe((512m, 0));
+            recorded.Warnings.ShouldHaveSingleItem().Code.ShouldBe(ReadingWarning.HubArchived);
         }
 
         (await database.ScalarAsync<long>("SELECT count(*) FROM fleet.service_order WHERE machine_id = @m", ("m", machine))).ShouldBe(0);
+        (await database.ScalarAsync<decimal>("SELECT current_engine_hours FROM fleet.machine WHERE id = @m", ("m", machine))).ShouldBe(512m);
+
+        // The due list flags the machine, whose service is now overdue or due soon.
+        using (var browser = _host.NewBrowser())
+        {
+            using var dueList = await browser.GetAsync($"/api/v1/fleet/maintenance/due?warehouseId={_warehouseId}&pageSize=100", bearer: _host.Token(Engineer.Principal()));
+            dueList.StatusCode.ShouldBe(HttpStatusCode.OK, await dueList.Content.ReadAsStringAsync(Ct));
+            var rows = (await dueList.Content.ReadFromJsonAsync<SmartSpare.ApiContracts.PagedResponse<DueMaintenanceRow>>(Ct))!.Items;
+            rows.Where(r => r.MachineId == machine).ShouldNotBeEmpty();
+            rows.Where(r => r.MachineId == machine).ShouldAllBe(r => r.HubArchived);
+        }
 
         // Moving a machine to an archived home hub is refused by the database too.
         var other = await _seed.MachineAsync(await _seed.ModelAsync(), "B");

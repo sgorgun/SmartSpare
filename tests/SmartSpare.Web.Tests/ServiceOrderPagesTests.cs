@@ -251,6 +251,19 @@ public sealed class ServiceOrderPagesTests : ClientTestContext
     }
 
     [Fact]
+    public void The_due_list_flags_a_machine_whose_hub_is_archived_and_offers_no_order_there()
+    {
+        _fleet.ExtraDueRows.Add(new DueMaintenanceRow(9, "CL8700PNV2023ARC", "Lexion 8700", "CLAAS", "CUST-000002", 5, "PNV", 1510,
+            FakeFleetClient.Due("Engine service", 1500, -10, MaintenanceDueStatuses.Overdue), HubArchived: true));
+
+        var page = Render<DueMaintenancePage>(p => p.AddCascadingValue(State(User("engineer", AppRoles.ServiceEngineer))));
+        page.WaitForAssertion(() => page.FindAll("tbody tr.mud-table-row").Count.ShouldBe(3));
+
+        page.FindAll("[data-testid=due-hub-archived]").ShouldHaveSingleItem().TextContent.ShouldContain("Hub archived");
+        page.FindAll("[data-testid=due-create]").ShouldHaveSingleItem().GetAttribute("href")!.ShouldContain("machineId=1&");
+    }
+
+    [Fact]
     public void The_form_from_the_due_list_creates_the_planned_service_and_opens_it()
     {
         var navigation = Services.GetRequiredService<NavigationManager>();

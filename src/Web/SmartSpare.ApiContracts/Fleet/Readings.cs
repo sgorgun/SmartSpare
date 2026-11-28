@@ -24,7 +24,18 @@ public sealed record RecordReadingResponse(
     [property: Description("The stored reading.")] ReadingRow Reading,
     [property: Description("The machine's engine hours after the reading.")] decimal EngineHours,
     [property: Description("True when an identical reading already existed (a retry); nothing was stored or drafted again.")] bool Replayed,
-    [property: Description("Service orders drafted by this reading: every plan due within 50 h (US05).")] IReadOnlyList<DraftedServiceOrder> DraftedOrders);
+    [property: Description("Service orders drafted by this reading: every plan due within 50 h (US05).")] IReadOnlyList<DraftedServiceOrder> DraftedOrders,
+    [property: Description("Things the user should know although the reading was stored, for example Fleet.HubArchived: maintenance is due but no order could be drafted. Empty when there are none.")] IReadOnlyList<ReadingWarning> Warnings);
+
+/// <summary>A warning about a stored reading (ADR 0029).</summary>
+[Description("A warning about a stored reading: the reading was kept, but something did not happen.")]
+public sealed record ReadingWarning(
+    [property: Description("Warning code, for example Fleet.HubArchived.")] string Code,
+    [property: Description("Readable explanation.")] string Message)
+{
+    /// <summary>Maintenance is due, but the machine's home hub is archived, so no service order was drafted.</summary>
+    public const string HubArchived = "Fleet.HubArchived";
+}
 
 /// <summary>Rules of <see cref="RecordReadingRequest"/>, shared by the form and the server.</summary>
 public sealed class RecordReadingRequestValidator : AbstractValidator<RecordReadingRequest>

@@ -376,3 +376,5 @@
 +\binventory\.(fleet_hub_reference|apply_fleet_hub_references)\b
 +\b(trg_machine_home_hub_not_archived|trg_service_order_hub_not_archived)\b
 +^IF FOUND THEN RAISE EXCEPTION 'The % % is archived and cannot be chosen', p_what, v_code USING ERRCODE = 'SS500';$
+# PR 7j1b (ADR 0029): a reading at an archived home hub is stored and drafts nothing; fleet.log_engine_hours says so.
++^COMMENT ON FUNCTION fleet\.log_engine_hours\(.*\) IS 'UC02: validates and stores an engine-hours reading and drafts every plan due within 50 h; at a home hub archived
