@@ -10,6 +10,8 @@ internal static class RecordKinds
     public const string Warehouse = "warehouse";
 
     public const string Manufacturer = "manufacturer";
+
+    public const string Part = "part";
 }
 
 /// <summary>An employee in an assignment role, e.g. KEEPER (a value; the employee belongs to the Identity module).</summary>
@@ -95,6 +97,32 @@ internal sealed class ManufacturerResponsible : Entity<long>, IResponsibility
     }
 
     public short ManufacturerId { get; private set; }
+
+    public Guid EmployeeId { get; private set; }
+
+    public string Role { get; private set; }
+
+    public DateTimeOffset CreatedAt { get; private set; }
+
+    public Guid? CreatedBy { get; private set; }
+}
+
+/// <summary>A responsible employee of a part (<c>catalog.part_responsible</c>, PR 7i1b): product specialist or buyer, no rights.</summary>
+internal sealed class PartResponsible : Entity<long>, IResponsibility
+{
+    private PartResponsible()
+        : base(default) => Role = null!;
+
+    public PartResponsible(long partId, Guid employeeId, string role, Guid? createdBy)
+        : base(default)
+    {
+        PartId = partId;
+        EmployeeId = employeeId;
+        Role = role;
+        CreatedBy = createdBy;
+    }
+
+    public long PartId { get; private set; }
 
     public Guid EmployeeId { get; private set; }
 

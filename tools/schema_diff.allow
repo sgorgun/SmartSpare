@@ -340,3 +340,9 @@
 +^SELECT count\(\*\) INTO v_count FROM inventory\.stock_reservation r WHERE r\.part_id = NEW\.id
 +^SELECT count\(DISTINCT t\.id\) INTO v_count FROM inventory\.transfer_order t JOIN inventory\.transfer_order_line l
 +^v_count\s+bigint;$
+# PR 7i1b: responsible employees of parts, the fourth kind of the shared pattern, and their archive-guard reason.
++\bcatalog\.part_responsible\b
++\b(uq|pk|fk)_part_responsible(_part)?\b
++\bix_part_responsible_employee\b
++^IF v_count > 0 THEN v_reasons := v_reasons \|\| format\('%s responsible employee\(s\); remove them first', v_count\);$
++\bcatalog\.part_responsible_id_seq\b

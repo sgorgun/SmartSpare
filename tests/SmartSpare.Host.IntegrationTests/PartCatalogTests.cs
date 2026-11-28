@@ -128,6 +128,45 @@ public sealed class PartCatalogTests(IdentityDatabaseFixture database) : IAsyncL
         refused.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
     }
 
+    [Fact]
+    public async Task A_buyer_is_named_for_a_part_without_rights_and_blocks_archiving_until_removed()
+    {
+        var part = await CreateAsync(Write($"{_tag}-6", _jd, null));
+        var employee = await database.CreateUserAsync($"{_tag.ToLowerInvariant()}.buyer", [AppRoles.InventoryPlanner], []);
+        var events = "SELECT count(*) FROM inventory.outbox_message WHERE type LIKE '%.ResponsibilitiesChanged,%'";
+        var before = await database.ScalarAsync<long>(events);
+
+        using (var assigned = await SendAsync(Planner, HttpMethod.Put, $"{Parts}/{part.Id}/responsibles", new ResponsiblesRequest([new ResponsibleEntry(employee, "buyer")])))
+        {
+            assigned.StatusCode.ShouldBe(HttpStatusCode.OK, await assigned.Content.ReadAsStringAsync(Ct));
+            (await assigned.Content.ReadFromJsonAsync<List<ResponsibleDto>>(Ct))!.ShouldHaveSingleItem().GrantsScope.ShouldBeFalse();
+        }
+
+        (await database.ScalarAsync<long>(events)).ShouldBe(before, "a buyer gets no rights, so Identity is not told");
+
+        using (var refused = await SendAsync(Keeper, HttpMethod.Put, $"{Parts}/{part.Id}/responsibles", new ResponsiblesRequest([])))
+        {
+            refused.StatusCode.ShouldBe(HttpStatusCode.Forbidden, "Inventory.Part.Edit");
+        }
+
+        using var archive = await SendAsync(Planner, HttpMethod.Post, $"{Parts}/{part.Id}/archive", null, part.Version);
+        archive.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        var body = await archive.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>(Ct);
+        body.GetProperty("reasons").EnumerateArray().Select(r => r.GetString()).ShouldBe(["1 responsible employee(s); remove them first"]);
+    }
+
+    [Fact]
+    public async Task The_editor_reads_the_categories_and_units_of_the_reference_data()
+    {
+        using (var categories = await SendAsync(Keeper, HttpMethod.Get, "/api/v1/inventory/part-categories"))
+        {
+            (await categories.Content.ReadFromJsonAsync<List<ReferenceItem>>(Ct))!.ShouldContain(c => c.Code == "OIL_FILTER");
+        }
+
+        using var units = await SendAsync(Keeper, HttpMethod.Get, "/api/v1/inventory/units-of-measure");
+        (await units.Content.ReadFromJsonAsync<List<ReferenceItem>>(Ct))!.ShouldContain(u => u.Code == "PCS");
+    }
+
     private PartWrite Write(string oem, short brand, short? maker) =>
         new(oem, "Engine oil filter", brand, _category, _pcs, 0.45m, 18.40m, false, maker);
 

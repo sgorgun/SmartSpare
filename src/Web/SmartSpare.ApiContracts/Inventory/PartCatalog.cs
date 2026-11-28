@@ -56,3 +56,10 @@ public sealed class PartWriteValidator : AbstractValidator<PartWrite>
         RuleFor(p => p.WeightKg).GreaterThanOrEqualTo(0).LessThan(1_000_000m).When(p => p.WeightKg is not null);
     }
 }
+
+/// <summary>An entry of the Platform's reference data (part category, unit of measure) for a choice in a form.</summary>
+[Description("An entry of the reference data: a part category or a unit of measure.")]
+public sealed record ReferenceItem(
+    [property: Description("Id.")] long Id,
+    [property: Description("Business code, for example OIL_FILTER or PCS.")] string Code,
+    [property: Description("Display name.")] string Name);

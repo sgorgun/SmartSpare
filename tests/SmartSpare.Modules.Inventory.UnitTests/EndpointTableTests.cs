@@ -97,6 +97,12 @@ public sealed class EndpointTableTests
             "PUT /api/v1/inventory/parts/{id:long}",
             "POST /api/v1/inventory/parts/{id:long}/archive",
             "POST /api/v1/inventory/parts/{id:long}/restore",
+
+            // PR 7i1b: part responsibles and the reference data of the part editor.
+            "GET /api/v1/inventory/parts/{id:long}/responsibles",
+            "PUT /api/v1/inventory/parts/{id:long}/responsibles",
+            "GET /api/v1/inventory/part-categories",
+            "GET /api/v1/inventory/units-of-measure",
         ], ignoreOrder: true);
 
     [Theory]
@@ -135,6 +141,7 @@ public sealed class EndpointTableTests
     [InlineData("POST /api/v1/inventory/manufacturers", Permissions.Inventory.Manufacturer.Create)]
     [InlineData("POST /api/v1/inventory/manufacturers/{id:long}/archive", Permissions.Inventory.Manufacturer.Archive)]
     [InlineData("PUT /api/v1/inventory/manufacturers/{id:int}/responsibles", Permissions.Inventory.Manufacturer.Edit)]
+    [InlineData("PUT /api/v1/inventory/parts/{id:long}/responsibles", Permissions.Inventory.Part.Edit)]
     [InlineData("GET /api/v1/inventory/imports", Permissions.Inventory.Import.View)]
     [InlineData("POST /api/v1/inventory/transfers/{id:long}/approve", Permissions.Inventory.Transfer.Approve)]
     [InlineData("POST /api/v1/inventory/transfers/{id:long}/cancel", Permissions.Inventory.Transfer.Cancel)]

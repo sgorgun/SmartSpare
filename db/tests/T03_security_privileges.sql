@@ -128,6 +128,9 @@ SELECT pg_temp.expect_error(
       FROM catalog.brand b, ref.part_category c, ref.unit_of_measure u
       WHERE b.code = 'T03ARCH' AND c.code = 'OIL_FILTER' AND u.code = 'PCS'$$,
     'SS500', 'PR 7i1: a new part cannot name an archived brand, whoever writes it');
+SELECT pg_temp.act_as('egle.stankeviciute');             -- WAREHOUSE_KEEPER
+SELECT pg_temp.expect_error($$DELETE FROM catalog.part_responsible WHERE false$$, 'SS301',
+                            'PR 7i1b: a keeper cannot change part responsibles in the database (Inventory.Part.Edit)');
 SELECT pg_temp.act_as('admin.smartspare');
 DELETE FROM catalog.brand_responsible WHERE false;
 SELECT pg_temp.ok(true, 'ADR 0028: the administrator holds Inventory.Brand.ManageAssignments and writes brand assignments');
